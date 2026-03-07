@@ -47,19 +47,25 @@ defmodule Ltix.MixProject do
     [
       main: "Ltix",
       extras: ["README.md"],
+      nest_modules_by_prefix: [
+        Ltix.LaunchClaims,
+        Ltix.LaunchClaims.Role,
+        Ltix.Errors,
+        Ltix.Errors.Invalid,
+        Ltix.Errors.Security,
+        Ltix.Errors.Unknown
+      ],
       groups_for_modules: [
-        "OIDC Flow": [
-          Ltix.OIDC.LoginInitiation,
-          Ltix.OIDC.AuthenticationRequest,
-          Ltix.OIDC.Callback
-        ],
-        JWT: [
-          Ltix.JWT.Token,
-          Ltix.JWT.KeySet
+        Core: [
+          Ltix.Registration,
+          Ltix.Deployment,
+          Ltix.StorageAdapter
         ],
         "Launch Claims": [
           Ltix.LaunchClaims,
           Ltix.LaunchClaims.Role,
+          Ltix.LaunchClaims.Role.LIS,
+          Ltix.LaunchClaims.Role.Parser,
           Ltix.LaunchClaims.Context,
           Ltix.LaunchClaims.ResourceLink,
           Ltix.LaunchClaims.LaunchPresentation,
