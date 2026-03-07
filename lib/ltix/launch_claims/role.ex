@@ -98,25 +98,37 @@ defmodule Ltix.LaunchClaims.Role do
 
   # --- Predicate Helpers ---
 
-  @doc "Check if any role is a context Instructor."
+  @doc """
+  Check if any role is a context Instructor, including sub-roles
+  like TeachingAssistant.
+
+  To check for _only_ the principal Instructor role (excluding sub-roles),
+  use `has_role?(roles, :context, :instructor, nil)`.
+  """
   @spec instructor?([t()]) :: boolean()
-  def instructor?(roles), do: has_role?(roles, :context, :instructor)
+  def instructor?(roles), do: has_name?(roles, :context, :instructor)
 
-  @doc "Check if any role is a context Learner."
+  @doc """
+  Check if any role is a context Learner, including sub-roles
+  like GuestLearner.
+
+  To check for _only_ the principal Learner role (excluding sub-roles),
+  use `has_role?(roles, :context, :learner, nil)`.
+  """
   @spec learner?([t()]) :: boolean()
-  def learner?(roles), do: has_role?(roles, :context, :learner)
+  def learner?(roles), do: has_name?(roles, :context, :learner)
 
-  @doc "Check if any role is a context Administrator."
+  @doc "Check if any role is a context Administrator, including sub-roles."
   @spec administrator?([t()]) :: boolean()
-  def administrator?(roles), do: has_role?(roles, :context, :administrator)
+  def administrator?(roles), do: has_name?(roles, :context, :administrator)
 
-  @doc "Check if any role is a context ContentDeveloper."
+  @doc "Check if any role is a context ContentDeveloper, including sub-roles."
   @spec content_developer?([t()]) :: boolean()
-  def content_developer?(roles), do: has_role?(roles, :context, :content_developer)
+  def content_developer?(roles), do: has_name?(roles, :context, :content_developer)
 
-  @doc "Check if any role is a context Mentor."
+  @doc "Check if any role is a context Mentor, including sub-roles."
   @spec mentor?([t()]) :: boolean()
-  def mentor?(roles), do: has_role?(roles, :context, :mentor)
+  def mentor?(roles), do: has_name?(roles, :context, :mentor)
 
   @doc "Check if any role is an Instructor#TeachingAssistant sub-role."
   @spec teaching_assistant?([t()]) :: boolean()
@@ -153,6 +165,16 @@ defmodule Ltix.LaunchClaims.Role do
   def system_roles(roles), do: Enum.filter(roles, &(&1.type == :system))
 
   # --- Private ---
+
+  # Matches on type and name, ignoring sub_role.
+  # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies-0)
+  # Platforms SHOULD send the principal role alongside a sub-role, but the
+  # tool MUST NOT assume it is always present.
+  defp has_name?(roles, type, name) do
+    Enum.any?(roles, fn role ->
+      role.type == type and role.name == name
+    end)
+  end
 
   defp try_parsers(uri, parsers) do
     Enum.find_value(parsers, :error, &try_parser(uri, &1))

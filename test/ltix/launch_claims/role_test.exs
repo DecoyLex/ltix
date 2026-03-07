@@ -368,6 +368,29 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert Role.teaching_assistant?(roles)
     end
 
+    # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies-0)
+    # "Whenever a platform specifies a sub-role, by best practice it should
+    # also include the associated principal role." The tool MUST NOT assume
+    # the principal role is always present alongside the sub-role.
+    test "instructor?/1 matches when only sub-role is present", %{} do
+      {roles, []} =
+        Role.parse_all([
+          "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"
+        ])
+
+      assert Role.instructor?(roles)
+    end
+
+    # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies-0)
+    test "learner?/1 matches when only sub-role is present" do
+      {roles, []} =
+        Role.parse_all([
+          "http://purl.imsglobal.org/vocab/lis/v2/membership/Learner#GuestLearner"
+        ])
+
+      assert Role.learner?(roles)
+    end
+
     test "has_role?/3 generic predicate", %{roles: roles} do
       assert Role.has_role?(roles, :context, :instructor)
       refute Role.has_role?(roles, :context, :administrator)
