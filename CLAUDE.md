@@ -23,6 +23,22 @@ cog check --from-latest-tag                               # check all since last
 
 Do NOT use `cog commit` — it bypasses JJ and creates raw git commits.
 
+## Quality Checks
+
+Run `/qc` before committing to check formatting, credo, and test hygiene.
+
+## Doctests
+
+Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests.
+Avoid assertions in doctests — they muddy things for the end-user. Show inputs and outputs directly.
+
+## Spec References
+
+Always link spec annotations to the relevant section of the online spec. Use the
+anchor mappings in `.claude/projects/-home-alex-Code-elixir-ltix/memory/spec-anchors.md`.
+
+Format: `[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
+
 ## VCS
 
 This project uses **JJ (Jujutsu)**, not raw git. Use `jj` commands for all version control.
@@ -57,7 +73,7 @@ mix usage_rules.docs Enum.zip/1
 
 ## Searching Documentation
 
-You should also consult the documentation of any tools you are using, early and often. The best 
+You should also consult the documentation of any tools you are using, early and often. The best
 way to accomplish this is to use the `usage_rules.search_docs` mix task. Once you have
 found what you are looking for, use the links in the search results to get more detail. For example:
 
