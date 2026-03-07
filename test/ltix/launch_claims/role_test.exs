@@ -44,71 +44,84 @@ defmodule Ltix.LaunchClaims.RoleTest do
   @sub_role_base "http://purl.imsglobal.org/vocab/lis/v2/membership/"
 
   describe "parse/1 context sub-roles [Core §A.2.3.1]" do
-    test "parses Instructor#TeachingAssistant" do
-      uri = @sub_role_base <> "Instructor#TeachingAssistant"
+    # Exhaustive test of every sub-role in the vocabulary.
+    # Each entry: {PrincipalRole, SubRole, expected_name_atom, expected_sub_role_atom}
+    @sub_role_cases [
+      # Administrator sub-roles
+      {"Administrator", "Administrator", :administrator, :administrator},
+      {"Administrator", "Developer", :administrator, :developer},
+      {"Administrator", "ExternalDeveloper", :administrator, :external_developer},
+      {"Administrator", "ExternalSupport", :administrator, :external_support},
+      {"Administrator", "ExternalSystemAdministrator", :administrator,
+       :external_system_administrator},
+      {"Administrator", "Support", :administrator, :support},
+      {"Administrator", "SystemAdministrator", :administrator, :system_administrator},
+      # ContentDeveloper sub-roles
+      {"ContentDeveloper", "ContentDeveloper", :content_developer, :content_developer},
+      {"ContentDeveloper", "ContentExpert", :content_developer, :content_expert},
+      {"ContentDeveloper", "ExternalContentExpert", :content_developer, :external_content_expert},
+      {"ContentDeveloper", "Librarian", :content_developer, :librarian},
+      # Instructor sub-roles
+      {"Instructor", "ExternalInstructor", :instructor, :external_instructor},
+      {"Instructor", "Grader", :instructor, :grader},
+      {"Instructor", "GuestInstructor", :instructor, :guest_instructor},
+      {"Instructor", "Lecturer", :instructor, :lecturer},
+      {"Instructor", "PrimaryInstructor", :instructor, :primary_instructor},
+      {"Instructor", "SecondaryInstructor", :instructor, :secondary_instructor},
+      {"Instructor", "TeachingAssistant", :instructor, :teaching_assistant},
+      {"Instructor", "TeachingAssistantGroup", :instructor, :teaching_assistant_group},
+      {"Instructor", "TeachingAssistantOffering", :instructor, :teaching_assistant_offering},
+      {"Instructor", "TeachingAssistantSection", :instructor, :teaching_assistant_section},
+      {"Instructor", "TeachingAssistantSectionAssociation", :instructor,
+       :teaching_assistant_section_association},
+      {"Instructor", "TeachingAssistantTemplate", :instructor, :teaching_assistant_template},
+      # Learner sub-roles
+      {"Learner", "ExternalLearner", :learner, :external_learner},
+      {"Learner", "GuestLearner", :learner, :guest_learner},
+      {"Learner", "Instructor", :learner, :instructor},
+      {"Learner", "Learner", :learner, :learner},
+      {"Learner", "NonCreditLearner", :learner, :non_credit_learner},
+      # Manager sub-roles
+      {"Manager", "AreaManager", :manager, :area_manager},
+      {"Manager", "CourseCoordinator", :manager, :course_coordinator},
+      {"Manager", "ExternalObserver", :manager, :external_observer},
+      {"Manager", "Manager", :manager, :manager},
+      {"Manager", "Observer", :manager, :observer},
+      # Member sub-roles
+      {"Member", "Member", :member, :member},
+      # Mentor sub-roles
+      {"Mentor", "Advisor", :mentor, :advisor},
+      {"Mentor", "Auditor", :mentor, :auditor},
+      {"Mentor", "ExternalAdvisor", :mentor, :external_advisor},
+      {"Mentor", "ExternalAuditor", :mentor, :external_auditor},
+      {"Mentor", "ExternalLearningFacilitator", :mentor, :external_learning_facilitator},
+      {"Mentor", "ExternalMentor", :mentor, :external_mentor},
+      {"Mentor", "ExternalReviewer", :mentor, :external_reviewer},
+      {"Mentor", "ExternalTutor", :mentor, :external_tutor},
+      {"Mentor", "LearningFacilitator", :mentor, :learning_facilitator},
+      {"Mentor", "Mentor", :mentor, :mentor},
+      {"Mentor", "Reviewer", :mentor, :reviewer},
+      {"Mentor", "Tutor", :mentor, :tutor},
+      # Officer sub-roles
+      {"Officer", "Chair", :officer, :chair},
+      {"Officer", "Communications", :officer, :communications},
+      {"Officer", "Secretary", :officer, :secretary},
+      {"Officer", "Treasurer", :officer, :treasurer},
+      {"Officer", "Vice-Chair", :officer, :vice_chair}
+    ]
 
-      assert {:ok,
-              %Role{
-                type: :context,
-                name: :instructor,
-                sub_role: :teaching_assistant,
-                uri: ^uri
-              }} = Role.parse(uri)
-    end
+    for {principal, sub, expected_name, expected_sub_role} <- @sub_role_cases do
+      test "parses #{principal}##{sub}" do
+        uri = @sub_role_base <> unquote(principal) <> "#" <> unquote(sub)
 
-    test "parses Instructor#Grader" do
-      uri = @sub_role_base <> "Instructor#Grader"
-
-      assert {:ok, %Role{type: :context, name: :instructor, sub_role: :grader}} = Role.parse(uri)
-    end
-
-    test "parses Instructor#PrimaryInstructor" do
-      uri = @sub_role_base <> "Instructor#PrimaryInstructor"
-
-      assert {:ok, %Role{name: :instructor, sub_role: :primary_instructor}} = Role.parse(uri)
-    end
-
-    test "parses Learner#GuestLearner" do
-      uri = @sub_role_base <> "Learner#GuestLearner"
-
-      assert {:ok, %Role{type: :context, name: :learner, sub_role: :guest_learner}} =
-               Role.parse(uri)
-    end
-
-    test "parses Administrator#SystemAdministrator" do
-      uri = @sub_role_base <> "Administrator#SystemAdministrator"
-
-      assert {:ok, %Role{name: :administrator, sub_role: :system_administrator}} = Role.parse(uri)
-    end
-
-    test "parses ContentDeveloper#Librarian" do
-      uri = @sub_role_base <> "ContentDeveloper#Librarian"
-
-      assert {:ok, %Role{name: :content_developer, sub_role: :librarian}} = Role.parse(uri)
-    end
-
-    test "parses Manager#CourseCoordinator" do
-      uri = @sub_role_base <> "Manager#CourseCoordinator"
-
-      assert {:ok, %Role{name: :manager, sub_role: :course_coordinator}} = Role.parse(uri)
-    end
-
-    test "parses Mentor#Tutor" do
-      uri = @sub_role_base <> "Mentor#Tutor"
-
-      assert {:ok, %Role{name: :mentor, sub_role: :tutor}} = Role.parse(uri)
-    end
-
-    test "parses Officer#Chair" do
-      uri = @sub_role_base <> "Officer#Chair"
-
-      assert {:ok, %Role{name: :officer, sub_role: :chair}} = Role.parse(uri)
-    end
-
-    test "parses Member#Member" do
-      uri = @sub_role_base <> "Member#Member"
-
-      assert {:ok, %Role{name: :member, sub_role: :member}} = Role.parse(uri)
+        assert {:ok,
+                %Role{
+                  type: :context,
+                  name: unquote(expected_name),
+                  sub_role: unquote(expected_sub_role),
+                  uri: ^uri
+                }} = Role.parse(uri)
+      end
     end
   end
 

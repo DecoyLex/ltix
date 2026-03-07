@@ -199,9 +199,9 @@ defmodule Ltix.LaunchClaims.Role.LIS do
 
   defp to_snake_atom(pascal_string) do
     pascal_string
+    |> String.replace("-", "")
     |> String.replace(~r/([A-Z])/, "_\\1")
     |> String.trim_leading("_")
-    |> String.replace("-", "_")
     |> String.downcase()
     |> String.to_existing_atom()
   end

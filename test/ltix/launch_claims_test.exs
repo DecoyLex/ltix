@@ -377,6 +377,25 @@ defmodule Ltix.LaunchClaimsTest do
 
       assert Exception.message(error) =~ "parse failed"
     end
+
+    test "per-call parsers override config parsers" do
+      claim_key = "https://example.com/override-test"
+      json = %{claim_key => "raw"}
+
+      config_parser = fn value -> {:ok, {:from_config, value}} end
+      call_parser = fn value -> {:ok, {:from_call, value}} end
+
+      Application.put_env(:ltix, :launch_claim_parsers, %{claim_key => config_parser})
+
+      try do
+        assert {:ok, %LaunchClaims{extensions: extensions}} =
+                 LaunchClaims.from_json(json, parsers: %{claim_key => call_parser})
+
+        assert extensions[claim_key] == {:from_call, "raw"}
+      after
+        Application.delete_env(:ltix, :launch_claim_parsers)
+      end
+    end
   end
 
   # --- Full Parse ---
