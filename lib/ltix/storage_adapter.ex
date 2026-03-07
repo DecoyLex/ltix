@@ -1,4 +1,4 @@
-defmodule Ltix.CallbackBehaviour do
+defmodule Ltix.StorageAdapter do
   @moduledoc """
   Behaviour for host-app integration.
 

@@ -225,7 +225,7 @@ defstruct [
 
 ---
 
-### 2.2 `Ltix.CallbackBehaviour` — Host Application Interface
+### 2.2 `Ltix.StorageAdapter` — Host Application Interface
 
 **Purpose**: Decouple the library from storage. The host app implements this
 behaviour to look up registrations and track nonces.
@@ -1180,7 +1180,7 @@ the spec's step numbering:
    > "The ID Token MUST contain a `nonce` Claim."
    The nonce in the JWT must match a nonce previously issued by this tool in
    Step 2 (binding), and must not have been used before (replay prevention).
-   Both checks are delegated to `CallbackBehaviour.validate_nonce/2`.
+   Both checks are delegated to `StorageAdapter.validate_nonce/2`.
 13. **Parse claims** — `LaunchClaims.from_json(jwt_body)` [Core §5.3, §5.4]
 14. **Validate required LTI claims** [Core §5.3]:
     - `message_type` MUST equal `"LtiResourceLinkRequest"` [Core §5.3.1]
@@ -1355,7 +1355,7 @@ and the `state` value. The caller is responsible for:
 1. Storing `state` in the user's session for CSRF verification [Sec §7.3.1]
 2. Redirecting the user agent to `redirect_uri`
 
-The nonce is stored via `CallbackBehaviour.store_nonce/2` automatically.
+The nonce is stored via `StorageAdapter.store_nonce/2` automatically.
 """
 @spec handle_login(params :: map(), callback_module :: module(), opts :: keyword()) ::
   {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Error.t()}
@@ -1393,7 +1393,7 @@ The order is driven by dependency flow and TDD. We build leaf modules first
 | **1** | `Ltix.Registration` | — | Struct validation [Core §3.1.3; Sec §5.1.2] |
 | **1** | `Ltix.Deployment` | — | Struct validation [Core §3.1.3] |
 | **1** | `Ltix.Errors` (Splode) | `splode` | Error classes & modules |
-| **1** | `Ltix.CallbackBehaviour` | — | Behaviour definition |
+| **1** | `Ltix.StorageAdapter` | — | Behaviour definition |
 | **1** | `test/support/jwt_helper.ex` | `jose` | RSA key gen [Sec §6.1], JWT minting [Sec §5.1.2] |
 | **2** | `Ltix.LaunchClaims.Role` | — | Role parsing [Core §A.2]; [Cert §6.1.2, §6.1.3] role scenarios |
 | **2** | Nested claim structs | — | Required/optional field parsing [Core §5.3.5, §5.4.1–§5.4.5, §6.1] |
@@ -1401,9 +1401,9 @@ The order is driven by dependency flow and TDD. We build leaf modules first
 | **3** | `Ltix.JWT.KeySet` | `jose`, `req` | JWKS fetch [Sec §6.3, §6.4]; kid lookup [Cert §6.1.1] |
 | **3** | `Ltix.JWT.Token` | `jose`, `KeySet` | ID Token validation [Sec §5.1.3]; [Cert §6.1.1] bad payloads |
 | **4** | `Ltix.LaunchContext` | `LaunchClaims` | Struct construction |
-| **4** | `Ltix.OIDC.LoginInitiation` | `Registration`, `CallbackBehaviour` | Login params [Sec §5.1.1.1] |
+| **4** | `Ltix.OIDC.LoginInitiation` | `Registration`, `StorageAdapter` | Login params [Sec §5.1.1.1] |
 | **4** | `Ltix.OIDC.AuthenticationRequest` | `Registration` | Auth redirect [Sec §5.1.1.2] |
-| **5** | `Ltix.OIDC.Callback` | `Token`, `LaunchClaims`, `KeySet`, `CallbackBehaviour` | Full validation [Sec §5.1.3] |
+| **5** | `Ltix.OIDC.Callback` | `Token`, `LaunchClaims`, `KeySet`, `StorageAdapter` | Full validation [Sec §5.1.3] |
 | **6** | `Ltix` (facade) | `OIDC.*` | Two-function public API [Sec §5.1.1] |
 | **7** | Integration tests | All | [Cert §6.1] end-to-end scenarios |
 
@@ -1534,7 +1534,7 @@ HTTP server.
 
 ### 5.2 Storage Agnosticism via Behaviour
 
-The `CallbackBehaviour` lets host apps store registrations and nonces however
+The `StorageAdapter` lets host apps store registrations and nonces however
 they choose (ETS, database, GenServer, etc.). The library never touches storage
 directly. This follows the spec's separation of concerns — registration is
 out-of-band per [Sec §5.1.1.1], and nonce tracking is an implementation choice
@@ -1615,7 +1615,7 @@ The `Registration` struct represents the security contract (issuer, client_id,
 endpoints). Deployments are resolved separately per message via the
 `deployment_id` claim. The data model supports one-to-many from client_id to
 deployment_id. The `Deployment` struct is intentionally thin — it holds only the
-`deployment_id`, but the `CallbackBehaviour.get_deployment/2` callback allows
+`deployment_id`, but the `StorageAdapter.get_deployment/2` callback allows
 host apps to attach additional deployment-specific data.
 
 ### 5.10 AshLti-Aligned Claims Architecture
