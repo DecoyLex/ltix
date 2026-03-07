@@ -32,7 +32,7 @@ mix new .
 | `jose` | JWT/JWS/JWK (RS256 signing & verification) | [Sec §5.1.2] ID Token is a JWT; [Sec §5.1.3] RS256 verification; [Sec §6.1] RSA keys |
 | `req` | HTTP client for JWKS fetching (testable via `Req.Test`) | [Sec §6.3] Key Set URL — tool fetches platform public keys from JWKS endpoint |
 | `splode` | Structured, composable error types (Ash-compatible) | Rich error reporting |
-| `plug` | Request/response interface (optional integration) | [Sec §5.1.1.3] Authentication response via form_post |
+| `plug` (optional) | Request/response interface for convenience wrappers | [Sec §5.1.1.3] Authentication response via form_post — optional, not required for core API |
 
 JSON encoding/decoding uses the built-in `JSON` module (OTP 27+). No `jason` dependency needed.
 
@@ -80,11 +80,13 @@ lib/
       security.ex                  # Error class for security violations
       security/
         signature_invalid.ex       # JWT signature verification failed [Sec §5.1.3 step 1]
-        token_expired.ex           # exp in the past [Sec §5.1.3 step 6]
+        token_expired.ex           # exp in the past [Sec §5.1.3 step 7]
         issuer_mismatch.ex         # iss doesn't match registration [Sec §5.1.3 step 2]
         audience_mismatch.ex       # client_id not in aud [Sec §5.1.3 step 3]
-        algorithm_not_allowed.ex   # alg is not RS256 [Sec §5.1.3 step 5; Sec §7.3.2]
-        nonce_reused.ex            # Nonce previously seen [Sec §5.1.3 step 8]
+        algorithm_not_allowed.ex   # alg is not RS256 [Sec §5.1.3 step 6; Sec §7.3.2]
+        nonce_missing.ex            # No nonce in JWT [Sec §5.1.3 step 9]
+        nonce_reused.ex            # Nonce previously seen [Sec §5.1.3 step 9]
+        nonce_not_found.ex         # Nonce not issued by this tool [Sec §5.1.3 step 9]
         state_mismatch.ex          # CSRF state doesn't match [Sec §7.3.1]
         kid_missing.ex             # No kid in JWT header [Cert §6.1.1 "No KID Sent"]
         kid_not_found.ex           # kid not in JWKS [Cert §6.1.1 "Incorrect KID"]
@@ -140,7 +142,14 @@ prior to launch (out-of-band registration).
 > platform MUST generate an immutable `deployment_id` identifier to identify the
 > integration."
 
-A struct holding everything the tool knows about a registered platform:
+A struct holding everything the tool knows about a registered platform.
+
+> [Core §3.1.3]: "A tool MUST allow multiple deployments on a given platform to
+> share the same `client_id` and the security contract attached to it."
+
+This means the data model supports a **one-to-many relationship** from
+`client_id` to `deployment_id`. A tool cannot assume `client_id` uniquely
+identifies a deployment.
 
 ```elixir
 defstruct [
@@ -148,27 +157,71 @@ defstruct [
   :client_id,          # [Sec §5.1.1.2] Tool's OAuth 2.0 client_id assigned by platform
   :auth_endpoint,      # [Sec §5.1.1.1] Platform OIDC authorization endpoint URL
   :jwks_uri,           # [Sec §6.3] Platform Key Set URL for public key retrieval
-  :deployment_ids      # [Core §3.1.3] Set of valid deployment_id values (max 255 ASCII, case-sensitive)
+  :token_endpoint      # [Sec §4.1] Platform OAuth 2.0 token endpoint URL (for future service calls)
 ]
 ```
 
 **Validation rules**:
-- `issuer` MUST be HTTPS URL without query or fragment
-  > [Sec §5.1.2]: "Issuer Identifier... HTTPS URL... no query or fragment"
+- `issuer` MUST be a case-sensitive HTTPS URL containing scheme, host, optionally
+  port and path, with **no query or fragment components**
+  > [Sec §5.1.2]: "The `iss` value is a case-sensitive URL using the HTTPS scheme
+  > that contains: scheme, host; and, optionally, port number, and path components;
+  > and, no query or fragment components."
 - `client_id` MUST be non-empty string [Sec §5.1.1.2: tool must send `client_id`]
 - `auth_endpoint` MUST be HTTPS URL
   > [Sec §3]: "Implementers MUST use TLS 1.2 and/or TLS 1.3... Implementers MUST NOT use Secure Sockets Layer (SSL)."
   > [Cert §4.2]: "All communication endpoints MUST be secured with TLS (SSL-alone is expressly forbidden)."
 - `jwks_uri` MUST be HTTPS URL [Sec §3; Sec §6.3]
-- `deployment_ids` MUST be a MapSet of strings, each ≤ 255 ASCII characters
-  > [Core §5.3.3]: "The deployment_id claim's value contains a case-sensitive string... It MUST NOT exceed 255 ASCII characters in length."
+- `token_endpoint` MUST be HTTPS URL when present [Sec §3]
 
 **Tests**:
 - Valid registration construction
 - Rejection of non-HTTPS issuer [Sec §5.1.2]
 - Rejection of issuer with query string [Sec §5.1.2]
+- Rejection of issuer with fragment [Sec §5.1.2]
 - Rejection of empty client_id
+- Rejection of non-HTTPS auth_endpoint [Sec §3]
+- Rejection of non-HTTPS jwks_uri [Sec §3]
+
+---
+
+### 2.1b `Ltix.Deployment` — Deployment Identity
+
+**Spec basis**: [Core §3.1.3] Tool Deployment; [Core §5.3.3] deployment_id claim.
+
+> [Core §3.1.3]: "When a user deploys a tool within their tool platform, the
+> platform MUST generate an immutable `deployment_id` identifier to identify the
+> integration. A platform MUST generate a unique `deployment_id` for each tool
+> it integrates with."
+>
+> [Core §3.1.3]: "Every message between the platform and tool MUST include the
+> `deployment_id` in addition to the `client_id`."
+
+A struct representing a single deployment of a tool on a platform:
+
+```elixir
+defstruct [
+  :deployment_id       # [Core §5.3.3] Case-sensitive string, ≤ 255 ASCII chars
+]
+
+@type t :: %__MODULE__{
+  deployment_id: String.t()
+}
+```
+
+**Validation rules**:
+- `deployment_id` MUST be a non-empty string
+- `deployment_id` MUST NOT exceed 255 ASCII characters in length
+  > [Core §5.3.3]: "The required deployment_id claim's value contains a
+  > case-sensitive string that identifies the platform-tool integration. It MUST
+  > NOT exceed 255 ASCII characters in length."
+- `deployment_id` is case-sensitive — comparisons MUST be exact byte match
+
+**Tests**:
+- Valid deployment construction
+- Rejection of empty deployment_id
 - Rejection of deployment_id exceeding 255 characters [Core §5.3.3]
+- Rejection of non-ASCII deployment_id (> 255 ASCII chars, even if fewer Unicode chars)
 
 ---
 
@@ -178,15 +231,67 @@ defstruct [
 behaviour to look up registrations and track nonces.
 
 ```elixir
-@callback get_registration(issuer :: String.t(), client_id :: String.t()) ::
+@doc """
+Look up a platform registration by issuer and client_id.
+
+Called during OIDC login initiation [Sec §5.1.1.1]. The `client_id` parameter
+is optional — when not provided by the platform in the login request, the tool
+must be able to locate the registration by issuer alone.
+
+> [Core §4.1.3]: "The new optional parameter `client_id` specifies the client
+> id for the authorization server that should be used to authorize the
+> subsequent LTI message request."
+"""
+@callback get_registration(issuer :: String.t(), client_id :: String.t() | nil) ::
   {:ok, Registration.t()} | {:error, :not_found}
 
+@doc """
+Look up a deployment by registration and deployment_id.
+
+Called during callback validation after the JWT deployment_id claim is
+extracted. The deployment_id is case-sensitive.
+
+> [Core §3.1.3]: "Every message between the platform and tool MUST include
+> the `deployment_id` in addition to the `client_id`."
+"""
 @callback get_deployment(registration :: Registration.t(), deployment_id :: String.t()) ::
   {:ok, Deployment.t()} | {:error, :not_found}
 
+@doc """
+Store a nonce during OIDC login initiation [Sec §5.1.1.2] so it can be
+validated when the callback arrives.
+
+The nonce is generated by the library and must be persisted by the host app
+so that `validate_nonce/2` can verify it was issued by us and not replayed.
+"""
+@callback store_nonce(nonce :: String.t(), registration :: Registration.t()) :: :ok
+
+@doc """
+Validate a nonce from the ID Token [Sec §5.1.3 step 9].
+
+The implementation MUST verify two things:
+1. The nonce was previously issued by this tool (matches a stored value)
+   > [Sec §5.1.3 step 9]: "The Tool SHOULD verify that it has not yet received
+   > this nonce value"
+2. The nonce has not been used before (replay prevention)
+
+After successful validation, the nonce MUST be marked as consumed so it
+cannot be reused. The host app MAY define its own acceptable time window for
+nonce expiry.
+"""
 @callback validate_nonce(nonce :: String.t(), registration :: Registration.t()) ::
-  :ok | {:error, :nonce_already_used}
+  :ok | {:error, :nonce_already_used | :nonce_not_found}
 ```
+
+**Atom-to-Splode conversion**: The behaviour returns simple atoms for ease of
+implementation by host apps. The library converts these at the call boundary:
+
+| Callback atom | Splode error |
+|---|---|
+| `get_registration` → `:not_found` | `Errors.Invalid.RegistrationNotFound` |
+| `get_deployment` → `:not_found` | `Errors.Invalid.DeploymentNotFound` |
+| `validate_nonce` → `:nonce_already_used` | `Errors.Security.NonceReused` |
+| `validate_nonce` → `:nonce_not_found` | `Errors.Security.NonceNotFound` |
 
 **Spec basis**:
 - Registration lookup: [Sec §5.1.1.1] Tool receives `iss` (and optionally
@@ -194,9 +299,18 @@ behaviour to look up registrations and track nonces.
   > [Core §4.1.3]: "The new optional parameter `client_id` specifies the client
   > id for the authorization server that should be used to authorize the
   > subsequent LTI message request."
-- Nonce validation:
-  > [Sec §5.1.3 step 8]: "Verifying nonce not previously received" — for
-  > replay prevention.
+  The `client_id` may be absent from the login initiation request. When absent,
+  the tool must look up the registration by `issuer` alone. When multiple
+  registrations exist for the same issuer, the lookup MUST fail unless
+  `client_id` is provided to disambiguate.
+- Nonce storage and validation:
+  > [Sec §5.1.3 step 9]: "The ID Token MUST contain a nonce Claim. The Tool
+  > SHOULD verify that it has not yet received this nonce value (within a
+  > Tool-defined time window), in order to help prevent replay attacks. The Tool
+  > MAY define its own precise method for detecting replay attacks."
+  The nonce serves dual purpose: (1) binding the ID Token to the authentication
+  request (the nonce in the JWT must match the nonce sent in Step 2), and
+  (2) replay prevention (a nonce must not be accepted twice).
 - Deployment lookup:
   > [Core §3.1.3]: "When a user deploys a tool within their tool platform, the
   > platform MUST generate an immutable `deployment_id` identifier to identify
@@ -219,36 +333,60 @@ Well-Known URL (JWKS) for the retrieval of Public Cryptographic keys."
 **Responsibilities**:
 1. Fetch JWKS from `registration.jwks_uri` via HTTPS [Sec §3: TLS required]
 2. Parse JWK Set into `JOSE.JWK` structs [Sec §6.2: JSON Web Key format per RFC 7517]
-3. Select key by `kid` header from JWT [Cert §6.1.1: "No KID Sent", "Incorrect KID"]
-4. Cache keys with TTL; re-fetch on `kid` miss (key rotation support) [Sec §6.4]
+   > [Sec §6.2]: "When using RSA keys, they MUST include the `n` (modulus) and
+   > `e` (exponent) as defined in [RFC7518]."
+3. Select key by `kid` header from JWT
+   > [Sec §6.3]: "The supplier of the key set URL MUST use the `kid` parameter
+   > to identify the keys. Even when there is only one key in a key-set a `kid`
+   > MUST be supplied."
+   >
+   > [Sec §6.3]: "The Issuer of a JWT identifies the key a receiver uses to
+   > validate the JWT signature by using the `kid` JWT header Claim."
+4. Cache keys; respect `cache-control: max-age` header when present [Sec §6.3]
+   > [Sec §6.3]: "The Issuer MAY issue a `cache-control: max-age` HTTP header
+   > on requests to retrieve a key set to signal how long the retriever may
+   > cache the key set before refreshing it."
+5. Re-fetch on `kid` miss (key rotation support) [Sec §6.4]
+   > [Sec §6.4]: "When the Issuer rotates its public key, the Issuer MUST add
+   > it to the JSON Key Set under a new `kid`."
+   When verifying a platform's JWT and the `kid` is not found in the cached
+   JWKS, the tool SHOULD re-fetch the JWKS URL (the platform may have rotated
+   keys). To prevent abuse, re-fetch at most once per `kid` miss.
 
 **Tests** (TDD from [Cert §6.1.1] bad payload scenarios):
 - Successful JWKS fetch and key selection by `kid` [Sec §6.3]
-- `{:error, :kid_not_found}` when JWT `kid` not in JWKS [Cert §6.1.1 "Incorrect KID in JWT header"]
-- `{:error, :kid_missing}` when JWT header has no `kid` field [Cert §6.1.1 "No KID Sent in JWT header"]
-- Re-fetch on unknown `kid` (key rotation) [Sec §6.4]
-- `{:error, :jwks_fetch_failed}` on network failure
+- Key selection from JWKS with multiple keys [Sec §6.3]
+- `{:error, %Security.KidNotFound{}}` when JWT `kid` not in JWKS [Cert §6.1.1 "Incorrect KID in JWT header"]
+- `{:error, %Security.KidMissing{}}` when JWT header has no `kid` field [Cert §6.1.1 "No KID Sent in JWT header"]
+- Re-fetch on unknown `kid` (key rotation) [Sec §6.4] — verify only one re-fetch per miss
+- Respect `cache-control: max-age` header for cache TTL [Sec §6.3]
+- `{:error, %Unknown.Unknown{}}` on network failure
 
 ---
 
 ### 2.4 `Ltix.JWT.Token` — JWT Decoding & Structural Validation
 
-**Spec basis**: [Sec §5.1.3] Authentication Response Validation — the eight
+**Spec basis**: [Sec §5.1.3] Authentication Response Validation — the nine
 validation steps tools MUST perform on the ID Token; [Sec §5.1.2] ID Token
-structure; [Cert §6.1.1] Known "Bad" Payloads.
+structure; [Sec §5.4] JWT Message requirements; [Cert §6.1.1] Known "Bad"
+Payloads.
 
-**Responsibilities** — implements [Sec §5.1.3] Authentication Response Validation:
+**Responsibilities** — implements [Sec §5.1.3] Authentication Response Validation.
+Each step is annotated with its requirement level (MUST/SHOULD/MAY) from the spec:
 
 > [Sec §5.1.3]: Tools "MUST validate ID tokens" by performing the following steps.
 
 1. Decode JWT without verification (to extract header for `kid` lookup) [Sec §5.1.2]
-2. Verify RS256 signature using platform's public key
+2. **[MUST] Verify RS256 signature** using platform's public key — Step 1
    > [Sec §5.1.3 step 1]: "The Tool MUST Validate the signature of the ID Token
    > according to JSON Web Signature [RFC7515], Section 5.2 using the Public Key
    > from the Platform."
-3. Validate algorithm is RS256
-   > [Sec §7.3.2]: Framework "recommends asymmetric (RSA) keys over symmetric
-   > for broader interoperability."
+3. **[SHOULD→MUST for LTI] Validate algorithm** is RS256 — Step 6
+   > [Sec §5.1.3 step 6]: "The `alg` value SHOULD be the default of RS256 or the
+   > algorithm sent by the Tool in the `id_token_signed_response_alg` parameter
+   > during its registration."
+   >
+   > [Sec §5.4]: "Message Tool JWTs MUST NOT use `none` as the `alg` value."
    >
    > [Cert §4.2]: "All Learning Platforms and Tools MUST provide the mechanisms
    > (the libraries) for signing and verification of signatures for JWTs signed
@@ -256,29 +394,61 @@ structure; [Cert §6.1.1] Known "Bad" Payloads.
    >
    > [Cert §4.2]: "The use of Symmetric Cryptosystems SHALL NOT be considered
    > legal and use of them is expressly forbidden."
-4. Validate structural claims:
-   - `iss` matches registration issuer
-     > [Sec §5.1.3 step 2]: "Verifying iss claim exactly matches Platform's
-     > issuer identifier."
-   - `aud` contains tool's `client_id`
-     > [Sec §5.1.3 step 3]: "Confirming aud contains Tool's client_id; rejecting
-     > if missing or untrusted audiences present."
-   - `azp` present if multiple audiences
-     > [Sec §5.1.3 step 4]: "Verifying azp present if multiple audiences."
-   - `exp` not in the past
-     > [Sec §5.1.3 step 6]: "Verifying current time before exp claim." Tool
-     > "MUST NOT accept after this time."
-   - `iat` within acceptable skew
-     > [Sec §5.1.3 step 7]: "Optionally limiting time skew using iat."
+   >
+   > Although the Security Framework says SHOULD for the `alg` check, the
+   > Certification Guide elevates this to a hard requirement for LTI: only RS256
+   > is tested. We treat `alg != RS256` as an error.
+4. Validate structural claims — Steps 2–5, 7–9:
+   - **[MUST]** `iss` matches registration issuer — Step 2
+     > [Sec §5.1.3 step 2]: "The Issuer Identifier for the Platform MUST exactly
+     > match the value of the `iss` (Issuer) Claim (therefore the Tool MUST
+     > previously have been made aware of this identifier)."
+   - **[MUST]** `aud` contains tool's `client_id` — Step 3
+     > [Sec §5.1.3 step 3]: "The Tool MUST validate that the `aud` (audience)
+     > Claim contains its client_id value registered as an audience with the
+     > Issuer identified by the `iss` (Issuer) Claim. The `aud` (audience) Claim
+     > MAY contain an array with more than one element. The Tool MUST reject the
+     > ID Token if it does not list the client_id as a valid audience, or if it
+     > contains additional audiences not trusted by the Tool. The request message
+     > will be rejected with a HTTP code of 401."
+     Note: `aud` may be a single string or an array per [Sec §5.1.2]:
+     "In the common special case when there is one audience, the `aud` value MAY
+     be a single case-sensitive string." Validation must handle both forms.
+   - **[SHOULD]** `azp` present if multiple audiences — Step 4
+     > [Sec §5.1.3 step 4]: "If the ID Token contains multiple audiences, the
+     > Tool SHOULD verify that an `azp` Claim is present."
+   - **[SHOULD]** `azp` value matches tool's client_id — Step 5
+     > [Sec §5.1.3 step 5]: "If an `azp` (authorized party) Claim is present,
+     > the Tool SHOULD verify that its client_id is the Claim's value."
+   - **[MUST]** `exp` not in the past — Step 7
+     > [Sec §5.1.3 step 7]: "The current time MUST be before the time
+     > represented by the `exp` Claim."
+     > [Sec §5.1.2]: "Implementers MAY provide for some small leeway, usually no
+     > more than a few minutes, to account for clock skew."
+   - **[MAY]** `iat` within acceptable skew — Step 8
+     > [Sec §5.1.3 step 8]: "The Tool MAY use the `iat` Claim to reject tokens
+     > that were issued too far away from the current time, limiting the amount
+     > of time that it needs to store nonces used to prevent attacks. The Tool
+     > MAY define its own acceptable time range."
+   - **[MUST for presence, SHOULD for replay]** `nonce` validation — Step 9
+     > [Sec §5.1.3 step 9]: "The ID Token MUST contain a `nonce` Claim. The Tool
+     > SHOULD verify that it has not yet received this nonce value (within a
+     > Tool-defined time window), in order to help prevent replay attacks."
 
 **Tests** (TDD from [Cert §6.1.1]):
 - Valid JWT passes all checks
-- `{:error, :signature_invalid}` on tampered payload [Sec §5.1.3 step 1]
-- `{:error, :token_expired}` when `exp` is in the past [Cert §6.1.1 "Timestamps Incorrect"]
-- `{:error, :issuer_mismatch}` when `iss` doesn't match [Sec §5.1.3 step 2]
-- `{:error, :audience_mismatch}` when `client_id` not in `aud` [Sec §5.1.3 step 3]
-- `{:error, :azp_mismatch}` when multiple audiences but `azp` is wrong [Sec §5.1.3 step 4]
-- `{:error, :algorithm_not_allowed}` if alg is not RS256 [Sec §5.1.3 step 5; Sec §7.3.2; Cert §4.2 "RSA 256 signing confirmation"]
+- `{:error, %Security.SignatureInvalid{}}` on tampered payload [Sec §5.1.3 step 1]
+- `{:error, %Security.TokenExpired{}}` when `exp` is in the past [Cert §6.1.1 "Timestamps Incorrect"]
+- `{:error, %Security.IssuerMismatch{}}` when `iss` doesn't match [Sec §5.1.3 step 2]
+- `{:error, %Security.AudienceMismatch{}}` when `client_id` not in `aud` as string [Sec §5.1.3 step 3]
+- `{:error, %Security.AudienceMismatch{}}` when `client_id` not in `aud` as array [Sec §5.1.3 step 3]
+- Valid when `aud` is a single string matching `client_id` [Sec §5.1.2]
+- Valid when `aud` is an array containing `client_id` [Sec §5.1.2]
+- `{:error, %Security.AudienceMismatch{}}` when multiple audiences but `azp` is wrong [Sec §5.1.3 step 5]
+- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is `none` [Sec §5.4]
+- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is HS256 [Cert §4.2 symmetric forbidden]
+- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is not RS256 [Sec §5.1.3 step 6; Cert §4.2]
+- `{:error, %Security.NonceMissing{}}` when nonce claim absent [Sec §5.1.3 step 9]
 
 ---
 
@@ -308,9 +478,9 @@ unrecognized keys into an `extensions` map.
   #   claim as a launch request coming from an anonymous user."
   "sub" => :subject,
   "aud" => :audience,            # [Sec §5.1.2] MUST contain Tool's client_id; string or array
-  "exp" => :expires_at,          # [Sec §5.1.2] Expiration time; [Sec §5.1.3 step 6] Tool MUST NOT accept after
-  "iat" => :issued_at,           # [Sec §5.1.2] Issued-at timestamp; [Sec §5.1.3 step 7] clock skew check
-  "nonce" => :nonce,             # [Sec §5.1.2] Unique value for replay prevention; [Sec §5.1.3 step 8]
+  "exp" => :expires_at,          # [Sec §5.1.2] Expiration time; [Sec §5.1.3 step 7] Tool MUST NOT accept after
+  "iat" => :issued_at,           # [Sec §5.1.2] Issued-at timestamp; [Sec §5.1.3 step 8] clock skew check
+  "nonce" => :nonce,             # [Sec §5.1.2] Unique value for replay prevention; [Sec §5.1.3 step 9]
   "azp" => :authorized_party,    # [Sec §5.1.2] Required if multiple audiences; MUST contain Tool ID
   "email" => :email,             # [OIDC Core §5.1] Standard claim
   "name" => :name,               # [OIDC Core §5.1] Standard claim
@@ -347,7 +517,11 @@ unrecognized keys into an `extensions` map.
   #   from the role vocabularies described in [Core §A.2]."
   "roles" => :roles,
 
-  # [Core §5.4.3]: Array of user IDs this user can mentor/supervise
+  # [Core §5.4.3]: Array of user IDs this user can mentor/supervise.
+  # [Core §5.4.3]: "The sender MUST NOT include a list of user ID values in
+  #   this property unless they also provide
+  #   http://purl.imsglobal.org/vocab/lis/v2/membership#Mentor as one of the
+  #   values passed in the roles claim."
   "role_scope_mentor" => :role_scope_mentor,
 
   # [Core §5.4.1]: "id (REQUIRED). Stable identifier that uniquely identifies the
@@ -360,7 +534,12 @@ unrecognized keys into an `extensions` map.
   #   value of id MUST NOT exceed 255 ASCII characters in length and is case-sensitive."
   "resource_link" => :resource_link,       # → nested ResourceLink struct
 
-  # [Core §5.4.6]: Key-value map; values with $ prefix are substitution variables
+  # [Core §5.4.6]: Key-value map.
+  # [Core §5.4.6]: "Each custom property value MUST always be of type string."
+  # Empty string ("") IS valid. null is NOT valid.
+  # Values with $ prefix are unresolved substitution variables [Core §5.4.6.1]:
+  # "If the platform does not support a given variable, the substitution parameter
+  # MUST be passed unresolved."
   "custom" => :custom,
 
   "launch_presentation" => :launch_presentation, # [Core §5.4.4] → nested
@@ -415,7 +594,7 @@ Extensions are preserved in the `extensions` map — never dropped, never errors
 #### 2.5.3 `from_json/2` — Parsing Pipeline
 
 ```elixir
-@spec from_json(map(), keyword()) :: {:ok, t()} | {:error, String.t()}
+@spec from_json(map(), keyword()) :: {:ok, t()} | {:error, Splode.Error.t()}
 def from_json(json, opts \\ []) when is_map(json) do
   parsers = resolve_extension_parsers(opts)
   {fields, extensions} = classify_keys(json)
@@ -554,10 +733,26 @@ defstruct [:id, :label, :title, :type]
 
 # type is array of URIs from [Core §A.1] context type vocabulary
 def from_json(%{"id" => _} = json), do: {:ok, ...}
-def from_json(_), do: {:error, "Context requires an \"id\" field"}
+def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
+  claim: "context.id", spec_ref: "Core §5.4.1")}
 ```
 
-Type values from [Core §A.1]: `CourseTemplate`, `CourseOffering`, `CourseSection`, `Group`.
+**Context Type Vocabulary** [Core §A.1]:
+
+> [Core §A.1]: Conforming implementations "MUST recognize the new URI values."
+> Implementations "MAY recognize the deprecated simple names... and the deprecated
+> URN values."
+
+| Type | URI (MUST recognize) | Deprecated Simple Name (MAY recognize) |
+|---|---|---|
+| Course Template | `http://purl.imsglobal.org/vocab/lis/v2/course#CourseTemplate` | `CourseTemplate` |
+| Course Offering | `http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering` | `CourseOffering` |
+| Course Section | `http://purl.imsglobal.org/vocab/lis/v2/course#CourseSection` | `CourseSection` |
+| Group | `http://purl.imsglobal.org/vocab/lis/v2/course#Group` | `Group` |
+
+The `type` array, if present, MUST contain at least one value from this
+vocabulary per [Core §5.4.1]. The implementation SHOULD use fully-qualified URIs
+for any non-standard context types.
 
 #### 2.6.2 `Ltix.LaunchClaims.ResourceLink` [Core §5.3.5]
 
@@ -573,7 +768,8 @@ Claim key: `https://purl.imsglobal.org/spec/lti/claim/resource_link`
 defstruct [:id, :title, :description]
 
 def from_json(%{"id" => _} = json), do: {:ok, ...}
-def from_json(_), do: {:error, "ResourceLink requires an \"id\" field"}
+def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
+  claim: "resource_link.id", spec_ref: "Core §5.3.5")}
 ```
 
 #### 2.6.3 `Ltix.LaunchClaims.LaunchPresentation` [Core §5.4.4]
@@ -583,10 +779,31 @@ Claim key: `https://purl.imsglobal.org/spec/lti/claim/launch_presentation`
 ```elixir
 defstruct [:document_target, :height, :width, :return_url, :locale]
 
-# [Core §5.4.4] All fields optional. document_target indicates window type;
-# return_url is where platform wants control returned after tool is done.
-def from_json(json), do: {:ok, ...}
+# [Core §5.4.4] All fields optional.
+def from_json(json) do
+  # Validate document_target if present
+  # [Core §5.4.4]: document_target MUST be one of: "frame", "iframe", or "window"
+  {:ok, ...}
+end
 ```
+
+**Validation rules**:
+- `document_target`: when present, MUST be one of `"frame"`, `"iframe"`, or `"window"`
+  > [Core §5.4.4]: "The value MUST be one of: `frame`, `iframe`, or `window`."
+- `height`: optional, number (viewport height in pixels)
+- `width`: optional, number (viewport width in pixels)
+- `return_url`: optional, fully-qualified HTTPS URL
+- `locale`: optional, IETF BCP47 language tag
+
+**Return URL parameters** [Core §5.4.4]: When the tool redirects back to
+`return_url`, it MAY append these query parameters:
+- `lti_errormsg` — user-targeted message for unsuccessful activity
+- `lti_msg` — user-targeted message for successful activity
+- `lti_errorlog` — log-targeted message for unsuccessful activity
+- `lti_log` — log-targeted message for successful activity
+
+> [Core §5.4.4]: "If the message sender includes a `return_url` in its
+> `launch_presentation`, it MUST support these four query parameters."
 
 #### 2.6.4 `Ltix.LaunchClaims.ToolPlatform` [Core §5.4.2]
 
@@ -600,8 +817,16 @@ Claim key: `https://purl.imsglobal.org/spec/lti/claim/tool_platform`
 defstruct [:guid, :name, :contact_email, :description, :url,
            :product_family_code, :version]
 
-def from_json(json), do: {:ok, ...}
+# guid is REQUIRED when the claim is present [Core §5.4.2]
+def from_json(%{"guid" => _} = json), do: {:ok, ...}
+def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
+  claim: "tool_platform.guid", spec_ref: "Core §5.4.2")}
 ```
+
+**Validation rules**:
+- `guid` (REQUIRED within claim): case-sensitive string, MUST NOT exceed 255
+  ASCII characters. UUID recommended per RFC 4122.
+- All other fields are optional.
 
 #### 2.6.5 `Ltix.LaunchClaims.Lis` [Core §5.4.5]
 
@@ -652,14 +877,23 @@ defstruct [:deep_link_return_url, :accept_types,
 
 # deep_link_return_url REQUIRED when claim is present; rest optional.
 def from_json(%{"deep_link_return_url" => _} = json), do: {:ok, ...}
-def from_json(_), do: {:error, "DeepLinkingSettings requires a \"deep_link_return_url\" field"}
+def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
+  claim: "deep_linking_settings.deep_link_return_url", spec_ref: "Core §6.1")}
 ```
 
 **Tests**: Each nested struct has its own test file covering:
 - All fields populated
 - Only required fields populated
-- Missing required field returns error (Context [Core §5.4.1], ResourceLink [Core §5.3.5], DeepLinkingSettings)
+- Missing required field returns error:
+  - Context missing `id` [Core §5.4.1]
+  - ResourceLink missing `id` [Core §5.3.5]
+  - ToolPlatform missing `guid` [Core §5.4.2]
+  - DeepLinkingSettings missing `deep_link_return_url`
 - Missing optional fields default to `nil`
+- LaunchPresentation: valid `document_target` values accepted (`frame`, `iframe`, `window`) [Core §5.4.4]
+- LaunchPresentation: invalid `document_target` returns error [Core §5.4.4]
+- Context: `type` array with full URI values recognized [Core §A.1]
+- Context: `type` array with deprecated simple names recognized [Core §A.1]
 
 ---
 
@@ -735,28 +969,66 @@ def system_roles(roles), do: Enum.filter(roles, &(&1.type == :system))
 
 **Role vocabulary** (comprehensive, per [Core §A.2]):
 
-| Type | Spec section | Prefix | Core roles |
-|---|---|---|---|
-| Context | [Core §A.2.3] | `membership` | Administrator, ContentDeveloper, Instructor, Learner, Mentor, Manager, Member, Officer |
-| Institution | [Core §A.2.2] | `institution/person#` | Administrator, Faculty, Guest, None, Other, Staff, Student, Alumni, Instructor, Learner, Member, Mentor, Observer, ProspectiveStudent |
-| System (LIS) | [Core §A.2.1] | `system/person#` | Administrator, None, AccountAdmin, Creator, SysAdmin, SysSupport, User |
-| System (LTI) | [Core §A.2.4] | `lti/system/person#` | TestUser |
+> [Core §A]: "Conforming implementations MAY recognize the deprecated simple
+> names (for context types and context roles) and the deprecated URN values,
+> and MUST recognize the new URI values."
 
-Context roles support sub-roles per [Core §A.2.3.1] (e.g., Instructor →
-TeachingAssistant, Grader, PrimaryInstructor, Lecturer, etc.).
+| Type | Spec section | Base URI | Roles |
+|---|---|---|---|
+| Context (core) | [Core §A.2.3] | `http://purl.imsglobal.org/vocab/lis/v2/membership#` | Administrator, ContentDeveloper, Instructor, Learner, Mentor |
+| Context (non-core) | [Core §A.2.3] | `http://purl.imsglobal.org/vocab/lis/v2/membership#` | Manager, Member, Officer |
+| Institution (core) | [Core §A.2.2] | `http://purl.imsglobal.org/vocab/lis/v2/institution/person#` | Administrator, Faculty, Guest, None, Other, Staff, Student |
+| Institution (non-core) | [Core §A.2.2] | `http://purl.imsglobal.org/vocab/lis/v2/institution/person#` | Alumni, Instructor, Learner, Member, Mentor, Observer, ProspectiveStudent |
+| System (LIS, core) | [Core §A.2.1] | `http://purl.imsglobal.org/vocab/lis/v2/system/person#` | Administrator, None |
+| System (LIS, non-core) | [Core §A.2.1] | `http://purl.imsglobal.org/vocab/lis/v2/system/person#` | AccountAdmin, Creator, SysAdmin, SysSupport, User |
+| System (LTI) | [Core §A.2.4] | `http://purl.imsglobal.org/vocab/lti/system/person#` | TestUser |
+
+**Deprecated URI forms** (MAY recognize for backward compatibility):
+- System roles formerly used `http://purl.imsglobal.org/vocab/lis/v2/person#`
+  (without `system/` in path)
+- Institution roles formerly used `http://purl.imsglobal.org/vocab/lis/v2/person#`
+  (without `institution/` in path)
+
+**Context sub-roles** [Core §A.2.3.1] — Complete listing:
+
+URI format: `http://purl.imsglobal.org/vocab/lis/v2/membership/{RoleName}#{SubRoleName}`
+
+> [Core §A.2.3.1]: "Whenever a platform specifies a sub-role, by best practice
+> it should also include the associated principal role." The tool should NOT
+> assume the principal role is always present alongside the sub-role.
+
+| Principal Role | Sub-Roles |
+|---|---|
+| Administrator | Administrator, Developer, ExternalDeveloper, ExternalSupport, ExternalSystemAdministrator, Support, SystemAdministrator |
+| ContentDeveloper | ContentDeveloper, ContentExpert, ExternalContentExpert, Librarian |
+| Instructor | ExternalInstructor, Grader, GuestInstructor, Lecturer, PrimaryInstructor, SecondaryInstructor, TeachingAssistant, TeachingAssistantGroup, TeachingAssistantOffering, TeachingAssistantSection, TeachingAssistantSectionAssociation, TeachingAssistantTemplate |
+| Learner | ExternalLearner, GuestLearner, Instructor, Learner, NonCreditLearner |
+| Manager | AreaManager, CourseCoordinator, ExternalObserver, Manager, Observer |
+| Member | Member |
+| Mentor | Advisor, Auditor, ExternalAdvisor, ExternalAuditor, ExternalLearningFacilitator, ExternalMentor, ExternalReviewer, ExternalTutor, LearningFacilitator, Mentor, Reviewer, Tutor |
+| Officer | Chair, Communications, Secretary, Treasurer, Vice-Chair |
+
+**TestUser role** [Core §A.2.4]:
+> Indicates the user is created by the platform for testing purposes (e.g.,
+> student preview mode). Tools MAY wish to filter this user from rosters. Tools
+> MAY want to ignore this user when sending grades but SHOULD be able to treat
+> it as a regular user.
 
 **Tests** (`test/ltix/launch_claims/role_test.exs`):
-- Full URI parsing for each context role + sub-roles [Core §A.2.3, §A.2.3.1]
-- Full URI parsing for each institution role [Core §A.2.2]
-- Full URI parsing for each system role [Core §A.2.1, §A.2.4]
-- Short role format acceptance [Cert §6.1.2 "Valid Instructor Launch Short Role"]
+- Full URI parsing for each context role (8 roles) [Core §A.2.3]
+- Full URI parsing for each context sub-role (complete table above) [Core §A.2.3.1]
+- Full URI parsing for each institution role (14 roles) [Core §A.2.2]
+- Full URI parsing for each system role (LIS: 7 roles) [Core §A.2.1]
+- Full URI parsing for LTI system role (TestUser) [Core §A.2.4]
+- Deprecated URI forms (without `system/` or `institution/` path segment) [Core §A]
+- Short role format acceptance (e.g., `Instructor`) [Cert §6.1.2 "Valid Instructor Launch Short Role"]
 - Multiple roles via `parse_all/1` [Cert §6.1.2 "Valid Instructor Launch with Roles"]
 - Unknown role URIs → `:error`, collected in unrecognized [Cert §6.1.2 "Valid Instructor Launch Unknown Role"]
 - Empty list accepted (anonymous launch) [Core §5.3.7.1]
+- Sub-role without principal role present (tool must handle) [Core §A.2.3.1]
 - Predicate helpers return correct booleans
 - Filter helpers return correct subsets
 - Original URI preserved in struct
-- TestUser role parsed [Core §A.2.4]
 
 ---
 
@@ -768,17 +1040,27 @@ TeachingAssistant, Grader, PrimaryInstructor, Lecturer, etc.).
 > initialization and launch process. There are no exceptions to the requirement
 > that OIDC always will be used."
 
-**Input**: HTTP request from platform with parameters per [Sec §5.1.1.1]:
+**Input**: HTTP request from platform with parameters per [Sec §5.1.1.1].
+
+> [Sec §5.1.1.1]: "The redirect may be a form POST or a GET — a Tool must
+> support either case."
+
+The library accepts a plain `map()` of string-keyed params, so the host app's
+HTTP handler is responsible for extracting params from either GET query string or
+POST body and passing them as a map. This makes the library transport-agnostic
+while ensuring both delivery methods are supported.
+
+**Parameters**:
 - `iss` (REQUIRED) — Platform issuer identifier [Sec §5.1.1.1]
 - `login_hint` (REQUIRED) — Opaque login hint [Sec §5.1.1.1]
 - `target_link_uri` (REQUIRED) — Tool endpoint for post-auth resource display [Sec §5.1.1.1]
-- `lti_message_hint` (OPTIONAL)
+- `lti_message_hint` (OPTIONAL) — Opaque to tool; pass through verbatim
   > [Core §4.1.1]: "If present in the login initiation request, the tool MUST
   > include it back in the authentication request unaltered."
-- `lti_deployment_id` (OPTIONAL)
+- `lti_deployment_id` (OPTIONAL) — May be used for deployment-specific routing
   > [Core §4.1.2]: "If included, MUST contain the same deployment id that would
   > be passed in the deployment_id claim for the subsequent LTI message launch."
-- `client_id` (OPTIONAL)
+- `client_id` (OPTIONAL) — Disambiguates registrations when issuer has multiple
   > [Core §4.1.3]: "The new optional parameter `client_id` specifies the client
   > id for the authorization server that should be used to authorize the
   > subsequent LTI message request."
@@ -788,7 +1070,8 @@ TeachingAssistant, Grader, PrimaryInstructor, Lecturer, etc.).
 2. Look up registration via callback behaviour (`iss`, optionally `client_id` per [Core §4.1.3])
 3. Generate cryptographic `state` value [Sec §5.1.1.2: CSRF prevention; Sec §7.3.1]
 4. Generate cryptographic `nonce` value [Sec §5.1.1.2: "nonce: Unique per-request value for replay mitigation"]
-5. Return authentication request parameters for redirect to platform
+5. Store `nonce` via callback behaviour (`store_nonce/2`) for later validation
+6. Return authentication request parameters for redirect to platform
 
 **Tests**:
 - Valid login initiation produces correct auth request params [Sec §5.1.1.1 → §5.1.1.2]
@@ -797,7 +1080,10 @@ TeachingAssistant, Grader, PrimaryInstructor, Lecturer, etc.).
 - Missing `target_link_uri` returns error [Sec §5.1.1.1: required]
 - Unknown issuer returns error (registration not found)
 - `lti_message_hint` preserved when present [Core §4.1.1: "tool must return unaltered"]
+- `lti_message_hint` omitted when not present in input
 - `client_id` used for registration lookup when present [Core §4.1.3]
+- `client_id` absent — registration looked up by issuer alone
+- `lti_deployment_id` preserved in output for host app routing [Core §4.1.2]
 
 ---
 
@@ -835,56 +1121,84 @@ endpoint with these parameters:
 
 **Spec basis**: [Sec §5.1.1.3] Step 3: Authentication Response — "Platform
 validates redirect URI and login hint, then sends id_token and state to
-redirect_uri"; [Sec §5.1.3] Authentication Response Validation — the eight
-steps tools MUST perform.
+redirect_uri"; [Sec §5.1.3] Authentication Response Validation — the nine
+steps tools MUST perform; [Sec §5.1.1.5] Authentication Error Response.
 
 This is the heart of the library. It receives the platform's form POST and
 produces either a validated `LaunchContext` or an error.
 
 **Input**: HTTP POST with `id_token` and `state` parameters [Sec §5.1.1.3].
+The tool may also receive error responses per [Sec §5.1.1.5] / OIDC Core
+§3.1.2.6 — if the platform could not complete authentication, it sends
+`error`, `error_description`, `error_uri`, and `state` instead of `id_token`.
+The callback must detect and handle this case.
 
 **Validation pipeline** — implements [Sec §5.1.3] Authentication Response
-Validation. The eight numbered steps from the spec are mapped below, with
-additional LTI-layer validation appended:
+Validation. The nine numbered steps from the spec are mapped below, with
+additional LTI-layer validation appended. Step numbers in parentheses reference
+the spec's step numbering:
 
 > [Sec §5.1.3]: Tools "MUST validate ID tokens" by performing the following.
 
-1. **Verify `state`** matches the value generated in Step 1
+1. **Check for error response** [Sec §5.1.1.5]
+   If `error` parameter is present (instead of `id_token`), return error
+   immediately — the platform could not complete authentication.
+2. **Verify `state`** matches the value generated in Step 1
    > [Sec §7.3.1]: "State parameter MUST be used" to prohibit CSRF.
-2. **Extract JWT header** — get `kid` and `alg` [Sec §5.1.2]
-3. **Validate `alg`** is RS256
+3. **Extract JWT header** — get `kid` and `alg` [Sec §5.1.2]
+4. **Validate `alg`** is RS256 (Spec step 6, SHOULD; Cert §4.2, MUST for LTI)
+   > [Sec §5.4]: "Message Tool JWTs MUST NOT use `none` as the `alg` value."
+   >
    > [Cert §4.2]: "The use of Symmetric Cryptosystems SHALL NOT be considered
    > legal and use of them is expressly forbidden."
-   >
-   > [Cert §4.2]: "The signing of a JWT with a public key SHALL NOT be legal or
-   > respected. All JWT instances to be signed MUST be signed only with the
-   > provided private key."
-4. **Fetch platform public key** by `kid` from JWKS [Sec §6.3]
+5. **Fetch platform public key** by `kid` from JWKS [Sec §6.3]
    > [Cert §4.2.1]: "A Platform MUST provide a Well-Known URL (JWKS) for the
    > retrieval of Public Cryptographic keys."
-5. **Verify JWT signature** — [Sec §5.1.3 step 1]:
+6. **Verify JWT signature** (Spec step 1, MUST) — [Sec §5.1.3 step 1]:
    > "The Tool MUST Validate the signature of the ID Token according to JSON
    > Web Signature [RFC7515], Section 5.2 using the Public Key from the
    > Platform."
-6. **Validate `iss`** — [Sec §5.1.3 step 2]:
-   > "Verifying iss claim exactly matches Platform's issuer identifier."
-7. **Validate `aud`** — [Sec §5.1.3 step 3]:
-   > "Confirming aud contains Tool's client_id; rejecting if missing or
-   > untrusted audiences present."
-8. **Validate `azp`** — [Sec §5.1.3 step 4]:
-   > "Verifying azp present if multiple audiences."
-9. **Validate `exp`** — [Sec §5.1.3 step 6]:
-   > "Verifying current time before exp claim." Tool "MUST NOT accept after
-   > this time."
-10. **Validate `iat`** — [Sec §5.1.3 step 7]:
-   > "Optionally limiting time skew using iat."
-11. **Validate `nonce`** — [Sec §5.1.3 step 8]:
-   > "Verifying nonce not previously received" — for replay prevention.
-12. **Parse claims** — `LaunchClaims.from_json(jwt_body)` [Core §5.3, §5.4]
-13. **Validate `deployment_id`** — must be known for this registration
+7. **Validate `iss`** (Spec step 2, MUST) — [Sec §5.1.3 step 2]:
+   > "The Issuer Identifier for the Platform MUST exactly match the value of
+   > the `iss` (Issuer) Claim."
+8. **Validate `aud`** (Spec step 3, MUST) — [Sec §5.1.3 step 3]:
+   > "The Tool MUST validate that the `aud` (audience) Claim contains its
+   > client_id value... The Tool MUST reject the ID Token if it does not list
+   > the client_id as a valid audience, or if it contains additional audiences
+   > not trusted by the Tool. The request message will be rejected with a HTTP
+   > code of 401."
+   `aud` may be a single string or an array — must handle both forms.
+9. **Validate `azp`** (Spec steps 4–5, SHOULD) — [Sec §5.1.3 steps 4–5]:
+   If `aud` has multiple values, verify `azp` is present and equals the tool's
+   `client_id`.
+10. **Validate `exp`** (Spec step 7, MUST) — [Sec §5.1.3 step 7]:
+   > "The current time MUST be before the time represented by the `exp` Claim."
+11. **Validate `iat`** (Spec step 8, MAY) — [Sec §5.1.3 step 8]:
+   > "The Tool MAY use the `iat` Claim to reject tokens that were issued too
+   > far away from the current time."
+12. **Validate `nonce`** (Spec step 9, MUST for presence) — [Sec §5.1.3 step 9]:
+   > "The ID Token MUST contain a `nonce` Claim."
+   The nonce in the JWT must match a nonce previously issued by this tool in
+   Step 2 (binding), and must not have been used before (replay prevention).
+   Both checks are delegated to `CallbackBehaviour.validate_nonce/2`.
+13. **Parse claims** — `LaunchClaims.from_json(jwt_body)` [Core §5.3, §5.4]
+14. **Validate required LTI claims** [Core §5.3]:
+    - `message_type` MUST equal `"LtiResourceLinkRequest"` [Core §5.3.1]
+    - `version` MUST equal `"1.3.0"` [Core §5.3.2]
+    - `deployment_id` MUST be present [Core §5.3.3]
+    - `target_link_uri` MUST be present [Core §5.3.4]
+    - `resource_link` MUST be present with `id` sub-field [Core §5.3.5]
+    - `roles` MUST be present (may be empty array) [Core §5.3.7]
+    - `sub` MUST be present (except anonymous launches) [Core §5.3.6]
+15. **Validate `deployment_id`** — must be known for this registration
    > [Core §5.3.3]: "The deployment_id is a stable locally unique identifier
    > within the iss (Issuer)."
-14. **Build `LaunchContext`** from validated claims [Sec §5.1.1.4]
+16. **Build `LaunchContext`** from validated claims [Sec §5.1.1.4]
+   > [Core §5.3.4]: "A Tool should rely on this claim rather than the initial
+   > `target_link_uri` to do the final redirection, since the login initiation
+   > request is unsigned."
+   The `LaunchContext.target_link_uri` (from the signed JWT) should be used
+   by the host app for the final redirect, not the unsigned value from Step 1.
 
 **Tests** (mapped to [Cert §6.1] tool certification scenarios):
 
@@ -1012,11 +1326,13 @@ Individual error modules:
 | `Invalid.RegistrationNotFound` | `:invalid` | [Sec §5.1.1.1] unknown issuer+client_id |
 | `Invalid.DeploymentNotFound` | `:invalid` | [Core §3.1.3; Core §5.3.3] unknown deployment_id |
 | `Security.SignatureInvalid` | `:security` | [Sec §5.1.3 step 1] "Validating JWT signature" |
-| `Security.TokenExpired` | `:security` | [Sec §5.1.3 step 6] "Tool MUST NOT accept after exp" |
+| `Security.TokenExpired` | `:security` | [Sec §5.1.3 step 7] "Tool MUST NOT accept after exp" |
 | `Security.IssuerMismatch` | `:security` | [Sec §5.1.3 step 2] "iss exactly matches issuer identifier" |
 | `Security.AudienceMismatch` | `:security` | [Sec §5.1.3 step 3] "aud contains Tool's client_id" |
-| `Security.AlgorithmNotAllowed` | `:security` | [Sec §5.1.3 step 5; Sec §7.3.2] RS256 only |
-| `Security.NonceReused` | `:security` | [Sec §5.1.3 step 8] "nonce not previously received" |
+| `Security.AlgorithmNotAllowed` | `:security` | [Sec §5.1.3 step 6; Sec §7.3.2] RS256 only |
+| `Security.NonceMissing` | `:security` | [Sec §5.1.3 step 9] "The ID Token MUST contain a nonce Claim" |
+| `Security.NonceReused` | `:security` | [Sec §5.1.3 step 9] "nonce not previously received" |
+| `Security.NonceNotFound` | `:security` | [Sec §5.1.3 step 9] nonce not previously issued by this tool |
 | `Security.StateMismatch` | `:security` | [Sec §7.3.1] "state parameter MUST be used" for CSRF |
 | `Security.KidMissing` | `:security` | [Cert §6.1.1 "No KID Sent in JWT header"] |
 | `Security.KidNotFound` | `:security` | [Cert §6.1.1 "Incorrect KID in JWT header"] |
@@ -1033,6 +1349,13 @@ corresponding to the two endpoints a tool must expose per [Sec §5.1.1]:
 @doc """
 Handle OIDC third-party initiated login [Sec §5.1.1.1] and build
 authentication request [Sec §5.1.1.2].
+
+The caller receives the full redirect URI (to the platform's auth endpoint)
+and the `state` value. The caller is responsible for:
+1. Storing `state` in the user's session for CSRF verification [Sec §7.3.1]
+2. Redirecting the user agent to `redirect_uri`
+
+The nonce is stored via `CallbackBehaviour.store_nonce/2` automatically.
 """
 @spec handle_login(params :: map(), callback_module :: module(), opts :: keyword()) ::
   {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Error.t()}
@@ -1040,6 +1363,16 @@ authentication request [Sec §5.1.1.2].
 @doc """
 Handle authentication response [Sec §5.1.1.3], validate ID token [Sec §5.1.3],
 parse claims [Core §5.3, §5.4], and display resource [Sec §5.1.1.4].
+
+The caller passes in the POST params (containing `id_token` and `state`) and
+the `state` value from the session. The library handles all validation per
+[Sec §5.1.3] and returns a validated `LaunchContext`.
+
+> [Core §5.3.4]: "A Tool should rely on [the target_link_uri claim in the
+> signed JWT] rather than the initial target_link_uri to do the final
+> redirection, since the login initiation request is unsigned."
+
+The caller should use `context.claims.target_link_uri` for the final redirect.
 """
 @spec handle_callback(params :: map(), state :: String.t(), callback_module :: module(), opts :: keyword()) ::
   {:ok, LaunchContext.t()} | {:error, Error.t()}
@@ -1205,7 +1538,7 @@ The `CallbackBehaviour` lets host apps store registrations and nonces however
 they choose (ETS, database, GenServer, etc.). The library never touches storage
 directly. This follows the spec's separation of concerns — registration is
 out-of-band per [Sec §5.1.1.1], and nonce tracking is an implementation choice
-per [Sec §5.1.3 step 8].
+per [Sec §5.1.3 step 9].
 
 ### 5.3 State Parameter Management
 
@@ -1248,7 +1581,44 @@ validation failure. Extension parsers are pluggable via application config or
 per-call option, allowing vendor-specific claims to be parsed into typed structs
 without modifying the library.
 
-### 5.7 AshLti-Aligned Claims Architecture
+### 5.7 User Identification — `sub` Only
+
+> [Core §3.3]: "A user MUST have a unique identifier within the platform, which
+> acts as an OpenID Provider."
+>
+> [Core §3.3]: "A tool or platform MUST NOT use any other attribute other than
+> the unique identifier to identify a user when interacting between tool and
+> platform."
+
+The `sub` claim is the **only** authoritative user identifier. Email, name, and
+other profile claims MUST NOT be used to identify or de-duplicate users. This
+constraint should be documented prominently for library consumers.
+
+### 5.8 HTTPS Everywhere
+
+> [Sec §3]: "Implementers MUST use TLS 1.2 and/or TLS 1.3. Implementers MUST
+> NOT use Secure Sockets Layer (SSL)."
+>
+> [Core §3.5]: "Implementers MUST use HTTPS for all URLs to resources included
+> in messages and services."
+
+All URLs (registration endpoints, JWKS URIs, service endpoints, return URLs)
+MUST be HTTPS. The library validates this for registration fields and should
+document it for consumers.
+
+### 5.9 Multi-Deployment Architecture
+
+> [Core §3.1.3]: "A tool MUST allow multiple deployments on a given platform to
+> share the same `client_id` and the security contract attached to it."
+
+The `Registration` struct represents the security contract (issuer, client_id,
+endpoints). Deployments are resolved separately per message via the
+`deployment_id` claim. The data model supports one-to-many from client_id to
+deployment_id. The `Deployment` struct is intentionally thin — it holds only the
+`deployment_id`, but the `CallbackBehaviour.get_deployment/2` callback allows
+host apps to attach additional deployment-specific data.
+
+### 5.10 AshLti-Aligned Claims Architecture
 
 The `LaunchClaims` module mirrors AshLti's proven pattern:
 - Three mapping tables (`@oidc_keys` per [Sec §5.1.2], `@lti_keys` per [Core §5.3–§5.4], `@service_keys` per [Core §6.1])
@@ -1273,8 +1643,26 @@ These are explicitly deferred:
   are parsed from launch claims [Core §6.1], but no HTTP calls to those services
   are made. Service calls require OAuth 2.0 Client Credentials Grant [Sec §4.1]
   which is deferred.
+  - *Certification impact*: [Cert §6.3] NRPS (5 tests) and [Cert §6.4] AGS
+    (1+ tests) require service API calls. These cert scenarios are deferred.
+- **Deep Linking responses** — [Cert §6.2] Deep Linking message testing (7 tests)
+  requires the tool to construct and sign a Deep Linking Response JWT. This
+  requires the tool to have its own JWKS endpoint and signing infrastructure.
+  Deferred to v0.2.0.
+  - *When implemented, the tool's JWKS endpoint MUST*:
+    - Serve over TLS [Sec §3]
+    - Include `kid` on every key, even if only one [Sec §6.3]
+    - Include `n` and `e` for RSA keys [Sec §6.2]
+    - Not reuse `kid` for different keys of same `kty` [Sec §6.3]
+  - *Tool-signed JWTs MUST*:
+    - Use RS256 (MUST NOT use `none`) [Sec §5.4]
+    - Include `kid` in JOSE header [Sec §6.3]
+    - SHOULD NOT use `x5u`, `x5c`, `jku`, or `jwk` header fields [Sec §5.3]
 - **Tool-originating messages** [Sec §5.2] — Not needed for core launch
-- **OAuth 2.0 Client Credentials Grant** [Sec §4.1, §4.1.1] — Only needed for service calls
+- **OAuth 2.0 Client Credentials Grant** [Sec §4.1, §4.1.1] — Only needed for
+  service calls. When implemented, the client assertion JWT must include:
+  `iss` = `sub` = tool's `client_id`, `aud` = token endpoint URL, `iat`, `exp`
+  (typically 5 min after iat), `jti` (unique identifier) [Sec §4.1.1]
 - **Custom variable substitution** [Core §5.4.6.1] — Platform-side concern
 - **Plug integration module** — Can be added in v0.2.0 as a convenience layer
 
@@ -1288,7 +1676,7 @@ The release is ready when:
 2. All [Cert §6.1.2] Valid Teacher Launches tests pass (9 scenarios)
 3. All [Cert §6.1.3] Valid Student Launches tests pass (9 scenarios)
 4. Full end-to-end launch flow test passes (login [Sec §5.1.1.1] → redirect [Sec §5.1.1.2] → callback [Sec §5.1.1.3] → LaunchContext [Sec §5.1.1.4])
-5. Zero dependencies beyond `jose`, `req`, and `splode` (no test-only deps needed for HTTP mocking)
+5. Zero dependencies beyond `jose`, `req`, `splode`, and `plug` (optional; no test-only deps needed for HTTP mocking)
 6. Every public function has `@spec` and `@doc` with spec references
 7. `mix test` passes with zero warnings
 8. Library can be added as a dep and used with two function calls + one behaviour impl

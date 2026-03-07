@@ -23,18 +23,12 @@
             # Language toolchains
             elixir
             erlang
-            gcc
-
-            # Build tools
-            cmake
-            xz
-            gnumake
-            pkg-config
 
             # Dev tools
             nixd
             git
             nix-output-monitor
+            cocogitto
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.inotify-tools];
 
@@ -43,9 +37,6 @@
           export MIX_HOME=$PWD/.nix-shell/mix
           export HEX_HOME=$PWD/.nix-shell/hex
           export ERL_LIBS=$HEX_HOME/lib/erlang/lib
-
-          export LD_LIBRARY_PATH=${pkgs.glibc}/lib:${pkgs.stdenv.cc.cc.lib}:''${LD_LIBRARY_PATH:-}
-          export LD=${pkgs.glibc}/lib/ld-linux-x86-64.so.2
 
           export PATH=$MIX_HOME/bin:$PATH
           export PATH=$MIX_HOME/escripts:$PATH
