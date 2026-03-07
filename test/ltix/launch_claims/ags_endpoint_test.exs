@@ -18,7 +18,12 @@ defmodule Ltix.LaunchClaims.AgsEndpointTest do
       }
 
       assert {:ok, %AgsEndpoint{} = ags} = AgsEndpoint.from_json(json)
-      assert length(ags.scope) == 2
+
+      assert ags.scope == [
+               "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+               "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
+             ]
+
       assert ags.lineitems == "https://platform.example.com/api/lineitems"
       assert ags.lineitem == "https://platform.example.com/api/lineitems/123"
     end

@@ -45,7 +45,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       assert query["login_hint"] == "user-hint-123"
       assert query["state"] == result.state
       assert query["response_mode"] == "form_post"
-      assert is_binary(query["nonce"])
+      assert byte_size(query["nonce"]) > 0
       assert query["prompt"] == "none"
     end
 
