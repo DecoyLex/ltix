@@ -39,7 +39,8 @@ defmodule Ltix.MixProject do
       {:jose, "~> 1.11"},
       {:splode, "~> 0.3"},
       {:usage_rules, "~> 1.2", only: [:dev, :test], runtime: false},
-      {:plug, "~> 1.19", optional: true}
+      {:plug, "~> 1.19", optional: true},
+      {:cachex, "~> 4.0", optional: true}
     ]
   end
 
