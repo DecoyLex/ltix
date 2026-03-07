@@ -1,0 +1,72 @@
+<h1>LTI Launch Successful</h1>
+
+<h2>User</h2>
+<table>
+  <tr>
+    <td><strong>Subject</strong></td>
+    <td>{@context.claims.subject || "anonymous"}</td>
+  </tr>
+  <tr>
+    <td><strong>Name</strong></td>
+    <td>{@context.claims.name}</td>
+  </tr>
+  <tr>
+    <td><strong>Email</strong></td>
+    <td>{@context.claims.email}</td>
+  </tr>
+</table>
+
+<h2>Roles</h2>
+<ul>
+  <li :for={role <- @context.claims.roles}>
+    {role.uri} - <code>{role.type}</code>, <code>{role.name}</code>, <code>{role.sub_role}</code>
+  </li>
+</ul>
+
+<h2>Context</h2>
+<table :if={@context.claims.context}>
+  <tr>
+    <td><strong>ID</strong></td>
+    <td>{@context.claims.context.id}</td>
+  </tr>
+  <tr>
+    <td><strong>Label</strong></td>
+    <td>{@context.claims.context.label}</td>
+  </tr>
+  <tr>
+    <td><strong>Title</strong></td>
+    <td>{@context.claims.context.title}</td>
+  </tr>
+</table>
+
+<h2>Resource Link</h2>
+<table :if={@context.claims.resource_link}>
+  <tr>
+    <td><strong>ID</strong></td>
+    <td>{@context.claims.resource_link.id}</td>
+  </tr>
+  <tr>
+    <td><strong>Title</strong></td>
+    <td>{@context.claims.resource_link.title}</td>
+  </tr>
+</table>
+
+<h2>Launch Details</h2>
+<table>
+  <tr>
+    <td><strong>Message Type</strong></td>
+    <td>{@context.claims.message_type}</td>
+  </tr>
+  <tr>
+    <td><strong>Version</strong></td>
+    <td>{@context.claims.version}</td>
+  </tr>
+  <tr>
+    <td><strong>Deployment ID</strong></td>
+    <td>{@context.claims.deployment_id}</td>
+  </tr>
+  <tr>
+    <td><strong>Target Link URI</strong></td>
+    <td>{@context.claims.target_link_uri}</td>
+  </tr>
+</table>
