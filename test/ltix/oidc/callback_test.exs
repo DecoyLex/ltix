@@ -356,6 +356,18 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
     end
 
+    test "instructor launch with unknown role", ctx do
+      claims =
+        put_lti_claim(ctx.claims, "roles", [
+          "http://example.com/custom/TeachingAssistant"
+        ])
+
+      params = mint_and_params(claims, ctx)
+
+      assert {:ok, %LaunchContext{}} =
+               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+    end
+
     test "instructor launch with no roles (empty array)", ctx do
       claims = put_lti_claim(ctx.claims, "roles", [])
       params = mint_and_params(claims, ctx)
@@ -470,6 +482,30 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
       assert [%LaunchClaims.Role{name: :learner}, %LaunchClaims.Role{}] = launch.claims.roles
+    end
+
+    test "student launch with short role", ctx do
+      claims =
+        put_lti_claim(ctx.claims, "roles", [
+          "Learner"
+        ])
+
+      params = mint_and_params(claims, ctx)
+
+      assert {:ok, %LaunchContext{}} =
+               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+    end
+
+    test "student launch with unknown role", ctx do
+      claims =
+        put_lti_claim(ctx.claims, "roles", [
+          "http://example.com/custom/Auditor"
+        ])
+
+      params = mint_and_params(claims, ctx)
+
+      assert {:ok, %LaunchContext{}} =
+               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
     end
 
     test "student launch with no roles (empty array)", ctx do
