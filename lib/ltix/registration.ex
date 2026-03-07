@@ -1,15 +1,9 @@
 defmodule Ltix.Registration do
   @moduledoc """
-  Platform registration data
-  [Core §3.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-domain-model),
-  [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment).
+  Everything the tool knows about a registered platform, established
+  out-of-band before any launch occurs.
 
-  A struct holding everything the tool knows about a registered platform,
-  established out-of-band before any launch occurs.
-
-  > [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment):
-  > "A tool MUST allow multiple deployments on a given platform to share the
-  > same `client_id` and the security contract attached to it."
+  Multiple deployments on a given platform may share the same `client_id`.
   """
 
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -35,17 +29,11 @@ defmodule Ltix.Registration do
 
   ## Validation rules
 
-  - `issuer` MUST be an HTTPS URL with no query or fragment
-    [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
-  - `client_id` MUST be a non-empty string
-    [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
-  - `auth_endpoint` MUST be an HTTPS URL
-    [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  - `jwks_uri` MUST be an HTTPS URL
-    [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security),
-    [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
-  - `token_endpoint` MUST be an HTTPS URL when present
-    [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
+  - `issuer` — HTTPS URL with no query or fragment
+  - `client_id` — non-empty string
+  - `auth_endpoint` — HTTPS URL
+  - `jwks_uri` — HTTPS URL
+  - `token_endpoint` — HTTPS URL (when present)
 
   ## Examples
 

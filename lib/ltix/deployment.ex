@@ -1,11 +1,7 @@
 defmodule Ltix.Deployment do
   @moduledoc """
-  Deployment identity
-  [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment).
-
-  > [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment):
-  > "When a user deploys a tool within their tool platform, the platform MUST
-  > generate an immutable `deployment_id` identifier to identify the integration."
+  A specific installation of a tool on a platform, identified by an
+  immutable `deployment_id` assigned by the platform.
   """
 
   alias Ltix.Errors.Invalid.{InvalidClaim, MissingClaim}
@@ -22,11 +18,10 @@ defmodule Ltix.Deployment do
   Create a new deployment with validation.
 
   ## Validation rules
-  [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
 
-  - `deployment_id` MUST be a non-empty string
-  - `deployment_id` MUST NOT exceed 255 ASCII characters in length
-  - `deployment_id` MUST contain only ASCII characters
+  - `deployment_id` — non-empty string
+  - `deployment_id` — 255 ASCII characters max
+  - `deployment_id` — ASCII characters only
 
   ## Examples
 
