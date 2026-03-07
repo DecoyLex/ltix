@@ -307,12 +307,25 @@ defmodule Ltix.OIDC.CallbackTest do
   # [Cert §6.1.2](https://www.imsglobal.org/spec/lti/v1p3/cert/#valid-teacher-launches)
   describe "valid instructor launches [Cert §6.1.2]" do
     test "standard instructor launch", ctx do
+      claims =
+        ctx.claims
+        |> Map.put("name", "Jane Doe")
+        |> Map.put("email", "instructor@example.com")
+        |> put_lti_claim("context", %{
+          "id" => "course-001",
+          "label" => "CS101",
+          "title" => "Intro to CS"
+        })
+
+      params = mint_and_params(claims, ctx)
+
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(ctx.params, ctx.state, TestStorageAdapter,
-                 req_options: req_options()
-               )
+               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
       assert LaunchClaims.Role.instructor?(launch.claims.roles)
+      assert launch.claims.name == "Jane Doe"
+      assert launch.claims.email == "instructor@example.com"
+      assert launch.claims.context.id == "course-001"
     end
 
     test "instructor launch with multiple roles", ctx do
@@ -401,13 +414,18 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
     end
 
-    test "instructor launch without context", ctx do
-      claims = Map.delete(ctx.claims, @lti <> "context")
+    test "instructor launch email without context", ctx do
+      claims =
+        ctx.claims
+        |> Map.put("email", "instructor@example.com")
+        |> Map.delete(@lti <> "context")
+
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
+      assert launch.claims.email == "instructor@example.com"
       assert launch.claims.context == nil
     end
   end
@@ -416,9 +434,17 @@ defmodule Ltix.OIDC.CallbackTest do
   describe "valid student launches [Cert §6.1.3]" do
     test "standard student launch", ctx do
       claims =
-        put_lti_claim(ctx.claims, "roles", [
+        ctx.claims
+        |> put_lti_claim("roles", [
           "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
         ])
+        |> Map.put("name", "John Smith")
+        |> Map.put("email", "student@example.com")
+        |> put_lti_claim("context", %{
+          "id" => "course-001",
+          "label" => "CS101",
+          "title" => "Intro to CS"
+        })
 
       params = mint_and_params(claims, ctx)
 
@@ -426,6 +452,9 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
       assert LaunchClaims.Role.learner?(launch.claims.roles)
+      assert launch.claims.name == "John Smith"
+      assert launch.claims.email == "student@example.com"
+      assert launch.claims.context.id == "course-001"
     end
 
     test "student launch with multiple roles", ctx do
@@ -508,12 +537,13 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
     end
 
-    test "student launch without context", ctx do
+    test "student launch email without context", ctx do
       claims =
         ctx.claims
         |> put_lti_claim("roles", [
           "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
         ])
+        |> Map.put("email", "student@example.com")
         |> Map.delete(@lti <> "context")
 
       params = mint_and_params(claims, ctx)
@@ -521,6 +551,7 @@ defmodule Ltix.OIDC.CallbackTest do
       assert {:ok, %LaunchContext{} = launch} =
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
+      assert launch.claims.email == "student@example.com"
       assert launch.claims.context == nil
     end
   end
