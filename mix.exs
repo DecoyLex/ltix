@@ -62,6 +62,7 @@ defmodule Ltix.MixProject do
         Core: [
           Ltix.Registration,
           Ltix.Deployment,
+          Ltix.LaunchContext,
           Ltix.StorageAdapter
         ],
         JWT: [
