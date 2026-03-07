@@ -1,10 +1,39 @@
 defmodule Ltix.LaunchClaims.Role do
   @moduledoc """
-  Parses LTI role URIs into structured `%Role{}` structs with type, name,
-  and optional sub-role.
+  A parsed LTI role with type, name, and optional sub-role.
 
-  Delegates to `Ltix.LaunchClaims.Role.LIS` for the standard LIS
-  vocabularies, then falls back to any custom parsers.
+  Roles arrive in launch claims as URI strings. Use `parse/1` to convert
+  a single URI, or access them pre-parsed via `context.claims.roles`.
+
+  ## Checking Roles
+
+  Predicate helpers like `instructor?/1` and `learner?/1` match on the
+  role name regardless of sub-role. This means `instructor?/1` returns
+  `true` for both a principal Instructor and an Instructor#TeachingAssistant:
+
+      Role.instructor?(launch.claims.roles)
+
+  To check for a specific sub-role, use `teaching_assistant?/1` or
+  `has_role?/4`:
+
+      Role.teaching_assistant?(roles)
+      Role.has_role?(roles, :context, :instructor, :teaching_assistant)
+
+  To check for _only_ the principal role (excluding sub-roles), pass
+  `nil` as the sub-role:
+
+      Role.has_role?(roles, :context, :instructor, nil)
+
+  ## Role Types
+
+    * `:context` — course-level roles (Instructor, Learner, etc.)
+    * `:institution` — institution-level roles (Faculty, Student, etc.)
+    * `:system` — system-level roles (Administrator, SysAdmin, etc.)
+
+  Use the filter helpers to narrow by type:
+
+      Role.context_roles(roles)
+      Role.institution_roles(roles)
 
   ## Examples
 
