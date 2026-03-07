@@ -1,10 +1,9 @@
 defmodule Ltix.LaunchClaims do
   @moduledoc """
-  Parses a JWT body (as a map) into a structured `%LaunchClaims{}` struct.
+  The structured representation of claims from an LTI launch JWT.
 
-  Each key is classified as OIDC, LTI, or service endpoint; complex claims
-  are delegated to nested struct modules; unknown keys are collected into
-  `extensions`.
+  Standard OIDC and LTI claims are mapped to named fields, while any
+  unrecognized claims are available in `extensions`.
 
   ## Examples
 
@@ -162,9 +161,6 @@ defmodule Ltix.LaunchClaims do
 
   @doc """
   Parse a JWT body map into a `%LaunchClaims{}` struct.
-
-  Classifies each key, delegates to nested parsers, parses roles,
-  and collects unrecognized keys into `extensions`.
 
   ## Options
 
