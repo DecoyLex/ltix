@@ -327,7 +327,8 @@ defmodule Ltix.OIDC.CallbackTest do
       assert {:ok, %LaunchContext{} = launch} =
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
-      assert length(launch.claims.roles) == 2
+      assert [%LaunchClaims.Role{name: :instructor}, %LaunchClaims.Role{}] =
+               launch.claims.roles
     end
 
     test "instructor launch with short role", ctx do
@@ -439,7 +440,7 @@ defmodule Ltix.OIDC.CallbackTest do
       assert {:ok, %LaunchContext{} = launch} =
                Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
 
-      assert length(launch.claims.roles) == 2
+      assert [%LaunchClaims.Role{name: :learner}, %LaunchClaims.Role{}] = launch.claims.roles
     end
 
     test "student launch with no roles (empty array)", ctx do

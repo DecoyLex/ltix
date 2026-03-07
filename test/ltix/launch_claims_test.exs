@@ -125,7 +125,6 @@ defmodule Ltix.LaunchClaimsTest do
       assert {:ok, %LaunchClaims{roles: roles, unrecognized_roles: []}} =
                LaunchClaims.from_json(json)
 
-      assert length(roles) == 2
       assert [%Role{name: :instructor}, %Role{name: :learner}] = roles
     end
 

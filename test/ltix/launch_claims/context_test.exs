@@ -50,7 +50,11 @@ defmodule Ltix.LaunchClaims.ContextTest do
       }
 
       assert {:ok, %Context{type: types}} = Context.from_json(json)
-      assert length(types) == 2
+
+      assert types == [
+               "http://purl.imsglobal.org/vocab/lis/v2/course#CourseTemplate",
+               "http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"
+             ]
     end
 
     # [Core §A.1] deprecated simple names MAY be recognized
