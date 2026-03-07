@@ -27,7 +27,7 @@ defmodule Ltix.OIDC.Callback do
          {:ok, registration} <- lookup_registration(iss, client_id, callback_module),
          {:ok, raw_claims} <- Token.verify(id_token, registration, opts),
          :ok <- validate_nonce(raw_claims, registration, callback_module),
-         :ok <- validate_required_lti_claims(raw_claims),
+         :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, deployment} <- lookup_deployment(raw_claims, registration, callback_module),
          {:ok, claims} <- LaunchClaims.from_json(raw_claims) do
       {:ok, %LaunchContext{claims: claims, registration: registration, deployment: deployment}}
@@ -108,7 +108,7 @@ defmodule Ltix.OIDC.Callback do
   end
 
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
-  defp validate_required_lti_claims(claims) do
+  defp validate_required_lti_claims(claims, opts) do
     with :ok <- validate_message_type(claims),
          :ok <- validate_version(claims),
          :ok <- validate_present(claims, @lti <> "deployment_id", "deployment_id", "Core §5.3.3"),
@@ -121,7 +121,7 @@ defmodule Ltix.OIDC.Callback do
            ),
          :ok <- validate_resource_link(claims),
          :ok <- validate_roles_present(claims) do
-      validate_sub(claims)
+      validate_sub(claims, opts)
     end
   end
 
@@ -184,10 +184,16 @@ defmodule Ltix.OIDC.Callback do
   end
 
   # [Core §5.3.6](https://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims)
-  defp validate_sub(%{"sub" => sub}) when is_binary(sub) and byte_size(sub) > 0, do: :ok
+  # [Core §5.3.6.1](https://www.imsglobal.org/spec/lti/v1p3/#anonymous-launch-case)
+  defp validate_sub(%{"sub" => sub}, _opts) when is_binary(sub) and byte_size(sub) > 0, do: :ok
 
-  defp validate_sub(_),
-    do: {:error, MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3.6")}
+  defp validate_sub(claims, opts) do
+    if Keyword.get(opts, :allow_anonymous, false) and not Map.has_key?(claims, "sub") do
+      :ok
+    else
+      {:error, MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3.6")}
+    end
+  end
 
   # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)
   defp lookup_deployment(claims, registration, callback_module) do

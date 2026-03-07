@@ -592,6 +592,30 @@ defmodule Ltix.OIDC.CallbackTest do
     end
   end
 
+  # [Core §5.3.6.1](https://www.imsglobal.org/spec/lti/v1p3/#anonymous-launch-case)
+  describe "anonymous launches [Core §5.3.6.1]" do
+    test "anonymous launch succeeds with allow_anonymous: true", ctx do
+      claims = Map.delete(ctx.claims, "sub")
+      params = mint_and_params(claims, ctx)
+
+      assert {:ok, %LaunchContext{} = launch} =
+               Callback.call(params, ctx.state, TestStorageAdapter,
+                 req_options: req_options(),
+                 allow_anonymous: true
+               )
+
+      assert launch.claims.subject == nil
+    end
+
+    test "anonymous launch rejected without allow_anonymous flag", ctx do
+      claims = Map.delete(ctx.claims, "sub")
+      params = mint_and_params(claims, ctx)
+
+      assert {:error, %MissingClaim{claim: "sub"}} =
+               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+    end
+  end
+
   # -- Helpers --
 
   defp mint_and_params(claims, ctx) do
