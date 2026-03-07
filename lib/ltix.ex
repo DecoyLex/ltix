@@ -26,22 +26,22 @@ defmodule Ltix do
 
   The LTI launch flow requires two endpoints. In your login endpoint,
   call `handle_login/3` with the platform's initiation params and your
-  callback URL:
+  launch URL:
 
       def login(conn, params) do
-        callback_url = Routes.lti_url(conn, :callback)
+        launch_url = url(conn, ~p"/lti/launch")
         {:ok, %{redirect_uri: url, state: state}} =
-          Ltix.handle_login(params, callback_url)
+          Ltix.handle_login(params, launch_url)
 
         conn
         |> put_session(:lti_state, state)
         |> redirect(external: url)
       end
 
-  In your callback endpoint, call `handle_callback/3` with the POST
+  In your launch endpoint, call `handle_callback/3` with the POST
   params and the stored state:
 
-      def callback(conn, params) do
+      def launch(conn, params) do
         state = get_session(conn, :lti_state)
         {:ok, context} = Ltix.handle_callback(params, state)
 
@@ -57,7 +57,7 @@ defmodule Ltix do
   @doc """
   Handle a platform's login initiation and build an authorization redirect.
 
-  The `redirect_uri` is the tool's callback URL where the platform will
+  The `redirect_uri` is the tool's launch URL where the platform will
   POST the authentication response.
 
   Returns `{:ok, %{redirect_uri: url, state: state}}` on success. Store
