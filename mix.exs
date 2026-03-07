@@ -47,7 +47,57 @@ defmodule Ltix.MixProject do
   defp docs do
     [
       main: "Ltix",
-      extras: ["README.md"],
+      extras: [
+        "README.md",
+        "guides/concepts.md",
+        "guides/getting-started.md",
+        "guides/storage-adapters.md",
+        "guides/working-with-roles.md",
+        "guides/error-handling.md"
+      ],
+      before_closing_body_tag: fn
+        :html ->
+          """
+          <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+          <script>
+            let initialized = false;
+            window.addEventListener("exdoc:loaded", () => {
+              if (!initialized) {
+                mermaid.initialize({
+                  startOnLoad: false,
+                  theme: document.body.className.includes("dark") ? "dark" : "default"
+                });
+                initialized = true;
+              }
+              let id = 0;
+              for (const codeEl of document.querySelectorAll("pre code.mermaid")) {
+                const preEl = codeEl.parentElement;
+                const graphDefinition = codeEl.textContent;
+                const graphEl = document.createElement("div");
+                const graphId = "mermaid-graph-" + id++;
+                mermaid.render(graphId, graphDefinition).then(({svg, bindFunctions}) => {
+                  graphEl.innerHTML = svg;
+                  bindFunctions?.(graphEl);
+                  preEl.insertAdjacentElement("afterend", graphEl);
+                  preEl.remove();
+                });
+              }
+            });
+          </script>
+          """
+
+        _ ->
+          ""
+      end,
+      groups_for_extras: [
+        Concepts: ["guides/concepts.md"],
+        Guides: [
+          "guides/getting-started.md",
+          "guides/storage-adapters.md",
+          "guides/working-with-roles.md",
+          "guides/error-handling.md"
+        ]
+      ],
       nest_modules_by_prefix: [
         Ltix.JWT,
         Ltix.JWT.KeySet,
