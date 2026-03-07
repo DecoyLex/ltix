@@ -49,6 +49,8 @@ defmodule Ltix.MixProject do
       main: "Ltix",
       extras: ["README.md"],
       nest_modules_by_prefix: [
+        Ltix.JWT,
+        Ltix.JWT.KeySet,
         Ltix.LaunchClaims,
         Ltix.LaunchClaims.Role,
         Ltix.Errors,
@@ -61,6 +63,13 @@ defmodule Ltix.MixProject do
           Ltix.Registration,
           Ltix.Deployment,
           Ltix.StorageAdapter
+        ],
+        JWT: [
+          Ltix.JWT.Token,
+          Ltix.JWT.KeySet,
+          Ltix.JWT.KeySet.Cache,
+          Ltix.JWT.KeySet.EtsCache,
+          Ltix.JWT.KeySet.CachexCache
         ],
         "Launch Claims": [
           Ltix.LaunchClaims,
