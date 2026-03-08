@@ -237,7 +237,7 @@ defmodule Ltix.LaunchClaims.Role do
   # --- Private ---
 
   # Matches on type and name, ignoring sub_role.
-  # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies-0)
+  # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#context-sub-roles)
   # Platforms SHOULD send the principal role alongside a sub-role, but the
   # tool MUST NOT assume it is always present.
   defp has_name?(roles, type, name) do

@@ -43,7 +43,7 @@ defmodule Ltix.Integration.FullLaunchTest do
     %{private: private, kid: kid, registration: registration, deployment: deployment}
   end
 
-  # [Sec §5.1.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  # [Sec §5.1.1](https://www.imsglobal.org/spec/security/v1p0/#openid_connect_launch_flow)
   describe "complete launch flow [Sec §5.1.1]" do
     test "login → callback → LaunchContext", ctx do
       {:ok, login_result} = do_login()

@@ -73,7 +73,7 @@ defmodule Ltix.JWT.TokenTest do
 
     # Algorithm validation [Sec §5.1.3 step 6; Cert §4.2]
 
-    # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+    # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
     test "rejects alg=none", ctx do
       token = forge_token_with_alg("none", ctx.kid)
 
