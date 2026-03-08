@@ -52,6 +52,7 @@ defmodule Ltix.MixProject do
         "guides/what-is-ltix.md",
         "guides/concepts.md",
         "guides/getting-started.md",
+        "guides/testing-with-ims-ri.md",
         "guides/storage-adapters.md",
         "guides/working-with-roles.md",
         "guides/error-handling.md"
@@ -94,6 +95,7 @@ defmodule Ltix.MixProject do
         About: ["guides/what-is-ltix.md", "guides/concepts.md"],
         Guides: [
           "guides/getting-started.md",
+          "guides/testing-with-ims-ri.md",
           "guides/storage-adapters.md",
           "guides/working-with-roles.md",
           "guides/error-handling.md"

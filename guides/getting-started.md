@@ -206,13 +206,16 @@ context.claims.target_link_uri  # where the user intended to go
 
 See `Ltix.LaunchClaims` for the full list of fields.
 
-## Configure the session for cross-origin POSTs
+## Configure Phoenix for cross-origin launches
 
-LTI launches are cross-origin — the platform at one domain POSTs to
-your tool at another. By default, Phoenix sets `SameSite=Lax` on
-session cookies, which means the browser won't include the cookie on
-cross-origin POSTs. The state stored during login will be lost by the
-time the launch arrives.
+LTI launches are cross-origin: the platform at one domain POSTs to your
+tool at another. Two Phoenix defaults need to change for this to work.
+
+### Session cookies
+
+By default, Phoenix sets `SameSite=Lax` on session cookies, which means
+the browser won't include the cookie on cross-origin POSTs. The state
+stored during login will be lost by the time the launch arrives.
 
 Set `SameSite=None` and `Secure=true` in your endpoint:
 
@@ -228,10 +231,9 @@ Set `SameSite=None` and `Secure=true` in your endpoint:
 ]
 ```
 
-`SameSite=None` requires `Secure`, which requires HTTPS — see the next
-section.
+`SameSite=None` requires `Secure`, which requires HTTPS.
 
-## Enable TLS
+### TLS
 
 LTI requires HTTPS on all tool endpoints. For development, generate a
 self-signed certificate:
@@ -254,71 +256,25 @@ config :my_app, MyAppWeb.Endpoint,
   ]
 ```
 
-Your browser will warn about the self-signed certificate — accept it
+Your browser will warn about the self-signed certificate. Accept it
 before attempting a launch so the platform's redirect doesn't fail
 silently.
 
-## Test with the IMS Reference Implementation
+## Try it out
 
-The [IMS LTI Reference Implementation](https://lti-ri.imsglobal.org)
-provides a test platform you can launch from. Here's how to wire it up.
-
-### Create a platform
-
-1. Go to [Manage Platforms](https://lti-ri.imsglobal.org/platforms) and
-   click **Add Platform**
-2. Fill in a name, client ID (e.g. `my-tool`), and audience
-3. Generate keys at [Generate Keys](https://lti-ri.imsglobal.org/keygen)
-   and paste the public and private keys into the platform form
-4. Save the platform
-
-### Add a deployment
-
-1. View your platform and click **Platform Keys**
-2. Click **Add Platform Key**, give it a name and a deployment ID
-   (e.g. `1`)
-3. Save — note the **well-known/jwks URL** on this page
-
-### Configure your storage adapter
-
-Copy the values from the RI platform page into your storage adapter.
-You need:
-
-| RI Platform field | Storage field |
-|---|---|
-| Issuer (shown on platform page) | `Registration` `:issuer` |
-| Client ID (what you entered) | `Registration` `:client_id` |
-| OIDC Auth URL | `Registration` `:auth_endpoint` |
-| well-known/jwks URL (from Platform Keys) | `Registration` `:jwks_uri` |
-| Deployment ID (from Platform Keys) | `Deployment` `:deployment_id` |
-
-### Add a resource link
-
-1. View your platform and click **Resource Links**
-2. Fill in the form with:
-   - **Tool link url:** `https://localhost:4000/lti/launch`
-   - **Login initiation url:** `https://localhost:4000/lti/login`
-3. Save
-
-### Add a course
-
-1. View your platform and click **Courses**
-2. Fill in a course name and save
-
-### Launch
-
-1. View your platform and click **Resource Links**
-2. Click **Select User for Launch**, then **Launch with New User**
-3. Scroll down and click **Perform Launch**
-
-If everything is configured correctly, you'll see your launch page
-with the parsed launch data — user info, roles, context, and resource
-link.
+To test your integration without a real LMS, the IMS Global consortium
+provides a free reference platform. See
+[Testing with the IMS Reference Implementation](testing-with-ims-ri.md)
+for a step-by-step walkthrough.
 
 ## Next steps
 
-- `Ltix.StorageAdapter` — full callback documentation
+- [Testing with the IMS RI](testing-with-ims-ri.md) — test launches
+  without a real LMS
+- [Storage Adapters](storage-adapters.md) — production Ecto
+  implementation, nonce expiry, and edge cases
+- [Error Handling](error-handling.md) — matching on error classes and
+  specific error types
 - `Ltix.LaunchContext` — what a successful launch returns
 - `Ltix.LaunchClaims` — all available claim fields
 - `Ltix.LaunchClaims.Role` — role parsing and predicates
-- `examples/phoenix_example/` — complete working Phoenix app
