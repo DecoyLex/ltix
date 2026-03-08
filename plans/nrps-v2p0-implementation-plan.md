@@ -1205,18 +1205,18 @@ leave the library in a working, testable state.
      `storage-adapters.md`, `cookbooks/testing-lti-launches.md`
 
 **Acceptance criteria**:
-- [ ] `generate_key_pair/1` produces RSA keys with `alg: RS256` [Sec §6.1]
-- [ ] Generated JWKs include `n`, `e`, `kty`, `use`, and `kid` [Sec §6.2, §6.3]
-- [ ] Each call generates a unique `kid` [Sec §6.3]
-- [ ] `to_jwks/1` strips private material — output contains only public
+- [X] `generate_key_pair/1` produces RSA keys with `alg: RS256` [Sec §6.1]
+- [X] Generated JWKs include `n`, `e`, `kty`, `use`, and `kid` [Sec §6.2, §6.3]
+- [X] Each call generates a unique `kid` [Sec §6.3]
+- [X] `to_jwks/1` strips private material — output contains only public
   fields [Sec §6]
-- [ ] `to_jwks/1` accepts multiple keys (supports rotation overlap) [Sec §6.4]
-- [ ] Key sizes below 2048 bits are rejected
-- [ ] Tests which generate JWKs use `Ltix.JWK.generate_key_pair/1` instead of inline JOSE calls
-- [ ] `Registration.new/1` requires `tool_jwk` — per-registration field
+- [X] `to_jwks/1` accepts multiple keys (supports rotation overlap) [Sec §6.4]
+- [X] Key sizes below 2048 bits are rejected
+- [X] Tests which generate JWKs use `Ltix.JWK.generate_key_pair/1` instead of inline JOSE calls
+- [X] `Registration.new/1` requires `tool_jwk` — per-registration field
   makes it easy for host apps to follow the SHOULD NOT reuse
   guidance [Sec §7.2]
-- [ ] All existing tests pass with the new required field
+- [X] All existing tests pass with the new required field
 
 ### Phase 1: Data Structures (no HTTP, no OAuth)
 
