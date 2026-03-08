@@ -55,7 +55,9 @@ defmodule Ltix.MixProject do
         "guides/testing-with-ims-ri.md",
         "guides/storage-adapters.md",
         "guides/working-with-roles.md",
-        "guides/error-handling.md"
+        "guides/error-handling.md",
+        "guides/cookbooks/auto-create-deployments.md",
+        "guides/cookbooks/testing-lti-launches.md"
       ],
       before_closing_body_tag: fn
         :html ->
@@ -99,6 +101,10 @@ defmodule Ltix.MixProject do
           "guides/storage-adapters.md",
           "guides/working-with-roles.md",
           "guides/error-handling.md"
+        ],
+        Cookbooks: [
+          "guides/cookbooks/auto-create-deployments.md",
+          "guides/cookbooks/testing-lti-launches.md"
         ]
       ],
       nest_modules_by_prefix: [
