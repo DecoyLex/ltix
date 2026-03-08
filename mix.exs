@@ -49,6 +49,7 @@ defmodule Ltix.MixProject do
       main: "Ltix",
       extras: [
         "README.md",
+        "guides/what-is-ltix.md",
         "guides/concepts.md",
         "guides/getting-started.md",
         "guides/storage-adapters.md",
@@ -90,7 +91,7 @@ defmodule Ltix.MixProject do
           ""
       end,
       groups_for_extras: [
-        Concepts: ["guides/concepts.md"],
+        About: ["guides/what-is-ltix.md", "guides/concepts.md"],
         Guides: [
           "guides/getting-started.md",
           "guides/storage-adapters.md",
