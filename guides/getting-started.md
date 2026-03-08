@@ -107,8 +107,8 @@ children = [
 
 Registrations are created out-of-band when a platform administrator
 sets up your tool. Each registration carries the platform's issuer,
-client_id, and endpoint URLs. See `Ltix.Registration` for the full
-struct.
+client_id, endpoint URLs, and your tool's private signing key
+(`tool_jwk`). See `Ltix.Registration` for the full struct.
 
 ## Add routes
 

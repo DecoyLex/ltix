@@ -13,7 +13,8 @@ defmodule Ltix.Registration do
     :client_id,
     :auth_endpoint,
     :jwks_uri,
-    :token_endpoint
+    :token_endpoint,
+    :tool_jwk
   ]
 
   @type t :: %__MODULE__{
@@ -21,7 +22,8 @@ defmodule Ltix.Registration do
           client_id: String.t(),
           auth_endpoint: String.t(),
           jwks_uri: String.t(),
-          token_endpoint: String.t() | nil
+          token_endpoint: String.t() | nil,
+          tool_jwk: JOSE.JWK.t()
         }
 
   @doc """
@@ -34,25 +36,19 @@ defmodule Ltix.Registration do
   - `auth_endpoint` — HTTPS URL
   - `jwks_uri` — HTTPS URL
   - `token_endpoint` — HTTPS URL (when present)
+  - `tool_jwk` — `JOSE.JWK.t()` (the tool's private signing key for this registration)
 
   ## Examples
 
-      iex> Ltix.Registration.new(%{
+      iex> {:ok, reg} = Ltix.Registration.new(%{
       ...>   issuer: "https://platform.example.com",
       ...>   client_id: "tool-123",
       ...>   auth_endpoint: "https://platform.example.com/auth",
-      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+      ...>   tool_jwk: elem(Ltix.JWK.generate_key_pair(), 0)
       ...> })
-      {:ok, %Ltix.Registration{
-        issuer: "https://platform.example.com",
-        client_id: "tool-123",
-        auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        token_endpoint: nil
-      }}
-
-      Ltix.Registration.new(%{issuer: "http://not-https.example.com", ...})
-      #=> {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "issuer"}}
+      iex> reg.issuer
+      "https://platform.example.com"
 
   """
   @spec new(map()) :: {:ok, t()} | {:error, Exception.t()}
@@ -61,14 +57,16 @@ defmodule Ltix.Registration do
          :ok <- validate_client_id(attrs[:client_id]),
          :ok <- validate_https_url(attrs[:auth_endpoint], "auth_endpoint"),
          :ok <- validate_https_url(attrs[:jwks_uri], "jwks_uri"),
-         :ok <- validate_optional_https_url(attrs[:token_endpoint], "token_endpoint") do
+         :ok <- validate_optional_https_url(attrs[:token_endpoint], "token_endpoint"),
+         :ok <- validate_tool_jwk(attrs[:tool_jwk]) do
       {:ok,
        %__MODULE__{
          issuer: attrs[:issuer],
          client_id: attrs[:client_id],
          auth_endpoint: attrs[:auth_endpoint],
          jwks_uri: attrs[:jwks_uri],
-         token_endpoint: attrs[:token_endpoint]
+         token_endpoint: attrs[:token_endpoint],
+         tool_jwk: attrs[:tool_jwk]
        }}
     end
   end
@@ -142,4 +140,18 @@ defmodule Ltix.Registration do
 
   defp validate_optional_https_url(nil, _field), do: :ok
   defp validate_optional_https_url(url, field), do: validate_https_url(url, field)
+
+  # [Sec §7.2](https://www.imsglobal.org/spec/security/v1p0/#h_key-management):
+  # "A system SHOULD NOT use a single key pair to secure message signing for more
+  # than one system." Keys are per-registration, exchanged during setup [Sec §6].
+  defp validate_tool_jwk(%JOSE.JWK{}), do: :ok
+
+  defp validate_tool_jwk(_) do
+    {:error,
+     InvalidClaim.exception(
+       claim: "tool_jwk",
+       value: nil,
+       spec_ref: "Sec §7.2 (per-registration key)"
+     )}
+  end
 end

@@ -5,13 +5,16 @@ defmodule Ltix.OIDC.LoginInitiationTest do
   alias Ltix.OIDC.LoginInitiation
   alias Ltix.Test.TestStorageAdapter
 
+  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+
   setup do
     {:ok, registration} =
       Ltix.Registration.new(%{
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/authorize",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+        tool_jwk: @tool_jwk
       })
 
     {:ok, pid} = TestStorageAdapter.start_link(registrations: [registration])
@@ -122,7 +125,8 @@ defmodule Ltix.OIDC.LoginInitiationTest do
           issuer: "https://platform.example.com",
           client_id: "other-client-id",
           auth_endpoint: "https://platform.example.com/authorize",
-          jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+          jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+          tool_jwk: @tool_jwk
         })
 
       {:ok, pid} = TestStorageAdapter.start_link(registrations: [other_reg])

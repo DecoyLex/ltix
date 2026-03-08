@@ -16,7 +16,8 @@ defmodule LtixTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+        tool_jwk: private
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")

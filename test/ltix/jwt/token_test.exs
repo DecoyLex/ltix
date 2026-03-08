@@ -26,7 +26,8 @@ defmodule Ltix.JWT.TokenTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json"
+        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json",
+        tool_jwk: private
       })
 
     stub_jwks(jwks)

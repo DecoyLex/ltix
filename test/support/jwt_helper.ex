@@ -9,37 +9,23 @@ defmodule Ltix.Test.JWTHelper do
   @doc """
   Generate an RSA key pair for testing.
 
-  Returns `{private_jwk, public_jwk, kid}` where:
-  - `private_jwk` is a `JOSE.JWK` with the private key (for signing)
-  - `public_jwk` is a `JOSE.JWK` with only the public key (for verification/JWKS)
-  - `kid` is a unique key ID string [Sec §6.2]
+  Returns `{private_jwk, public_jwk, kid}`. Delegates to `Ltix.JWK.generate_key_pair/0`.
   """
   @spec generate_rsa_key_pair() :: {JOSE.JWK.t(), JOSE.JWK.t(), String.t()}
   def generate_rsa_key_pair do
-    kid = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    private_jwk = JOSE.JWK.generate_key({:rsa, 2048})
-
-    # Add kid to the key fields
-    private_jwk = JOSE.JWK.merge(private_jwk, %{"kid" => kid})
-    public_jwk = JOSE.JWK.to_public(private_jwk)
-
-    {private_jwk, public_jwk, kid}
+    {private_jwk, public_jwk} = Ltix.JWK.generate_key_pair()
+    {_kty, fields} = JOSE.JWK.to_map(private_jwk)
+    {private_jwk, public_jwk, fields["kid"]}
   end
 
   @doc """
   Build a JWKS (JSON Web Key Set) map from a list of public JWKs.
 
-  Returns a map in the format `%{"keys" => [...]}` per [Sec §6.3].
+  Returns a map in the format `%{"keys" => [...]}`. Delegates to `Ltix.JWK.to_jwks/1`.
   """
   @spec build_jwks([JOSE.JWK.t()]) :: map()
   def build_jwks(public_keys) do
-    keys =
-      Enum.map(public_keys, fn jwk ->
-        {_kty, fields} = JOSE.JWK.to_map(jwk)
-        fields
-      end)
-
-    %{"keys" => keys}
+    Ltix.JWK.to_jwks(public_keys)
   end
 
   @doc """

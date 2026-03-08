@@ -4,13 +4,16 @@ defmodule Ltix.OIDC.AuthenticationRequestTest do
   alias Ltix.OIDC.AuthenticationRequest
   alias Ltix.Registration
 
+  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+
   setup do
     {:ok, registration} =
       Registration.new(%{
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/authorize",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+        tool_jwk: @tool_jwk
       })
 
     params = %{

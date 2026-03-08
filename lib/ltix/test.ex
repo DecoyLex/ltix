@@ -80,6 +80,9 @@ defmodule Ltix.Test do
     {private_key, public_key, kid} = generate_rsa_key_pair()
     jwks = build_jwks([public_key])
 
+    # Tool's own key pair for signing client assertions (separate from platform keys)
+    {tool_private, _tool_public} = Ltix.JWK.generate_key_pair()
+
     # Unique JWKS URI per call for async test safety
     suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
 
@@ -88,7 +91,8 @@ defmodule Ltix.Test do
         issuer: issuer,
         client_id: client_id,
         auth_endpoint: "#{issuer}/auth",
-        jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json"
+        jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
+        tool_jwk: tool_private
       })
 
     {:ok, deployment} = Deployment.new(deployment_id)
@@ -244,32 +248,23 @@ defmodule Ltix.Test do
   @doc """
   Generate an RSA key pair for testing.
 
-  Returns `{private_jwk, public_jwk, kid}`.
+  Returns `{private_jwk, public_jwk, kid}`. Delegates to `Ltix.JWK.generate_key_pair/0`.
   """
   @spec generate_rsa_key_pair() :: {JOSE.JWK.t(), JOSE.JWK.t(), String.t()}
   def generate_rsa_key_pair do
-    kid = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    private_jwk = JOSE.JWK.generate_key({:rsa, 2048})
-    private_jwk = JOSE.JWK.merge(private_jwk, %{"kid" => kid})
-    public_jwk = JOSE.JWK.to_public(private_jwk)
-
-    {private_jwk, public_jwk, kid}
+    {private_jwk, public_jwk} = Ltix.JWK.generate_key_pair()
+    {_kty, fields} = JOSE.JWK.to_map(private_jwk)
+    {private_jwk, public_jwk, fields["kid"]}
   end
 
   @doc """
   Build a JWKS map from a list of public JWKs.
 
-  Returns `%{"keys" => [...]}`.
+  Returns `%{"keys" => [...]}`. Delegates to `Ltix.JWK.to_jwks/1`.
   """
   @spec build_jwks([JOSE.JWK.t()]) :: map()
   def build_jwks(public_keys) do
-    keys =
-      Enum.map(public_keys, fn jwk ->
-        {_kty, fields} = JOSE.JWK.to_map(jwk)
-        fields
-      end)
-
-    %{"keys" => keys}
+    Ltix.JWK.to_jwks(public_keys)
   end
 
   @doc """

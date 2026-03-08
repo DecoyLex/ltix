@@ -4,6 +4,8 @@ defmodule Ltix.JWT.KeySetTest do
   alias Ltix.JWT.KeySet
   alias Ltix.Test.JWTHelper
 
+  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+
   setup do
     {_private, public, kid} = JWTHelper.generate_rsa_key_pair()
     jwks = JWTHelper.build_jwks([public])
@@ -16,7 +18,8 @@ defmodule Ltix.JWT.KeySetTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json"
+        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json",
+        tool_jwk: @tool_jwk
       })
 
     %{registration: registration, public: public, kid: kid, jwks: jwks}

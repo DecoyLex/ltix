@@ -5,12 +5,15 @@ defmodule Ltix.RegistrationTest do
 
   doctest Ltix.Registration
 
+  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+
   @valid_attrs %{
     issuer: "https://platform.example.com",
     client_id: "tool-client-123",
     auth_endpoint: "https://platform.example.com/auth",
     jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-    token_endpoint: "https://platform.example.com/token"
+    token_endpoint: "https://platform.example.com/token",
+    tool_jwk: @tool_jwk
   }
 
   describe "new/1" do
@@ -87,6 +90,23 @@ defmodule Ltix.RegistrationTest do
 
       assert {:ok, %Registration{issuer: "https://platform.example.com:8443/lti"}} =
                Registration.new(attrs)
+    end
+
+    test "stores tool_jwk on registration" do
+      assert {:ok, %Registration{tool_jwk: %JOSE.JWK{}}} = Registration.new(@valid_attrs)
+    end
+
+    # [Sec §7.2] Keys are per-registration
+    test "rejects nil tool_jwk" do
+      attrs = %{@valid_attrs | tool_jwk: nil}
+      assert {:error, error} = Registration.new(attrs)
+      assert Exception.message(error) =~ "tool_jwk"
+    end
+
+    test "rejects non-JWK tool_jwk" do
+      attrs = %{@valid_attrs | tool_jwk: "not-a-jwk"}
+      assert {:error, error} = Registration.new(attrs)
+      assert Exception.message(error) =~ "tool_jwk"
     end
   end
 end

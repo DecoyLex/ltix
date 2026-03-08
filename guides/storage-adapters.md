@@ -46,7 +46,8 @@ defp to_ltix_registration(record) do
     client_id: record.client_id,
     auth_endpoint: record.auth_endpoint,
     jwks_uri: record.jwks_uri,
-    token_endpoint: record.token_endpoint
+    token_endpoint: record.token_endpoint,
+    tool_jwk: record.tool_jwk
   }
 end
 ```
@@ -232,7 +233,8 @@ defmodule MyApp.LtiStorage do
       client_id: record.client_id,
       auth_endpoint: record.auth_endpoint,
       jwks_uri: record.jwks_uri,
-      token_endpoint: record.token_endpoint
+      token_endpoint: record.token_endpoint,
+      tool_jwk: record.tool_jwk
     }
   end
 end
