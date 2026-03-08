@@ -23,6 +23,7 @@
             # Language toolchains
             elixir
             erlang
+            uv
 
             # Dev tools
             nixd

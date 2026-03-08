@@ -106,7 +106,8 @@ defmodule Ltix.MixProject do
         Ltix.Errors,
         Ltix.Errors.Invalid,
         Ltix.Errors.Security,
-        Ltix.Errors.Unknown
+        Ltix.Errors.Unknown,
+        Ltix.Test
       ],
       groups_for_modules: [
         Core: [
@@ -141,6 +142,11 @@ defmodule Ltix.MixProject do
           Ltix.Errors.Invalid,
           Ltix.Errors.Security,
           Ltix.Errors.Unknown
+        ],
+        Testing: [
+          Ltix.Test,
+          Ltix.Test.Platform,
+          Ltix.Test.StorageAdapter
         ]
       ]
     ]
