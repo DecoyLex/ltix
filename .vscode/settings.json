@@ -1,5 +1,13 @@
 {
+    "markdown.styles": [".vscode/markdown-preview.css"],
     "cSpell.words": [
-        "Ltix"
+        "Brightspace",
+        "Ltix",
+        "membershipcontainer",
+        "Moodle",
+        "NRPS",
+        "rlid",
+        "sourcedid",
+        "Splode"
     ]
 }
