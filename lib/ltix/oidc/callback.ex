@@ -136,7 +136,12 @@ defmodule Ltix.OIDC.Callback do
 
       other ->
         {:error,
-         InvalidClaim.exception(claim: "message_type", value: other, spec_ref: "Core §5.3.1")}
+         InvalidClaim.exception(
+           claim: "message_type",
+           message: "unrecognized message_type",
+           value: other,
+           spec_ref: "Core §5.3.1"
+         )}
     end
   end
 
@@ -150,7 +155,13 @@ defmodule Ltix.OIDC.Callback do
         {:error, MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")}
 
       other ->
-        {:error, InvalidClaim.exception(claim: "version", value: other, spec_ref: "Core §5.3.2")}
+        {:error,
+         InvalidClaim.exception(
+           claim: "version",
+           message: "unrecognized LTI version",
+           value: other,
+           spec_ref: "Core §5.3.2"
+         )}
     end
   end
 

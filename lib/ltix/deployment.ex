@@ -40,6 +40,7 @@ defmodule Ltix.Deployment do
          InvalidClaim.exception(
            claim: "deployment_id",
            value: deployment_id,
+           message: "deployment_id must contain only ASCII characters",
            spec_ref: "Core §5.3.3 (ASCII only)"
          )}
 
@@ -48,6 +49,7 @@ defmodule Ltix.Deployment do
          InvalidClaim.exception(
            claim: "deployment_id",
            value: "#{String.length(deployment_id)} chars",
+           message: "deployment_id must not exceed 255 ASCII characters",
            spec_ref: "Core §5.3.3 (MUST NOT exceed 255 ASCII characters)"
          )}
 

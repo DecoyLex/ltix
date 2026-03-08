@@ -85,6 +85,7 @@ defmodule Ltix.Registration do
            InvalidClaim.exception(
              claim: "issuer",
              value: issuer,
+             message: "issuer must not include a query component",
              spec_ref: "Sec §5.1.2 (no query component)"
            )}
 
@@ -93,6 +94,7 @@ defmodule Ltix.Registration do
            InvalidClaim.exception(
              claim: "issuer",
              value: issuer,
+              message: "issuer must not include a fragment component",
              spec_ref: "Sec §5.1.2 (no fragment component)"
            )}
 
@@ -110,6 +112,7 @@ defmodule Ltix.Registration do
      InvalidClaim.exception(
        claim: "client_id",
        value: nil,
+       message: "client_id must be a non-empty string",
        spec_ref: "Sec §5.1.1.2"
      )}
   end
@@ -124,6 +127,7 @@ defmodule Ltix.Registration do
        InvalidClaim.exception(
          claim: field,
          value: url,
+         message: "#{field} must be a valid HTTPS URL",
          spec_ref: "Sec §3 (HTTPS required)"
        )}
     end
@@ -134,6 +138,7 @@ defmodule Ltix.Registration do
      InvalidClaim.exception(
        claim: field,
        value: nil,
+       message: "#{field} must be a valid HTTPS URL",
        spec_ref: "Sec §3 (HTTPS required)"
      )}
   end
@@ -151,6 +156,7 @@ defmodule Ltix.Registration do
      InvalidClaim.exception(
        claim: "tool_jwk",
        value: nil,
+       message: "tool_jwk must be a valid JWK",
        spec_ref: "Sec §7.2 (per-registration key)"
      )}
   end

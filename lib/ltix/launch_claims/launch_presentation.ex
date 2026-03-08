@@ -55,6 +55,7 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
      InvalidClaim.exception(
        claim: "document_target",
        value: target,
+       message: "document_target must be one of #{Enum.join(@valid_document_targets, ", ")}",
        spec_ref: "Core §5.4.4 (must be frame, iframe, or window)"
      )}
   end
