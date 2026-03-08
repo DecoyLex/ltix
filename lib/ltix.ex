@@ -127,7 +127,6 @@ defmodule Ltix do
     end
   end
 
-
   defp ensure_optional(opts, key) do
     if Keyword.has_key?(opts, key) do
       opts

@@ -1,11 +1,12 @@
 # Storage Adapters
 
-Ltix delegates all persistence to your application through the
+Ltix doesn't assume your database, ORM, or persistence strategy. Your
+application owns all storage and provides lookups through the
 `Ltix.StorageAdapter` behaviour. This guide covers what each callback
 does, how to build a production-ready implementation with Ecto, and
 common pitfalls.
 
-## The four callbacks
+## Callback overview
 
 | Callback | When it's called | What it does |
 |---|---|---|

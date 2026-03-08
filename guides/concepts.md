@@ -1,8 +1,10 @@
 # LTI Advantage Concepts
 
-This page explains the key ideas behind LTI 1.3 and how they map to
-Ltix's data structures. Read this before the
-[Getting Started](getting-started.md) guide if you're new to LTI.
+LTI 1.3 defines how learning platforms connect with external tools.
+Understanding these concepts will help you configure Ltix, implement
+your storage adapter, and debug launch issues. If you're already
+familiar with LTI 1.3, skip ahead to
+[How Ltix fits in](#how-ltix-fits-in).
 
 ## What is LTI?
 
@@ -16,7 +18,7 @@ role they have.
 LTI 1.3 uses OpenID Connect (OIDC) for the launch flow and signed
 JWTs for the data payload.
 
-## The launch flow
+## Launch flow
 
 An LTI launch is a three-step browser redirect:
 
