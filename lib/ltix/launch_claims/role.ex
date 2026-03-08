@@ -58,6 +58,13 @@ defmodule Ltix.LaunchClaims.Role do
           uri: String.t()
         }
 
+  @type t_without_uri :: %__MODULE__{
+          type: :context | :institution | :system,
+          name: atom(),
+          sub_role: atom() | nil,
+          uri: nil
+        }
+
   # Short context role names
   # [Cert §6.1.2](https://www.imsglobal.org/spec/lti/v1p3/cert#valid-teacher-launches)
   @short_context_roles %{
@@ -123,6 +130,40 @@ defmodule Ltix.LaunchClaims.Role do
       end
     end)
     |> then(fn {p, u} -> {Enum.reverse(p), Enum.reverse(u)} end)
+  end
+
+  @doc """
+  Convert a `%Role{}` struct to its URI string.
+
+  Tries each registered parser's `to_uri/1` callback until one succeeds.
+  The LIS parser is tried by default.
+
+  ## Examples
+
+      iex> role = %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: nil}
+      iex> Ltix.LaunchClaims.Role.to_uri(role)
+      {:ok, "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"}
+
+      iex> role = %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: :teaching_assistant}
+      iex> Ltix.LaunchClaims.Role.to_uri(role)
+      {:ok, "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"}
+  """
+  @spec to_uri(t_without_uri()) :: {:ok, String.t()} | :error
+  def to_uri(%__MODULE__{} = role) do
+    app_parsers =
+      Application.get_env(:ltix, __MODULE__, [])
+      |> Keyword.get(:to_uri_parsers, [])
+
+    [LIS | app_parsers]
+    |> Enum.filter(fn parser ->
+      Code.ensure_loaded?(parser) and function_exported?(parser, :to_uri, 1)
+    end)
+    |> Enum.find_value(:error, fn parser ->
+      case parser.to_uri(role) do
+        {:ok, _} = ok -> ok
+        :error -> nil
+      end
+    end)
   end
 
   # --- Predicate Helpers ---

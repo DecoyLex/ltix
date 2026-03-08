@@ -112,9 +112,7 @@ defmodule LtixTest do
       params = Map.delete(login_params(), "iss")
 
       assert {:error, %MissingParameter{parameter: "iss"}} =
-               Ltix.handle_login(params, @redirect_uri,
-                 storage_adapter: TestStorageAdapter
-               )
+               Ltix.handle_login(params, @redirect_uri, storage_adapter: TestStorageAdapter)
     end
   end
 

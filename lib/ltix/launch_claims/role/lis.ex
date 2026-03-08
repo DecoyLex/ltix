@@ -125,6 +125,17 @@ defmodule Ltix.LaunchClaims.Role.LIS do
   # Was used for both system and institution roles
   @deprecated_base "http://purl.imsglobal.org/vocab/lis/v2/person#"
 
+  # --- Reverse Maps (for to_uri/1) ---
+
+  @context_roles_inverse Map.new(@context_roles, fn {k, v} -> {v, k} end)
+  @institution_roles_inverse Map.new(@institution_roles, fn {k, v} -> {v, k} end)
+  @system_lis_roles_inverse Map.new(@system_lis_roles, fn {k, v} -> {v, k} end)
+  @system_lti_roles_inverse Map.new(@system_lti_roles, fn {k, v} -> {v, k} end)
+
+  @context_sub_roles_inverse Map.new(@context_sub_roles, fn {{principal, sub}, atom} ->
+                               {atom, {principal, sub}}
+                             end)
+
   # --- Public API ---
 
   @doc """
@@ -158,6 +169,71 @@ defmodule Ltix.LaunchClaims.Role.LIS do
         :error
     end
   end
+
+  @doc """
+  Convert a `%Role{}` struct to its LIS vocabulary URI.
+
+  ## Examples
+
+      iex> alias Ltix.LaunchClaims.Role
+      iex> Ltix.LaunchClaims.Role.LIS.to_uri(%Role{type: :context, name: :instructor})
+      {:ok, "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"}
+
+      iex> alias Ltix.LaunchClaims.Role
+      iex> Ltix.LaunchClaims.Role.LIS.to_uri(%Role{type: :context, name: :instructor, sub_role: :teaching_assistant})
+      {:ok, "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"}
+
+      iex> alias Ltix.LaunchClaims.Role
+      iex> Ltix.LaunchClaims.Role.LIS.to_uri(%Role{type: :institution, name: :faculty})
+      {:ok, "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"}
+
+      iex> alias Ltix.LaunchClaims.Role
+      iex> Ltix.LaunchClaims.Role.LIS.to_uri(%Role{type: :system, name: :sys_admin})
+      {:ok, "http://purl.imsglobal.org/vocab/lis/v2/system/person#SysAdmin"}
+
+      iex> alias Ltix.LaunchClaims.Role
+      iex> Ltix.LaunchClaims.Role.LIS.to_uri(%Role{type: :system, name: :test_user})
+      {:ok, "http://purl.imsglobal.org/vocab/lti/system/person#TestUser"}
+  """
+  @spec to_uri(Role.t_without_uri()) :: {:ok, String.t()} | :error
+  @impl Parser
+  def to_uri(%Role{type: :context, sub_role: nil, name: name}) do
+    case Map.fetch(@context_roles_inverse, name) do
+      {:ok, pascal} -> {:ok, @context_base <> pascal}
+      :error -> :error
+    end
+  end
+
+  def to_uri(%Role{type: :context, name: name, sub_role: sub_role}) do
+    with {:ok, {principal, sub_pascal}} <- Map.fetch(@context_sub_roles_inverse, sub_role),
+         {:ok, ^principal} <- Map.fetch(@context_roles_inverse, name) do
+      {:ok, @sub_role_base <> principal <> "#" <> sub_pascal}
+    else
+      _ -> :error
+    end
+  end
+
+  def to_uri(%Role{type: :institution, name: name}) do
+    case Map.fetch(@institution_roles_inverse, name) do
+      {:ok, pascal} -> {:ok, @institution_base <> pascal}
+      :error -> :error
+    end
+  end
+
+  def to_uri(%Role{type: :system, name: name}) do
+    case Map.fetch(@system_lis_roles_inverse, name) do
+      {:ok, pascal} ->
+        {:ok, @system_lis_base <> pascal}
+
+      :error ->
+        case Map.fetch(@system_lti_roles_inverse, name) do
+          {:ok, pascal} -> {:ok, @system_lti_base <> pascal}
+          :error -> :error
+        end
+    end
+  end
+
+  def to_uri(_), do: :error
 
   # --- Private Parsers ---
 

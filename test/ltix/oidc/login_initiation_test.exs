@@ -30,7 +30,10 @@ defmodule Ltix.OIDC.LoginInitiationTest do
 
   describe "call/3" do
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
-    test "valid login initiation returns redirect_uri and state", %{params: params, redirect_uri: redirect_uri} do
+    test "valid login initiation returns redirect_uri and state", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
 
       uri = URI.parse(result.redirect_uri)
@@ -50,7 +53,10 @@ defmodule Ltix.OIDC.LoginInitiationTest do
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
-    test "missing iss returns MissingParameter error", %{params: params, redirect_uri: redirect_uri} do
+    test "missing iss returns MissingParameter error", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       params = Map.delete(params, "iss")
 
       assert {:error, %MissingParameter{parameter: "iss"}} =
@@ -58,7 +64,10 @@ defmodule Ltix.OIDC.LoginInitiationTest do
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
-    test "missing login_hint returns MissingParameter error", %{params: params, redirect_uri: redirect_uri} do
+    test "missing login_hint returns MissingParameter error", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       params = Map.delete(params, "login_hint")
 
       assert {:error, %MissingParameter{parameter: "login_hint"}} =
@@ -66,14 +75,20 @@ defmodule Ltix.OIDC.LoginInitiationTest do
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
-    test "missing target_link_uri returns MissingParameter error", %{params: params, redirect_uri: redirect_uri} do
+    test "missing target_link_uri returns MissingParameter error", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       params = Map.delete(params, "target_link_uri")
 
       assert {:error, %MissingParameter{parameter: "target_link_uri"}} =
                LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
     end
 
-    test "unknown issuer returns RegistrationNotFound error", %{params: params, redirect_uri: redirect_uri} do
+    test "unknown issuer returns RegistrationNotFound error", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       params = Map.put(params, "iss", "https://unknown.example.com")
 
       assert {:error, %RegistrationNotFound{issuer: "https://unknown.example.com"}} =
@@ -90,7 +105,10 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       assert query["lti_message_hint"] == "platform-hint-456"
     end
 
-    test "lti_message_hint omitted when not present", %{params: params, redirect_uri: redirect_uri} do
+    test "lti_message_hint omitted when not present", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
       query = URI.parse(result.redirect_uri).query |> URI.decode_query()
 
@@ -143,7 +161,10 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       assert MapSet.member?(TestStorageAdapter.stored_nonces(), nonce)
     end
 
-    test "state and nonce are cryptographically random", %{params: params, redirect_uri: redirect_uri} do
+    test "state and nonce are cryptographically random", %{
+      params: params,
+      redirect_uri: redirect_uri
+    } do
       assert {:ok, result1} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
       assert {:ok, result2} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
 
