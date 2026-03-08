@@ -70,6 +70,7 @@ A registration contains:
 | `auth_endpoint` | Where to redirect users for authentication |
 | `jwks_uri` | Where to fetch the platform's public keys |
 | `token_endpoint` | Where to request access tokens for service calls (optional) |
+| `tool_jwk` | Your tool's private signing key for this registration (`JOSE.JWK.t()`) |
 
 In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter`
 looks up registrations by issuer during login initiation.
@@ -101,7 +102,7 @@ the launch. Ltix parses these into `Ltix.LaunchClaims`:
 | Context | course ID, title, label | `claims.context` |
 | Resource link | link ID, title | `claims.resource_link` |
 | Launch metadata | message type, version, target URI | `claims.message_type`, `claims.target_link_uri` |
-| Service endpoints | gradebook, names & roles | `claims.ags_endpoint`, `claims.nrps_endpoint` |
+| Service endpoints | gradebook, names & roles | `claims.ags_endpoint`, `claims.memberships_endpoint` |
 | Custom | anything the platform adds | `claims.custom`, `claims.extensions` |
 
 The full launch result is `Ltix.LaunchContext`, which wraps the claims

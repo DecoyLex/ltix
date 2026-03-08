@@ -10,7 +10,7 @@ defmodule Ltix.LaunchClaimsTest do
     DeepLinkingSettings,
     LaunchPresentation,
     Lis,
-    NrpsEndpoint,
+    MembershipsEndpoint,
     ResourceLink,
     Role,
     ToolPlatform
@@ -300,7 +300,10 @@ defmodule Ltix.LaunchClaimsTest do
         }
       }
 
-      assert {:ok, %LaunchClaims{nrps_endpoint: %NrpsEndpoint{context_memberships_url: url}}} =
+      assert {:ok,
+              %LaunchClaims{
+                memberships_endpoint: %MembershipsEndpoint{context_memberships_url: url}
+              }} =
                LaunchClaims.from_json(json)
 
       assert url == "https://platform.example.com/memberships"
@@ -325,7 +328,7 @@ defmodule Ltix.LaunchClaimsTest do
     test "missing service endpoints default to nil" do
       assert {:ok, %LaunchClaims{} = claims} = LaunchClaims.from_json(%{})
       assert claims.ags_endpoint == nil
-      assert claims.nrps_endpoint == nil
+      assert claims.memberships_endpoint == nil
       assert claims.deep_linking_settings == nil
     end
   end

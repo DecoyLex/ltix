@@ -18,7 +18,7 @@ defmodule Ltix.LaunchClaims do
     DeepLinkingSettings,
     LaunchPresentation,
     Lis,
-    NrpsEndpoint,
+    MembershipsEndpoint,
     ResourceLink,
     Role,
     ToolPlatform
@@ -56,7 +56,7 @@ defmodule Ltix.LaunchClaims do
     :lis,
     # Advantage Service Claims [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
     :ags_endpoint,
-    :nrps_endpoint,
+    :memberships_endpoint,
     :deep_linking_settings,
     # Fields with defaults (must come last)
     roles: [],
@@ -93,7 +93,7 @@ defmodule Ltix.LaunchClaims do
           tool_platform: ToolPlatform.t() | nil,
           lis: Lis.t() | nil,
           ags_endpoint: AgsEndpoint.t() | nil,
-          nrps_endpoint: NrpsEndpoint.t() | nil,
+          memberships_endpoint: MembershipsEndpoint.t() | nil,
           deep_linking_settings: DeepLinkingSettings.t() | nil,
           extensions: %{optional(String.t()) => term()}
         }
@@ -141,7 +141,7 @@ defmodule Ltix.LaunchClaims do
   # Table 3: Service endpoint claims [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
   @service_keys %{
     "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" => :ags_endpoint,
-    "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" => :nrps_endpoint,
+    "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" => :memberships_endpoint,
     "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => :deep_linking_settings
   }
 
@@ -153,7 +153,7 @@ defmodule Ltix.LaunchClaims do
     tool_platform: &ToolPlatform.from_json/1,
     lis: &Lis.from_json/1,
     ags_endpoint: &AgsEndpoint.from_json/1,
-    nrps_endpoint: &NrpsEndpoint.from_json/1,
+    memberships_endpoint: &MembershipsEndpoint.from_json/1,
     deep_linking_settings: &DeepLinkingSettings.from_json/1
   }
 

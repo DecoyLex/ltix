@@ -124,7 +124,8 @@ defmodule Ltix.MixProject do
           Ltix.Registration,
           Ltix.Deployment,
           Ltix.LaunchContext,
-          Ltix.StorageAdapter
+          Ltix.StorageAdapter,
+          Ltix.JWK
         ],
         JWT: [
           Ltix.JWT.Token,
@@ -144,7 +145,7 @@ defmodule Ltix.MixProject do
           Ltix.LaunchClaims.ToolPlatform,
           Ltix.LaunchClaims.Lis,
           Ltix.LaunchClaims.AgsEndpoint,
-          Ltix.LaunchClaims.NrpsEndpoint,
+          Ltix.LaunchClaims.MembershipsEndpoint,
           Ltix.LaunchClaims.DeepLinkingSettings
         ],
         Errors: [
