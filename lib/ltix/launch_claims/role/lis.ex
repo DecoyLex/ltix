@@ -27,19 +27,61 @@ defmodule Ltix.LaunchClaims.Role.LIS do
   }
 
   # Context sub-roles [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#context-sub-roles)
+  # Maps {PrincipalRole, SubRole} => atom for bidirectional lookup.
   @sub_role_base "http://purl.imsglobal.org/vocab/lis/v2/membership/"
   @context_sub_roles %{
-    "Administrator" =>
-      ~w(Administrator Developer ExternalDeveloper ExternalSupport ExternalSystemAdministrator Support SystemAdministrator),
-    "ContentDeveloper" => ~w(ContentDeveloper ContentExpert ExternalContentExpert Librarian),
-    "Instructor" =>
-      ~w(ExternalInstructor Grader GuestInstructor Lecturer PrimaryInstructor SecondaryInstructor TeachingAssistant TeachingAssistantGroup TeachingAssistantOffering TeachingAssistantSection TeachingAssistantSectionAssociation TeachingAssistantTemplate),
-    "Learner" => ~w(ExternalLearner GuestLearner Instructor Learner NonCreditLearner),
-    "Manager" => ~w(AreaManager CourseCoordinator ExternalObserver Manager Observer),
-    "Member" => ~w(Member),
-    "Mentor" =>
-      ~w(Advisor Auditor ExternalAdvisor ExternalAuditor ExternalLearningFacilitator ExternalMentor ExternalReviewer ExternalTutor LearningFacilitator Mentor Reviewer Tutor),
-    "Officer" => ~w(Chair Communications Secretary Treasurer Vice-Chair)
+    {"Administrator", "Administrator"} => :administrator,
+    {"Administrator", "Developer"} => :developer,
+    {"Administrator", "ExternalDeveloper"} => :external_developer,
+    {"Administrator", "ExternalSupport"} => :external_support,
+    {"Administrator", "ExternalSystemAdministrator"} => :external_system_administrator,
+    {"Administrator", "Support"} => :support,
+    {"Administrator", "SystemAdministrator"} => :system_administrator,
+    {"ContentDeveloper", "ContentDeveloper"} => :content_developer,
+    {"ContentDeveloper", "ContentExpert"} => :content_expert,
+    {"ContentDeveloper", "ExternalContentExpert"} => :external_content_expert,
+    {"ContentDeveloper", "Librarian"} => :librarian,
+    {"Instructor", "ExternalInstructor"} => :external_instructor,
+    {"Instructor", "Grader"} => :grader,
+    {"Instructor", "GuestInstructor"} => :guest_instructor,
+    {"Instructor", "Lecturer"} => :lecturer,
+    {"Instructor", "PrimaryInstructor"} => :primary_instructor,
+    {"Instructor", "SecondaryInstructor"} => :secondary_instructor,
+    {"Instructor", "TeachingAssistant"} => :teaching_assistant,
+    {"Instructor", "TeachingAssistantGroup"} => :teaching_assistant_group,
+    {"Instructor", "TeachingAssistantOffering"} => :teaching_assistant_offering,
+    {"Instructor", "TeachingAssistantSection"} => :teaching_assistant_section,
+    {"Instructor", "TeachingAssistantSectionAssociation"} =>
+      :teaching_assistant_section_association,
+    {"Instructor", "TeachingAssistantTemplate"} => :teaching_assistant_template,
+    {"Learner", "ExternalLearner"} => :external_learner,
+    {"Learner", "GuestLearner"} => :guest_learner,
+    {"Learner", "Instructor"} => :instructor,
+    {"Learner", "Learner"} => :learner,
+    {"Learner", "NonCreditLearner"} => :non_credit_learner,
+    {"Manager", "AreaManager"} => :area_manager,
+    {"Manager", "CourseCoordinator"} => :course_coordinator,
+    {"Manager", "ExternalObserver"} => :external_observer,
+    {"Manager", "Manager"} => :manager,
+    {"Manager", "Observer"} => :observer,
+    {"Member", "Member"} => :member,
+    {"Mentor", "Advisor"} => :advisor,
+    {"Mentor", "Auditor"} => :auditor,
+    {"Mentor", "ExternalAdvisor"} => :external_advisor,
+    {"Mentor", "ExternalAuditor"} => :external_auditor,
+    {"Mentor", "ExternalLearningFacilitator"} => :external_learning_facilitator,
+    {"Mentor", "ExternalMentor"} => :external_mentor,
+    {"Mentor", "ExternalReviewer"} => :external_reviewer,
+    {"Mentor", "ExternalTutor"} => :external_tutor,
+    {"Mentor", "LearningFacilitator"} => :learning_facilitator,
+    {"Mentor", "Mentor"} => :mentor,
+    {"Mentor", "Reviewer"} => :reviewer,
+    {"Mentor", "Tutor"} => :tutor,
+    {"Officer", "Chair"} => :chair,
+    {"Officer", "Communications"} => :communications,
+    {"Officer", "Secretary"} => :secretary,
+    {"Officer", "Treasurer"} => :treasurer,
+    {"Officer", "Vice-Chair"} => :vice_chair
   }
 
   # Institution roles [Core §A.2.2](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-institution-roles)
@@ -134,12 +176,12 @@ defmodule Ltix.LaunchClaims.Role.LIS do
     case String.split(suffix, "#", parts: 2) do
       [principal, sub] ->
         with {:ok, principal_name} <- Map.fetch(@context_roles, principal),
-             true <- sub in Map.get(@context_sub_roles, principal, []) do
+             {:ok, sub_role} <- Map.fetch(@context_sub_roles, {principal, sub}) do
           {:ok,
            %Role{
              type: :context,
              name: principal_name,
-             sub_role: to_snake_atom(sub),
+             sub_role: sub_role,
              uri: uri
            }}
         else
@@ -195,14 +237,5 @@ defmodule Ltix.LaunchClaims.Role.LIS do
       true ->
         :error
     end
-  end
-
-  defp to_snake_atom(pascal_string) do
-    pascal_string
-    |> String.replace("-", "")
-    |> String.replace(~r/([A-Z])/, "_\\1")
-    |> String.trim_leading("_")
-    |> String.downcase()
-    |> String.to_existing_atom()
   end
 end
