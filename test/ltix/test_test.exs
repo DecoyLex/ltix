@@ -1,8 +1,8 @@
 defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.LaunchContext
   alias Ltix.LaunchClaims.Role
+  alias Ltix.LaunchContext
   alias Ltix.Test.StorageAdapter
 
   @launch_url "https://tool.example.com/launch"
