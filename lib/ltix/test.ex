@@ -54,7 +54,7 @@ defmodule Ltix.Test do
   """
 
   alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
-  alias Ltix.LaunchClaims.{Context, ResourceLink, Role}
+  alias Ltix.LaunchClaims.{Context, MembershipsEndpoint, ResourceLink, Role}
   alias Ltix.Test.{Platform, StorageAdapter}
 
   # --- Platform Setup ---
@@ -92,6 +92,7 @@ defmodule Ltix.Test do
         client_id: client_id,
         auth_endpoint: "#{issuer}/auth",
         jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
+        token_endpoint: "#{issuer}/token",
         tool_jwk: tool_private
       })
 
@@ -233,7 +234,8 @@ defmodule Ltix.Test do
       given_name: Keyword.get(opts, :given_name),
       family_name: Keyword.get(opts, :family_name),
       context: build_context(Keyword.get(opts, :context)),
-      resource_link: build_resource_link(Keyword.get(opts, :resource_link))
+      resource_link: build_resource_link(Keyword.get(opts, :resource_link)),
+      memberships_endpoint: build_memberships_endpoint(Keyword.get(opts, :memberships_endpoint))
     }
 
     %LaunchContext{
@@ -385,6 +387,21 @@ defmodule Ltix.Test do
           :error -> raise ArgumentError, "unknown role atom: #{inspect(atom)}"
         end
     end)
+  end
+
+  defp build_memberships_endpoint(nil), do: nil
+
+  defp build_memberships_endpoint(%MembershipsEndpoint{} = ep), do: ep
+
+  defp build_memberships_endpoint(url) when is_binary(url) do
+    %MembershipsEndpoint{context_memberships_url: url, service_versions: ["2.0"]}
+  end
+
+  defp build_memberships_endpoint(map) when is_map(map) do
+    %MembershipsEndpoint{
+      context_memberships_url: Map.get(map, :url, "https://platform.example.com/memberships"),
+      service_versions: Map.get(map, :service_versions, ["2.0"])
+    }
   end
 
   defp build_context(nil), do: nil
