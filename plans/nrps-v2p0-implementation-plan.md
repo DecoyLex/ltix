@@ -1327,27 +1327,27 @@ leave the library in a working, testable state.
         memberships stubbing
 
 **Acceptance criteria**:
-- [ ] `authenticate/2` from `LaunchContext` extracts the NRPS endpoint
+- [X] `authenticate/2` from `LaunchContext` extracts the NRPS endpoint
   from claims and requests scope
   `contextmembership.readonly` [NRPS §3.6.1]
-- [ ] `authenticate/2` from `Registration` requires caller-supplied
+- [X] `authenticate/2` from `Registration` requires caller-supplied
   `endpoint:` option
-- [ ] `authenticate/2` rejects endpoints where `service_versions` does
+- [X] `authenticate/2` rejects endpoints where `service_versions` does
   not include `"2.0"` [NRPS §3.6.1]
-- [ ] `stream_members/2` sends `Authorization: Bearer <token>` [Sec §4.1]
+- [X] `stream_members/2` sends `Authorization: Bearer <token>` [Sec §4.1]
   and `Accept: application/vnd.ims.lti-nrps.v2.membershipcontainer+json`
   [NRPS §2.4]
-- [ ] `stream_members/2` checks `Client.require_scope/2` before making
+- [X] `stream_members/2` checks `Client.require_scope/2` before making
   any HTTP request [NRPS §3.6.1]
-- [ ] Role filter resolves atoms and short names to URI strings per
+- [X] Role filter resolves atoms and short names to URI strings per
   the LTI-13 role vocabulary [NRPS §2.4.1]
-- [ ] `limit` passed as query parameter when provided [NRPS §2.4.2]
-- [ ] Resource link queries append `rlid` query parameter [NRPS §3]
-- [ ] Resource link responses parsed with `message` section using
+- [X] `limit` passed as query parameter when provided [NRPS §2.4.2]
+- [X] Resource link queries append `rlid` query parameter [NRPS §3]
+- [X] Resource link responses parsed with `message` section using
   `LaunchClaims.from_json/1` (LTI 1.3 claims format) [NRPS §3.2]
-- [ ] `get_members/2` delegates to `stream_members/2`, consumes all
+- [X] `get_members/2` delegates to `stream_members/2`, consumes all
   pages, and wraps in `MembershipContainer`
-- [ ] `get_members/2` enforces `max_members` safety limit
+- [X] `get_members/2` enforces `max_members` safety limit
 
 ### Phase 4: Documentation
 
