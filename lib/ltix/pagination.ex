@@ -81,8 +81,8 @@ defmodule Ltix.Pagination do
   defp emit({[], _next_url, empties}, _headers, _parse, _req_options)
        when empties >= @max_empty_pages do
     raise MalformedResponse.exception(
-      reason: "#{empties} consecutive empty pages with rel=\"next\" links"
-    )
+            reason: "#{empties} consecutive empty pages with rel=\"next\" links"
+          )
   end
 
   defp emit({[], next_url, empties}, headers, parse, req_options) do
