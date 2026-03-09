@@ -52,13 +52,18 @@ defmodule Ltix.MixProject do
         "README.md",
         "guides/what-is-ltix.md",
         "guides/concepts.md",
+        "guides/comparing-lti-libraries.md",
         "guides/getting-started.md",
         "guides/testing-with-ims-ri.md",
         "guides/storage-adapters.md",
         "guides/working-with-roles.md",
         "guides/error-handling.md",
+        "guides/advantage-services.md",
+        "guides/memberships-service.md",
+        "guides/jwk-management.md",
         "guides/cookbooks/auto-create-deployments.md",
-        "guides/cookbooks/testing-lti-launches.md"
+        "guides/cookbooks/testing-lti-launches.md",
+        "guides/cookbooks/jwk-management.md"
       ],
       before_closing_body_tag: fn
         :html ->
@@ -95,17 +100,21 @@ defmodule Ltix.MixProject do
           ""
       end,
       groups_for_extras: [
-        About: ["guides/what-is-ltix.md", "guides/concepts.md"],
+        About: ["guides/what-is-ltix.md", "guides/concepts.md", "guides/comparing-lti-libraries.md"],
         Guides: [
           "guides/getting-started.md",
           "guides/testing-with-ims-ri.md",
           "guides/storage-adapters.md",
           "guides/working-with-roles.md",
-          "guides/error-handling.md"
+          "guides/error-handling.md",
+          "guides/advantage-services.md",
+          "guides/memberships-service.md",
+          "guides/jwk-management.md"
         ],
         Cookbooks: [
           "guides/cookbooks/auto-create-deployments.md",
-          "guides/cookbooks/testing-lti-launches.md"
+          "guides/cookbooks/testing-lti-launches.md",
+          "guides/cookbooks/jwk-management.md"
         ]
       ],
       nest_modules_by_prefix: [
@@ -154,7 +163,8 @@ defmodule Ltix.MixProject do
           Ltix.AdvantageService,
           Ltix.OAuth,
           Ltix.OAuth.Client,
-          Ltix.OAuth.AccessToken
+          Ltix.OAuth.AccessToken,
+          Ltix.Pagination
         ],
         "Memberships Service": [
           Ltix.MembershipsService,
