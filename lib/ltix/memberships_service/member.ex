@@ -109,7 +109,7 @@ defmodule Ltix.MembershipsService.Member do
   end
 
   def from_json(_) do
-    {:error, MissingClaim.exception(claim: "member.user_id", spec_ref: "NRPS §2.2")}
+    {:error, MissingClaim.exception(claim: "member.user_id and member.roles", spec_ref: "NRPS §2.2")}
   end
 
   # [NRPS §2.3] "If the status is not specified then a status of Active must be assumed."

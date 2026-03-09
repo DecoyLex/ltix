@@ -157,6 +157,7 @@ defmodule Ltix.MixProject do
           Ltix.OAuth.AccessToken
         ],
         "Memberships Service": [
+          Ltix.MembershipsService,
           Ltix.MembershipsService.Member,
           Ltix.MembershipsService.MembershipContainer
         ],
