@@ -70,3 +70,8 @@
     <td>{@context.claims.target_link_uri}</td>
   </tr>
 </table>
+
+<h2 :if={@has_memberships}>Advantage Services</h2>
+<ul :if={@has_memberships}>
+  <li><a href={~p"/lti/roster"}>View Course Roster (NRPS)</a></li>
+</ul>

@@ -1,0 +1,40 @@
+<h1>Course Roster (NRPS)</h1>
+
+<div :if={@error}>
+  <p style="color: red; font-weight: bold;">{@error}</p>
+  <p><a href={~p"/"}>Back to home</a></p>
+</div>
+
+<div :if={@roster}>
+  <p>
+    <strong>{Enum.count(@roster)} members</strong>
+    <%= if @roster.context && @roster.context.label do %>
+      in <em>{@roster.context.label}</em>
+    <% end %>
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>User ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Status</th>
+        <th>Roles</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr :for={member <- @roster}>
+        <td><code>{member.user_id}</code></td>
+        <td>{member.name || "N/A"}</td>
+        <td>{member.email || "N/A"}</td>
+        <td>{member.status}</td>
+        <td>{Enum.map_join(member.roles, ", ", & &1.name)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top: 1rem;">
+    <a href="javascript:history.back()">Back to launch</a>
+  </p>
+</div>

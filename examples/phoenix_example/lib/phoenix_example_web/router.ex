@@ -33,5 +33,6 @@ defmodule PhoenixExampleWeb.Router do
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
     post "/echo", LtiController, :echo
+    get "/roster", LtiController, :roster
   end
 end
