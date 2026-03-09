@@ -73,7 +73,7 @@ defmodule Ltix.OAuth do
   end
 
   @doc """
-  Bang variant of `authenticate/2`. Returns the client or raises.
+  Same as `authenticate/2` but raises on error.
   """
   @spec authenticate!(Registration.t(), keyword()) :: Client.t()
   def authenticate!(%Registration{} = registration, opts \\ []) do

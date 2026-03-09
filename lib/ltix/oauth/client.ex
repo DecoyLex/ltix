@@ -163,7 +163,7 @@ defmodule Ltix.OAuth.Client do
   end
 
   @doc """
-  Bang variant of `refresh/1`. Returns the client or raises.
+  Same as `refresh/1` but raises on error.
   """
   @spec refresh!(t()) :: t()
   def refresh!(%__MODULE__{} = client) do
@@ -208,7 +208,7 @@ defmodule Ltix.OAuth.Client do
   end
 
   @doc """
-  Bang variant of `from_access_token/2`. Returns the client or raises.
+  Same as `from_access_token/2` but raises on error.
   """
   @spec from_access_token!(AccessToken.t(), keyword()) :: t()
   def from_access_token!(%AccessToken{} = token, opts) do
@@ -233,7 +233,7 @@ defmodule Ltix.OAuth.Client do
   end
 
   @doc """
-  Bang variant of `with_endpoints/2`. Returns the client or raises.
+  Same as `with_endpoints/2` but raises on error.
   """
   @spec with_endpoints!(t(), %{module() => term()}) :: t()
   def with_endpoints!(%__MODULE__{} = client, endpoints) do
