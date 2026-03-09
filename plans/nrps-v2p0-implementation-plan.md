@@ -1281,34 +1281,34 @@ leave the library in a working, testable state.
     - `Stream.resource/3` for lazy pagination, eager first-page fetch
 
 **Acceptance criteria**:
-- [ ] `ClientCredentials` sends `grant_type=client_credentials`,
+- [X] `ClientCredentials` sends `grant_type=client_credentials`,
   `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`,
   `client_assertion=<JWT>`, and `scope` [Sec §4.1, §4.1.1]
-- [ ] JWT assertion includes all six MUST claims: `iss`, `sub`, `aud`,
+- [X] JWT assertion includes all six MUST claims: `iss`, `sub`, `aud`,
   `iat`, `exp`, `jti` [Sec §4.1.1]
-- [ ] `aud` set to the platform's `token_endpoint` URL [Sec §4.1.1]
-- [ ] `exp` set to an absolute time, short-lived (e.g., 5 min) [Sec §4.1.1]
-- [ ] JWT signed with the tool's private key; JOSE header includes `alg`
+- [X] `aud` set to the platform's `token_endpoint` URL [Sec §4.1.1]
+- [X] `exp` set to an absolute time, short-lived (e.g., 5 min) [Sec §4.1.1]
+- [X] JWT signed with the tool's private key; JOSE header includes `alg`
   (RS256) and `kid` [Sec §5.4, §6.3]
-- [ ] JOSE header omits `x5u`, `x5c`, `jku`, `jwk` fields [Sec §5.4]
-- [ ] Scopes derived from endpoints via `AdvantageService.scopes/1`,
+- [X] JOSE header omits `x5u`, `x5c`, `jku`, `jwk` fields [Sec §5.4]
+- [X] Scopes derived from endpoints via `AdvantageService.scopes/1`,
   space-separated in the token request [Sec §4.1]
-- [ ] `AccessToken` parsed from response; `granted_scopes` captured from
+- [X] `AccessToken` parsed from response; `granted_scopes` captured from
   the response `scope` field, falling back to requested scopes when
   absent [Sec §4.1, RFC 6749 §5.1]
-- [ ] `token_type` accepted case-insensitively [RFC 6749 §5.1]
-- [ ] Missing `expires_in` defaults to 3600s
-- [ ] Non-2xx responses handled as errors; non-JSON bodies produce
+- [X] `token_type` accepted case-insensitively [RFC 6749 §5.1]
+- [X] Missing `expires_in` defaults to 3600s
+- [X] Non-2xx responses handled as errors; non-JSON bodies produce
   `TokenRequestFailed` with raw status and body
-- [ ] `Client.expired?/1` checks `expires_at` with buffer;
+- [X] `Client.expired?/1` checks `expires_at` with buffer;
   `Client.refresh/1` re-acquires when expired [Sec §7.1.1]
-- [ ] `Client.require_scope/2` verifies the client was granted the needed
+- [X] `Client.require_scope/2` verifies the client was granted the needed
   scope before making service calls [Sec §4.1]
-- [ ] `OAuth.authenticate/2` validates endpoints via
+- [X] `OAuth.authenticate/2` validates endpoints via
   `validate_endpoint/1` before requesting a token
-- [ ] `Pagination.stream/3` parses RFC 8288 `rel="next"` Link headers
+- [X] `Pagination.stream/3` parses RFC 8288 `rel="next"` Link headers
   [NRPS §2.4.2]; absence of `rel="next"` halts the stream
-- [ ] First page fetched eagerly (surfaces auth/HTTP errors); subsequent
+- [X] First page fetched eagerly (surfaces auth/HTTP errors); subsequent
   pages fetched lazily via `Stream.resource/3`
 
 ### Phase 3: Memberships Service Client
