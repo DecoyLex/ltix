@@ -166,6 +166,126 @@ defmodule Ltix.LaunchClaims.Role do
     end)
   end
 
+  # --- Constructors ---
+
+  @doc """
+  Build a role from a well-known atom.
+
+  Supports common context roles, one sub-role, and a handful of
+  institution and system roles. Raises `ArgumentError` for unknown atoms.
+
+  ## Context roles
+
+      iex> Ltix.LaunchClaims.Role.from_atom(:instructor)
+      %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"}
+
+      iex> Ltix.LaunchClaims.Role.from_atom(:learner)
+      %Ltix.LaunchClaims.Role{type: :context, name: :learner, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"}
+
+  ## Sub-roles
+
+      iex> Ltix.LaunchClaims.Role.from_atom(:teaching_assistant)
+      %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: :teaching_assistant, uri: "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"}
+
+  ## Institution roles
+
+      iex> Ltix.LaunchClaims.Role.from_atom(:faculty)
+      %Ltix.LaunchClaims.Role{type: :institution, name: :faculty, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"}
+
+  ## System roles
+
+      iex> Ltix.LaunchClaims.Role.from_atom(:test_user)
+      %Ltix.LaunchClaims.Role{type: :system, name: :test_user, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lti/system/person#TestUser"}
+  """
+  @spec from_atom(atom()) :: t()
+  # Context principals
+  def from_atom(:instructor),
+    do: %__MODULE__{
+      type: :context,
+      name: :instructor,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
+    }
+
+  def from_atom(:learner),
+    do: %__MODULE__{
+      type: :context,
+      name: :learner,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
+    }
+
+  def from_atom(:content_developer),
+    do: %__MODULE__{
+      type: :context,
+      name: :content_developer,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#ContentDeveloper"
+    }
+
+  def from_atom(:mentor),
+    do: %__MODULE__{
+      type: :context,
+      name: :mentor,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Mentor"
+    }
+
+  # Context sub-roles
+  def from_atom(:teaching_assistant),
+    do: %__MODULE__{
+      type: :context,
+      name: :instructor,
+      sub_role: :teaching_assistant,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"
+    }
+
+  # Institution roles
+  def from_atom(:administrator),
+    do: %__MODULE__{
+      type: :institution,
+      name: :administrator,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator"
+    }
+
+  def from_atom(:faculty),
+    do: %__MODULE__{
+      type: :institution,
+      name: :faculty,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"
+    }
+
+  def from_atom(:student),
+    do: %__MODULE__{
+      type: :institution,
+      name: :student,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student"
+    }
+
+  def from_atom(:staff),
+    do: %__MODULE__{
+      type: :institution,
+      name: :staff,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Staff"
+    }
+
+  # System roles
+  def from_atom(:test_user),
+    do: %__MODULE__{
+      type: :system,
+      name: :test_user,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lti/system/person#TestUser"
+    }
+
+  def from_atom(atom) when is_atom(atom) do
+    raise ArgumentError, "unknown role atom: #{inspect(atom)}"
+  end
+
   # --- Predicate Helpers ---
 
   @doc """

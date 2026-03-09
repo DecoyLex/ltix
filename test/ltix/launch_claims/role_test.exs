@@ -434,6 +434,106 @@ defmodule Ltix.LaunchClaims.RoleTest do
     end
   end
 
+  # --- from_atom/1 ---
+
+  describe "from_atom/1" do
+    test "context principal: instructor" do
+      assert %Role{
+               type: :context,
+               name: :instructor,
+               sub_role: nil,
+               uri: @context_base <> "Instructor"
+             } =
+               Role.from_atom(:instructor)
+    end
+
+    test "context principal: learner" do
+      assert %Role{type: :context, name: :learner, sub_role: nil, uri: @context_base <> "Learner"} =
+               Role.from_atom(:learner)
+    end
+
+    test "context principal: content_developer" do
+      assert %Role{
+               type: :context,
+               name: :content_developer,
+               sub_role: nil,
+               uri: @context_base <> "ContentDeveloper"
+             } =
+               Role.from_atom(:content_developer)
+    end
+
+    test "context principal: mentor" do
+      assert %Role{type: :context, name: :mentor, sub_role: nil, uri: @context_base <> "Mentor"} =
+               Role.from_atom(:mentor)
+    end
+
+    test "context sub-role: teaching_assistant" do
+      assert %Role{
+               type: :context,
+               name: :instructor,
+               sub_role: :teaching_assistant,
+               uri: @sub_role_base <> "Instructor#TeachingAssistant"
+             } =
+               Role.from_atom(:teaching_assistant)
+    end
+
+    test "institution: administrator" do
+      assert %Role{
+               type: :institution,
+               name: :administrator,
+               sub_role: nil,
+               uri: @institution_base <> "Administrator"
+             } =
+               Role.from_atom(:administrator)
+    end
+
+    test "institution: faculty" do
+      assert %Role{
+               type: :institution,
+               name: :faculty,
+               sub_role: nil,
+               uri: @institution_base <> "Faculty"
+             } =
+               Role.from_atom(:faculty)
+    end
+
+    test "institution: student" do
+      assert %Role{
+               type: :institution,
+               name: :student,
+               sub_role: nil,
+               uri: @institution_base <> "Student"
+             } =
+               Role.from_atom(:student)
+    end
+
+    test "institution: staff" do
+      assert %Role{
+               type: :institution,
+               name: :staff,
+               sub_role: nil,
+               uri: @institution_base <> "Staff"
+             } =
+               Role.from_atom(:staff)
+    end
+
+    test "system: test_user" do
+      assert %Role{
+               type: :system,
+               name: :test_user,
+               sub_role: nil,
+               uri: "http://purl.imsglobal.org/vocab/lti/system/person#TestUser"
+             } =
+               Role.from_atom(:test_user)
+    end
+
+    test "raises on unknown atom" do
+      assert_raise ArgumentError, ~r/unknown role atom/, fn ->
+        Role.from_atom(:not_a_role)
+      end
+    end
+  end
+
   # --- URI Preservation ---
 
   describe "original URI preserved" do
