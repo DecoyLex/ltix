@@ -50,7 +50,7 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:retry, false)
 
     case Req.post(req_opts) do
-      {:ok, %Req.Response{status: 200, body: body}} when is_map(body) ->
+      {:ok, %Req.Response{body: %{"access_token" => _} = body}} ->
         AccessToken.from_response(body, requested_scopes: scopes)
 
       {:ok, %Req.Response{status: _status, body: body}} when is_map(body) ->
