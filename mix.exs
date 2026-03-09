@@ -113,6 +113,7 @@ defmodule Ltix.MixProject do
         Ltix.JWT.KeySet,
         Ltix.LaunchClaims,
         Ltix.LaunchClaims.Role,
+        Ltix.MembershipsService,
         Ltix.Errors,
         Ltix.Errors.Invalid,
         Ltix.Errors.Security,
@@ -147,6 +148,10 @@ defmodule Ltix.MixProject do
           Ltix.LaunchClaims.AgsEndpoint,
           Ltix.LaunchClaims.MembershipsEndpoint,
           Ltix.LaunchClaims.DeepLinkingSettings
+        ],
+        "Memberships Service": [
+          Ltix.MembershipsService.Member,
+          Ltix.MembershipsService.MembershipContainer
         ],
         Errors: [
           Ltix.Errors,

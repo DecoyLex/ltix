@@ -94,7 +94,7 @@ defmodule Ltix.Registration do
            InvalidClaim.exception(
              claim: "issuer",
              value: issuer,
-              message: "issuer must not include a fragment component",
+             message: "issuer must not include a fragment component",
              spec_ref: "Sec §5.1.2 (no fragment component)"
            )}
 

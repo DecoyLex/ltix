@@ -109,6 +109,29 @@ These indicate the launch failed a security check:
 | `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's JWKS |
 | `AuthenticationFailed` | `error`, `error_description`, `spec_ref` | Platform returned an error response |
 
+## Advantage service errors
+
+These errors apply to LTI Advantage service calls (memberships, AGS,
+etc.) and OAuth authentication.
+
+### Invalid
+
+| Error | Fields | When |
+|---|---|---|
+| `ServiceNotAvailable` | `service`, `spec_ref` | Service not included in launch claims |
+| `TokenRequestFailed` | `error`, `error_description`, `status`, `body`, `spec_ref` | OAuth token request failed |
+| `MalformedResponse` | `service`, `reason`, `spec_ref` | Platform returned an unparseable response |
+| `RosterTooLarge` | `count`, `max`, `spec_ref` | `get_members/2` exceeded `max_members` limit |
+| `ScopeMismatch` | `scope`, `granted_scopes`, `spec_ref` | Client lacks the required OAuth scope |
+| `InvalidEndpoint` | `service`, `spec_ref` | Wrong endpoint struct passed to a service |
+
+### Security
+
+| Error | Fields | When |
+|---|---|---|
+| `AccessDenied` | `service`, `status`, `body`, `spec_ref` | Platform returned 401/403 for a service request |
+| `AccessTokenExpired` | `expires_at`, `spec_ref` | OAuth access token has expired |
+
 ## Logging recommendations
 
 Invalid errors are usually the platform's fault (misconfiguration,
