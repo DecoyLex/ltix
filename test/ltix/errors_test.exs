@@ -6,13 +6,21 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Invalid.{
     DeploymentNotFound,
     InvalidClaim,
+    InvalidEndpoint,
     InvalidJson,
+    MalformedResponse,
     MissingClaim,
     MissingParameter,
-    RegistrationNotFound
+    RegistrationNotFound,
+    RosterTooLarge,
+    ScopeMismatch,
+    ServiceNotAvailable,
+    TokenRequestFailed
   }
 
   alias Ltix.Errors.Security.{
+    AccessDenied,
+    AccessTokenExpired,
     AlgorithmNotAllowed,
     AudienceMismatch,
     IssuerMismatch,
@@ -33,10 +41,20 @@ defmodule Ltix.ErrorsTest do
       assert %Errors.Invalid{} = class
     end
 
+    test "Advantage service invalid errors produce Invalid class" do
+      error = ServiceNotAvailable.exception(service: Ltix.MembershipsService, spec_ref: "")
+      assert %Errors.Invalid{} = Errors.to_class([error])
+    end
+
     test "security errors produce Security class" do
       error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")
       class = Errors.to_class([error])
       assert %Errors.Security{} = class
+    end
+
+    test "Advantage service security errors produce Security class" do
+      error = AccessDenied.exception(service: Ltix.MembershipsService, status: 403, spec_ref: "")
+      assert %Errors.Security{} = Errors.to_class([error])
     end
 
     test "unknown errors produce Unknown class" do
@@ -93,6 +111,82 @@ defmodule Ltix.ErrorsTest do
     test "DeploymentNotFound includes deployment_id" do
       error = DeploymentNotFound.exception(deployment_id: "deploy-456")
       assert Exception.message(error) =~ "deploy-456"
+    end
+
+    test "ServiceNotAvailable includes service name and spec ref" do
+      error =
+        ServiceNotAvailable.exception(
+          service: Ltix.MembershipsService,
+          spec_ref: "NRPS §3.6.1.1"
+        )
+
+      assert Exception.message(error) =~ "MembershipsService"
+      assert Exception.message(error) =~ "NRPS §3.6.1.1"
+    end
+
+    test "TokenRequestFailed with OAuth error includes error code [Sec §4.1]" do
+      error =
+        TokenRequestFailed.exception(
+          error: "invalid_grant",
+          error_description: "bad grant",
+          spec_ref: "Sec §4.1"
+        )
+
+      assert Exception.message(error) =~ "invalid_grant"
+      assert Exception.message(error) =~ "Sec §4.1"
+    end
+
+    test "TokenRequestFailed with HTTP status includes status code [Sec §4.1]" do
+      error =
+        TokenRequestFailed.exception(
+          status: 500,
+          body: "server error",
+          spec_ref: "Sec §4.1"
+        )
+
+      assert Exception.message(error) =~ "500"
+    end
+
+    test "MalformedResponse includes service and reason" do
+      error =
+        MalformedResponse.exception(
+          service: Ltix.MembershipsService,
+          reason: "invalid JSON",
+          spec_ref: "NRPS §2.1"
+        )
+
+      assert Exception.message(error) =~ "MembershipsService"
+      assert Exception.message(error) =~ "invalid JSON"
+    end
+
+    test "RosterTooLarge includes count and max" do
+      error = RosterTooLarge.exception(count: 15_000, max: 10_000, spec_ref: "")
+
+      assert Exception.message(error) =~ "15000"
+      assert Exception.message(error) =~ "10000"
+      assert Exception.message(error) =~ "stream_members/2"
+      assert Exception.message(error) =~ "higher limit"
+    end
+
+    test "ScopeMismatch includes scope [Sec §4.1]" do
+      error =
+        ScopeMismatch.exception(
+          scope: "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly",
+          granted_scopes: [],
+          spec_ref: "Sec §4.1"
+        )
+
+      assert Exception.message(error) =~ "contextmembership.readonly"
+    end
+
+    test "InvalidEndpoint includes service name" do
+      error =
+        InvalidEndpoint.exception(
+          service: Ltix.MembershipsService,
+          spec_ref: "Core §6.1"
+        )
+
+      assert Exception.message(error) =~ "MembershipsService"
     end
   end
 
@@ -170,6 +264,32 @@ defmodule Ltix.ErrorsTest do
         KidNotFound.exception(kid: "unknown-key-id", spec_ref: "Cert §6.1.1")
 
       assert Exception.message(error) =~ "unknown-key-id"
+    end
+
+    test "AccessDenied includes service and status [Sec §4.1]" do
+      error =
+        AccessDenied.exception(
+          service: Ltix.MembershipsService,
+          status: 403,
+          body: "Forbidden",
+          spec_ref: "Sec §4.1"
+        )
+
+      assert Exception.message(error) =~ "MembershipsService"
+      assert Exception.message(error) =~ "403"
+    end
+
+    test "AccessTokenExpired includes expiry time [Sec §7.1]" do
+      expires_at = ~U[2026-03-08 12:00:00Z]
+
+      error =
+        AccessTokenExpired.exception(
+          expires_at: expires_at,
+          spec_ref: "Sec §7.1"
+        )
+
+      assert Exception.message(error) =~ "2026-03-08"
+      assert Exception.message(error) =~ "Client.refresh/1"
     end
   end
 
