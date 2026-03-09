@@ -3,7 +3,33 @@ defmodule Ltix.Registration do
   Everything the tool knows about a registered platform, established
   out-of-band before any launch occurs.
 
-  Multiple deployments on a given platform may share the same `client_id`.
+  A registration captures the values exchanged during out-of-band setup
+  between the tool and platform. Multiple deployments on a given platform
+  may share the same `client_id`.
+
+  ## Fields
+
+    * `:issuer` — HTTPS URL identifying the platform (no query or fragment)
+    * `:client_id` — OAuth client ID assigned by the platform
+    * `:auth_endpoint` — HTTPS URL for the OIDC authorization endpoint
+    * `:jwks_uri` — HTTPS URL where the platform publishes its public keys
+    * `:token_endpoint` — HTTPS URL for OAuth token requests (required for
+      Advantage services; `nil` if not using them)
+    * `:tool_jwk` — the tool's private signing key (`JOSE.JWK.t()`),
+      used to sign client assertion JWTs. Generate one with
+      `Ltix.JWK.generate_key_pair/1` and serve the matching public key
+      from your JWKS endpoint.
+
+  ## Examples
+
+      {:ok, reg} = Ltix.Registration.new(%{
+        issuer: "https://canvas.example.edu",
+        client_id: "10000000000042",
+        auth_endpoint: "https://canvas.example.edu/api/lti/authorize_redirect",
+        jwks_uri: "https://canvas.example.edu/api/lti/security/jwks",
+        token_endpoint: "https://canvas.example.edu/login/oauth2/token",
+        tool_jwk: tool_private_key
+      })
   """
 
   alias Ltix.Errors.Invalid.InvalidClaim

@@ -49,6 +49,22 @@ defmodule Ltix do
         # context.claims.target_link_uri is where to redirect
         # context.claims.roles tells you who the user is
       end
+
+  ## Advantage Services
+
+  After a successful launch, call platform services like roster queries
+  and grade passback. Authenticate with the platform's token endpoint,
+  then call service functions:
+
+      {:ok, client} = Ltix.MembershipsService.authenticate(context)
+      {:ok, roster} = Ltix.MembershipsService.get_members(client)
+
+      Enum.each(roster, fn member ->
+        IO.puts("\#{member.name}: \#{inspect(member.roles)}")
+      end)
+
+  See the [Advantage Services](advantage-services.md) guide for OAuth
+  details, token lifecycle, and multi-service authentication.
   """
 
   alias Ltix.LaunchContext

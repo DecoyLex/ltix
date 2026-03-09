@@ -1,9 +1,79 @@
 defmodule Ltix.LaunchClaims do
   @moduledoc """
-  The structured representation of claims from an LTI launch JWT.
+  Structured representation of claims from an LTI launch JWT.
 
   Standard OIDC and LTI claims are mapped to named fields, while any
-  unrecognized claims are available in `extensions`.
+  unrecognized claims are available in `extensions`. Access claims through
+  `context.claims` after a successful launch:
+
+      {:ok, context} = Ltix.handle_callback(params, state)
+      context.claims.issuer          #=> "https://platform.example.com"
+      context.claims.target_link_uri #=> "https://tool.example.com/launch"
+      Role.instructor?(context.claims.roles)  #=> true
+
+  ## Fields
+
+  ### Identity
+
+    * `:issuer` — platform identifier (matches `iss` in the JWT)
+    * `:subject` — user identifier on the platform (matches `sub`)
+    * `:audience` — tool's `client_id` (string or list of strings)
+    * `:nonce` — replay prevention token
+    * `:authorized_party` — `azp` claim, present when audience is a list
+    * `:expires_at` — JWT expiration as a Unix timestamp
+    * `:issued_at` — JWT issue time as a Unix timestamp
+
+  ### User profile
+
+  Profile fields depend on platform consent and privacy settings.
+  Any may be `nil`.
+
+    * `:name` — full display name
+    * `:given_name`, `:family_name`, `:middle_name` — name parts
+    * `:email` — email address
+    * `:picture` — profile image URL
+    * `:locale` — user's locale (e.g., `"en"`)
+
+  ### LTI launch
+
+    * `:message_type` — launch type (e.g., `"LtiResourceLinkRequest"`,
+      `"LtiDeepLinkingRequest"`)
+    * `:version` — LTI version (e.g., `"1.3.0"`)
+    * `:deployment_id` — identifies the specific tool installation
+    * `:target_link_uri` — URL the tool should load
+    * `:roles` — list of parsed `t:Ltix.LaunchClaims.Role.t/0` structs
+    * `:unrecognized_roles` — role URIs that could not be parsed
+    * `:role_scope_mentor` — list of user IDs this user mentors
+    * `:custom` — custom parameters set by the platform administrator
+
+  ### Nested claims
+
+    * `:context` — course or section (`t:Ltix.LaunchClaims.Context.t/0`)
+    * `:resource_link` — the specific placement
+      (`t:Ltix.LaunchClaims.ResourceLink.t/0`)
+    * `:launch_presentation` — display preferences
+      (`t:Ltix.LaunchClaims.LaunchPresentation.t/0`)
+    * `:tool_platform` — platform instance info
+      (`t:Ltix.LaunchClaims.ToolPlatform.t/0`)
+    * `:lis` — SIS integration identifiers (`t:Ltix.LaunchClaims.Lis.t/0`)
+
+  ### Advantage service endpoints
+
+  Present when the platform supports the corresponding service.
+  Pass the parent `%LaunchContext{}` to the service's `authenticate/2`.
+
+    * `:ags_endpoint` — Assignment and Grade Services
+      (`t:Ltix.LaunchClaims.AgsEndpoint.t/0`)
+    * `:memberships_endpoint` — Names and Roles Provisioning
+      (`t:Ltix.LaunchClaims.MembershipsEndpoint.t/0`)
+    * `:deep_linking_settings` — Deep Linking
+      (`t:Ltix.LaunchClaims.DeepLinkingSettings.t/0`)
+
+  ### Extensions
+
+    * `:extensions` — map of unrecognized claim keys to their raw values.
+      Register custom parsers via the `:parsers` option in `from_json/2`
+      or application config (`:ltix, :launch_claim_parsers`).
 
   ## Examples
 
