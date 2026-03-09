@@ -114,6 +114,7 @@ defmodule Ltix.MixProject do
         Ltix.LaunchClaims,
         Ltix.LaunchClaims.Role,
         Ltix.MembershipsService,
+        Ltix.OAuth,
         Ltix.Errors,
         Ltix.Errors.Invalid,
         Ltix.Errors.Security,
@@ -148,6 +149,12 @@ defmodule Ltix.MixProject do
           Ltix.LaunchClaims.AgsEndpoint,
           Ltix.LaunchClaims.MembershipsEndpoint,
           Ltix.LaunchClaims.DeepLinkingSettings
+        ],
+        "Advantage Services": [
+          Ltix.AdvantageService,
+          Ltix.OAuth,
+          Ltix.OAuth.Client,
+          Ltix.OAuth.AccessToken
         ],
         "Memberships Service": [
           Ltix.MembershipsService.Member,
