@@ -445,14 +445,7 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  defp resolve_role(atom) when is_atom(atom) do
-    role = %Role{type: :context, name: atom, sub_role: nil}
-
-    case Role.to_uri(role) do
-      {:ok, uri} -> uri
-      :error -> Atom.to_string(atom)
-    end
-  end
+  defp resolve_role(atom) when is_atom(atom), do: Role.from_atom(atom).uri
 
   defp resolve_role(%Role{uri: uri}) when is_binary(uri), do: uri
 

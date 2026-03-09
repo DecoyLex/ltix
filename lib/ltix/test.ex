@@ -380,12 +380,7 @@ defmodule Ltix.Test do
         end
 
       atom when is_atom(atom) ->
-        role = %Role{type: :context, name: atom, sub_role: nil}
-
-        case Role.to_uri(role) do
-          {:ok, uri} -> uri
-          :error -> raise ArgumentError, "unknown role atom: #{inspect(atom)}"
-        end
+        Role.from_atom(atom).uri
     end)
   end
 
