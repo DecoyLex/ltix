@@ -1235,18 +1235,18 @@ leave the library in a working, testable state.
    - Update `guides/error-handling.md` with new error types
 
 **Acceptance criteria**:
-- [ ] `Member.from_json/1` returns error when `user_id` or `roles` is
+- [X] `Member.from_json/1` returns error when `user_id` or `roles` is
   missing — these are the only MUST fields [NRPS §2.2]
-- [ ] `from_json/1` defaults missing `status` to `:active` [NRPS §2.3]
-- [ ] `from_json/1` maps status strings to atoms: `"Active"` → `:active`,
+- [X] `from_json/1` defaults missing `status` to `:active` [NRPS §2.3]
+- [X] `from_json/1` maps status strings to atoms: `"Active"` → `:active`,
   `"Inactive"` → `:inactive`, `"Deleted"` → `:deleted` [NRPS §2.3]
-- [ ] `from_json/1` parses `roles` via `Role.parse_all/1` per the LTI-13
+- [X] `from_json/1` parses `roles` via `Role.parse_all/1` per the LTI-13
   role vocabulary [NRPS §2.2]
-- [ ] All PII fields default to `nil` — the platform controls what it
+- [X] All PII fields default to `nil` — the platform controls what it
   shares [NRPS §2.2]
-- [ ] `MembershipContainer.from_json/2` returns error when `context` is
+- [X] `MembershipContainer.from_json/2` returns error when `context` is
   missing or `context.id` is absent [NRPS §2.2]
-- [ ] All error types carry a `spec_ref` field
+- [X] All error types carry a `spec_ref` field
 
 ### Phase 2: OAuth Infrastructure
 
