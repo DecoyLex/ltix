@@ -54,7 +54,7 @@ defmodule Ltix.Test do
   """
 
   alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
-  alias Ltix.LaunchClaims.{Context, MembershipsEndpoint, ResourceLink, Role}
+  alias Ltix.LaunchClaims.{AgsEndpoint, Context, MembershipsEndpoint, ResourceLink, Role}
   alias Ltix.Test.{Platform, StorageAdapter}
 
   # --- Platform Setup ---
@@ -235,7 +235,8 @@ defmodule Ltix.Test do
       family_name: Keyword.get(opts, :family_name),
       context: build_context(Keyword.get(opts, :context)),
       resource_link: build_resource_link(Keyword.get(opts, :resource_link)),
-      memberships_endpoint: build_memberships_endpoint(Keyword.get(opts, :memberships_endpoint))
+      memberships_endpoint: build_memberships_endpoint(Keyword.get(opts, :memberships_endpoint)),
+      ags_endpoint: build_ags_endpoint(Keyword.get(opts, :ags_endpoint))
     }
 
     %LaunchContext{
@@ -396,6 +397,18 @@ defmodule Ltix.Test do
     %MembershipsEndpoint{
       context_memberships_url: Map.get(map, :url, "https://platform.example.com/memberships"),
       service_versions: Map.get(map, :service_versions, ["2.0"])
+    }
+  end
+
+  defp build_ags_endpoint(nil), do: nil
+
+  defp build_ags_endpoint(%AgsEndpoint{} = ep), do: ep
+
+  defp build_ags_endpoint(map) when is_map(map) do
+    %AgsEndpoint{
+      lineitems: Map.get(map, :lineitems),
+      lineitem: Map.get(map, :lineitem),
+      scope: Map.get(map, :scope)
     }
   end
 
