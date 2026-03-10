@@ -100,7 +100,11 @@ defmodule Ltix.MixProject do
           ""
       end,
       groups_for_extras: [
-        About: ["guides/what-is-ltix.md", "guides/concepts.md", "guides/comparing-lti-libraries.md"],
+        About: [
+          "guides/what-is-ltix.md",
+          "guides/concepts.md",
+          "guides/comparing-lti-libraries.md"
+        ],
         Guides: [
           "guides/getting-started.md",
           "guides/testing-with-ims-ri.md",

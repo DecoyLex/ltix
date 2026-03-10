@@ -53,7 +53,7 @@ defmodule MyApp.Lti do
   end
 
   defp deserialize(json) do
-    json |> Jason.decode!() |> JOSE.JWK.from_map()
+    json |> JSON.decode!() |> JOSE.JWK.from_map()
   end
 end
 ```
@@ -91,7 +91,7 @@ defmodule MyAppWeb.JwksController do
       from(j in LtiJwk, where: j.active == true)
       |> Repo.all()
       |> Enum.map(fn jwk ->
-        jwk.private_jwk |> Jason.decode!() |> JOSE.JWK.from_map()
+        jwk.private_jwk |> JSON.decode!() |> JOSE.JWK.from_map()
       end)
 
     conn
