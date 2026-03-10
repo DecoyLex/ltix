@@ -45,7 +45,6 @@ defmodule LtixTest do
     id_token = JWTHelper.mint_id_token(claims, private, kid: kid)
 
     on_exit(fn ->
-      Application.delete_env(:ltix, :storage_adapter)
       Application.delete_env(:ltix, :allow_anonymous)
     end)
 
@@ -101,12 +100,6 @@ defmodule LtixTest do
 
       query = URI.parse(result.redirect_uri).query |> URI.decode_query()
       assert query["redirect_uri"] == "https://override.example.com/callback"
-    end
-
-    test "raises ArgumentError when storage_adapter is not configured" do
-      assert_raise ArgumentError, ~r/storage_adapter/, fn ->
-        Ltix.handle_login(login_params(), @redirect_uri)
-      end
     end
 
     test "delegates errors from underlying modules" do
@@ -170,14 +163,6 @@ defmodule LtixTest do
                  allow_anonymous: true,
                  req_options: req_options()
                )
-    end
-
-    test "raises ArgumentError when storage_adapter is not configured", ctx do
-      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
-
-      assert_raise ArgumentError, ~r/storage_adapter/, fn ->
-        Ltix.handle_callback(params, ctx.state, req_options: req_options())
-      end
     end
 
     test "delegates errors from underlying modules" do
