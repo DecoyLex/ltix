@@ -98,7 +98,11 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
 
         # Decode header without verification to inspect it
         [header_b64 | _] = String.split(params["client_assertion"], ".")
-        header = header_b64 |> Base.url_decode64!(padding: false) |> Jason.decode!()
+
+        header =
+          header_b64
+          |> Base.url_decode64!(padding: false)
+          |> Ltix.AppConfig.json_library!().decode!()
 
         assert header["typ"] == "JWT"
         assert header["alg"] == "RS256"

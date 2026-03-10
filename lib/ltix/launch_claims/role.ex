@@ -47,6 +47,9 @@ defmodule Ltix.LaunchClaims.Role do
       :error
   """
 
+  require Logger
+
+  alias Ltix.AppConfig
   alias Ltix.LaunchClaims.Role.LIS
 
   defstruct [:type, :name, :sub_role, :uri]
@@ -101,10 +104,27 @@ defmodule Ltix.LaunchClaims.Role do
     parsers =
       opts
       |> Keyword.get(:parsers, %{})
-      |> Map.put_new("http://purl.imsglobal.org/vocab/", &LIS.parse/1)
+      |> Map.put_new("http://purl.imsglobal.org/vocab/", LIS)
 
-    application_parsers = Application.get_env(:ltix, __MODULE__, []) |> Keyword.get(:parsers, %{})
-    parsers = Map.merge(application_parsers, parsers)
+    application_parsers = AppConfig.role_parsers!()
+
+    parsers =
+      application_parsers
+      |> Map.merge(parsers)
+      |> Map.filter(fn
+        {_prefix, parser} when is_atom(parser) ->
+          Code.ensure_loaded?(parser) and function_exported?(parser, :parse, 1)
+
+        {_prefix, parser} when is_function(parser, 1) ->
+          true
+
+        {_prefix, parser} ->
+          raise ArgumentError, "invalid role parser: #{inspect(parser)}"
+      end)
+      |> Map.new(fn
+        {prefix, parser} when is_atom(parser) -> {prefix, &parser.parse/1}
+        {prefix, parser} when is_function(parser, 1) -> {prefix, parser}
+      end)
 
     with :error <- try_parsers(uri, parsers) do
       parse_short_name(uri)
@@ -151,12 +171,21 @@ defmodule Ltix.LaunchClaims.Role do
   @spec to_uri(t_without_uri()) :: {:ok, String.t()} | :error
   def to_uri(%__MODULE__{} = role) do
     app_parsers =
-      Application.get_env(:ltix, __MODULE__, [])
-      |> Keyword.get(:to_uri_parsers, [])
+      AppConfig.role_parsers!()
+      |> Map.values()
 
     [LIS | app_parsers]
-    |> Enum.filter(fn parser ->
-      Code.ensure_loaded?(parser) and function_exported?(parser, :to_uri, 1)
+    |> Enum.filter(fn
+      parser when is_atom(parser) ->
+        Code.ensure_loaded?(parser) and function_exported?(parser, :to_uri, 1)
+
+      parser when is_function(parser) ->
+        Logger.warning("""
+        Ignoring function parser #{inspect(parser)}. Replace this with a module that
+        implements Ltix.LaunchClaims.Role.Parser behaviour for full functionality.
+        """)
+
+        false
     end)
     |> Enum.find_value(:error, fn parser ->
       case parser.to_uri(role) do

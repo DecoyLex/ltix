@@ -88,7 +88,7 @@ defmodule Ltix.JWT.Token do
     header_json =
       header_b64
       |> Base.url_decode64!(padding: false)
-      |> Jason.decode!()
+      |> Ltix.AppConfig.json_library!().decode!()
 
     {:ok, %{"alg" => to_string(alg_name), "kid" => Map.get(header_json, "kid")}}
   rescue

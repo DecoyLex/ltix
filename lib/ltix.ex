@@ -67,6 +67,7 @@ defmodule Ltix do
   details, token lifecycle, and multi-service authentication.
   """
 
+  alias Ltix.AppConfig
   alias Ltix.LaunchContext
   alias Ltix.OIDC.{Callback, LoginInitiation}
 
@@ -92,7 +93,7 @@ defmodule Ltix do
   @spec handle_login(params :: map(), redirect_uri :: String.t(), opts :: keyword()) ::
           {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Exception.t()}
   def handle_login(params, redirect_uri, opts \\ []) do
-    {storage_adapter, _opts} = pop_required!(opts, :storage_adapter)
+    {storage_adapter, _opts} = AppConfig.pop_required!(opts, :storage_adapter)
 
     LoginInitiation.call(params, storage_adapter, redirect_uri)
   end
@@ -120,37 +121,9 @@ defmodule Ltix do
   @spec handle_callback(params :: map(), state :: String.t(), opts :: keyword()) ::
           {:ok, LaunchContext.t()} | {:error, Exception.t()}
   def handle_callback(params, state, opts \\ []) do
-    {storage_adapter, opts} = pop_required!(opts, :storage_adapter)
-    opts = ensure_optional(opts, :allow_anonymous)
+    {storage_adapter, opts} = AppConfig.pop_required!(opts, :storage_adapter)
+    opts = Keyword.put_new(opts, :allow_anonymous, AppConfig.allow_anonymous_launches?())
 
     Callback.call(params, state, storage_adapter, opts)
-  end
-
-  defp pop_required!(opts, key) do
-    case Keyword.pop(opts, key) do
-      {nil, opts} ->
-        case Application.get_env(:ltix, key) do
-          nil ->
-            raise ArgumentError,
-                  "missing :#{key} configuration \u2014 set it in config.exs or pass it in opts"
-
-          value ->
-            {value, opts}
-        end
-
-      {value, opts} ->
-        {value, opts}
-    end
-  end
-
-  defp ensure_optional(opts, key) do
-    if Keyword.has_key?(opts, key) do
-      opts
-    else
-      case Application.get_env(:ltix, key) do
-        nil -> opts
-        value -> Keyword.put(opts, key, value)
-      end
-    end
   end
 end

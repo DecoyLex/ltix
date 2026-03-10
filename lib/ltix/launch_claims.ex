@@ -82,6 +82,8 @@ defmodule Ltix.LaunchClaims do
       "https://example.com"
   """
 
+  alias Ltix.AppConfig
+
   alias Ltix.LaunchClaims.{
     AgsEndpoint,
     Context,
@@ -349,7 +351,7 @@ defmodule Ltix.LaunchClaims do
   end
 
   defp resolve_extension_parsers(opts) do
-    config_parsers = Application.get_env(:ltix, :launch_claim_parsers, %{})
+    config_parsers = AppConfig.claims_parsers!()
     call_parsers = Keyword.get(opts, :parsers, %{})
     Map.merge(config_parsers, call_parsers)
   end

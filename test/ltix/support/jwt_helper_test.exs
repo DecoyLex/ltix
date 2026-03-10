@@ -43,7 +43,11 @@ defmodule Ltix.Test.JWTHelperTest do
 
       # Decode the payload directly to check claims round-tripped
       [_header, payload_b64, _signature] = String.split(token, ".")
-      payload = payload_b64 |> Base.url_decode64!(padding: false) |> Jason.decode!()
+
+      payload =
+        payload_b64
+        |> Base.url_decode64!(padding: false)
+        |> Ltix.AppConfig.json_library!().decode!()
 
       assert payload["sub"] == "user-1"
       assert payload["iss"] == "https://platform.example.com"
@@ -55,7 +59,12 @@ defmodule Ltix.Test.JWTHelperTest do
 
       # Decode raw header to check kid
       [header_b64 | _] = String.split(token, ".")
-      header = header_b64 |> Base.url_decode64!(padding: false) |> Jason.decode!()
+
+      header =
+        header_b64
+        |> Base.url_decode64!(padding: false)
+        |> Ltix.AppConfig.json_library!().decode!()
+
       assert header["kid"] == kid
     end
 
@@ -64,7 +73,12 @@ defmodule Ltix.Test.JWTHelperTest do
       token = JWTHelper.mint_id_token(%{"sub" => "user-1"}, private_jwk)
 
       [header_b64 | _] = String.split(token, ".")
-      header = header_b64 |> Base.url_decode64!(padding: false) |> Jason.decode!()
+
+      header =
+        header_b64
+        |> Base.url_decode64!(padding: false)
+        |> Ltix.AppConfig.json_library!().decode!()
+
       refute Map.has_key?(header, "kid")
     end
   end
