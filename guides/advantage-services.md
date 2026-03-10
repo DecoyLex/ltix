@@ -135,12 +135,13 @@ token by passing multiple endpoints:
 {:ok, client} = Ltix.OAuth.authenticate(registration,
   endpoints: %{
     Ltix.MembershipsService => memberships_endpoint,
-    MyApp.ProctorService => proctor_endpoint
+    Ltix.GradeService => ags_endpoint
   }
 )
 
 # The same client works for both services
 {:ok, roster} = Ltix.MembershipsService.get_members(client)
+:ok = Ltix.GradeService.post_score(client, score)
 ```
 
 > #### Scope negotiation {: .warning}
@@ -160,6 +161,8 @@ implementing the `Ltix.AdvantageService` behaviour. See
 
 - [Memberships Service](memberships-service.md): querying course
   rosters
+- [Grade Service](grade-service.md): posting grades and managing
+  line items
 - [JWK Management](jwk-management.md): managing the key pairs
   used for authentication
 - [Error Handling](error-handling.md): matching on error classes

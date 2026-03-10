@@ -63,6 +63,11 @@ defmodule Ltix do
         IO.puts("\#{member.name}: \#{inspect(member.roles)}")
       end)
 
+  Post grades back to the platform's gradebook:
+
+      {:ok, client} = Ltix.GradeService.authenticate(context)
+      :ok = Ltix.GradeService.post_score(client, score)
+
   See the [Advantage Services](advantage-services.md) guide for OAuth
   details, token lifecycle, and multi-service authentication.
   """

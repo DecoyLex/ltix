@@ -9,7 +9,7 @@ philosophies so you can choose the right fit for your project.
 | Library | LTI version | Status | Hex downloads |
 |---|---|---|---|
 | **Ltix** | 1.3 | Active | New |
-| **`lti_1p3`** | 1.3 | Active | ~61,000 |
+| **`lti_1p3`** | 1.3 | Active | ~62,000 |
 | `lti` | 1.0 only | Unmaintained | ~132,000 (legacy) |
 | `plug_lti` | 1.x | Unmaintained | Not on Hex |
 | `lightbulb` | 1.3 | Active (Gleam, not Elixir) | ~200 |
@@ -139,7 +139,7 @@ service calls, giving more visibility into each step:
 | | Ltix | `lti_1p3` |
 |---|---|---|
 | **OIDC launch** | Yes | Yes |
-| **AGS** | Coming before 0.1.0 | Yes |
+| **AGS** | Yes | Yes |
 | **NRPS** | Yes | Yes |
 | **Deep Linking** | Claim parsing | Claim parsing |
 | **Platform side** | No (tool only) | Yes |
@@ -153,7 +153,9 @@ service calls, giving more visibility into each step:
 | `req` | `httpoison` |
 | `jose` | `joken` |
 | `splode` | — |
-| `nimble_options` | — |
+| `zoi` | — |
+| `plug` (optional) | — |
+| `cachex` (optional) | — |
 | — | `timex` |
 | — | `uuid` |
 | — | `jason` |
@@ -177,3 +179,4 @@ over JWK lifecycle and platform management.
 - `Ltix.StorageAdapter` — the four callbacks your app implements
 - [Error Handling](error-handling.md) — working with structured errors
 - [Advantage Services](advantage-services.md) — OAuth and service calls
+- [Grade Service](grade-service.md) — posting scores and managing line items

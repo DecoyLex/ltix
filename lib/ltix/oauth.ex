@@ -29,7 +29,7 @@ defmodule Ltix.OAuth do
       {:ok, client} = Ltix.OAuth.authenticate(registration,
         endpoints: %{
           Ltix.MembershipsService => memberships_endpoint,
-          Ltix.AGS => ags_endpoint
+          Ltix.GradeService => ags_endpoint
         }
       )
 

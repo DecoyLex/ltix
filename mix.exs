@@ -60,10 +60,14 @@ defmodule Ltix.MixProject do
         "guides/error-handling.md",
         "guides/advantage-services.md",
         "guides/memberships-service.md",
+        "guides/grade-service.md",
         "guides/jwk-management.md",
         "guides/cookbooks/auto-create-deployments.md",
         "guides/cookbooks/testing-lti-launches.md",
-        "guides/cookbooks/jwk-management.md"
+        "guides/cookbooks/jwk-management.md",
+        "guides/cookbooks/score-construction.md",
+        "guides/cookbooks/background-grade-sync.md",
+        "guides/cookbooks/canvas-grade-extensions.md"
       ],
       before_closing_body_tag: fn
         :html ->
@@ -113,12 +117,16 @@ defmodule Ltix.MixProject do
           "guides/error-handling.md",
           "guides/advantage-services.md",
           "guides/memberships-service.md",
+          "guides/grade-service.md",
           "guides/jwk-management.md"
         ],
         Cookbooks: [
           "guides/cookbooks/auto-create-deployments.md",
           "guides/cookbooks/testing-lti-launches.md",
-          "guides/cookbooks/jwk-management.md"
+          "guides/cookbooks/jwk-management.md",
+          "guides/cookbooks/score-construction.md",
+          "guides/cookbooks/background-grade-sync.md",
+          "guides/cookbooks/canvas-grade-extensions.md"
         ]
       ],
       nest_modules_by_prefix: [
@@ -127,6 +135,7 @@ defmodule Ltix.MixProject do
         Ltix.LaunchClaims,
         Ltix.LaunchClaims.Role,
         Ltix.MembershipsService,
+        Ltix.GradeService,
         Ltix.OAuth,
         Ltix.Errors,
         Ltix.Errors.Invalid,
@@ -174,6 +183,12 @@ defmodule Ltix.MixProject do
           Ltix.MembershipsService,
           Ltix.MembershipsService.Member,
           Ltix.MembershipsService.MembershipContainer
+        ],
+        "Grade Service": [
+          Ltix.GradeService,
+          Ltix.GradeService.LineItem,
+          Ltix.GradeService.Score,
+          Ltix.GradeService.Result
         ],
         Errors: [
           Ltix.Errors,
