@@ -7,18 +7,9 @@ defmodule Ltix.Pagination do
   fetches pages on demand.
   """
 
-  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Unknown.TransportError
 
-  @max_empty_pages 5
-
   @stream_schema NimbleOptions.new!(
-                   parse: [
-                     type: {:fun, 1},
-                     required: true,
-                     doc:
-                       "Callback that receives the decoded JSON response body and returns a list of parsed items."
-                   ],
                    params: [
                      type: {:map, :string, :string},
                      default: %{},
@@ -32,14 +23,12 @@ defmodule Ltix.Pagination do
                  )
 
   @doc """
-  Fetch a paginated endpoint as a lazy stream.
+  Fetch a paginated endpoint as a lazy stream of response bodies.
 
   Fetches the first page eagerly. If it succeeds, returns `{:ok, stream}`
-  where subsequent pages are fetched lazily as the stream is consumed.
-  If the first page fails, returns `{:error, reason}` immediately.
-
-  The `parse` callback receives the decoded JSON response body and returns
-  a list of parsed items for that page.
+  where each element is a decoded JSON response body. Subsequent pages are
+  fetched lazily as the stream is consumed. If the first page fails, returns
+  `{:error, reason}` immediately.
 
   ## Options
 
@@ -49,52 +38,35 @@ defmodule Ltix.Pagination do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream(url, headers, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @stream_schema)
-    parse = Keyword.fetch!(opts, :parse)
     params = Keyword.fetch!(opts, :params)
     req_options = req_options(opts)
 
-    case fetch_page(url, headers, params, parse, req_options) do
-      {:ok, items, next_url} ->
-        {:ok, build_stream(items, next_url, headers, parse, req_options)}
-
-      {:error, _} = error ->
-        error
+    with {:ok, first_body, next_url} <- fetch_page(url, headers, params, req_options) do
+      {:ok,
+       Stream.resource(
+         fn -> {:first, first_body, next_url} end,
+         &next_page(&1, headers, req_options),
+         fn _ -> :ok end
+       )}
     end
   end
 
-  defp build_stream(first_items, next_url, headers, parse, req_options) do
-    Stream.resource(
-      fn -> {first_items, next_url, 0} end,
-      &emit(&1, headers, parse, req_options),
-      fn _ -> :ok end
-    )
+  defp next_page({:first, body, next_url}, _headers, _req_options) do
+    {[body], next_url}
   end
 
-  defp emit({[item | rest], next_url, _empties}, _headers, _parse, _req_options) do
-    {[item], {rest, next_url, 0}}
-  end
-
-  defp emit({[], nil, _empties}, _headers, _parse, _req_options) do
+  defp next_page(nil, _headers, _req_options) do
     {:halt, :done}
   end
 
-  defp emit({[], _next_url, empties}, _headers, _parse, _req_options)
-       when empties >= @max_empty_pages do
-    raise MalformedResponse.exception(
-            reason: "#{empties} consecutive empty pages with rel=\"next\" links"
-          )
-  end
-
-  defp emit({[], next_url, empties}, headers, parse, req_options) do
-    case fetch_page(next_url, headers, %{}, parse, req_options) do
-      {:ok, [item | rest], next_next} -> {[item], {rest, next_next, 0}}
-      {:ok, [], nil} -> {:halt, :done}
-      {:ok, [], next_next} -> {[], {[], next_next, empties + 1}}
+  defp next_page(url, headers, req_options) do
+    case fetch_page(url, headers, %{}, req_options) do
+      {:ok, body, next_url} -> {[body], next_url}
       {:error, reason} -> raise reason
     end
   end
 
-  defp fetch_page(url, headers, params, parse, req_options) do
+  defp fetch_page(url, headers, params, req_options) do
     req_opts =
       req_options
       |> Keyword.put(:url, url)
@@ -105,14 +77,8 @@ defmodule Ltix.Pagination do
 
     case Req.get(req_opts) do
       {:ok, %Req.Response{status: 200, body: body, headers: resp_headers}} ->
-        case parse.(body) do
-          items when is_list(items) ->
-            next_url = parse_next_link(resp_headers)
-            {:ok, items, next_url}
-
-          {:error, _} = error ->
-            error
-        end
+        next_url = parse_next_link(resp_headers)
+        {:ok, body, next_url}
 
       {:ok, %Req.Response{status: status, body: body}} ->
         {:error, TransportError.exception(status: status, body: body, url: url)}

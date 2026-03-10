@@ -44,7 +44,6 @@ defmodule Ltix.MembershipsService do
   }
 
   alias Ltix.Errors.Security.AccessTokenExpired
-  alias Ltix.Errors.Unknown.TransportError
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.{Context, MembershipsEndpoint, Role}
   alias Ltix.LaunchContext
@@ -223,11 +222,8 @@ defmodule Ltix.MembershipsService do
 
       with :ok <- check_expiry(client),
            :ok <- Client.require_scope(client, @nrps_scope),
-           {:ok, body, next_url} <- fetch_first_page(client, query_opts),
-           first_members when is_list(first_members) <- parse_members(body),
-           {:ok, rest} <- stream_remaining(next_url, client) do
-        all = Stream.concat(first_members, rest)
-        enforce_limit(all, body, max)
+           {:ok, pages} <- fetch_pages(client, query_opts) do
+        collect_roster(pages, max)
       end
     end
   end
@@ -260,14 +256,9 @@ defmodule Ltix.MembershipsService do
   def stream_members(%Client{} = client, opts \\ []) do
     with {:ok, opts} <- NimbleOptions.validate(opts, @stream_members_schema),
          :ok <- check_expiry(client),
-         :ok <- Client.require_scope(client, @nrps_scope) do
-      {url, headers, params} = prepare_request(client, opts)
-
-      Pagination.stream(url, headers,
-        parse: &parse_members/1,
-        params: params,
-        req_options: client.req_options
-      )
+         :ok <- Client.require_scope(client, @nrps_scope),
+         {:ok, pages} <- fetch_pages(client, opts) do
+      {:ok, Stream.flat_map(pages, &parse_members!/1)}
     end
   end
 
@@ -280,6 +271,11 @@ defmodule Ltix.MembershipsService do
       {:ok, stream} -> stream
       {:error, error} -> raise error
     end
+  end
+
+  defp fetch_pages(%Client{} = client, opts) do
+    {url, headers, params} = prepare_request(client, opts)
+    Pagination.stream(url, headers, params: params, req_options: client.req_options)
   end
 
   defp prepare_request(%Client{} = client, opts) do
@@ -312,48 +308,49 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  # Fetch the first page directly so get_members/2 can extract the
-  # container-level context before streaming remaining pages.
-  defp fetch_first_page(%Client{} = client, opts) do
-    {url, headers, params} = prepare_request(client, opts)
-    req_options = merge_req_options(client.req_options)
+  defp collect_roster(pages, max) do
+    limit = if max == :infinity, do: :infinity, else: max + 1
 
-    req_opts =
-      req_options
-      |> Keyword.put(:url, url)
-      |> Keyword.put(:headers, headers)
-      |> then(fn opts ->
-        if params == %{}, do: opts, else: Keyword.put(opts, :params, params)
-      end)
+    pages
+    |> Enum.reduce_while({nil, [], 0}, &accumulate_page(&1, &2, limit))
+    |> finalize_roster(max)
+  end
 
-    case Req.get(req_opts) do
-      {:ok, %Req.Response{status: 200, body: body, headers: resp_headers}} when is_map(body) ->
-        next_url = Pagination.parse_next_link(resp_headers)
-        {:ok, body, next_url}
+  defp accumulate_page(body, {first_body, chunks, count}, limit) do
+    first_body = first_body || body
 
-      {:ok, %Req.Response{status: 200}} ->
-        {:error,
-         MalformedResponse.exception(
-           service: __MODULE__,
-           reason: "expected JSON object",
-           spec_ref: "NRPS §2.4"
-         )}
+    case parse_members(body) do
+      members when is_list(members) ->
+        count = count + length(members)
 
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, TransportError.exception(status: status, body: body, url: url)}
+        if limit != :infinity and count >= limit do
+          {:halt, {first_body, [members | chunks], count}}
+        else
+          {:cont, {first_body, [members | chunks], count}}
+        end
 
-      {:error, exception} ->
-        {:error, exception}
+      {:error, _} = error ->
+        {:halt, error}
     end
   end
 
-  defp stream_remaining(nil, _client), do: {:ok, []}
+  defp finalize_roster({:error, _} = error, _max), do: error
 
-  defp stream_remaining(next_url, %Client{} = client) do
-    Pagination.stream(next_url, request_headers(client),
-      parse: &parse_members/1,
-      req_options: client.req_options
-    )
+  defp finalize_roster({_first_body, _chunks, count}, max)
+       when max != :infinity and count > max do
+    {:error, RosterTooLarge.exception(count: count, max: max, spec_ref: "NRPS §2.4.2")}
+  end
+
+  defp finalize_roster({first_body, chunks, _count}, _max) do
+    members = chunks |> Enum.reverse() |> List.flatten()
+    build_container(members, first_body)
+  end
+
+  defp parse_members!(body) do
+    case parse_members(body) do
+      members when is_list(members) -> members
+      {:error, reason} -> raise reason
+    end
   end
 
   defp parse_members(body) when is_map(body) do
@@ -380,26 +377,6 @@ defmodule Ltix.MembershipsService do
      )}
   end
 
-  defp enforce_limit(stream, body, max) do
-    members =
-      if max == :infinity do
-        Enum.to_list(stream)
-      else
-        stream |> Stream.take(max + 1) |> Enum.to_list()
-      end
-
-    if max != :infinity and length(members) > max do
-      {:error,
-       RosterTooLarge.exception(
-         count: length(members),
-         max: max,
-         spec_ref: "NRPS §2.4.2"
-       )}
-    else
-      build_container(members, body)
-    end
-  end
-
   defp build_container(members, body) do
     context_json = body["context"] || %{}
 
@@ -415,11 +392,6 @@ defmodule Ltix.MembershipsService do
       {:error, _} = error ->
         error
     end
-  end
-
-  defp merge_req_options(req_options) do
-    default = Application.get_env(:ltix, :req_options, [])
-    Keyword.merge(default, req_options)
   end
 
   # [NRPS §2.4.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#role-query-parameter)

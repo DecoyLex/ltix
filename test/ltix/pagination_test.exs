@@ -36,11 +36,10 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  req_options: req_options()
                )
 
-      assert Enum.to_list(stream) == [1, 2, 3]
+      assert Enum.to_list(stream) == [%{"items" => [1, 2, 3]}]
     end
 
     test "follows rel=next across multiple pages" do
@@ -54,11 +53,14 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  req_options: req_options()
                )
 
-      assert Enum.to_list(stream) == [1, 2, 3, 4, 5]
+      assert Enum.to_list(stream) == [
+               %{"items" => [1, 2]},
+               %{"items" => [3, 4]},
+               %{"items" => [5]}
+             ]
     end
 
     test "returns error on first page failure" do
@@ -70,7 +72,6 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  req_options: req_options()
                )
     end
@@ -97,14 +98,13 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  req_options: req_options()
                )
 
       assert_raise Ltix.Errors.Unknown.TransportError, fn -> Enum.to_list(stream) end
     end
 
-    test "terminates when page returns empty items" do
+    test "terminates when last page has no next link" do
       stub_pages([
         {%{"items" => [1, 2]}, "https://example.com/api?p=2"},
         {%{"items" => []}, nil}
@@ -114,52 +114,13 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  req_options: req_options()
                )
 
-      assert Enum.to_list(stream) == [1, 2]
-    end
-
-    test "skips empty page and continues when next link present" do
-      stub_pages([
-        {%{"items" => [1]}, "https://example.com/api?p=2"},
-        {%{"items" => []}, "https://example.com/api?p=3"},
-        {%{"items" => [2]}, nil}
-      ])
-
-      assert {:ok, stream} =
-               Pagination.stream(
-                 "https://example.com/api",
-                 [{"accept", "application/json"}],
-                 parse: & &1["items"],
-                 req_options: req_options()
-               )
-
-      assert Enum.to_list(stream) == [1, 2]
-    end
-
-    test "raises after too many consecutive empty pages" do
-      # 1 real page + 6 empty pages with next links (exceeds @max_empty_pages of 5)
-      pages =
-        [{%{"items" => [1]}, "https://example.com/api?p=2"}] ++
-          for i <- 2..7 do
-            {%{"items" => []}, "https://example.com/api?p=#{i + 1}"}
-          end
-
-      stub_pages(pages)
-
-      assert {:ok, stream} =
-               Pagination.stream(
-                 "https://example.com/api",
-                 [{"accept", "application/json"}],
-                 parse: & &1["items"],
-                 req_options: req_options()
-               )
-
-      assert_raise Ltix.Errors.Invalid.MalformedResponse, ~r/consecutive empty pages/, fn ->
-        Enum.to_list(stream)
-      end
+      assert Enum.to_list(stream) == [
+               %{"items" => [1, 2]},
+               %{"items" => []}
+             ]
     end
 
     test "passes params only on first request" do
@@ -188,12 +149,11 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  params: %{"limit" => "10", "role" => "Learner"},
                  req_options: req_options()
                )
 
-      assert Enum.to_list(stream) == [1, 2]
+      assert Enum.to_list(stream) == [%{"items" => [1]}, %{"items" => [2]}]
 
       [{0, first_qs}] = :ets.lookup(requests, 0)
       [{1, second_qs}] = :ets.lookup(requests, 1)
@@ -228,19 +188,18 @@ defmodule Ltix.PaginationTest do
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],
-                 parse: & &1["items"],
                  req_options: req_options()
                )
 
       # Only first page fetched so far
       assert :counters.get(fetch_count, 1) == 1
 
-      # Take only first item — should not trigger page 2 fetch
-      assert Enum.take(stream, 1) == [1]
+      # Take first body — should not trigger page 2 fetch
+      assert Enum.take(stream, 1) == [%{"items" => [1, 2]}]
       assert :counters.get(fetch_count, 1) == 1
 
       # Take all — now page 2 is fetched
-      assert Enum.to_list(stream) == [1, 2, 3]
+      assert Enum.to_list(stream) == [%{"items" => [1, 2]}, %{"items" => [3]}]
     end
   end
 end
