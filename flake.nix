@@ -28,6 +28,7 @@
             # Dev tools
             nixd
             git
+            jq
             nix-output-monitor
             cocogitto
           ]
