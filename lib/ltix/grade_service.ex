@@ -25,15 +25,14 @@ defmodule Ltix.GradeService do
 
   @behaviour Ltix.AdvantageService
 
-  alias Ltix.Errors.Invalid.{
-    CoupledLineItem,
-    InvalidEndpoint,
-    ServiceNotAvailable
-  }
-
+  alias Ltix.Errors.Invalid.CoupledLineItem
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
-  alias Ltix.GradeService.{LineItem, Result, Score}
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
+  alias Ltix.GradeService.Score
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AgsEndpoint
   alias Ltix.LaunchContext
@@ -619,8 +618,7 @@ defmodule Ltix.GradeService do
 
   defp collect_line_items(pages) do
     items =
-      pages
-      |> Enum.flat_map(fn body ->
+      Enum.flat_map(pages, fn body ->
         Enum.map(body, fn item_json ->
           {:ok, item} = LineItem.from_json(item_json)
           item
@@ -632,8 +630,7 @@ defmodule Ltix.GradeService do
 
   defp collect_results(pages) do
     results =
-      pages
-      |> Enum.flat_map(fn body ->
+      Enum.flat_map(pages, fn body ->
         Enum.map(body, fn result_json ->
           {:ok, result} = Result.from_json(result_json)
           result
@@ -641,6 +638,17 @@ defmodule Ltix.GradeService do
       end)
 
     {:ok, results}
+  end
+
+  @doc false
+  @spec classify_keys(map(), %{String.t() => atom()}) :: {map(), map()}
+  def classify_keys(json, known_keys) do
+    Enum.reduce(json, {%{}, %{}}, fn {key, value}, {fields, extensions} ->
+      case Map.fetch(known_keys, key) do
+        {:ok, field} -> {Map.put(fields, field, value), extensions}
+        :error -> {fields, Map.put(extensions, key, value)}
+      end
+    end)
   end
 
   @doc false

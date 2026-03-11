@@ -1,10 +1,15 @@
 defmodule Ltix.GradeServiceTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid.{CoupledLineItem, InvalidEndpoint, ScopeMismatch, ServiceNotAvailable}
+  alias Ltix.Errors.Invalid.CoupledLineItem
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.ScopeMismatch
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.GradeService
-  alias Ltix.GradeService.{LineItem, Result, Score}
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
+  alias Ltix.GradeService.Score
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AgsEndpoint
   alias Ltix.OAuth.Client

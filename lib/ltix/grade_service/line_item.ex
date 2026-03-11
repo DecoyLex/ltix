@@ -117,12 +117,7 @@ defmodule Ltix.GradeService.LineItem do
   end
 
   defp classify_keys(json) do
-    Enum.reduce(json, {%{}, %{}}, fn {key, value}, {fields, extensions} ->
-      case Map.fetch(@known_keys, key) do
-        {:ok, field} -> {Map.put(fields, field, value), extensions}
-        :error -> {fields, Map.put(extensions, key, value)}
-      end
-    end)
+    Ltix.GradeService.classify_keys(json, @known_keys)
   end
 
   # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)

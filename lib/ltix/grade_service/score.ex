@@ -216,8 +216,7 @@ defmodule Ltix.GradeService.Score do
 
   defp maybe_put_submission(map, submission) do
     json_submission =
-      submission
-      |> Enum.reduce(%{}, fn
+      Enum.reduce(submission, %{}, fn
         {:started_at, value}, acc -> Map.put(acc, "startedAt", value)
         {:submitted_at, value}, acc -> Map.put(acc, "submittedAt", value)
         _, acc -> acc
