@@ -32,6 +32,7 @@ defmodule Ltix.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:recase, "~> 0.9"},
       {:zoi, "~> 0.17"},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false, warn_if_outdated: true},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
@@ -59,6 +60,7 @@ defmodule Ltix.MixProject do
         "guides/working-with-roles.md",
         "guides/error-handling.md",
         "guides/advantage-services.md",
+        "guides/deep-linking.md",
         "guides/memberships-service.md",
         "guides/grade-service.md",
         "guides/jwk-management.md",
@@ -67,7 +69,8 @@ defmodule Ltix.MixProject do
         "guides/cookbooks/jwk-management.md",
         "guides/cookbooks/score-construction.md",
         "guides/cookbooks/background-grade-sync.md",
-        "guides/cookbooks/canvas-grade-extensions.md"
+        "guides/cookbooks/canvas-grade-extensions.md",
+        "guides/cookbooks/building-content-items.md"
       ],
       before_closing_body_tag: fn
         :html ->
@@ -116,6 +119,7 @@ defmodule Ltix.MixProject do
           "guides/working-with-roles.md",
           "guides/error-handling.md",
           "guides/advantage-services.md",
+          "guides/deep-linking.md",
           "guides/memberships-service.md",
           "guides/grade-service.md",
           "guides/jwk-management.md"
@@ -126,7 +130,8 @@ defmodule Ltix.MixProject do
           "guides/cookbooks/jwk-management.md",
           "guides/cookbooks/score-construction.md",
           "guides/cookbooks/background-grade-sync.md",
-          "guides/cookbooks/canvas-grade-extensions.md"
+          "guides/cookbooks/canvas-grade-extensions.md",
+          "guides/cookbooks/building-content-items.md"
         ]
       ],
       nest_modules_by_prefix: [
@@ -134,6 +139,8 @@ defmodule Ltix.MixProject do
         Ltix.JWT.KeySet,
         Ltix.LaunchClaims,
         Ltix.LaunchClaims.Role,
+        Ltix.DeepLinking,
+        Ltix.DeepLinking.ContentItem,
         Ltix.MembershipsService,
         Ltix.GradeService,
         Ltix.OAuth,
@@ -171,6 +178,16 @@ defmodule Ltix.MixProject do
           Ltix.LaunchClaims.AgsEndpoint,
           Ltix.LaunchClaims.MembershipsEndpoint,
           Ltix.LaunchClaims.DeepLinkingSettings
+        ],
+        "Deep Linking": [
+          Ltix.DeepLinking,
+          Ltix.DeepLinking.ContentItem,
+          Ltix.DeepLinking.Response,
+          Ltix.DeepLinking.ContentItem.Link,
+          Ltix.DeepLinking.ContentItem.LtiResourceLink,
+          Ltix.DeepLinking.ContentItem.File,
+          Ltix.DeepLinking.ContentItem.HtmlFragment,
+          Ltix.DeepLinking.ContentItem.Image
         ],
         "Advantage Services": [
           Ltix.AdvantageService,
