@@ -73,3 +73,13 @@ If the launch fails silently, check these common issues:
   for details.
 - **Mismatched issuer or client_id.** Double-check that the values in
   your storage adapter match the RI platform page exactly.
+
+## Known limitations of the reference implementation
+
+The IMS Reference Implementation is useful for verifying a basic launch,
+but it has significant bugs and gaps beyond that. Service endpoints
+(AGS, NRPS) may return non-compliant responses, behave inconsistently,
+or fail outright. Treat it as a smoke test for the OIDC login flow, not
+as a conformance suite. For thorough testing of Advantage Services, use
+a real LMS like Canvas or Moodle — even their sandbox environments will
+give you far more reliable results.
