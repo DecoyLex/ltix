@@ -10,10 +10,6 @@ defmodule Ltix.TestTest do
   setup do
     platform = Ltix.Test.setup_platform!()
 
-    on_exit(fn ->
-      Application.delete_env(:ltix, :storage_adapter)
-    end)
-
     %{platform: platform}
   end
 
@@ -22,7 +18,8 @@ defmodule Ltix.TestTest do
       {:ok, login_result} =
         Ltix.handle_login(
           Ltix.Test.login_params(platform),
-          @launch_url
+          @launch_url,
+          storage_adapter: Ltix.Test.StorageAdapter
         )
 
       nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
@@ -209,7 +206,8 @@ defmodule Ltix.TestTest do
   defp do_login(platform) do
     Ltix.handle_login(
       Ltix.Test.login_params(platform),
-      @launch_url
+      @launch_url,
+      storage_adapter: Ltix.Test.StorageAdapter
     )
   end
 
