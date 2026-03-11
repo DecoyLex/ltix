@@ -311,14 +311,17 @@ defmodule Ltix.LaunchClaimsTest do
       json = %{
         "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => %{
           "deep_link_return_url" => "https://platform.example.com/dl/return",
-          "accept_types" => ["link", "ltiResourceLink"]
+          "accept_types" => ["link", "ltiResourceLink"],
+          "accept_presentation_document_targets" => ["iframe", "window"]
         }
       }
 
       assert {:ok,
               %LaunchClaims{
                 deep_linking_settings: %DeepLinkingSettings{
-                  deep_link_return_url: "https://platform.example.com/dl/return"
+                  deep_link_return_url: "https://platform.example.com/dl/return",
+                  accept_types: ["link", "ltiResourceLink"],
+                  accept_presentation_document_targets: ["iframe", "window"]
                 }
               }} = LaunchClaims.from_json(json)
     end

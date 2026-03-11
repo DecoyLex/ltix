@@ -45,6 +45,14 @@ Run `/qc` before committing to check formatting, credo, and test hygiene.
 Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests.
 Avoid assertions in doctests — they muddy things for the end-user. Show inputs and outputs directly.
 
+## Launch Claim Structs
+
+Claim structs (in `lib/ltix/launch_claims/`) use Zoi for parsing JSON maps:
+
+1. Define `@schema` with `Zoi.struct(__MODULE__, %{...}, coerce: true)`
+2. Derive `@type`, `@enforce_keys`, `defstruct` from the schema
+3. `from_json/1` calls `Zoi.parse(@schema, json)` and maps errors to `MissingClaim`
+
 ## Spec References
 
 Always link spec annotations to the relevant section of the online spec. Use the
