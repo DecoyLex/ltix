@@ -34,6 +34,7 @@ defmodule PhoenixExampleWeb.Router do
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
     post "/echo", LtiController, :echo
+    post "/deep_link", LtiController, :deep_link_respond
     get "/roster", LtiController, :roster
     get "/grades", LtiController, :grades
     post "/grades/line_items", LtiController, :create_line_item

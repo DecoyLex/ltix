@@ -1,0 +1,12 @@
+<h1>Returning to Platform...</h1>
+
+<form id="deep-link-form" action={@return_url} method="post">
+  <input type="hidden" name="JWT" value={@jwt} />
+  <noscript>
+    <button type="submit">Click to continue</button>
+  </noscript>
+</form>
+
+<script>
+  document.getElementById("deep-link-form").submit();
+</script>

@@ -2,6 +2,8 @@ defmodule PhoenixExampleWeb.LtiController do
   use PhoenixExampleWeb, :controller
   require Logger
 
+  alias Ltix.DeepLinking
+  alias Ltix.DeepLinking.ContentItem.LtiResourceLink
   alias Ltix.GradeService
   alias Ltix.GradeService.Score
   alias PhoenixExample.LtiStorage
@@ -32,11 +34,7 @@ defmodule PhoenixExampleWeb.LtiController do
         conn
         |> delete_session(:lti_state)
         |> put_session(:lti_context_id, context_id)
-        |> render(:launch,
-          context: context,
-          has_memberships: context.claims.memberships_endpoint != nil,
-          has_ags: context.claims.ags_endpoint != nil
-        )
+        |> render_launch(context)
 
       {:error, reason} ->
         Logger.error(Exception.message(reason))
@@ -72,6 +70,24 @@ defmodule PhoenixExampleWeb.LtiController do
 
   def echo(conn, params) do
     render(conn, :echo, params: params)
+  end
+
+  def deep_link_respond(conn, params) do
+    with {:ok, context} <- fetch_context(conn),
+         {:ok, items} <- build_content_items(params),
+         {:ok, response} <- DeepLinking.build_response(context, items) do
+      render(conn, :deep_link_response, return_url: response.return_url, jwt: response.jwt)
+    else
+      {:error, %{__struct__: _} = exception} ->
+        conn
+        |> put_status(422)
+        |> text("Deep linking failed: #{Exception.message(exception)}")
+
+      {:error, reason} ->
+        conn
+        |> put_status(422)
+        |> text("Deep linking failed: #{inspect(reason)}")
+    end
   end
 
   def grades(conn, params) do
@@ -243,4 +259,31 @@ defmodule PhoenixExampleWeb.LtiController do
 
   defp maybe_put(opts, _key, nil), do: opts
   defp maybe_put(opts, key, val), do: Keyword.put(opts, key, val)
+
+  defp render_launch(conn, %{claims: %{message_type: "LtiDeepLinkingRequest"}} = context) do
+    settings = context.claims.deep_linking_settings
+
+    render(conn, :deep_link, context: context, settings: settings)
+  end
+
+  defp render_launch(conn, context) do
+    render(conn, :launch,
+      context: context,
+      has_memberships: context.claims.memberships_endpoint != nil,
+      has_ags: context.claims.ags_endpoint != nil
+    )
+  end
+
+  defp build_content_items(%{"title" => title, "url" => url}) do
+    opts =
+      [title: non_blank(title)]
+      |> maybe_put(:url, non_blank(url))
+
+    case LtiResourceLink.new(opts) do
+      {:ok, item} -> {:ok, [item]}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp build_content_items(_params), do: {:ok, []}
 end

@@ -1,0 +1,48 @@
+<h1>Deep Linking — Select Content</h1>
+
+<h2>Platform Constraints</h2>
+<table>
+  <tr>
+    <td><strong>Accepted Types</strong></td>
+    <td>{Enum.join(@settings.accept_types, ", ")}</td>
+  </tr>
+  <tr>
+    <td><strong>Presentation Targets</strong></td>
+    <td>{Enum.join(@settings.accept_presentation_document_targets, ", ")}</td>
+  </tr>
+  <tr>
+    <td><strong>Multiple Items</strong></td>
+    <td>{if @settings.accept_multiple != false, do: "Yes", else: "No"}</td>
+  </tr>
+  <tr :if={@settings.title}>
+    <td><strong>Suggested Title</strong></td>
+    <td>{@settings.title}</td>
+  </tr>
+  <tr :if={@settings.text}>
+    <td><strong>Suggested Text</strong></td>
+    <td>{@settings.text}</td>
+  </tr>
+</table>
+
+<h2>Create an LTI Resource Link</h2>
+<form action={~p"/lti/deep_link"} method="post">
+
+  <p>
+    <label for="title">Title</label><br />
+    <input type="text" id="title" name="title" value={@settings.title} />
+  </p>
+
+  <p>
+    <label for="url">URL (optional — platform uses your tool's base URL if blank)</label><br />
+    <input type="text" id="url" name="url" placeholder="https://..." />
+  </p>
+
+  <p>
+    <button type="submit">Send to Platform</button>
+  </p>
+</form>
+
+<h2>Or Cancel</h2>
+<form action={~p"/lti/deep_link"} method="post">
+  <button type="submit">Return without selecting content</button>
+</form>
