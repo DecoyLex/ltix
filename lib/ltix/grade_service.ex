@@ -232,7 +232,7 @@ defmodule Ltix.GradeService do
       req_opts = build_req_opts(client, url, headers)
 
       case Req.get(req_opts) do
-        {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
           LineItem.from_json(body)
 
         {:ok, %Req.Response{status: status, body: body}} ->
@@ -291,7 +291,7 @@ defmodule Ltix.GradeService do
       req_opts = build_req_opts_with_body(client, url, headers, @lineitem_media_type, json)
 
       case Req.post(req_opts) do
-        {:ok, %Req.Response{status: status, body: body}} when status in [200, 201] ->
+        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
           LineItem.from_json(body)
 
         {:ok, %Req.Response{status: status, body: body}} ->
@@ -329,7 +329,7 @@ defmodule Ltix.GradeService do
       req_opts = build_req_opts_with_body(client, url, headers, @lineitem_media_type, json)
 
       case Req.put(req_opts) do
-        {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
           LineItem.from_json(body)
 
         {:ok, %Req.Response{status: status, body: body}} ->
@@ -377,7 +377,7 @@ defmodule Ltix.GradeService do
       req_opts = build_req_opts(client, url, headers)
 
       case Req.delete(req_opts) do
-        {:ok, %Req.Response{status: status}} when status in [200, 204] ->
+        {:ok, %Req.Response{status: status}} when status in 200..299 ->
           :ok
 
         {:ok, %Req.Response{status: status, body: body}} ->
@@ -420,7 +420,7 @@ defmodule Ltix.GradeService do
       req_opts = build_req_opts_with_body(client, url, headers, @score_media_type, json)
 
       case Req.post(req_opts) do
-        {:ok, %Req.Response{status: status}} when status in [200, 204] ->
+        {:ok, %Req.Response{status: status}} when status in 200..299 ->
           :ok
 
         {:ok, %Req.Response{status: status, body: body}} ->
