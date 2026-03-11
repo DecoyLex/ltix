@@ -1,7 +1,10 @@
 defmodule Ltix.LaunchContextTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
+  alias Ltix.Deployment
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchContext
+  alias Ltix.Registration
   alias Ltix.Test.JWTHelper
 
   @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)

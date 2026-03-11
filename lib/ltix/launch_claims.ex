@@ -84,17 +84,15 @@ defmodule Ltix.LaunchClaims do
 
   alias Ltix.AppConfig
 
-  alias Ltix.LaunchClaims.{
-    AgsEndpoint,
-    Context,
-    DeepLinkingSettings,
-    LaunchPresentation,
-    Lis,
-    MembershipsEndpoint,
-    ResourceLink,
-    Role,
-    ToolPlatform
-  }
+  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.Context
+  alias Ltix.LaunchClaims.DeepLinkingSettings
+  alias Ltix.LaunchClaims.LaunchPresentation
+  alias Ltix.LaunchClaims.Lis
+  alias Ltix.LaunchClaims.MembershipsEndpoint
+  alias Ltix.LaunchClaims.ResourceLink
+  alias Ltix.LaunchClaims.Role
+  alias Ltix.LaunchClaims.ToolPlatform
 
   defstruct [
     # OIDC Standard Claims [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)

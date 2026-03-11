@@ -16,7 +16,9 @@ defmodule Ltix.LaunchContext do
   - `:deployment` — the deployment matched from the JWT's `deployment_id`
   """
 
-  alias Ltix.{Deployment, LaunchClaims, Registration}
+  alias Ltix.Deployment
+  alias Ltix.LaunchClaims
+  alias Ltix.Registration
 
   defstruct [:claims, :registration, :deployment]
 

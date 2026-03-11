@@ -3,36 +3,31 @@ defmodule Ltix.ErrorsTest do
 
   alias Ltix.Errors
 
-  alias Ltix.Errors.Invalid.{
-    DeploymentNotFound,
-    InvalidClaim,
-    InvalidEndpoint,
-    InvalidJson,
-    MalformedResponse,
-    MissingClaim,
-    MissingParameter,
-    RegistrationNotFound,
-    RosterTooLarge,
-    ScopeMismatch,
-    ServiceNotAvailable,
-    TokenRequestFailed
-  }
-
-  alias Ltix.Errors.Security.{
-    AccessDenied,
-    AccessTokenExpired,
-    AlgorithmNotAllowed,
-    AudienceMismatch,
-    IssuerMismatch,
-    KidMissing,
-    KidNotFound,
-    NonceMissing,
-    NonceNotFound,
-    NonceReused,
-    SignatureInvalid,
-    StateMismatch,
-    TokenExpired
-  }
+  alias Ltix.Errors.Invalid.DeploymentNotFound
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.InvalidJson
+  alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Invalid.RegistrationNotFound
+  alias Ltix.Errors.Invalid.RosterTooLarge
+  alias Ltix.Errors.Invalid.ScopeMismatch
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.Errors.Invalid.TokenRequestFailed
+  alias Ltix.Errors.Security.AccessDenied
+  alias Ltix.Errors.Security.AccessTokenExpired
+  alias Ltix.Errors.Security.AlgorithmNotAllowed
+  alias Ltix.Errors.Security.AudienceMismatch
+  alias Ltix.Errors.Security.IssuerMismatch
+  alias Ltix.Errors.Security.KidMissing
+  alias Ltix.Errors.Security.KidNotFound
+  alias Ltix.Errors.Security.NonceMissing
+  alias Ltix.Errors.Security.NonceNotFound
+  alias Ltix.Errors.Security.NonceReused
+  alias Ltix.Errors.Security.SignatureInvalid
+  alias Ltix.Errors.Security.StateMismatch
+  alias Ltix.Errors.Security.TokenExpired
 
   describe "error classes" do
     test "invalid errors produce Invalid class" do

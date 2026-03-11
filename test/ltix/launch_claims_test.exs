@@ -4,17 +4,15 @@ defmodule Ltix.LaunchClaimsTest do
   alias Ltix.LaunchClaims
   alias Ltix.Test.JWTHelper
 
-  alias Ltix.LaunchClaims.{
-    AgsEndpoint,
-    Context,
-    DeepLinkingSettings,
-    LaunchPresentation,
-    Lis,
-    MembershipsEndpoint,
-    ResourceLink,
-    Role,
-    ToolPlatform
-  }
+  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.Context
+  alias Ltix.LaunchClaims.DeepLinkingSettings
+  alias Ltix.LaunchClaims.LaunchPresentation
+  alias Ltix.LaunchClaims.Lis
+  alias Ltix.LaunchClaims.MembershipsEndpoint
+  alias Ltix.LaunchClaims.ResourceLink
+  alias Ltix.LaunchClaims.Role
+  alias Ltix.LaunchClaims.ToolPlatform
 
   doctest Ltix.LaunchClaims
 

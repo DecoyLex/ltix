@@ -4,7 +4,8 @@ defmodule Ltix.Deployment do
   immutable `deployment_id` assigned by the platform.
   """
 
-  alias Ltix.Errors.Invalid.{InvalidClaim, MissingClaim}
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MissingClaim
 
   defstruct [:deployment_id]
 

@@ -6,7 +6,8 @@ defmodule Ltix.StorageAdapter do
   to look up registrations, deployments, and manage nonces.
   """
 
-  alias Ltix.{Deployment, Registration}
+  alias Ltix.Deployment
+  alias Ltix.Registration
 
   @doc """
   Look up a platform registration by issuer and client_id.

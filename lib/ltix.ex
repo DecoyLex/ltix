@@ -74,7 +74,8 @@ defmodule Ltix do
 
   alias Ltix.AppConfig
   alias Ltix.LaunchContext
-  alias Ltix.OIDC.{Callback, LoginInitiation}
+  alias Ltix.OIDC.Callback
+  alias Ltix.OIDC.LoginInitiation
 
   @doc """
   Handle a platform's login initiation and build an authorization redirect.

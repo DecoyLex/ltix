@@ -143,13 +143,15 @@ defmodule Ltix.LaunchClaims.Role do
   """
   @spec parse_all([String.t()], keyword()) :: {[t()], [String.t()]}
   def parse_all(uris, opts \\ []) when is_list(uris) do
-    Enum.reduce(uris, {[], []}, fn uri, {parsed, unrecognized} ->
-      case parse(uri, opts) do
-        {:ok, role} -> {[role | parsed], unrecognized}
-        :error -> {parsed, [uri | unrecognized]}
-      end
-    end)
-    |> then(fn {p, u} -> {Enum.reverse(p), Enum.reverse(u)} end)
+    then(
+      Enum.reduce(uris, {[], []}, fn uri, {parsed, unrecognized} ->
+        case parse(uri, opts) do
+          {:ok, role} -> {[role | parsed], unrecognized}
+          :error -> {parsed, [uri | unrecognized]}
+        end
+      end),
+      fn {p, u} -> {Enum.reverse(p), Enum.reverse(u)} end
+    )
   end
 
   @doc """
@@ -170,9 +172,7 @@ defmodule Ltix.LaunchClaims.Role do
   """
   @spec to_uri(t_without_uri()) :: {:ok, String.t()} | :error
   def to_uri(%__MODULE__{} = role) do
-    app_parsers =
-      AppConfig.role_parsers!()
-      |> Map.values()
+    app_parsers = Map.values(AppConfig.role_parsers!())
 
     [LIS | app_parsers]
     |> Enum.filter(fn
