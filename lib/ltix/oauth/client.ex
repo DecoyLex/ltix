@@ -33,7 +33,8 @@ defmodule Ltix.OAuth.Client do
   """
 
   alias Ltix.Errors.Invalid.ScopeMismatch
-  alias Ltix.OAuth.{AccessToken, ClientCredentials}
+  alias Ltix.OAuth.AccessToken
+  alias Ltix.OAuth.ClientCredentials
   alias Ltix.Registration
 
   defstruct [:access_token, :expires_at, :scopes, :registration, :req_options, endpoints: %{}]

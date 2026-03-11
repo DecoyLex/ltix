@@ -1,8 +1,10 @@
 defmodule Ltix.OAuth.ClientCredentialsTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid.{ServiceNotAvailable, TokenRequestFailed}
-  alias Ltix.OAuth.{AccessToken, ClientCredentials}
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.Errors.Invalid.TokenRequestFailed
+  alias Ltix.OAuth.AccessToken
+  alias Ltix.OAuth.ClientCredentials
 
   @scopes ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
 

@@ -1,7 +1,8 @@
 defmodule Ltix.OAuthTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid.{InvalidEndpoint, TokenRequestFailed}
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
 
@@ -11,16 +12,16 @@ defmodule Ltix.OAuthTest do
   defmodule TestService do
     @behaviour Ltix.AdvantageService
 
-    @impl true
+    @impl Ltix.AdvantageService
     def endpoint_from_claims(_), do: :error
 
-    @impl true
+    @impl Ltix.AdvantageService
     def validate_endpoint(:valid_endpoint), do: :ok
 
     def validate_endpoint(_),
       do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "test")}
 
-    @impl true
+    @impl Ltix.AdvantageService
     def scopes(:valid_endpoint),
       do: ["https://example.com/scope/test.readonly"]
   end
@@ -28,16 +29,16 @@ defmodule Ltix.OAuthTest do
   defmodule OtherService do
     @behaviour Ltix.AdvantageService
 
-    @impl true
+    @impl Ltix.AdvantageService
     def endpoint_from_claims(_), do: :error
 
-    @impl true
+    @impl Ltix.AdvantageService
     def validate_endpoint(:other_endpoint), do: :ok
 
     def validate_endpoint(_),
       do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "test")}
 
-    @impl true
+    @impl Ltix.AdvantageService
     def scopes(:other_endpoint),
       do: ["https://example.com/scope/other.write"]
   end

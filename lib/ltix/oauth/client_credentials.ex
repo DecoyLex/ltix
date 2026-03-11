@@ -1,7 +1,8 @@
 defmodule Ltix.OAuth.ClientCredentials do
   @moduledoc false
 
-  alias Ltix.Errors.Invalid.{ServiceNotAvailable, TokenRequestFailed}
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.OAuth.AccessToken
   alias Ltix.Registration
 

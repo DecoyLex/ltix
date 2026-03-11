@@ -40,7 +40,8 @@ defmodule Ltix.OAuth do
   #{NimbleOptions.docs(@authenticate_schema)}
   """
 
-  alias Ltix.OAuth.{Client, ClientCredentials}
+  alias Ltix.OAuth.Client
+  alias Ltix.OAuth.ClientCredentials
   alias Ltix.Registration
 
   @doc """
