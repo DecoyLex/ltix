@@ -1,9 +1,13 @@
 defmodule Ltix.Integration.FullLaunchTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
+  alias Ltix.Deployment
   alias Ltix.Errors.Security
-  alias Ltix.Test.{JWTHelper, TestStorageAdapter}
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchContext
+  alias Ltix.Registration
+  alias Ltix.Test.JWTHelper
+  alias Ltix.Test.StorageAdapter
 
   @redirect_uri "https://tool.example.com/launch"
 
@@ -23,12 +27,12 @@ defmodule Ltix.Integration.FullLaunchTest do
     {:ok, deployment} = Deployment.new("deployment-001")
 
     {:ok, pid} =
-      TestStorageAdapter.start_link(
+      StorageAdapter.start_link(
         registrations: [registration],
         deployments: [deployment]
       )
 
-    TestStorageAdapter.set_pid(pid)
+    StorageAdapter.set_pid(pid)
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
@@ -57,7 +61,7 @@ defmodule Ltix.Integration.FullLaunchTest do
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
 
@@ -80,7 +84,7 @@ defmodule Ltix.Integration.FullLaunchTest do
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
     end
@@ -96,7 +100,7 @@ defmodule Ltix.Integration.FullLaunchTest do
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => "wrong-state"},
                  login_result.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
     end
@@ -109,7 +113,7 @@ defmodule Ltix.Integration.FullLaunchTest do
       id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
 
       params = %{"id_token" => id_token, "state" => login_result.state}
-      opts = [storage_adapter: TestStorageAdapter, req_options: req_options()]
+      opts = [storage_adapter: StorageAdapter, req_options: req_options()]
 
       # First callback succeeds
       assert {:ok, %LaunchContext{}} =
@@ -128,8 +132,10 @@ defmodule Ltix.Integration.FullLaunchTest do
 
       nonce = extract_nonce(login_result.redirect_uri)
 
+      base_claims = JWTHelper.valid_lti_claims(%{"nonce" => nonce})
+
       claims =
-        JWTHelper.valid_lti_claims(%{"nonce" => nonce})
+        base_claims
         |> Map.put("name", "Jane Doe")
         |> Map.put("email", "instructor@example.com")
         |> Map.put("given_name", "Jane")
@@ -146,7 +152,7 @@ defmodule Ltix.Integration.FullLaunchTest do
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
 
@@ -165,8 +171,10 @@ defmodule Ltix.Integration.FullLaunchTest do
 
       nonce = extract_nonce(login_result.redirect_uri)
 
+      base_claims = JWTHelper.valid_lti_claims(%{"nonce" => nonce})
+
       claims =
-        JWTHelper.valid_lti_claims(%{"nonce" => nonce})
+        base_claims
         |> put_lti_claim("roles", [
           "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
         ])
@@ -184,7 +192,7 @@ defmodule Ltix.Integration.FullLaunchTest do
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
 
@@ -202,9 +210,7 @@ defmodule Ltix.Integration.FullLaunchTest do
 
       nonce = extract_nonce(login_result.redirect_uri)
 
-      claims =
-        JWTHelper.valid_lti_claims(%{"nonce" => nonce})
-        |> Map.delete("sub")
+      claims = Map.delete(JWTHelper.valid_lti_claims(%{"nonce" => nonce}), "sub")
 
       id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
 
@@ -212,7 +218,7 @@ defmodule Ltix.Integration.FullLaunchTest do
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  allow_anonymous: true,
                  req_options: req_options()
                )
@@ -231,7 +237,7 @@ defmodule Ltix.Integration.FullLaunchTest do
         "target_link_uri" => "https://tool.example.com/launch"
       },
       @redirect_uri,
-      storage_adapter: TestStorageAdapter
+      storage_adapter: StorageAdapter
     )
   end
 

@@ -9,7 +9,8 @@ defmodule Ltix.Test.Platform do
   Created by `Ltix.Test.setup_platform!/1`.
   """
 
-  alias Ltix.{Deployment, Registration}
+  alias Ltix.Deployment
+  alias Ltix.Registration
 
   defstruct [:registration, :deployment, :private_key, :public_key, :kid, :jwks]
 

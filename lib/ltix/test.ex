@@ -53,9 +53,17 @@ defmodule Ltix.Test do
       end
   """
 
-  alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
-  alias Ltix.LaunchClaims.{AgsEndpoint, Context, MembershipsEndpoint, ResourceLink, Role}
-  alias Ltix.Test.{Platform, StorageAdapter}
+  alias Ltix.Deployment
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.Context
+  alias Ltix.LaunchClaims.MembershipsEndpoint
+  alias Ltix.LaunchClaims.ResourceLink
+  alias Ltix.LaunchClaims.Role
+  alias Ltix.LaunchContext
+  alias Ltix.Registration
+  alias Ltix.Test.Platform
+  alias Ltix.Test.StorageAdapter
 
   # --- Platform Setup ---
 
@@ -284,17 +292,14 @@ defmodule Ltix.Test do
     alg = Keyword.get(opts, :alg, "RS256")
 
     jws_fields =
-      %{"alg" => alg}
-      |> then(fn fields ->
+      then(%{"alg" => alg}, fn fields ->
         if kid, do: Map.put(fields, "kid", kid), else: fields
       end)
 
     jws = JOSE.JWS.from_map(jws_fields)
     jwt = JOSE.JWT.from_map(claims)
 
-    {_meta, token} =
-      JOSE.JWT.sign(private_jwk, jws, jwt)
-      |> JOSE.JWS.compact()
+    {_meta, token} = JOSE.JWS.compact(JOSE.JWT.sign(private_jwk, jws, jwt))
 
     token
   end

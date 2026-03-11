@@ -47,7 +47,7 @@ defmodule Ltix.Test.StorageAdapter do
   def set_pid(pid), do: Process.put(:ltix_test_storage_adapter_pid, pid)
   defp get_pid, do: Process.get(:ltix_test_storage_adapter_pid)
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def get_registration(issuer, client_id) do
     Agent.get(get_pid(), fn state ->
       state.registrations
@@ -61,7 +61,7 @@ defmodule Ltix.Test.StorageAdapter do
     end)
   end
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def get_deployment(_registration, deployment_id) do
     Agent.get(get_pid(), fn state ->
       state.deployments
@@ -73,14 +73,19 @@ defmodule Ltix.Test.StorageAdapter do
     end)
   end
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def store_nonce(nonce, _registration) do
     Agent.update(get_pid(), fn state ->
       %{state | nonces: MapSet.put(state.nonces, nonce)}
     end)
   end
 
-  @impl true
+  @doc "Return the set of stored (unused) nonces."
+  def stored_nonces do
+    Agent.get(get_pid(), fn state -> state.nonces end)
+  end
+
+  @impl Ltix.StorageAdapter
   def validate_nonce(nonce, _registration) do
     Agent.get_and_update(get_pid(), fn state ->
       cond do

@@ -1,9 +1,12 @@
 defmodule LtixTest do
   use ExUnit.Case
 
-  alias Ltix.{Deployment, LaunchContext, Registration}
+  alias Ltix.Deployment
   alias Ltix.Errors.Invalid.MissingParameter
-  alias Ltix.Test.{JWTHelper, TestStorageAdapter}
+  alias Ltix.LaunchContext
+  alias Ltix.Registration
+  alias Ltix.Test.JWTHelper
+  alias Ltix.Test.StorageAdapter
 
   @redirect_uri "https://tool.example.com/callback"
 
@@ -23,17 +26,17 @@ defmodule LtixTest do
     {:ok, deployment} = Deployment.new("deployment-001")
 
     {:ok, pid} =
-      TestStorageAdapter.start_link(
+      StorageAdapter.start_link(
         registrations: [registration],
         deployments: [deployment]
       )
 
-    TestStorageAdapter.set_pid(pid)
+    StorageAdapter.set_pid(pid)
 
     nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
     state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
-    TestStorageAdapter.store_nonce(nonce, registration)
+    StorageAdapter.store_nonce(nonce, registration)
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
@@ -65,9 +68,7 @@ defmodule LtixTest do
     # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
     test "returns redirect_uri and state" do
       assert {:ok, result} =
-               Ltix.handle_login(login_params(), @redirect_uri,
-                 storage_adapter: TestStorageAdapter
-               )
+               Ltix.handle_login(login_params(), @redirect_uri, storage_adapter: StorageAdapter)
 
       uri = URI.parse(result.redirect_uri)
       assert uri.host == "platform.example.com"
@@ -81,7 +82,7 @@ defmodule LtixTest do
     end
 
     test "reads storage_adapter from application config" do
-      Application.put_env(:ltix, :storage_adapter, TestStorageAdapter)
+      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
 
       assert {:ok, %{redirect_uri: redirect_uri, state: state}} =
                Ltix.handle_login(login_params(), @redirect_uri)
@@ -91,14 +92,14 @@ defmodule LtixTest do
     end
 
     test "opts override application config" do
-      Application.put_env(:ltix, :storage_adapter, TestStorageAdapter)
+      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
 
       assert {:ok, result} =
                Ltix.handle_login(login_params(), "https://override.example.com/callback",
-                 storage_adapter: TestStorageAdapter
+                 storage_adapter: StorageAdapter
                )
 
-      query = URI.parse(result.redirect_uri).query |> URI.decode_query()
+      query = URI.decode_query(URI.parse(result.redirect_uri).query)
       assert query["redirect_uri"] == "https://override.example.com/callback"
     end
 
@@ -106,7 +107,7 @@ defmodule LtixTest do
       params = Map.delete(login_params(), "iss")
 
       assert {:error, %MissingParameter{parameter: "iss"}} =
-               Ltix.handle_login(params, @redirect_uri, storage_adapter: TestStorageAdapter)
+               Ltix.handle_login(params, @redirect_uri, storage_adapter: StorageAdapter)
     end
   end
 
@@ -117,7 +118,7 @@ defmodule LtixTest do
 
       assert {:ok, %LaunchContext{} = launch} =
                Ltix.handle_callback(params, ctx.state,
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
 
@@ -127,7 +128,7 @@ defmodule LtixTest do
     end
 
     test "reads storage_adapter from application config", ctx do
-      Application.put_env(:ltix, :storage_adapter, TestStorageAdapter)
+      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
 
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
 
@@ -136,7 +137,7 @@ defmodule LtixTest do
     end
 
     test "reads allow_anonymous from application config", ctx do
-      Application.put_env(:ltix, :storage_adapter, TestStorageAdapter)
+      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
       Application.put_env(:ltix, :allow_anonymous, true)
 
       claims = Map.delete(ctx.claims, "sub")
@@ -150,7 +151,7 @@ defmodule LtixTest do
     end
 
     test "opts override application config", ctx do
-      Application.put_env(:ltix, :storage_adapter, TestStorageAdapter)
+      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
       Application.put_env(:ltix, :allow_anonymous, false)
 
       claims = Map.delete(ctx.claims, "sub")
@@ -170,7 +171,7 @@ defmodule LtixTest do
 
       assert {:error, %MissingParameter{parameter: "id_token"}} =
                Ltix.handle_callback(params, "some-state",
-                 storage_adapter: TestStorageAdapter,
+                 storage_adapter: StorageAdapter,
                  req_options: req_options()
                )
     end

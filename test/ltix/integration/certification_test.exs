@@ -1,15 +1,15 @@
 defmodule Ltix.Integration.CertificationTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
-
-  alias Ltix.Errors.Invalid.{
-    InvalidClaim,
-    MissingClaim
-  }
-
+  alias Ltix.Deployment
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security
-  alias Ltix.Test.{JWTHelper, TestStorageAdapter}
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchContext
+  alias Ltix.Registration
+  alias Ltix.Test.JWTHelper
+  alias Ltix.Test.StorageAdapter
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
 
@@ -32,13 +32,13 @@ defmodule Ltix.Integration.CertificationTest do
     state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
     {:ok, pid} =
-      TestStorageAdapter.start_link(
+      StorageAdapter.start_link(
         registrations: [registration],
         deployments: [deployment]
       )
 
-    TestStorageAdapter.set_pid(pid)
-    TestStorageAdapter.store_nonce(nonce, registration)
+    StorageAdapter.set_pid(pid)
+    StorageAdapter.store_nonce(nonce, registration)
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
@@ -443,7 +443,7 @@ defmodule Ltix.Integration.CertificationTest do
 
   defp handle_callback(params, state) do
     Ltix.handle_callback(params, state,
-      storage_adapter: TestStorageAdapter,
+      storage_adapter: StorageAdapter,
       req_options: req_options()
     )
   end
