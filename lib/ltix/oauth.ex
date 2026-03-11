@@ -1,15 +1,15 @@
 defmodule Ltix.OAuth do
-  @authenticate_schema NimbleOptions.new!(
-                         endpoints: [
-                           type: {:map, :atom, :any},
-                           required: true,
-                           doc: "Map of service modules to endpoint structs."
-                         ],
-                         req_options: [
-                           type: :keyword_list,
-                           default: [],
-                           doc: "Options passed through to `Req.request/2`."
-                         ]
+  @authenticate_schema Zoi.keyword(
+                         endpoints:
+                           Zoi.map(Zoi.atom(), Zoi.any(),
+                             description: "Map of service modules to endpoint structs."
+                           )
+                           |> Zoi.required(),
+                         req_options:
+                           Zoi.keyword(Zoi.any(),
+                             description: "Options passed through to `Req.request/2`."
+                           )
+                           |> Zoi.default([])
                        )
 
   @moduledoc """
@@ -37,7 +37,7 @@ defmodule Ltix.OAuth do
 
   ## Options
 
-  #{NimbleOptions.docs(@authenticate_schema)}
+  #{Zoi.describe(@authenticate_schema)}
   """
 
   alias Ltix.OAuth.Client
@@ -53,7 +53,7 @@ defmodule Ltix.OAuth do
   @spec authenticate(Registration.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
   def authenticate(%Registration{} = registration, opts \\ []) do
-    opts = NimbleOptions.validate!(opts, @authenticate_schema)
+    opts = Zoi.parse!(@authenticate_schema, opts)
     endpoints = Keyword.fetch!(opts, :endpoints)
     req_options = Keyword.fetch!(opts, :req_options)
 

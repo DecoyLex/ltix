@@ -73,25 +73,26 @@ defmodule Ltix.MembershipsService do
   # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
   def scopes(%MembershipsEndpoint{}), do: [@nrps_scope]
 
-  @context_auth_schema NimbleOptions.new!(
-                         req_options: [
-                           type: :keyword_list,
-                           default: [],
-                           doc: "Options passed through to `Req.request/2`."
-                         ]
+  @context_auth_schema Zoi.keyword(
+                         req_options:
+                           Zoi.keyword(Zoi.any(),
+                             description: "Options passed through to `Req.request/2`."
+                           )
+                           |> Zoi.default([])
                        )
 
-  @registration_auth_schema NimbleOptions.new!(
-                              endpoint: [
-                                type: {:struct, MembershipsEndpoint},
-                                required: true,
-                                doc: "MembershipsEndpoint struct for the service endpoint."
-                              ],
-                              req_options: [
-                                type: :keyword_list,
-                                default: [],
-                                doc: "Options passed through to `Req.request/2`."
-                              ]
+  @registration_auth_schema Zoi.keyword(
+                              endpoint:
+                                Zoi.struct(MembershipsEndpoint,
+                                  description:
+                                    "MembershipsEndpoint struct for the service endpoint."
+                                )
+                                |> Zoi.required(),
+                              req_options:
+                                Zoi.keyword(Zoi.any(),
+                                  description: "Options passed through to `Req.request/2`."
+                                )
+                                |> Zoi.default([])
                             )
 
   @doc """
@@ -113,18 +114,18 @@ defmodule Ltix.MembershipsService do
 
   ## Options (launch context)
 
-  #{NimbleOptions.docs(@context_auth_schema)}
+  #{Zoi.describe(@context_auth_schema)}
 
   ## Options (registration)
 
-  #{NimbleOptions.docs(@registration_auth_schema)}
+  #{Zoi.describe(@registration_auth_schema)}
   """
   @spec authenticate(LaunchContext.t() | Registration.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
   def authenticate(context_or_registration, opts \\ [])
 
   def authenticate(%LaunchContext{} = context, opts) do
-    opts = NimbleOptions.validate!(opts, @context_auth_schema)
+    opts = Zoi.parse!(@context_auth_schema, opts)
 
     case endpoint_from_claims(context.claims) do
       {:ok, endpoint} ->
@@ -145,7 +146,7 @@ defmodule Ltix.MembershipsService do
   end
 
   def authenticate(%Registration{} = registration, opts) do
-    opts = NimbleOptions.validate!(opts, @registration_auth_schema)
+    opts = Zoi.parse!(@registration_auth_schema, opts)
     endpoint = Keyword.fetch!(opts, :endpoint)
 
     OAuth.authenticate(registration,
@@ -165,41 +166,40 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  @query_schema [
-    endpoint: [
-      type: {:struct, MembershipsEndpoint},
-      doc: "Override the endpoint stored on the client."
-    ],
-    role: [
-      type: {:or, [:atom, :string, {:struct, Role}]},
-      doc:
-        "Filter by role. Accepts a role atom (e.g., `:learner`), URI string, " <>
-          "`%Role{}` struct, or short name string (e.g., `\"Learner\"`)."
-    ],
-    resource_link_id: [
-      type: :string,
-      doc: "Query resource link membership."
-    ],
-    per_page: [
-      type: :pos_integer,
-      doc: "Page size hint. The platform may return more or fewer than requested."
-    ]
+  @query_fields [
+    endpoint:
+      Zoi.struct(MembershipsEndpoint,
+        description: "Override the endpoint stored on the client."
+      ),
+    role:
+      Zoi.union([Zoi.atom(), Zoi.string(), Zoi.struct(Role)],
+        description:
+          "Filter by role. Accepts a role atom (e.g., `:learner`), URI string, " <>
+            "`%Role{}` struct, or short name string (e.g., `\"Learner\"`)."
+      ),
+    resource_link_id: Zoi.string(description: "Query resource link membership."),
+    per_page:
+      Zoi.integer(
+        description: "Page size hint. The platform may return more or fewer than requested."
+      )
+      |> Zoi.positive()
   ]
 
-  @get_members_schema NimbleOptions.new!(
-                        @query_schema ++
+  @get_members_schema Zoi.keyword(
+                        @query_fields ++
                           [
-                            max_members: [
-                              type: {:or, [:pos_integer, {:in, [:infinity]}]},
-                              default: 10_000,
-                              doc:
-                                "Safety limit for eager fetch. Returns a `RosterTooLarge` error " <>
-                                  "if exceeded. Set to `:infinity` to disable."
-                            ]
+                            max_members:
+                              Zoi.union(
+                                [Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
+                                description:
+                                  "Safety limit for eager fetch. Returns a `RosterTooLarge` error " <>
+                                    "if exceeded. Set to `:infinity` to disable."
+                              )
+                              |> Zoi.default(10_000)
                           ]
                       )
 
-  @stream_members_schema NimbleOptions.new!(@query_schema)
+  @stream_members_schema Zoi.keyword(@query_fields)
 
   @doc """
   Fetch all members from the memberships endpoint.
@@ -210,13 +210,13 @@ defmodule Ltix.MembershipsService do
 
   ## Options
 
-  #{NimbleOptions.docs(@get_members_schema)}
+  #{Zoi.describe(@get_members_schema)}
   """
   # [NRPS §2.4](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
   @spec get_members(Client.t(), keyword()) ::
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
   def get_members(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @get_members_schema) do
+    with {:ok, opts} <- parse_opts(@get_members_schema, opts) do
       max = Keyword.get(opts, :max_members)
       query_opts = Keyword.drop(opts, [:max_members])
 
@@ -248,13 +248,13 @@ defmodule Ltix.MembershipsService do
 
   ## Options
 
-  #{NimbleOptions.docs(@stream_members_schema)}
+  #{Zoi.describe(@stream_members_schema)}
   """
   # [NRPS §2.4.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#limit-query-parameter)
   @spec stream_members(Client.t(), keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_members(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @stream_members_schema),
+    with {:ok, opts} <- parse_opts(@stream_members_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_scope(client, @nrps_scope),
          {:ok, pages} <- fetch_pages(client, opts) do
@@ -294,6 +294,13 @@ defmodule Ltix.MembershipsService do
 
   defp get_endpoint(%Client{endpoints: endpoints}) do
     Map.fetch!(endpoints, __MODULE__)
+  end
+
+  defp parse_opts(schema, opts) do
+    case Zoi.parse(schema, opts) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, errors} -> {:error, Zoi.ParseError.exception(errors: errors)}
+    end
   end
 
   defp check_expiry(%Client{} = client) do

@@ -9,17 +9,15 @@ defmodule Ltix.Pagination do
 
   alias Ltix.Errors.Unknown.TransportError
 
-  @stream_schema NimbleOptions.new!(
-                   params: [
-                     type: {:map, :string, :string},
-                     default: %{},
-                     doc: "Query parameters for the first page only."
-                   ],
-                   req_options: [
-                     type: :keyword_list,
-                     default: [],
-                     doc: "Options passed through to `Req.get/1`."
-                   ]
+  @stream_schema Zoi.keyword(
+                   params:
+                     Zoi.map(Zoi.string(), Zoi.string(),
+                       description: "Query parameters for the first page only."
+                     )
+                     |> Zoi.default(%{}),
+                   req_options:
+                     Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.get/1`.")
+                     |> Zoi.default([])
                  )
 
   @doc """
@@ -32,12 +30,12 @@ defmodule Ltix.Pagination do
 
   ## Options
 
-  #{NimbleOptions.docs(@stream_schema)}
+  #{Zoi.describe(@stream_schema)}
   """
   @spec stream(String.t(), [{String.t(), String.t()}], keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream(url, headers, opts \\ []) do
-    opts = NimbleOptions.validate!(opts, @stream_schema)
+    opts = Zoi.parse!(@stream_schema, opts)
     params = Keyword.fetch!(opts, :params)
     req_options = req_options(opts)
 

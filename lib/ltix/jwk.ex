@@ -1,10 +1,9 @@
 defmodule Ltix.JWK do
-  @generate_key_pair_schema NimbleOptions.new!(
-                              key_size: [
-                                type: {:custom, __MODULE__, :validate_key_size, []},
-                                default: 2048,
-                                doc: "RSA key size in bits (minimum 2048)."
-                              ]
+  @generate_key_pair_schema Zoi.keyword(
+                              key_size:
+                                Zoi.integer(description: "RSA key size in bits (minimum 2048).")
+                                |> Zoi.min(2048)
+                                |> Zoi.default(2048)
                             )
 
   @moduledoc """
@@ -30,7 +29,7 @@ defmodule Ltix.JWK do
 
   ## Options
 
-  #{NimbleOptions.docs(@generate_key_pair_schema)}
+  #{Zoi.describe(@generate_key_pair_schema)}
   """
 
   @doc """
@@ -52,7 +51,7 @@ defmodule Ltix.JWK do
   # Each key identified by kid
   @spec generate_key_pair(keyword()) :: {JOSE.JWK.t(), JOSE.JWK.t()}
   def generate_key_pair(opts \\ []) do
-    opts = NimbleOptions.validate!(opts, @generate_key_pair_schema)
+    opts = Zoi.parse!(@generate_key_pair_schema, opts)
     key_size = Keyword.fetch!(opts, :key_size)
 
     kid = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
@@ -96,9 +95,4 @@ defmodule Ltix.JWK do
 
     %{"keys" => keys}
   end
-
-  @doc false
-  @spec validate_key_size(term()) :: {:ok, integer()} | {:error, String.t()}
-  def validate_key_size(size) when is_integer(size) and size >= 2048, do: {:ok, size}
-  def validate_key_size(_), do: {:error, "must be an integer >= 2048"}
 end

@@ -35,6 +35,11 @@ Do NOT use `cog commit` — it bypasses JJ and creates raw git commits.
 
 Run `/qc` before committing to check formatting, credo, and test hygiene.
 
+## Pipes
+
+- Don't use a single `|>` — call the function directly. Exception: Zoi builder chains and Req response piping.
+- Pipe chains should start with a raw value, not a function call. Exception: Zoi type constructors and Req HTTP calls.
+
 ## Doctests
 
 Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests.
@@ -81,7 +86,7 @@ mix usage_rules.docs Enum.zip/1
 
 ## Searching Documentation
 
-You should also consult the documentation of any tools you are using, early and often. The best
+You should also consult the documentation of any tools you are using, early and often. The best 
 way to accomplish this is to use the `usage_rules.search_docs` mix task. Once you have
 found what you are looking for, use the links in the search results to get more detail. For example:
 

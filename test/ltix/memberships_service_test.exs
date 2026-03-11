@@ -187,7 +187,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "errors without endpoint option", ctx do
-      assert_raise NimbleOptions.ValidationError, fn ->
+      assert_raise Zoi.ParseError, fn ->
         MembershipsService.authenticate(ctx.platform.registration, [])
       end
     end

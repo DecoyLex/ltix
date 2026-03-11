@@ -176,7 +176,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "errors without endpoint option", ctx do
-      assert_raise NimbleOptions.ValidationError, fn ->
+      assert_raise Zoi.ParseError, fn ->
         GradeService.authenticate(ctx.platform.registration, [])
       end
     end

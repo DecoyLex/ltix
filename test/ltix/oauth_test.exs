@@ -173,8 +173,8 @@ defmodule Ltix.OAuthTest do
                )
     end
 
-    test "NimbleOptions rejects missing endpoints option", ctx do
-      assert_raise NimbleOptions.ValidationError, fn ->
+    test "rejects missing endpoints option", ctx do
+      assert_raise Zoi.ParseError, fn ->
         OAuth.authenticate(ctx.registration, [])
       end
     end

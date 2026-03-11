@@ -24,37 +24,70 @@ defmodule Ltix.GradeService.Score do
       #=> 85
   """
 
-  defstruct [
-    :user_id,
-    :activity_progress,
-    :grading_progress,
-    :timestamp,
-    :score_given,
-    :score_maximum,
-    :scoring_user_id,
-    :comment,
-    :submission,
-    extensions: %{}
-  ]
-
-  @type t :: %__MODULE__{
-          user_id: String.t(),
-          activity_progress: activity_progress(),
-          grading_progress: grading_progress(),
-          timestamp: DateTime.t(),
-          score_given: number() | nil,
-          score_maximum: number() | nil,
-          scoring_user_id: String.t() | nil,
-          comment: String.t() | nil,
-          submission: %{started_at: String.t(), submitted_at: String.t()} | nil,
-          extensions: %{optional(String.t()) => term()}
-        }
-
-  @type activity_progress :: :initialized | :started | :in_progress | :submitted | :completed
-  @type grading_progress :: :fully_graded | :pending | :pending_manual | :failed | :not_ready
-
   # [AGS §3.4.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#activityprogress)
   @activity_progress_values [:initialized, :started, :in_progress, :submitted, :completed]
+
+  # [AGS §3.4.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#gradingprogress)
+  @grading_progress_values [:fully_graded, :pending, :pending_manual, :failed, :not_ready]
+
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              user_id: Zoi.string(description: "LTI user ID of the score recipient."),
+              activity_progress:
+                Zoi.enum(@activity_progress_values,
+                  description: "User's progress toward completing the activity."
+                ),
+              grading_progress:
+                Zoi.enum(@grading_progress_values,
+                  description:
+                    "Status of the grading process. Must be `:fully_graded` for final scores."
+                ),
+              timestamp:
+                Zoi.struct(DateTime,
+                  description: "When the score was set. Auto-generated if not provided."
+                )
+                |> Zoi.optional(),
+              score_given:
+                Zoi.number(
+                  description:
+                    "Score value (must be >= 0). Requires `score_maximum` when present."
+                )
+                |> Zoi.non_negative()
+                |> Zoi.optional(),
+              score_maximum:
+                Zoi.number(
+                  description:
+                    "Maximum possible score (must be > 0). Required when `score_given` is present."
+                )
+                |> Zoi.positive()
+                |> Zoi.optional(),
+              scoring_user_id:
+                Zoi.string(description: "LTI user ID of the person who provided the score.")
+                |> Zoi.optional(),
+              comment:
+                Zoi.string(
+                  description: "Plain text comment visible to both student and instructor."
+                )
+                |> Zoi.optional(),
+              submission:
+                Zoi.map(Zoi.atom(), Zoi.string(),
+                  description:
+                    "Submission metadata with `:started_at` and `:submitted_at` ISO 8601 timestamps."
+                )
+                |> Zoi.optional(),
+              extensions:
+                Zoi.map(Zoi.string(), Zoi.any(),
+                  description: "Extension properties keyed by fully qualified URLs."
+                )
+                |> Zoi.default(%{})
+            },
+            coerce: true
+          )
+
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @activity_progress_to_json %{
     initialized: "Initialized",
@@ -64,9 +97,6 @@ defmodule Ltix.GradeService.Score do
     completed: "Completed"
   }
 
-  # [AGS §3.4.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#gradingprogress)
-  @grading_progress_values [:fully_graded, :pending, :pending_manual, :failed, :not_ready]
-
   @grading_progress_to_json %{
     fully_graded: "FullyGraded",
     pending: "Pending",
@@ -75,54 +105,6 @@ defmodule Ltix.GradeService.Score do
     not_ready: "NotReady"
   }
 
-  @schema NimbleOptions.new!(
-            user_id: [
-              type: :string,
-              required: true,
-              doc: "LTI user ID of the score recipient."
-            ],
-            activity_progress: [
-              type: {:in, @activity_progress_values},
-              required: true,
-              doc: "User's progress toward completing the activity."
-            ],
-            grading_progress: [
-              type: {:in, @grading_progress_values},
-              required: true,
-              doc: "Status of the grading process. Must be `:fully_graded` for final scores."
-            ],
-            timestamp: [
-              type: {:struct, DateTime},
-              doc: "When the score was set. Auto-generated if not provided."
-            ],
-            score_given: [
-              type: {:custom, __MODULE__, :validate_non_negative_number, []},
-              doc: "Score value (must be >= 0). Requires `score_maximum` when present."
-            ],
-            score_maximum: [
-              type: {:custom, __MODULE__, :validate_positive_number, []},
-              doc: "Maximum possible score (must be > 0). Required when `score_given` is present."
-            ],
-            scoring_user_id: [
-              type: :string,
-              doc: "LTI user ID of the person who provided the score."
-            ],
-            comment: [
-              type: :string,
-              doc: "Plain text comment visible to both student and instructor."
-            ],
-            submission: [
-              type: {:map, :atom, :string},
-              doc:
-                "Submission metadata with `:started_at` and `:submitted_at` ISO 8601 timestamps."
-            ],
-            extensions: [
-              type: {:map, :string, :any},
-              default: %{},
-              doc: "Extension properties keyed by fully qualified URLs."
-            ]
-          )
-
   @doc """
   Build a validated score from keyword options.
 
@@ -130,7 +112,7 @@ defmodule Ltix.GradeService.Score do
 
   ## Options
 
-  #{NimbleOptions.docs(@schema)}
+  #{Zoi.describe(@schema)}
 
   ## Examples
 
@@ -140,16 +122,16 @@ defmodule Ltix.GradeService.Score do
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts) do
-    case NimbleOptions.validate(opts, @schema) do
-      {:ok, validated} ->
-        validated = Keyword.put_new_lazy(validated, :timestamp, &DateTime.utc_now/0)
+    case Zoi.parse(@schema, Map.new(opts)) do
+      {:ok, %__MODULE__{} = score} ->
+        score = %{score | timestamp: score.timestamp || DateTime.utc_now()}
 
-        with :ok <- validate_score_pair(validated[:score_given], validated[:score_maximum]) do
-          {:ok, struct!(__MODULE__, validated)}
+        with :ok <- validate_score_pair(score.score_given, score.score_maximum) do
+          {:ok, score}
         end
 
-      {:error, %NimbleOptions.ValidationError{} = error} ->
-        {:error, error}
+      {:error, errors} ->
+        {:error, Zoi.ParseError.exception(errors: errors)}
     end
   end
 
@@ -186,28 +168,10 @@ defmodule Ltix.GradeService.Score do
   defp validate_score_pair(nil, _), do: :ok
 
   defp validate_score_pair(_score_given, nil) do
-    {:error,
-     NimbleOptions.ValidationError.exception(
-       key: :score_maximum,
-       message: "is required when score_given is present"
-     )}
+    {:error, ArgumentError.exception("score_maximum is required when score_given is present")}
   end
 
   defp validate_score_pair(_, _), do: :ok
-
-  @doc false
-  def validate_non_negative_number(value) when is_number(value) and value >= 0, do: {:ok, value}
-
-  def validate_non_negative_number(value) do
-    {:error, "expected score_given to be a non-negative number, got: #{inspect(value)}"}
-  end
-
-  @doc false
-  def validate_positive_number(value) when is_number(value) and value > 0, do: {:ok, value}
-
-  def validate_positive_number(value) do
-    {:error, "expected score_maximum to be a positive number (> 0), got: #{inspect(value)}"}
-  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

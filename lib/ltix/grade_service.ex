@@ -67,25 +67,23 @@ defmodule Ltix.GradeService do
   def scopes(%AgsEndpoint{scope: scopes}) when is_list(scopes), do: scopes
   def scopes(%AgsEndpoint{scope: nil}), do: []
 
-  @context_auth_schema NimbleOptions.new!(
-                         req_options: [
-                           type: :keyword_list,
-                           default: [],
-                           doc: "Options passed through to `Req.request/2`."
-                         ]
+  @context_auth_schema Zoi.keyword(
+                         req_options:
+                           Zoi.keyword(Zoi.any(),
+                             description: "Options passed through to `Req.request/2`."
+                           )
+                           |> Zoi.default([])
                        )
 
-  @registration_auth_schema NimbleOptions.new!(
-                              endpoint: [
-                                type: {:struct, AgsEndpoint},
-                                required: true,
-                                doc: "AGS endpoint struct."
-                              ],
-                              req_options: [
-                                type: :keyword_list,
-                                default: [],
-                                doc: "Options passed through to `Req.request/2`."
-                              ]
+  @registration_auth_schema Zoi.keyword(
+                              endpoint:
+                                Zoi.struct(AgsEndpoint, description: "AGS endpoint struct.")
+                                |> Zoi.required(),
+                              req_options:
+                                Zoi.keyword(Zoi.any(),
+                                  description: "Options passed through to `Req.request/2`."
+                                )
+                                |> Zoi.default([])
                             )
 
   @doc """
@@ -110,18 +108,18 @@ defmodule Ltix.GradeService do
 
   ## Options (launch context)
 
-  #{NimbleOptions.docs(@context_auth_schema)}
+  #{Zoi.describe(@context_auth_schema)}
 
   ## Options (registration)
 
-  #{NimbleOptions.docs(@registration_auth_schema)}
+  #{Zoi.describe(@registration_auth_schema)}
   """
   @spec authenticate(LaunchContext.t() | Registration.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
   def authenticate(context_or_registration, opts \\ [])
 
   def authenticate(%LaunchContext{} = context, opts) do
-    opts = NimbleOptions.validate!(opts, @context_auth_schema)
+    opts = Zoi.parse!(@context_auth_schema, opts)
 
     case endpoint_from_claims(context.claims) do
       {:ok, endpoint} ->
@@ -140,7 +138,7 @@ defmodule Ltix.GradeService do
   end
 
   def authenticate(%Registration{} = registration, opts) do
-    opts = NimbleOptions.validate!(opts, @registration_auth_schema)
+    opts = Zoi.parse!(@registration_auth_schema, opts)
     endpoint = Keyword.fetch!(opts, :endpoint)
 
     OAuth.authenticate(registration,
@@ -160,23 +158,16 @@ defmodule Ltix.GradeService do
     end
   end
 
-  @list_line_items_schema NimbleOptions.new!(
-                            resource_link_id: [
-                              type: :string,
-                              doc: "Filter to line items bound to this resource link."
-                            ],
-                            resource_id: [
-                              type: :string,
-                              doc: "Filter by the tool's resource identifier."
-                            ],
-                            tag: [
-                              type: :string,
-                              doc: "Filter by tag."
-                            ],
-                            per_page: [
-                              type: :pos_integer,
-                              doc: "Page size hint."
-                            ]
+  @list_line_items_schema Zoi.keyword(
+                            resource_link_id:
+                              Zoi.string(
+                                description: "Filter to line items bound to this resource link."
+                              ),
+                            resource_id:
+                              Zoi.string(description: "Filter by the tool's resource identifier."),
+                            tag: Zoi.string(description: "Filter by tag."),
+                            per_page:
+                              Zoi.integer(description: "Page size hint.") |> Zoi.positive()
                           )
 
   @doc """
@@ -187,13 +178,13 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{NimbleOptions.docs(@list_line_items_schema)}
+  #{Zoi.describe(@list_line_items_schema)}
   """
   # [AGS §3.2.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#getting-all-the-line-items-in-the-container-url)
   @spec list_line_items(Client.t(), keyword()) ::
           {:ok, [LineItem.t()]} | {:error, Exception.t()}
   def list_line_items(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @list_line_items_schema),
+    with {:ok, opts} <- parse_opts(@list_line_items_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
          {:ok, url} <- require_line_items_url(client) do
@@ -207,11 +198,12 @@ defmodule Ltix.GradeService do
     end
   end
 
-  @get_line_item_schema NimbleOptions.new!(
-                          line_item: [
-                            type: {:or, [:string, {:struct, LineItem}]},
-                            doc: "Line item URL or struct. Defaults to the endpoint's `lineitem`."
-                          ]
+  @get_line_item_schema Zoi.keyword(
+                          line_item:
+                            Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                              description:
+                                "Line item URL or struct. Defaults to the endpoint's `lineitem`."
+                            )
                         )
 
   @doc """
@@ -219,56 +211,43 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{NimbleOptions.docs(@get_line_item_schema)}
+  #{Zoi.describe(@get_line_item_schema)}
   """
   @spec get_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def get_line_item(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @get_line_item_schema),
+    with {:ok, opts} <- parse_opts(@get_line_item_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
          {:ok, url} <- resolve_line_item_url(client, opts) do
       headers = auth_headers(client, @lineitem_media_type)
       req_opts = build_req_opts(client, url, headers)
 
-      case Req.get(req_opts) do
-        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-          LineItem.from_json(body)
-
-        {:ok, %Req.Response{status: status, body: body}} ->
-          {:error, TransportError.exception(status: status, body: body, url: url)}
-
-        {:error, exception} ->
-          {:error, exception}
-      end
+      Req.get(req_opts) |> handle_line_item_response(url)
     end
   end
 
-  @create_line_item_schema NimbleOptions.new!(
-                             label: [
-                               type: :string,
-                               required: true,
-                               doc: "Human-readable label."
-                             ],
-                             score_maximum: [
-                               type: {:custom, __MODULE__, :validate_positive_number, []},
-                               required: true,
-                               doc: "Maximum score (must be > 0)."
-                             ],
-                             resource_link_id: [type: :string, doc: "Bind to a resource link."],
-                             resource_id: [type: :string, doc: "Tool's resource identifier."],
-                             tag: [type: :string, doc: "Qualifier tag."],
-                             start_date_time: [type: :string, doc: "ISO 8601 with timezone."],
-                             end_date_time: [type: :string, doc: "ISO 8601 with timezone."],
-                             grades_released: [
-                               type: :boolean,
-                               doc: "Hint about releasing grades."
-                             ],
-                             extensions: [
-                               type: {:map, :string, :any},
-                               default: %{},
-                               doc: "Extension properties keyed by fully qualified URLs."
-                             ]
+  @create_line_item_schema Zoi.keyword(
+                             label:
+                               Zoi.string(description: "Human-readable label.") |> Zoi.required(),
+                             score_maximum:
+                               Zoi.number(description: "Maximum score (must be > 0).")
+                               |> Zoi.positive()
+                               |> Zoi.required(),
+                             resource_link_id:
+                               Zoi.string(description: "Bind to a resource link."),
+                             resource_id: Zoi.string(description: "Tool's resource identifier."),
+                             tag: Zoi.string(description: "Qualifier tag."),
+                             start_date_time: Zoi.string(description: "ISO 8601 with timezone."),
+                             end_date_time: Zoi.string(description: "ISO 8601 with timezone."),
+                             grades_released:
+                               Zoi.boolean(description: "Hint about releasing grades."),
+                             extensions:
+                               Zoi.map(Zoi.string(), Zoi.any(),
+                                 description:
+                                   "Extension properties keyed by fully qualified URLs."
+                               )
+                               |> Zoi.default(%{})
                            )
 
   @doc """
@@ -276,13 +255,13 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{NimbleOptions.docs(@create_line_item_schema)}
+  #{Zoi.describe(@create_line_item_schema)}
   """
   # [AGS §3.2.5](https://www.imsglobal.org/spec/lti-ags/v2p0/#creating-a-new-line-item)
   @spec create_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def create_line_item(%Client{} = client, opts) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @create_line_item_schema),
+    with {:ok, opts} <- parse_opts(@create_line_item_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_scope(client, @scope_lineitem),
          {:ok, url} <- require_line_items_url(client),
@@ -290,16 +269,7 @@ defmodule Ltix.GradeService do
       headers = auth_headers(client, nil)
       req_opts = build_req_opts_with_body(client, url, headers, @lineitem_media_type, json)
 
-      case Req.post(req_opts) do
-        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-          LineItem.from_json(body)
-
-        {:ok, %Req.Response{status: status, body: body}} ->
-          {:error, TransportError.exception(status: status, body: body, url: url)}
-
-        {:error, exception} ->
-          {:error, exception}
-      end
+      Req.post(req_opts) |> handle_line_item_response(url)
     end
   end
 
@@ -328,26 +298,17 @@ defmodule Ltix.GradeService do
       headers = auth_headers(client, nil)
       req_opts = build_req_opts_with_body(client, url, headers, @lineitem_media_type, json)
 
-      case Req.put(req_opts) do
-        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-          LineItem.from_json(body)
-
-        {:ok, %Req.Response{status: status, body: body}} ->
-          {:error, TransportError.exception(status: status, body: body, url: url)}
-
-        {:error, exception} ->
-          {:error, exception}
-      end
+      Req.put(req_opts) |> handle_line_item_response(url)
     end
   end
 
-  @delete_line_item_schema NimbleOptions.new!(
-                             force: [
-                               type: :boolean,
-                               default: false,
-                               doc:
-                                 "Delete even if this is the coupled line item from the launch claim."
-                             ]
+  @delete_line_item_schema Zoi.keyword(
+                             force:
+                               Zoi.boolean(
+                                 description:
+                                   "Delete even if this is the coupled line item from the launch claim."
+                               )
+                               |> Zoi.default(false)
                            )
 
   @doc """
@@ -362,14 +323,14 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{NimbleOptions.docs(@delete_line_item_schema)}
+  #{Zoi.describe(@delete_line_item_schema)}
   """
   @spec delete_line_item(Client.t(), LineItem.t() | String.t(), keyword()) ::
           :ok | {:error, Exception.t()}
   def delete_line_item(%Client{} = client, line_item_or_url, opts \\ []) do
     url = extract_line_item_url(line_item_or_url)
 
-    with {:ok, opts} <- NimbleOptions.validate(opts, @delete_line_item_schema),
+    with {:ok, opts} <- parse_opts(@delete_line_item_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_scope(client, @scope_lineitem),
          :ok <- check_coupled_guard(client, url, Keyword.get(opts, :force, false)) do
@@ -389,11 +350,12 @@ defmodule Ltix.GradeService do
     end
   end
 
-  @post_score_schema NimbleOptions.new!(
-                       line_item: [
-                         type: {:or, [:string, {:struct, LineItem}]},
-                         doc: "Line item URL or struct. Defaults to the endpoint's `lineitem`."
-                       ]
+  @post_score_schema Zoi.keyword(
+                       line_item:
+                         Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                           description:
+                             "Line item URL or struct. Defaults to the endpoint's `lineitem`."
+                         )
                      )
 
   @doc """
@@ -404,13 +366,13 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{NimbleOptions.docs(@post_score_schema)}
+  #{Zoi.describe(@post_score_schema)}
   """
   # [AGS §3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#score-publish-service)
   @spec post_score(Client.t(), Score.t(), keyword()) ::
           :ok | {:error, Exception.t()}
   def post_score(%Client{} = client, %Score{} = score, opts \\ []) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @post_score_schema),
+    with {:ok, opts} <- parse_opts(@post_score_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_scope(client, @scope_score),
          {:ok, base_url} <- resolve_line_item_url(client, opts) do
@@ -432,19 +394,14 @@ defmodule Ltix.GradeService do
     end
   end
 
-  @get_results_schema NimbleOptions.new!(
-                        line_item: [
-                          type: {:or, [:string, {:struct, LineItem}]},
-                          doc: "Line item URL or struct. Defaults to the endpoint's `lineitem`."
-                        ],
-                        user_id: [
-                          type: :string,
-                          doc: "Filter results to a single user."
-                        ],
-                        per_page: [
-                          type: :pos_integer,
-                          doc: "Page size hint."
-                        ]
+  @get_results_schema Zoi.keyword(
+                        line_item:
+                          Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                            description:
+                              "Line item URL or struct. Defaults to the endpoint's `lineitem`."
+                          ),
+                        user_id: Zoi.string(description: "Filter results to a single user."),
+                        per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
                       )
 
   @doc """
@@ -455,13 +412,13 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{NimbleOptions.docs(@get_results_schema)}
+  #{Zoi.describe(@get_results_schema)}
   """
   # [AGS §3.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
   @spec get_results(Client.t(), keyword()) ::
           {:ok, [Result.t()]} | {:error, Exception.t()}
   def get_results(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- NimbleOptions.validate(opts, @get_results_schema),
+    with {:ok, opts} <- parse_opts(@get_results_schema, opts),
          :ok <- check_expiry(client),
          :ok <- Client.require_scope(client, @scope_result_readonly),
          {:ok, base_url} <- resolve_line_item_url(client, opts) do
@@ -473,6 +430,24 @@ defmodule Ltix.GradeService do
              Pagination.stream(url, headers, params: params, req_options: client.req_options) do
         collect_results(pages)
       end
+    end
+  end
+
+  defp handle_line_item_response({:ok, %Req.Response{status: status, body: body}}, _url)
+       when status in 200..299 do
+    LineItem.from_json(body)
+  end
+
+  defp handle_line_item_response({:ok, %Req.Response{status: status, body: body}}, url) do
+    {:error, TransportError.exception(status: status, body: body, url: url)}
+  end
+
+  defp handle_line_item_response({:error, exception}, _url), do: {:error, exception}
+
+  defp parse_opts(schema, opts) do
+    case Zoi.parse(schema, opts) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, errors} -> {:error, Zoi.ParseError.exception(errors: errors)}
     end
   end
 
@@ -649,12 +624,5 @@ defmodule Ltix.GradeService do
         :error -> {fields, Map.put(extensions, key, value)}
       end
     end)
-  end
-
-  @doc false
-  def validate_positive_number(value) when is_number(value) and value > 0, do: {:ok, value}
-
-  def validate_positive_number(value) do
-    {:error, "expected a positive number (> 0), got: #{inspect(value)}"}
   end
 end

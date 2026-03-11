@@ -32,7 +32,7 @@ defmodule Ltix.JWKTest do
     end
 
     test "rejects key size below 2048" do
-      assert_raise NimbleOptions.ValidationError, ~r/must be an integer >= 2048/, fn ->
+      assert_raise Zoi.ParseError, ~r/must be at least 2048/, fn ->
         JWK.generate_key_pair(key_size: 1024)
       end
     end
