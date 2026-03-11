@@ -1,0 +1,152 @@
+<h1>Grade Service (AGS)</h1>
+
+<p :if={Phoenix.Flash.get(@flash, :info)} style="color: green; font-weight: bold;">
+  {Phoenix.Flash.get(@flash, :info)}
+</p>
+
+<p :if={Phoenix.Flash.get(@flash, :error)} style="color: red; font-weight: bold;">
+  {Phoenix.Flash.get(@flash, :error)}
+</p>
+
+<div :if={@error}>
+  <p style="color: red; font-weight: bold;">{@error}</p>
+  <p><a href={~p"/"}>Back to home</a></p>
+</div>
+
+<div :if={@endpoint}>
+  <h2>Endpoint</h2>
+  <table>
+    <tr>
+      <td><strong>Line Items (container)</strong></td>
+      <td><code>{@endpoint.lineitems || "N/A"}</code></td>
+    </tr>
+    <tr>
+      <td><strong>Line Item (coupled)</strong></td>
+      <td><code>{@endpoint.lineitem || "N/A"}</code></td>
+    </tr>
+    <tr>
+      <td><strong>Scopes</strong></td>
+      <td>
+        <ul style="margin: 0; padding-left: 1.2em;">
+          <li :for={scope <- @endpoint.scope || []}><code>{scope}</code></li>
+        </ul>
+      </td>
+    </tr>
+  </table>
+
+  <h2>Line Items</h2>
+
+  <table :if={@line_items != []}>
+    <thead>
+      <tr>
+        <th>Label</th>
+        <th>Score Max</th>
+        <th>Resource Link</th>
+        <th>Tag</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr :for={item <- @line_items}>
+        <td>{item.label}</td>
+        <td>{item.score_maximum}</td>
+        <td><code>{item.resource_link_id || "—"}</code></td>
+        <td>{item.tag || "—"}</td>
+        <td>
+          <a href={~p"/lti/grades/results?#{[line_item: item.id]}"}>Results</a>
+          &nbsp;|&nbsp; <a href={~p"/lti/grades?#{[score_for: item.id]}"}>Post Score</a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p :if={@line_items == [] && @endpoint.lineitems}>No line items found.</p>
+  <p :if={@endpoint.lineitems == nil}>Line item listing not available (no container URL).</p>
+
+  <%!-- Score posting form, shown when a line item is selected via ?score_for= --%>
+  <div :if={
+    @score_for && MapSet.member?(@scopes, "https://purl.imsglobal.org/spec/lti-ags/scope/score")
+  }>
+    <h2>Post Score</h2>
+    <p>Posting to: <code>{@score_for}</code></p>
+    <form action={~p"/lti/grades/score"} method="post">
+      <input type="hidden" name="line_item" value={@score_for} />
+      <div style="margin-bottom: 0.5em;">
+        <label>User ID: <input type="text" name="user_id" value={@user_id} required /></label>
+      </div>
+      <div style="margin-bottom: 0.5em;">
+        <label>Score Given: <input type="number" name="score_given" step="any" min="0" /></label>
+      </div>
+      <div style="margin-bottom: 0.5em;">
+        <label>
+          Score Maximum: <input type="number" name="score_maximum" step="any" min="0.01" />
+        </label>
+      </div>
+      <div style="margin-bottom: 0.5em;">
+        <label>
+          Activity Progress:
+          <select name="activity_progress">
+            <option value="initialized">Initialized</option>
+            <option value="started">Started</option>
+            <option value="in_progress">In Progress</option>
+            <option value="submitted">Submitted</option>
+            <option value="completed" selected>Completed</option>
+          </select>
+        </label>
+      </div>
+      <div style="margin-bottom: 0.5em;">
+        <label>
+          Grading Progress:
+          <select name="grading_progress">
+            <option value="fully_graded" selected>Fully Graded</option>
+            <option value="pending">Pending</option>
+            <option value="pending_manual">Pending Manual</option>
+            <option value="failed">Failed</option>
+            <option value="not_ready">Not Ready</option>
+          </select>
+        </label>
+      </div>
+      <div style="margin-bottom: 0.5em;">
+        <label>Comment: <input type="text" name="comment" /></label>
+      </div>
+      <button type="submit">Post Score</button>
+      &nbsp; <a href={~p"/lti/grades"}>Cancel</a>
+    </form>
+  </div>
+
+  <%!-- Coupled line item quick-score: show when no score_for but coupled lineitem exists --%>
+  <div :if={
+    !@score_for && @endpoint.lineitem &&
+      MapSet.member?(@scopes, "https://purl.imsglobal.org/spec/lti-ags/scope/score")
+  }>
+    <h2>Quick Score (Coupled)</h2>
+    <p>
+      <a href={~p"/lti/grades?#{[score_for: @endpoint.lineitem]}"}>
+        Post score to coupled line item
+      </a>
+    </p>
+  </div>
+
+  <h2 :if={MapSet.member?(@scopes, "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem")}>
+    Create Line Item
+  </h2>
+  <form
+    :if={MapSet.member?(@scopes, "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem")}
+    action={~p"/lti/grades/line_items"}
+    method="post"
+  >
+    <div style="margin-bottom: 0.5em;">
+      <label>Label: <input type="text" name="label" required /></label>
+    </div>
+    <div style="margin-bottom: 0.5em;">
+      <label>
+        Score Maximum: <input type="number" name="score_maximum" step="any" min="0.01" required />
+      </label>
+    </div>
+    <button type="submit">Create</button>
+  </form>
+
+  <p style="margin-top: 1rem;">
+    <a href="javascript:history.back()">Back to launch</a>
+  </p>
+</div>

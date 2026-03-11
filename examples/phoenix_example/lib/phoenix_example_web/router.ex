@@ -18,6 +18,7 @@ defmodule PhoenixExampleWeb.Router do
   pipeline :lti do
     plug :accepts, ["html"]
     plug :fetch_session
+    plug :fetch_flash
     plug :put_root_layout, html: {PhoenixExampleWeb.Layouts, :root}
   end
 
@@ -34,5 +35,9 @@ defmodule PhoenixExampleWeb.Router do
     post "/launch", LtiController, :launch
     post "/echo", LtiController, :echo
     get "/roster", LtiController, :roster
+    get "/grades", LtiController, :grades
+    post "/grades/line_items", LtiController, :create_line_item
+    get "/grades/results", LtiController, :grade_results
+    post "/grades/score", LtiController, :post_score
   end
 end

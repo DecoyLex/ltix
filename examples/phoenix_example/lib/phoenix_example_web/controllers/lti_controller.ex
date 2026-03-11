@@ -2,6 +2,8 @@ defmodule PhoenixExampleWeb.LtiController do
   use PhoenixExampleWeb, :controller
   require Logger
 
+  alias Ltix.GradeService
+  alias Ltix.GradeService.Score
   alias PhoenixExample.LtiStorage
 
   def login(conn, params) do
@@ -32,7 +34,8 @@ defmodule PhoenixExampleWeb.LtiController do
         |> put_session(:lti_context_id, context_id)
         |> render(:launch,
           context: context,
-          has_memberships: context.claims.memberships_endpoint != nil
+          has_memberships: context.claims.memberships_endpoint != nil,
+          has_ags: context.claims.ags_endpoint != nil
         )
 
       {:error, reason} ->
@@ -70,4 +73,174 @@ defmodule PhoenixExampleWeb.LtiController do
   def echo(conn, params) do
     render(conn, :echo, params: params)
   end
+
+  def grades(conn, params) do
+    with {:ok, context} <- fetch_context(conn),
+         {:ok, client} <- GradeService.authenticate(context) do
+      endpoint = client.endpoints[GradeService]
+
+      line_items =
+        if endpoint.lineitems do
+          case GradeService.list_line_items(client) do
+            {:ok, items} -> items
+            {:error, _} -> []
+          end
+        else
+          []
+        end
+
+      render(conn, :grades,
+        endpoint: endpoint,
+        line_items: line_items,
+        scopes: client.scopes,
+        score_for: params["score_for"],
+        user_id: context.claims.subject,
+        error: nil
+      )
+    else
+      {:error, %{__struct__: _} = exception} ->
+        Logger.error(Exception.message(exception))
+
+        render(conn, :grades,
+          endpoint: nil,
+          line_items: [],
+          scopes: MapSet.new(),
+          score_for: nil,
+          user_id: nil,
+          error: Exception.message(exception)
+        )
+
+      {:error, reason} ->
+        render(conn, :grades,
+          endpoint: nil,
+          line_items: [],
+          scopes: MapSet.new(),
+          score_for: nil,
+          user_id: nil,
+          error: inspect(reason)
+        )
+    end
+  end
+
+  def create_line_item(conn, %{"label" => label, "score_maximum" => score_max}) do
+    with {:ok, context} <- fetch_context(conn),
+         {:ok, client} <- GradeService.authenticate(context),
+         {score_max_num, ""} <- Float.parse(score_max),
+         {:ok, _item} <-
+           GradeService.create_line_item(client, label: label, score_maximum: score_max_num) do
+      conn
+      |> put_flash(:info, "Line item \"#{label}\" created.")
+      |> redirect(to: ~p"/lti/grades")
+    else
+      :error ->
+        conn |> put_flash(:error, "Invalid score maximum.") |> redirect(to: ~p"/lti/grades")
+
+      {:error, %{__struct__: _} = exception} ->
+        conn |> put_flash(:error, Exception.message(exception)) |> redirect(to: ~p"/lti/grades")
+
+      {:error, reason} ->
+        conn |> put_flash(:error, inspect(reason)) |> redirect(to: ~p"/lti/grades")
+    end
+  end
+
+  def grade_results(conn, %{"line_item" => line_item_url}) do
+    with {:ok, context} <- fetch_context(conn),
+         {:ok, client} <- GradeService.authenticate(context),
+         {:ok, results} <- GradeService.get_results(client, line_item: line_item_url) do
+      render(conn, :grade_results, results: results, line_item_url: line_item_url, error: nil)
+    else
+      {:error, %{__struct__: _} = exception} ->
+        Logger.error(Exception.message(exception))
+
+        render(conn, :grade_results,
+          results: [],
+          line_item_url: line_item_url,
+          error: Exception.message(exception)
+        )
+
+      {:error, reason} ->
+        render(conn, :grade_results,
+          results: [],
+          line_item_url: line_item_url,
+          error: inspect(reason)
+        )
+    end
+  end
+
+  def post_score(conn, params) do
+    line_item_url = params["line_item"]
+    user_id = params["user_id"]
+
+    with {:ok, context} <- fetch_context(conn),
+         {:ok, client} <- GradeService.authenticate(context),
+         {:ok, score} <- build_score(params),
+         :ok <- GradeService.post_score(client, score, score_opts(line_item_url)) do
+      conn
+      |> put_flash(:info, "Score posted for user #{user_id}.")
+      |> redirect(to: ~p"/lti/grades")
+    else
+      {:error, %{__struct__: _} = exception} ->
+        conn |> put_flash(:error, Exception.message(exception)) |> redirect(to: ~p"/lti/grades")
+
+      {:error, reason} ->
+        conn |> put_flash(:error, inspect(reason)) |> redirect(to: ~p"/lti/grades")
+    end
+  end
+
+  defp fetch_context(conn) do
+    case get_session(conn, :lti_context_id) do
+      nil -> {:error, "No active launch session. Please launch from your LMS first."}
+      context_id -> LtiStorage.get_context(context_id)
+    end
+  end
+
+  defp build_score(params) do
+    score_given = parse_optional_float(params["score_given"])
+    score_maximum = parse_optional_float(params["score_maximum"])
+
+    opts =
+      [
+        user_id: params["user_id"],
+        activity_progress: cast_activity_progress(params["activity_progress"]),
+        grading_progress: cast_grading_progress(params["grading_progress"])
+      ]
+      |> maybe_put(:score_given, score_given)
+      |> maybe_put(:score_maximum, score_maximum)
+      |> maybe_put(:comment, non_blank(params["comment"]))
+
+    Score.new(opts)
+  end
+
+  defp cast_activity_progress("initialized"), do: :initialized
+  defp cast_activity_progress("started"), do: :started
+  defp cast_activity_progress("in_progress"), do: :in_progress
+  defp cast_activity_progress("submitted"), do: :submitted
+  defp cast_activity_progress("completed"), do: :completed
+
+  defp cast_grading_progress("fully_graded"), do: :fully_graded
+  defp cast_grading_progress("pending"), do: :pending
+  defp cast_grading_progress("pending_manual"), do: :pending_manual
+  defp cast_grading_progress("failed"), do: :failed
+  defp cast_grading_progress("not_ready"), do: :not_ready
+
+  defp score_opts(nil), do: []
+  defp score_opts(""), do: []
+  defp score_opts(url), do: [line_item: url]
+
+  defp parse_optional_float(nil), do: nil
+  defp parse_optional_float(""), do: nil
+
+  defp parse_optional_float(val) do
+    case Float.parse(val) do
+      {num, ""} -> num
+      _ -> nil
+    end
+  end
+
+  defp non_blank(nil), do: nil
+  defp non_blank(""), do: nil
+  defp non_blank(s), do: s
+
+  defp maybe_put(opts, _key, nil), do: opts
+  defp maybe_put(opts, key, val), do: Keyword.put(opts, key, val)
 end

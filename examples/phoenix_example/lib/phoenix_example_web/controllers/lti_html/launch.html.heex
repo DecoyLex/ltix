@@ -71,7 +71,8 @@
   </tr>
 </table>
 
-<h2 :if={@has_memberships}>Advantage Services</h2>
-<ul :if={@has_memberships}>
-  <li><a href={~p"/lti/roster"}>View Course Roster (NRPS)</a></li>
+<h2 :if={@has_memberships || @has_ags}>Advantage Services</h2>
+<ul :if={@has_memberships || @has_ags}>
+  <li :if={@has_memberships}><a href={~p"/lti/roster"}>View Course Roster (NRPS)</a></li>
+  <li :if={@has_ags}><a href={~p"/lti/grades"}>Grade Service (AGS)</a></li>
 </ul>
