@@ -30,7 +30,7 @@ defmodule Ltix.OIDC.AuthenticationRequestTest do
     # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
     test "includes all required OIDC parameters", %{registration: reg, params: params} do
       url = AuthenticationRequest.build(reg, params)
-      query = URI.parse(url).query |> URI.decode_query()
+      query = URI.decode_query(URI.parse(url).query)
 
       assert URI.parse(url).host == "platform.example.com"
       assert URI.parse(url).path == "/authorize"
@@ -49,14 +49,14 @@ defmodule Ltix.OIDC.AuthenticationRequestTest do
     test "includes lti_message_hint when provided", %{registration: reg, params: params} do
       params = Map.put(params, :lti_message_hint, "platform-hint-456")
       url = AuthenticationRequest.build(reg, params)
-      query = URI.parse(url).query |> URI.decode_query()
+      query = URI.decode_query(URI.parse(url).query)
 
       assert query["lti_message_hint"] == "platform-hint-456"
     end
 
     test "omits lti_message_hint when not provided", %{registration: reg, params: params} do
       url = AuthenticationRequest.build(reg, params)
-      query = URI.parse(url).query |> URI.decode_query()
+      query = URI.decode_query(URI.parse(url).query)
 
       refute Map.has_key?(query, "lti_message_hint")
     end
@@ -72,7 +72,7 @@ defmodule Ltix.OIDC.AuthenticationRequestTest do
     # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
     test "always sets prompt=none", %{registration: reg, params: params} do
       url = AuthenticationRequest.build(reg, params)
-      query = URI.parse(url).query |> URI.decode_query()
+      query = URI.decode_query(URI.parse(url).query)
 
       assert query["prompt"] == "none"
     end

@@ -1,9 +1,10 @@
 defmodule Ltix.OIDC.LoginInitiationTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid.{MissingParameter, RegistrationNotFound}
+  alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.OIDC.LoginInitiation
-  alias Ltix.Test.TestStorageAdapter
+  alias Ltix.Test.StorageAdapter
 
   @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
 
@@ -17,8 +18,8 @@ defmodule Ltix.OIDC.LoginInitiationTest do
         tool_jwk: @tool_jwk
       })
 
-    {:ok, pid} = TestStorageAdapter.start_link(registrations: [registration])
-    TestStorageAdapter.set_pid(pid)
+    {:ok, pid} = StorageAdapter.start_link(registrations: [registration])
+    StorageAdapter.set_pid(pid)
 
     params = %{
       "iss" => "https://platform.example.com",
@@ -37,7 +38,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params: params,
       redirect_uri: redirect_uri
     } do
-      assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
 
       uri = URI.parse(result.redirect_uri)
       assert uri.host == "platform.example.com"
@@ -63,7 +64,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.delete(params, "iss")
 
       assert {:error, %MissingParameter{parameter: "iss"}} =
-               LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri)
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
@@ -74,7 +75,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.delete(params, "login_hint")
 
       assert {:error, %MissingParameter{parameter: "login_hint"}} =
-               LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri)
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
@@ -85,7 +86,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.delete(params, "target_link_uri")
 
       assert {:error, %MissingParameter{parameter: "target_link_uri"}} =
-               LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri)
     end
 
     test "unknown issuer returns RegistrationNotFound error", %{
@@ -95,15 +96,15 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.put(params, "iss", "https://unknown.example.com")
 
       assert {:error, %RegistrationNotFound{issuer: "https://unknown.example.com"}} =
-               LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri)
     end
 
     # [Core §4.1.1](https://www.imsglobal.org/spec/lti/v1p3/#lti_message_hint-login-parameter)
     test "lti_message_hint preserved when present", %{params: params, redirect_uri: redirect_uri} do
       params = Map.put(params, "lti_message_hint", "platform-hint-456")
 
-      assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
-      query = URI.parse(result.redirect_uri).query |> URI.decode_query()
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       assert query["lti_message_hint"] == "platform-hint-456"
     end
@@ -112,8 +113,8 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params: params,
       redirect_uri: redirect_uri
     } do
-      assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
-      query = URI.parse(result.redirect_uri).query |> URI.decode_query()
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       refute Map.has_key?(query, "lti_message_hint")
     end
@@ -129,8 +130,8 @@ defmodule Ltix.OIDC.LoginInitiationTest do
           tool_jwk: @tool_jwk
         })
 
-      {:ok, pid} = TestStorageAdapter.start_link(registrations: [other_reg])
-      TestStorageAdapter.set_pid(pid)
+      {:ok, pid} = StorageAdapter.start_link(registrations: [other_reg])
+      StorageAdapter.set_pid(pid)
 
       params = %{
         "iss" => "https://platform.example.com",
@@ -139,8 +140,8 @@ defmodule Ltix.OIDC.LoginInitiationTest do
         "client_id" => "other-client-id"
       }
 
-      assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
-      query = URI.parse(result.redirect_uri).query |> URI.decode_query()
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       assert query["client_id"] == "other-client-id"
     end
@@ -151,31 +152,31 @@ defmodule Ltix.OIDC.LoginInitiationTest do
     } do
       refute Map.has_key?(params, "client_id")
 
-      assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
-      query = URI.parse(result.redirect_uri).query |> URI.decode_query()
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       assert query["client_id"] == "tool-client-id"
     end
 
     test "nonce is stored via callback module", %{params: params, redirect_uri: redirect_uri} do
-      assert {:ok, result} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
-      query = URI.parse(result.redirect_uri).query |> URI.decode_query()
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      query = URI.decode_query(URI.parse(result.redirect_uri).query)
       nonce = query["nonce"]
 
-      assert MapSet.member?(TestStorageAdapter.stored_nonces(), nonce)
+      assert MapSet.member?(StorageAdapter.stored_nonces(), nonce)
     end
 
     test "state and nonce are cryptographically random", %{
       params: params,
       redirect_uri: redirect_uri
     } do
-      assert {:ok, result1} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
-      assert {:ok, result2} = LoginInitiation.call(params, TestStorageAdapter, redirect_uri)
+      assert {:ok, result1} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      assert {:ok, result2} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
 
       refute result1.state == result2.state
 
-      q1 = URI.parse(result1.redirect_uri).query |> URI.decode_query()
-      q2 = URI.parse(result2.redirect_uri).query |> URI.decode_query()
+      q1 = URI.decode_query(URI.parse(result1.redirect_uri).query)
+      q2 = URI.decode_query(URI.parse(result2.redirect_uri).query)
 
       refute q1["nonce"] == q2["nonce"]
     end

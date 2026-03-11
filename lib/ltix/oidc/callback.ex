@@ -1,18 +1,18 @@
 defmodule Ltix.OIDC.Callback do
   @moduledoc false
 
-  alias Ltix.{LaunchClaims, LaunchContext}
-
-  alias Ltix.Errors.Invalid.{
-    DeploymentNotFound,
-    InvalidClaim,
-    MissingClaim,
-    MissingParameter,
-    RegistrationNotFound
-  }
-
-  alias Ltix.Errors.Security.{AuthenticationFailed, NonceNotFound, NonceReused, StateMismatch}
+  alias Ltix.Errors.Invalid.DeploymentNotFound
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Invalid.RegistrationNotFound
+  alias Ltix.Errors.Security.AuthenticationFailed
+  alias Ltix.Errors.Security.NonceNotFound
+  alias Ltix.Errors.Security.NonceReused
+  alias Ltix.Errors.Security.StateMismatch
   alias Ltix.JWT.Token
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchContext
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
 

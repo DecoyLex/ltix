@@ -1,19 +1,19 @@
 defmodule Ltix.OIDC.CallbackTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.{Deployment, LaunchClaims, LaunchContext, Registration}
-
-  alias Ltix.Errors.Invalid.{
-    DeploymentNotFound,
-    InvalidClaim,
-    MissingClaim,
-    MissingParameter,
-    RegistrationNotFound
-  }
-
+  alias Ltix.Deployment
+  alias Ltix.Errors.Invalid.DeploymentNotFound
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.Errors.Security
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
-  alias Ltix.Test.{JWTHelper, TestStorageAdapter}
+  alias Ltix.Registration
+  alias Ltix.Test.JWTHelper
+  alias Ltix.Test.StorageAdapter
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
 
@@ -36,13 +36,13 @@ defmodule Ltix.OIDC.CallbackTest do
     state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
     {:ok, pid} =
-      TestStorageAdapter.start_link(
+      StorageAdapter.start_link(
         registrations: [registration],
         deployments: [deployment]
       )
 
-    TestStorageAdapter.set_pid(pid)
-    TestStorageAdapter.store_nonce(nonce, registration)
+    StorageAdapter.set_pid(pid)
+    StorageAdapter.store_nonce(nonce, registration)
 
     stub_jwks(jwks)
 
@@ -66,9 +66,7 @@ defmodule Ltix.OIDC.CallbackTest do
   describe "happy path" do
     test "valid launch returns LaunchContext", ctx do
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(ctx.params, ctx.state, TestStorageAdapter,
-                 req_options: req_options()
-               )
+               Callback.call(ctx.params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.registration == ctx.registration
       assert launch.deployment == ctx.deployment
@@ -94,7 +92,7 @@ defmodule Ltix.OIDC.CallbackTest do
                 error: "login_required",
                 error_description: "User session expired"
               }} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "platform error without description", ctx do
@@ -105,7 +103,7 @@ defmodule Ltix.OIDC.CallbackTest do
                 error: "access_denied",
                 error_description: nil
               }} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 
@@ -114,7 +112,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = Map.delete(ctx.params, "id_token")
 
       assert {:error, %MissingParameter{parameter: "id_token"}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     # [Sec §7.3.1](https://www.imsglobal.org/spec/security/v1p0/#prohibiting-the-login-csrf-vulnerability)
@@ -123,7 +121,7 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(
                  ctx.params,
                  "wrong-state",
-                 TestStorageAdapter,
+                 StorageAdapter,
                  req_options: req_options()
                )
     end
@@ -132,14 +130,14 @@ defmodule Ltix.OIDC.CallbackTest do
       params = Map.delete(ctx.params, "state")
 
       assert {:error, %Security.StateMismatch{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "malformed id_token returns error", ctx do
       params = Map.put(ctx.params, "id_token", "not-a-jwt")
 
       assert {:error, _} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 
@@ -155,7 +153,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %RegistrationNotFound{issuer: "https://unknown.example.com"}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 
@@ -166,7 +164,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.KidMissing{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "incorrect KID", ctx do
@@ -174,7 +172,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.KidNotFound{kid: "wrong-kid"}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "expired token", ctx do
@@ -183,7 +181,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.TokenExpired{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 
@@ -195,18 +193,18 @@ defmodule Ltix.OIDC.CallbackTest do
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.NonceNotFound{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "replayed nonce returns NonceReused", ctx do
       opts = [req_options: req_options()]
 
       # First call consumes the nonce
-      assert {:ok, _} = Callback.call(ctx.params, ctx.state, TestStorageAdapter, opts)
+      assert {:ok, _} = Callback.call(ctx.params, ctx.state, StorageAdapter, opts)
 
       # Store a fresh nonce for a second token, but reuse the consumed one
       fresh_nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-      TestStorageAdapter.store_nonce(fresh_nonce, ctx.registration)
+      StorageAdapter.store_nonce(fresh_nonce, ctx.registration)
 
       # Mint a new token that reuses the original (now consumed) nonce
       claims = Map.put(ctx.claims, "nonce", ctx.nonce)
@@ -215,7 +213,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = %{"id_token" => id_token, "state" => new_state}
 
       assert {:error, %Security.NonceReused{}} =
-               Callback.call(params, new_state, TestStorageAdapter, opts)
+               Callback.call(params, new_state, StorageAdapter, opts)
     end
   end
 
@@ -226,7 +224,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %InvalidClaim{claim: "version", value: "1.2.0"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing LTI version", ctx do
@@ -234,7 +232,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "version"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing message_type", ctx do
@@ -242,7 +240,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "message_type"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing deployment_id", ctx do
@@ -250,7 +248,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "deployment_id"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing target_link_uri", ctx do
@@ -258,7 +256,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "target_link_uri"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing resource_link", ctx do
@@ -266,7 +264,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "resource_link"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing resource_link.id", ctx do
@@ -274,7 +272,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "resource_link.id"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing sub", ctx do
@@ -282,7 +280,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "sub"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "missing roles", ctx do
@@ -290,7 +288,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "roles"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 
@@ -301,7 +299,7 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %DeploymentNotFound{deployment_id: "unknown-deployment"}} =
-               Callback.call(id_token, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 
@@ -321,7 +319,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert LaunchClaims.Role.instructor?(launch.claims.roles)
       assert launch.claims.name == "Jane Doe"
@@ -339,7 +337,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert [%LaunchClaims.Role{name: :instructor}, %LaunchClaims.Role{}] =
                launch.claims.roles
@@ -354,7 +352,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "instructor launch with unknown role", ctx do
@@ -366,7 +364,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "instructor launch with no roles (empty array)", ctx do
@@ -374,7 +372,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.roles == []
     end
@@ -390,7 +388,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.email == "instructor@example.com"
       assert launch.claims.name == nil
@@ -407,7 +405,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.name == "Jane Doe"
       assert launch.claims.email == nil
@@ -424,7 +422,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "instructor launch email without context", ctx do
@@ -436,7 +434,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.email == "instructor@example.com"
       assert launch.claims.context == nil
@@ -462,7 +460,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert LaunchClaims.Role.learner?(launch.claims.roles)
       assert launch.claims.name == "John Smith"
@@ -480,7 +478,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert [%LaunchClaims.Role{name: :learner}, %LaunchClaims.Role{}] = launch.claims.roles
     end
@@ -494,7 +492,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "student launch with unknown role", ctx do
@@ -506,7 +504,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "student launch with no roles (empty array)", ctx do
@@ -514,7 +512,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "student launch email only", ctx do
@@ -531,7 +529,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.email == "student@example.com"
       assert launch.claims.name == nil
@@ -551,7 +549,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.name == "John Smith"
       assert launch.claims.email == nil
@@ -571,7 +569,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
     test "student launch email without context", ctx do
@@ -586,7 +584,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.email == "student@example.com"
       assert launch.claims.context == nil
@@ -600,7 +598,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, TestStorageAdapter,
+               Callback.call(params, ctx.state, StorageAdapter,
                  req_options: req_options(),
                  allow_anonymous: true
                )
@@ -613,7 +611,7 @@ defmodule Ltix.OIDC.CallbackTest do
       params = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "sub"}} =
-               Callback.call(params, ctx.state, TestStorageAdapter, req_options: req_options())
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 

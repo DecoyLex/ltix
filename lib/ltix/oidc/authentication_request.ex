@@ -7,18 +7,21 @@ defmodule Ltix.OIDC.AuthenticationRequest do
   @spec build(Registration.t(), map()) :: String.t()
   def build(%Registration{} = registration, params) do
     query_params =
-      [
-        {"scope", "openid"},
-        {"response_type", "id_token"},
-        {"client_id", registration.client_id},
-        {"redirect_uri", params.redirect_uri},
-        {"login_hint", params.login_hint},
-        {"state", params.state},
-        {"response_mode", "form_post"},
-        {"nonce", params.nonce},
-        {"prompt", "none"}
-      ]
-      |> maybe_add("lti_message_hint", Map.get(params, :lti_message_hint))
+      maybe_add(
+        [
+          {"scope", "openid"},
+          {"response_type", "id_token"},
+          {"client_id", registration.client_id},
+          {"redirect_uri", params.redirect_uri},
+          {"login_hint", params.login_hint},
+          {"state", params.state},
+          {"response_mode", "form_post"},
+          {"nonce", params.nonce},
+          {"prompt", "none"}
+        ],
+        "lti_message_hint",
+        Map.get(params, :lti_message_hint)
+      )
 
     registration.auth_endpoint
     |> URI.parse()

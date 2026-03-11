@@ -1,7 +1,8 @@
 defmodule Ltix.OIDC.LoginInitiation do
   @moduledoc false
 
-  alias Ltix.Errors.Invalid.{MissingParameter, RegistrationNotFound}
+  alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.OIDC.AuthenticationRequest
 
   @required_params ~w(iss login_hint target_link_uri)
@@ -61,6 +62,6 @@ defmodule Ltix.OIDC.LoginInitiation do
   end
 
   defp generate_token do
-    :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+    Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
   end
 end
