@@ -70,6 +70,31 @@ defmodule Ltix do
 
   See the [Advantage Services](advantage-services.md) guide for OAuth
   details, token lifecycle, and multi-service authentication.
+
+  ## Deep Linking
+
+  When a platform sends an `LtiDeepLinkingRequest` launch, the same
+  `handle_callback/3` returns a `%LaunchContext{}`. Branch on the
+  message type and build a response:
+
+      {:ok, context} = Ltix.handle_callback(params, state)
+
+      case context.claims.message_type do
+        "LtiDeepLinkingRequest" ->
+          {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+            url: "https://tool.example.com/activity/1",
+            title: "Quiz 1"
+          )
+
+          {:ok, response} = Ltix.DeepLinking.build_response(context, [link])
+          # POST response.jwt to response.return_url
+
+        "LtiResourceLinkRequest" ->
+          # Normal launch flow
+      end
+
+  See the [Deep Linking](deep-linking.md) guide for content item types,
+  line items, and platform constraints.
   """
 
   alias Ltix.AppConfig
