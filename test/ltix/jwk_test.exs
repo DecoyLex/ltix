@@ -23,7 +23,11 @@ defmodule Ltix.JWKTest do
       assert fields["kty"] == "RSA"
 
       # 4096-bit key has a larger modulus than 2048-bit
-      n_bytes = fields["n"] |> Base.url_decode64!(padding: false) |> byte_size()
+      n_bytes =
+        fields["n"]
+        |> Base.url_decode64!(padding: false)
+        |> byte_size()
+
       assert n_bytes > 256
     end
 

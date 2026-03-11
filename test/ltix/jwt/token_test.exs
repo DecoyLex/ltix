@@ -1,16 +1,14 @@
 defmodule Ltix.JWT.TokenTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Security.{
-    AlgorithmNotAllowed,
-    AudienceMismatch,
-    IssuerMismatch,
-    KidMissing,
-    KidNotFound,
-    NonceMissing,
-    SignatureInvalid,
-    TokenExpired
-  }
+  alias Ltix.Errors.Security.AlgorithmNotAllowed
+  alias Ltix.Errors.Security.AudienceMismatch
+  alias Ltix.Errors.Security.IssuerMismatch
+  alias Ltix.Errors.Security.KidMissing
+  alias Ltix.Errors.Security.KidNotFound
+  alias Ltix.Errors.Security.NonceMissing
+  alias Ltix.Errors.Security.SignatureInvalid
+  alias Ltix.Errors.Security.TokenExpired
 
   alias Ltix.JWT.Token
   alias Ltix.Test.JWTHelper
@@ -206,9 +204,7 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects missing nonce", ctx do
-      claims =
-        JWTHelper.valid_lti_claims()
-        |> Map.delete("nonce")
+      claims = Map.delete(JWTHelper.valid_lti_claims(), "nonce")
 
       token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
 
@@ -221,10 +217,15 @@ defmodule Ltix.JWT.TokenTest do
   # with that algorithm). Used to test algorithm rejection before signature
   # verification.
   defp forge_token_with_alg(alg, kid) do
-    header = %{"alg" => alg, "kid" => kid} |> Jason.encode!() |> Base.url_encode64(padding: false)
+    header =
+      %{"alg" => alg, "kid" => kid}
+      |> Jason.encode!()
+      |> Base.url_encode64(padding: false)
 
     payload =
-      JWTHelper.valid_lti_claims() |> Jason.encode!() |> Base.url_encode64(padding: false)
+      JWTHelper.valid_lti_claims()
+      |> Jason.encode!()
+      |> Base.url_encode64(padding: false)
 
     signature = Base.url_encode64("fake-signature", padding: false)
     "#{header}.#{payload}.#{signature}"

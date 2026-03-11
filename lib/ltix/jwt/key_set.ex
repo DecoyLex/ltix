@@ -119,9 +119,7 @@ defmodule Ltix.JWT.KeySet do
   end
 
   defp fetch_jwks(jwks_uri, opts) do
-    req_opts =
-      req_options(opts)
-      |> Keyword.put(:url, jwks_uri)
+    req_opts = Keyword.put(req_options(opts), :url, jwks_uri)
 
     case Req.get(req_opts) do
       {:ok, %Req.Response{status: 200, body: body, headers: headers}} ->

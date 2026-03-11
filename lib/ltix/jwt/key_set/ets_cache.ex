@@ -11,7 +11,7 @@ defmodule Ltix.JWT.KeySet.EtsCache do
 
   @table :ltix_jwks_cache
 
-  @impl true
+  @impl Ltix.JWT.KeySet.Cache
   def get(jwks_uri) do
     ensure_table()
 
@@ -30,14 +30,14 @@ defmodule Ltix.JWT.KeySet.EtsCache do
     end
   end
 
-  @impl true
+  @impl Ltix.JWT.KeySet.Cache
   def put(jwks_uri, keys, max_age) do
     ensure_table()
     :ets.insert(@table, {jwks_uri, keys, System.monotonic_time(:second), max_age})
     :ok
   end
 
-  @impl true
+  @impl Ltix.JWT.KeySet.Cache
   def delete(jwks_uri) do
     ensure_table()
     :ets.delete(@table, jwks_uri)

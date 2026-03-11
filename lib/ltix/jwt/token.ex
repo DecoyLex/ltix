@@ -39,16 +39,13 @@ defmodule Ltix.JWT.Token do
     * `:cache` — cache module passed through to `Ltix.JWT.KeySet`
   """
 
-  alias Ltix.Errors.Security.{
-    AlgorithmNotAllowed,
-    AudienceMismatch,
-    IssuerMismatch,
-    KidMissing,
-    NonceMissing,
-    SignatureInvalid,
-    TokenExpired
-  }
-
+  alias Ltix.Errors.Security.AlgorithmNotAllowed
+  alias Ltix.Errors.Security.AudienceMismatch
+  alias Ltix.Errors.Security.IssuerMismatch
+  alias Ltix.Errors.Security.KidMissing
+  alias Ltix.Errors.Security.NonceMissing
+  alias Ltix.Errors.Security.SignatureInvalid
+  alias Ltix.Errors.Security.TokenExpired
   alias Ltix.JWT.KeySet
   alias Ltix.Registration
 
