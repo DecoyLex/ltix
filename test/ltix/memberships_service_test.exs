@@ -2,9 +2,12 @@ defmodule Ltix.MembershipsServiceTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.MalformedResponse
-  alias Ltix.Errors.Invalid.{RosterTooLarge, ScopeMismatch, ServiceNotAvailable}
+  alias Ltix.Errors.Invalid.RosterTooLarge
+  alias Ltix.Errors.Invalid.ScopeMismatch
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
-  alias Ltix.LaunchClaims.{MembershipsEndpoint, Role}
+  alias Ltix.LaunchClaims.MembershipsEndpoint
+  alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.Client

@@ -57,13 +57,15 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   end
 
   defp parse_members(members) when is_list(members) do
-    Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
-      case Member.from_json(member_json) do
-        {:ok, member} -> {:cont, {:ok, [member | acc]}}
-        {:error, _} = error -> {:halt, error}
-      end
-    end)
-    |> case do
+    result =
+      Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
+        case Member.from_json(member_json) do
+          {:ok, member} -> {:cont, {:ok, [member | acc]}}
+          {:error, _} = error -> {:halt, error}
+        end
+      end)
+
+    case result do
       {:ok, parsed} -> {:ok, Enum.reverse(parsed)}
       error -> error
     end

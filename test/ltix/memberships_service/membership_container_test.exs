@@ -2,7 +2,8 @@ defmodule Ltix.MembershipsService.MembershipContainerTest do
   use ExUnit.Case, async: true
 
   alias Ltix.LaunchClaims.Context
-  alias Ltix.MembershipsService.{Member, MembershipContainer}
+  alias Ltix.MembershipsService.Member
+  alias Ltix.MembershipsService.MembershipContainer
 
   describe "from_json/1" do
     test "parses full membership container response" do

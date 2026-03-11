@@ -36,18 +36,18 @@ defmodule Ltix.MembershipsService do
 
   @behaviour Ltix.AdvantageService
 
-  alias Ltix.Errors.Invalid.{
-    InvalidEndpoint,
-    MalformedResponse,
-    RosterTooLarge,
-    ServiceNotAvailable
-  }
-
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.RosterTooLarge
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.{Context, MembershipsEndpoint, Role}
+  alias Ltix.LaunchClaims.Context
+  alias Ltix.LaunchClaims.MembershipsEndpoint
+  alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
-  alias Ltix.MembershipsService.{Member, MembershipContainer}
+  alias Ltix.MembershipsService.Member
+  alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Pagination
@@ -342,7 +342,11 @@ defmodule Ltix.MembershipsService do
   end
 
   defp finalize_roster({first_body, chunks, _count}, _max) do
-    members = chunks |> Enum.reverse() |> List.flatten()
+    members =
+      chunks
+      |> Enum.reverse()
+      |> List.flatten()
+
     build_container(members, first_body)
   end
 
@@ -356,13 +360,15 @@ defmodule Ltix.MembershipsService do
   defp parse_members(body) when is_map(body) do
     members = body["members"] || []
 
-    Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
-      case Member.from_json(member_json) do
-        {:ok, member} -> {:cont, {:ok, [member | acc]}}
-        {:error, _} = error -> {:halt, error}
-      end
-    end)
-    |> case do
+    result =
+      Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
+        case Member.from_json(member_json) do
+          {:ok, member} -> {:cont, {:ok, [member | acc]}}
+          {:error, _} = error -> {:halt, error}
+        end
+      end)
+
+    case result do
       {:ok, acc} -> Enum.reverse(acc)
       {:error, _} = error -> error
     end

@@ -25,7 +25,8 @@ defmodule Ltix.MembershipsService.Member do
       #=> :learner
   """
 
-  alias Ltix.Errors.Invalid.{InvalidClaim, MissingClaim}
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.Role
 
