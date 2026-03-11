@@ -57,6 +57,7 @@ defmodule Ltix.Test do
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AgsEndpoint
   alias Ltix.LaunchClaims.Context
+  alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
@@ -164,12 +165,16 @@ defmodule Ltix.Test do
 
   ## Optional
 
+    * `:message_type` — `:deep_linking` for Deep Linking requests
+      (default: resource link)
     * `:roles` — list of role atoms (e.g., `[:instructor]`), `%Role{}` structs,
       or URI strings
     * `:subject` — user identifier (default: `"user-12345"`)
     * `:name`, `:email`, `:given_name`, `:family_name` — user PII
     * `:context` — map with `:id`, `:label`, `:title` keys
     * `:resource_link` — map with `:id`, `:title` keys
+    * `:deep_linking_settings` — map of DL settings (used when
+      `message_type: :deep_linking`)
     * `:claims` — raw claim map merged last (for advanced overrides)
   """
   @spec launch_params(Platform.t(), keyword()) :: map()
@@ -222,17 +227,40 @@ defmodule Ltix.Test do
         name: "Jane Smith",
         context: %{id: "course-1", title: "Elixir 101"}
       )
+
+  For Deep Linking contexts, pass `message_type: :deep_linking`:
+
+      context = Ltix.Test.build_launch_context(platform,
+        message_type: :deep_linking,
+        deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
+      )
   """
   @spec build_launch_context(Platform.t(), keyword()) :: LaunchContext.t()
   def build_launch_context(%Platform{} = platform, opts \\ []) do
-    role_uris = resolve_role_uris(Keyword.get(opts, :roles, []))
-    {parsed_roles, _unrecognized} = Role.parse_all(role_uris)
+    claims = build_launch_claims(platform, opts)
 
-    claims = %LaunchClaims{
+    %LaunchContext{
+      claims: claims,
+      registration: platform.registration,
+      deployment: platform.deployment
+    }
+  end
+
+  defp build_launch_claims(platform, opts) do
+    {parsed_roles, _unrecognized} =
+      opts
+      |> Keyword.get(:roles, [])
+      |> resolve_role_uris()
+      |> Role.parse_all()
+
+    message_type =
+      opts
+      |> Keyword.get(:message_type)
+      |> normalize_message_type()
+
+    base_claims = %LaunchClaims{
       issuer: platform.registration.issuer,
-      subject: Keyword.get(opts, :subject, "user-12345"),
       audience: platform.registration.client_id,
-      message_type: "LtiResourceLinkRequest",
       version: "1.3.0",
       deployment_id: platform.deployment.deployment_id,
       target_link_uri: Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch"),
@@ -242,19 +270,55 @@ defmodule Ltix.Test do
       given_name: Keyword.get(opts, :given_name),
       family_name: Keyword.get(opts, :family_name),
       context: build_context(Keyword.get(opts, :context)),
-      resource_link: build_resource_link(Keyword.get(opts, :resource_link)),
       memberships_endpoint: build_memberships_endpoint(Keyword.get(opts, :memberships_endpoint)),
       ags_endpoint: build_ags_endpoint(Keyword.get(opts, :ags_endpoint))
     }
 
-    %LaunchContext{
-      claims: claims,
-      registration: platform.registration,
-      deployment: platform.deployment
+    apply_message_type_claims(message_type, base_claims, opts)
+  end
+
+  defp apply_message_type_claims("LtiDeepLinkingRequest", claims, opts) do
+    %{
+      claims
+      | message_type: "LtiDeepLinkingRequest",
+        subject: Keyword.get(opts, :subject),
+        deep_linking_settings:
+          build_deep_linking_settings(Keyword.get(opts, :deep_linking_settings))
+    }
+  end
+
+  defp apply_message_type_claims(_type, claims, opts) do
+    %{
+      claims
+      | message_type: "LtiResourceLinkRequest",
+        subject: Keyword.get(opts, :subject, "user-12345"),
+        resource_link: build_resource_link(Keyword.get(opts, :resource_link))
     }
   end
 
   # --- Lower-Level Helpers ---
+
+  @doc """
+  Verify a Deep Linking response JWT signed by the tool.
+
+  Decodes the JWT using the tool's public key (derived from
+  `registration.tool_jwk`) and returns the parsed claims on success.
+
+      {:ok, response} = Ltix.DeepLinking.build_response(context, items)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+      assert claims["https://purl.imsglobal.org/spec/lti/claim/message_type"] ==
+               "LtiDeepLinkingResponse"
+  """
+  @spec verify_deep_linking_response(Platform.t(), String.t()) ::
+          {:ok, map()} | {:error, term()}
+  def verify_deep_linking_response(%Platform{} = platform, jwt) do
+    public_key = JOSE.JWK.to_public(platform.registration.tool_jwk)
+
+    case JOSE.JWT.verify_strict(public_key, ["RS256"], jwt) do
+      {true, %JOSE.JWT{fields: claims}, _jws} -> {:ok, claims}
+      {false, _jwt, _jws} -> {:error, :signature_invalid}
+    end
+  end
 
   @doc """
   Generate an RSA key pair for testing.
@@ -340,35 +404,61 @@ defmodule Ltix.Test do
   # --- Private ---
 
   @lti_claim_prefix "https://purl.imsglobal.org/spec/lti/claim/"
+  @dl_settings_claim_key "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
 
   defp build_claims(platform, nonce, opts) do
     now = System.system_time(:second)
 
     base = %{
       "iss" => platform.registration.issuer,
-      "sub" => Keyword.get(opts, :subject, "user-12345"),
       "aud" => platform.registration.client_id,
       "exp" => now + 3600,
       "iat" => now,
       "nonce" => nonce,
-      (@lti_claim_prefix <> "message_type") => "LtiResourceLinkRequest",
       (@lti_claim_prefix <> "version") => "1.3.0",
       (@lti_claim_prefix <> "deployment_id") => platform.deployment.deployment_id,
       (@lti_claim_prefix <> "target_link_uri") =>
-        Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch"),
-      (@lti_claim_prefix <> "roles") =>
-        resolve_role_uris(Keyword.get(opts, :roles, [:instructor])),
-      (@lti_claim_prefix <> "resource_link") =>
-        build_resource_link_claim(Keyword.get(opts, :resource_link))
+        Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch")
     }
 
+    message_type =
+      opts
+      |> Keyword.get(:message_type)
+      |> normalize_message_type()
+
     base
+    |> apply_message_type_jwt_claims(message_type, opts)
     |> maybe_put("name", Keyword.get(opts, :name))
     |> maybe_put("email", Keyword.get(opts, :email))
     |> maybe_put("given_name", Keyword.get(opts, :given_name))
     |> maybe_put("family_name", Keyword.get(opts, :family_name))
     |> maybe_put_lti("context", build_context_claim(Keyword.get(opts, :context)))
     |> merge_overrides(Keyword.get(opts, :claims, %{}))
+  end
+
+  defp apply_message_type_jwt_claims(claims, "LtiDeepLinkingRequest", opts) do
+    claims
+    |> Map.put(@lti_claim_prefix <> "message_type", "LtiDeepLinkingRequest")
+    |> Map.put(
+      @dl_settings_claim_key,
+      build_deep_linking_settings_claim(Keyword.get(opts, :deep_linking_settings))
+    )
+    |> maybe_put("sub", Keyword.get(opts, :subject))
+    |> maybe_put_lti("roles", maybe_resolve_roles(Keyword.get(opts, :roles)))
+  end
+
+  defp apply_message_type_jwt_claims(claims, _message_type, opts) do
+    claims
+    |> Map.put(@lti_claim_prefix <> "message_type", "LtiResourceLinkRequest")
+    |> Map.put("sub", Keyword.get(opts, :subject, "user-12345"))
+    |> Map.put(
+      @lti_claim_prefix <> "roles",
+      resolve_role_uris(Keyword.get(opts, :roles, [:instructor]))
+    )
+    |> Map.put(
+      @lti_claim_prefix <> "resource_link",
+      build_resource_link_claim(Keyword.get(opts, :resource_link))
+    )
   end
 
   defp resolve_role_uris(roles) do
@@ -460,6 +550,70 @@ defmodule Ltix.Test do
     claim
     |> maybe_put("title", Map.get(map, :title))
     |> maybe_put("description", Map.get(map, :description))
+  end
+
+  defp normalize_message_type(:deep_linking), do: "LtiDeepLinkingRequest"
+  defp normalize_message_type(other), do: other
+
+  defp maybe_resolve_roles(nil), do: nil
+  defp maybe_resolve_roles(roles), do: resolve_role_uris(roles)
+
+  defp build_deep_linking_settings(nil) do
+    %DeepLinkingSettings{
+      deep_link_return_url: "https://platform.example.com/deep_links",
+      accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
+      accept_presentation_document_targets: ["iframe", "window", "embed"],
+      accept_multiple: true
+    }
+  end
+
+  defp build_deep_linking_settings(%DeepLinkingSettings{} = settings), do: settings
+
+  defp build_deep_linking_settings(map) when is_map(map) do
+    %DeepLinkingSettings{
+      deep_link_return_url:
+        Map.get(map, :deep_link_return_url, "https://platform.example.com/deep_links"),
+      accept_types:
+        Map.get(map, :accept_types, ["ltiResourceLink", "link", "file", "html", "image"]),
+      accept_presentation_document_targets:
+        Map.get(map, :accept_presentation_document_targets, ["iframe", "window", "embed"]),
+      accept_media_types: Map.get(map, :accept_media_types),
+      accept_multiple: Map.get(map, :accept_multiple, true),
+      accept_lineitem: Map.get(map, :accept_lineitem),
+      auto_create: Map.get(map, :auto_create),
+      title: Map.get(map, :title),
+      text: Map.get(map, :text),
+      data: Map.get(map, :data)
+    }
+  end
+
+  defp build_deep_linking_settings_claim(nil) do
+    %{
+      "deep_link_return_url" => "https://platform.example.com/deep_links",
+      "accept_types" => ["ltiResourceLink", "link", "file", "html", "image"],
+      "accept_presentation_document_targets" => ["iframe", "window", "embed"],
+      "accept_multiple" => true
+    }
+  end
+
+  defp build_deep_linking_settings_claim(map) when is_map(map) do
+    base = %{
+      "deep_link_return_url" =>
+        Map.get(map, :deep_link_return_url, "https://platform.example.com/deep_links"),
+      "accept_types" =>
+        Map.get(map, :accept_types, ["ltiResourceLink", "link", "file", "html", "image"]),
+      "accept_presentation_document_targets" =>
+        Map.get(map, :accept_presentation_document_targets, ["iframe", "window", "embed"])
+    }
+
+    base
+    |> maybe_put("accept_media_types", Map.get(map, :accept_media_types))
+    |> maybe_put("accept_multiple", Map.get(map, :accept_multiple))
+    |> maybe_put("accept_lineitem", Map.get(map, :accept_lineitem))
+    |> maybe_put("auto_create", Map.get(map, :auto_create))
+    |> maybe_put("title", Map.get(map, :title))
+    |> maybe_put("text", Map.get(map, :text))
+    |> maybe_put("data", Map.get(map, :data))
   end
 
   defp maybe_put(map, _key, nil), do: map

@@ -15,6 +15,7 @@ defmodule Ltix.OIDC.Callback do
   alias Ltix.LaunchContext
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
+  @dl_settings_key "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
 
   # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)
   @spec call(map(), String.t(), module(), keyword()) ::
@@ -109,7 +110,7 @@ defmodule Ltix.OIDC.Callback do
 
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
   defp validate_required_lti_claims(claims, opts) do
-    with :ok <- validate_message_type(claims),
+    with {:ok, message_type} <- validate_message_type(claims),
          :ok <- validate_version(claims),
          :ok <- validate_present(claims, @lti <> "deployment_id", "deployment_id", "Core §5.3.3"),
          :ok <-
@@ -118,18 +119,32 @@ defmodule Ltix.OIDC.Callback do
              @lti <> "target_link_uri",
              "target_link_uri",
              "Core §5.3.4"
-           ),
-         :ok <- validate_resource_link(claims),
+           ) do
+      validate_message_specific_claims(message_type, claims, opts)
+    end
+  end
+
+  defp validate_message_specific_claims("LtiResourceLinkRequest", claims, opts) do
+    with :ok <- validate_resource_link(claims),
          :ok <- validate_roles_present(claims) do
       validate_sub(claims, opts)
     end
+  end
+
+  # [DL §4.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-request-message)
+  defp validate_message_specific_claims("LtiDeepLinkingRequest", claims, _opts) do
+    validate_deep_linking_settings_present(claims)
   end
 
   # [Core §5.3.1](https://www.imsglobal.org/spec/lti/v1p3/#message-type-claim)
   defp validate_message_type(claims) do
     case claims[@lti <> "message_type"] do
       "LtiResourceLinkRequest" ->
-        :ok
+        {:ok, "LtiResourceLinkRequest"}
+
+      # [DL §4.4.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#message-type)
+      "LtiDeepLinkingRequest" ->
+        {:ok, "LtiDeepLinkingRequest"}
 
       nil ->
         {:error, MissingClaim.exception(claim: "message_type", spec_ref: "Core §5.3.1")}
@@ -142,6 +157,14 @@ defmodule Ltix.OIDC.Callback do
            value: other,
            spec_ref: "Core §5.3.1"
          )}
+    end
+  end
+
+  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  defp validate_deep_linking_settings_present(claims) do
+    case claims[@dl_settings_key] do
+      %{} -> :ok
+      _ -> {:error, MissingClaim.exception(claim: "deep_linking_settings", spec_ref: "DL §4.4.1")}
     end
   end
 
