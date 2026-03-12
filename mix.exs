@@ -9,12 +9,14 @@ defmodule Ltix.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      package: package(),
       usage_rules: usage_rules(),
 
       # Docs
       name: "Ltix",
       description: "Ltix is an Elixir library for building LTI 1.3 applications.",
       source_url: "https://github.com/DecoyLex/ltix",
+      homepage_url: "https://github.com/DecoyLex/ltix",
       docs: docs()
     ]
   end
@@ -28,6 +30,14 @@ defmodule Ltix.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/DecoyLex/ltix"},
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE)
+    ]
+  end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
