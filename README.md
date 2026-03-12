@@ -126,4 +126,4 @@ configuration.
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](https://github.com/DecoyLex/ltix/blob/main/LICENSE) for details.
