@@ -26,7 +26,7 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettings do
   See the [Deep Linking](deep-linking.md) guide for using these settings.
   """
 
-  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.LaunchClaims.ClaimHelpers
 
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
   @schema Zoi.struct(
@@ -69,23 +69,6 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettings do
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    case Zoi.parse(@schema, json) do
-      {:ok, %__MODULE__{}} = ok -> ok
-      {:error, errors} -> {:error, to_missing_claim(errors)}
-    end
-  end
-
-  defp to_missing_claim([%{path: [field | _]} | _]) do
-    MissingClaim.exception(
-      claim: "deep_linking_settings.#{field}",
-      spec_ref: "DL §4.4.1"
-    )
-  end
-
-  defp to_missing_claim(_errors) do
-    MissingClaim.exception(
-      claim: "deep_linking_settings",
-      spec_ref: "DL §4.4.1"
-    )
+    ClaimHelpers.from_json(@schema, json, "deep_linking_settings", "DL §4.4.1")
   end
 end

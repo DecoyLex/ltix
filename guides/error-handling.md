@@ -16,7 +16,7 @@ without knowing every individual error type.
 
 ## Matching on class
 
-Use `Ltix.Errors.class/1` to branch on the error category:
+Every Ltix error struct has a `class` field you can match on:
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -24,7 +24,7 @@ case Ltix.handle_callback(params, state) do
     handle_launch(conn, context)
 
   {:error, error} ->
-    case Ltix.Errors.class(error) do
+    case error.class do
       :invalid ->
         conn |> put_status(400) |> text("Bad request: #{Exception.message(error)}")
 
@@ -140,7 +140,7 @@ errors need investigation:
 
 ```elixir
 {:error, error} ->
-  case Ltix.Errors.class(error) do
+  case error.class do
     :invalid ->
       Logger.info("LTI invalid request: #{Exception.message(error)}")
 

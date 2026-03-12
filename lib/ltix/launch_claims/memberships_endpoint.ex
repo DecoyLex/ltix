@@ -12,12 +12,21 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
       {:ok, %Ltix.LaunchClaims.MembershipsEndpoint{context_memberships_url: "https://example.com/members", service_versions: nil}}
   """
 
-  defstruct [:context_memberships_url, :service_versions]
+  alias Ltix.LaunchClaims.ClaimHelpers
 
-  @type t :: %__MODULE__{
-          context_memberships_url: String.t() | nil,
-          service_versions: [String.t()] | nil
-        }
+  # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#claim-for-inclusion-in-lti-messages)
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              context_memberships_url: Zoi.string(coerce: true) |> Zoi.optional(),
+              service_versions: Zoi.list(Zoi.string(coerce: true)) |> Zoi.optional()
+            },
+            coerce: true
+          )
+
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @doc """
   Create a memberships endpoint from a URL string.
@@ -40,12 +49,8 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
       iex> Ltix.LaunchClaims.MembershipsEndpoint.from_json(%{})
       {:ok, %Ltix.LaunchClaims.MembershipsEndpoint{context_memberships_url: nil, service_versions: nil}}
   """
-  @spec from_json(map()) :: {:ok, t()}
+  @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    {:ok,
-     %__MODULE__{
-       context_memberships_url: json["context_memberships_url"],
-       service_versions: json["service_versions"]
-     }}
+    ClaimHelpers.from_json(@schema, json, "memberships_endpoint", "NRPS §3.6.1.1")
   end
 end

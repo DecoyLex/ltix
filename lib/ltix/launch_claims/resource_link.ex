@@ -10,15 +10,22 @@ defmodule Ltix.LaunchClaims.ResourceLink do
       {:ok, %Ltix.LaunchClaims.ResourceLink{id: "rl-1", title: "Quiz", description: nil}}
   """
 
-  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.LaunchClaims.ClaimHelpers
 
-  defstruct [:id, :title, :description]
+  # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              id: Zoi.string(coerce: true),
+              title: Zoi.string(coerce: true) |> Zoi.optional(),
+              description: Zoi.string(coerce: true) |> Zoi.optional()
+            },
+            coerce: true
+          )
 
-  @type t :: %__MODULE__{
-          id: String.t(),
-          title: String.t() | nil,
-          description: String.t() | nil
-        }
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @doc """
   Parse a resource link claim from a JSON map.
@@ -29,16 +36,7 @@ defmodule Ltix.LaunchClaims.ResourceLink do
       {:ok, %Ltix.LaunchClaims.ResourceLink{id: "rl-1", title: nil, description: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(%{"id" => id} = json) do
-    {:ok,
-     %__MODULE__{
-       id: id,
-       title: json["title"],
-       description: json["description"]
-     }}
-  end
-
-  def from_json(_) do
-    {:error, MissingClaim.exception(claim: "resource_link.id", spec_ref: "Core §5.3.5")}
+  def from_json(json) when is_map(json) do
+    ClaimHelpers.from_json(@schema, json, "resource_link", "Core §5.3.5")
   end
 end

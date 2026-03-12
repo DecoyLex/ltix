@@ -10,16 +10,23 @@ defmodule Ltix.LaunchClaims.Context do
       {:ok, %Ltix.LaunchClaims.Context{id: "ctx-1", label: "CS101", title: nil, type: nil}}
   """
 
-  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.LaunchClaims.ClaimHelpers
 
-  defstruct [:id, :label, :title, :type]
+  # [Core §5.4.1](https://www.imsglobal.org/spec/lti/v1p3/#context-claim)
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              id: Zoi.string(coerce: true),
+              label: Zoi.string(coerce: true) |> Zoi.optional(),
+              title: Zoi.string(coerce: true) |> Zoi.optional(),
+              type: Zoi.list(Zoi.string(coerce: true)) |> Zoi.optional()
+            },
+            coerce: true
+          )
 
-  @type t :: %__MODULE__{
-          id: String.t(),
-          label: String.t() | nil,
-          title: String.t() | nil,
-          type: [String.t()] | nil
-        }
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @doc """
   Parse a context claim from a JSON map.
@@ -30,17 +37,7 @@ defmodule Ltix.LaunchClaims.Context do
       {:ok, %Ltix.LaunchClaims.Context{id: "ctx-1", label: nil, title: nil, type: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(%{"id" => id} = json) do
-    {:ok,
-     %__MODULE__{
-       id: id,
-       label: json["label"],
-       title: json["title"],
-       type: json["type"]
-     }}
-  end
-
-  def from_json(_) do
-    {:error, MissingClaim.exception(claim: "context.id", spec_ref: "Core §5.4.1")}
+  def from_json(json) when is_map(json) do
+    ClaimHelpers.from_json(@schema, json, "context", "Core §5.4.1")
   end
 end

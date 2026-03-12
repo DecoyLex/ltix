@@ -10,13 +10,22 @@ defmodule Ltix.LaunchClaims.Lis do
       {:ok, %Ltix.LaunchClaims.Lis{person_sourcedid: "sis-001", course_offering_sourcedid: nil, course_section_sourcedid: nil}}
   """
 
-  defstruct [:person_sourcedid, :course_offering_sourcedid, :course_section_sourcedid]
+  alias Ltix.LaunchClaims.ClaimHelpers
 
-  @type t :: %__MODULE__{
-          person_sourcedid: String.t() | nil,
-          course_offering_sourcedid: String.t() | nil,
-          course_section_sourcedid: String.t() | nil
-        }
+  # [Core §5.4.5](https://www.imsglobal.org/spec/lti/v1p3/#learning-information-services-lis-claim)
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              person_sourcedid: Zoi.string(coerce: true) |> Zoi.optional(),
+              course_offering_sourcedid: Zoi.string(coerce: true) |> Zoi.optional(),
+              course_section_sourcedid: Zoi.string(coerce: true) |> Zoi.optional()
+            },
+            coerce: true
+          )
+
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @doc """
   Parse a LIS claim from a JSON map.
@@ -26,13 +35,8 @@ defmodule Ltix.LaunchClaims.Lis do
       iex> Ltix.LaunchClaims.Lis.from_json(%{})
       {:ok, %Ltix.LaunchClaims.Lis{person_sourcedid: nil, course_offering_sourcedid: nil, course_section_sourcedid: nil}}
   """
-  @spec from_json(map()) :: {:ok, t()}
+  @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    {:ok,
-     %__MODULE__{
-       person_sourcedid: json["person_sourcedid"],
-       course_offering_sourcedid: json["course_offering_sourcedid"],
-       course_section_sourcedid: json["course_section_sourcedid"]
-     }}
+    ClaimHelpers.from_json(@schema, json, "lis", "Core §5.4.5")
   end
 end

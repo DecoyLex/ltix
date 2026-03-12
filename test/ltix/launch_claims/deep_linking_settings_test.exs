@@ -86,5 +86,24 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettingsTest do
       assert {:error, error} = DeepLinkingSettings.from_json(%{})
       assert Exception.message(error) =~ "deep_link_return_url"
     end
+
+    test "returns error mentioning all missing required fields" do
+      assert {:error, error} = DeepLinkingSettings.from_json(%{})
+      message = Exception.message(error)
+      assert message =~ "deep_linking_settings.deep_link_return_url"
+      assert message =~ "deep_linking_settings.accept_types"
+      assert message =~ "deep_linking_settings.accept_presentation_document_targets"
+    end
+
+    test "returns InvalidClaim for wrong type on required field" do
+      json = %{
+        "deep_link_return_url" => 42,
+        "accept_types" => ["link"],
+        "accept_presentation_document_targets" => ["iframe"]
+      }
+
+      assert {:error, error} = DeepLinkingSettings.from_json(json)
+      assert Exception.message(error) =~ "deep_linking_settings.deep_link_return_url"
+    end
   end
 end

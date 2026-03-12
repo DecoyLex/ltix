@@ -2,8 +2,9 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
   @moduledoc """
   How the platform expects the tool to be presented.
 
-  All fields are optional. When present, `document_target` must be
-  `"frame"`, `"iframe"`, or `"window"`.
+  All fields are optional. `document_target` indicates the browser context
+  for the launch — typically `"frame"`, `"iframe"`, or `"window"`, but
+  unknown values are accepted.
 
   ## Examples
 
@@ -11,19 +12,26 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
       {:ok, %Ltix.LaunchClaims.LaunchPresentation{document_target: "iframe", height: nil, width: nil, return_url: nil, locale: nil}}
   """
 
-  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.LaunchClaims.ClaimHelpers
 
-  defstruct [:document_target, :height, :width, :return_url, :locale]
+  # [Core §5.4.4](https://www.imsglobal.org/spec/lti/v1p3/#launch-presentation-claim)
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              document_target:
+                Zoi.union([Zoi.enum(~w(frame iframe window)), Zoi.string(coerce: true)])
+                |> Zoi.optional(),
+              height: Zoi.number(coerce: true) |> Zoi.optional(),
+              width: Zoi.number(coerce: true) |> Zoi.optional(),
+              return_url: Zoi.string(coerce: true) |> Zoi.optional(),
+              locale: Zoi.string(coerce: true) |> Zoi.optional()
+            },
+            coerce: true
+          )
 
-  @type t :: %__MODULE__{
-          document_target: String.t() | nil,
-          height: number() | nil,
-          width: number() | nil,
-          return_url: String.t() | nil,
-          locale: String.t() | nil
-        }
-
-  @valid_document_targets ~w(frame iframe window)
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @doc """
   Parse a launch presentation claim from a JSON map.
@@ -35,28 +43,6 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    with :ok <- validate_document_target(json["document_target"]) do
-      {:ok,
-       %__MODULE__{
-         document_target: json["document_target"],
-         height: json["height"],
-         width: json["width"],
-         return_url: json["return_url"],
-         locale: json["locale"]
-       }}
-    end
-  end
-
-  defp validate_document_target(nil), do: :ok
-  defp validate_document_target(target) when target in @valid_document_targets, do: :ok
-
-  defp validate_document_target(target) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "document_target",
-       value: target,
-       message: "document_target must be one of #{Enum.join(@valid_document_targets, ", ")}",
-       spec_ref: "Core §5.4.4 (must be frame, iframe, or window)"
-     )}
+    ClaimHelpers.from_json(@schema, json, "launch_presentation", "Core §5.4.4")
   end
 end

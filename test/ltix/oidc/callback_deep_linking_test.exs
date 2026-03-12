@@ -154,8 +154,10 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
       claims = Map.put(ctx.claims, @dl_settings_key, settings)
       params = mint_and_params(claims, ctx)
 
-      assert {:error, %MissingClaim{claim: "deep_linking_settings.deep_link_return_url"}} =
+      assert {:error, error} =
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
+
+      assert Exception.message(error) =~ "deep_linking_settings.deep_link_return_url"
     end
 
     test "missing accept_types in settings returns error", ctx do
@@ -163,8 +165,10 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
       claims = Map.put(ctx.claims, @dl_settings_key, settings)
       params = mint_and_params(claims, ctx)
 
-      assert {:error, %MissingClaim{claim: "deep_linking_settings.accept_types"}} =
+      assert {:error, error} =
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
+
+      assert Exception.message(error) =~ "deep_linking_settings.accept_types"
     end
 
     test "missing accept_presentation_document_targets in settings returns error", ctx do
@@ -174,11 +178,11 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
       claims = Map.put(ctx.claims, @dl_settings_key, settings)
       params = mint_and_params(claims, ctx)
 
-      assert {:error,
-              %MissingClaim{
-                claim: "deep_linking_settings.accept_presentation_document_targets"
-              }} =
+      assert {:error, error} =
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
+
+      assert Exception.message(error) =~
+               "deep_linking_settings.accept_presentation_document_targets"
     end
   end
 

@@ -112,7 +112,7 @@ defmodule Ltix do
   `state` in the user's session for CSRF verification, then redirect the
   user agent to `redirect_uri`.
 
-  The nonce is stored via `Ltix.StorageAdapter.store_nonce/2` automatically.
+  The nonce is stored via `c:Ltix.StorageAdapter.store_nonce/2` automatically.
 
   ## Options
 

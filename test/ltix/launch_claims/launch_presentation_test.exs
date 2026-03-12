@@ -51,12 +51,31 @@ defmodule Ltix.LaunchClaims.LaunchPresentationTest do
                LaunchPresentation.from_json(%{"document_target" => "window"})
     end
 
-    # [Core §5.4.4] invalid document_target returns error
-    test "rejects invalid document_target" do
-      assert {:error, error} =
+    test "accepts unknown document_target string" do
+      assert {:ok, %LaunchPresentation{document_target: "popup"}} =
                LaunchPresentation.from_json(%{"document_target" => "popup"})
+    end
 
-      assert Exception.message(error) =~ "document_target"
+    test "coerces string height and width to numbers" do
+      json = %{"height" => "600", "width" => "800"}
+
+      assert {:ok, %LaunchPresentation{height: 600, width: 800}} =
+               LaunchPresentation.from_json(json)
+    end
+
+    test "returns error for non-numeric height" do
+      assert {:error, error} =
+               LaunchPresentation.from_json(%{"height" => "tall"})
+
+      assert Exception.message(error) =~ "launch_presentation.height"
+    end
+
+    test "accumulates multiple errors" do
+      json = %{"height" => "tall", "width" => "wide"}
+      assert {:error, error} = LaunchPresentation.from_json(json)
+      message = Exception.message(error)
+      assert message =~ "launch_presentation.height"
+      assert message =~ "launch_presentation.width"
     end
   end
 end

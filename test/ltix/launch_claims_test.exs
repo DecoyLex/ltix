@@ -261,15 +261,15 @@ defmodule Ltix.LaunchClaimsTest do
       assert Exception.message(error) =~ "resource_link.id"
     end
 
-    test "invalid launch_presentation propagates error" do
+    test "unknown launch_presentation document_target is accepted" do
       json = %{
         "https://purl.imsglobal.org/spec/lti/claim/launch_presentation" => %{
           "document_target" => "invalid"
         }
       }
 
-      assert {:error, error} = LaunchClaims.from_json(json)
-      assert Exception.message(error) =~ "document_target"
+      assert {:ok, claims} = LaunchClaims.from_json(json)
+      assert claims.launch_presentation.document_target == "invalid"
     end
   end
 
