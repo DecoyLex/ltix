@@ -124,7 +124,8 @@ platform, you can reuse one token:
 {:ok, roster_b} = Ltix.MembershipsService.get_members(client_b)
 ```
 
-For caching tokens across processes, see `Ltix.OAuth.Client.from_access_token/2`.
+For caching tokens across processes and other advanced patterns, see
+[Token Caching and Reuse](cookbooks/token-caching-and-reuse.md).
 
 ## Multiple services in one token
 
@@ -165,5 +166,7 @@ implementing the `Ltix.AdvantageService` behaviour. See
   line items
 - [JWK Management](jwk-management.md): managing the key pairs
   used for authentication
+- [Token Caching and Reuse](cookbooks/token-caching-and-reuse.md):
+  batch refreshing, multi-course tokens, and ETS caching
 - [Error Handling](error-handling.md): matching on error classes
 - `Ltix.OAuth.Client`: token lifecycle API reference

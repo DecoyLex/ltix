@@ -35,5 +35,6 @@ def perform(%{args: %{"course_id" => course_id, "user_id" => user_id}}) do
 end
 ```
 
-See [Advantage Services](../advantage-services.md) for details on
-token management and reusing tokens across courses.
+See [Advantage Services](../advantage-services.md) for an overview of
+token management and [Token Caching and Reuse](token-caching-and-reuse.md)
+for batch refreshing, multi-course tokens, and ETS caching patterns.
