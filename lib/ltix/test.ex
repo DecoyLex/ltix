@@ -263,11 +263,10 @@ defmodule Ltix.Test do
   end
 
   defp build_launch_claims(platform, opts) do
-    {parsed_roles, _unrecognized} =
+    parsed_roles =
       opts
       |> Keyword.get(:roles, [])
-      |> resolve_role_uris()
-      |> Role.parse_all()
+      |> resolve_roles()
 
     message_type =
       opts
@@ -477,14 +476,23 @@ defmodule Ltix.Test do
     )
   end
 
+  defp resolve_roles(roles) do
+    Enum.map(roles, fn
+      %Role{} = role -> role
+      atom when is_atom(atom) -> Role.from_atom(atom)
+      uri when is_binary(uri) -> resolve_role_uri(uri)
+    end)
+  end
+
+  defp resolve_role_uri(uri) do
+    case Role.parse(uri) do
+      {:ok, role} -> role
+      :error -> raise ArgumentError, "could not resolve role URI: #{inspect(uri)}"
+    end
+  end
+
   defp resolve_role_uris(roles) do
     Enum.map(roles, fn
-      uri when is_binary(uri) ->
-        uri
-
-      %Role{uri: uri} when is_binary(uri) ->
-        uri
-
       %Role{} = role ->
         case Role.to_uri(role) do
           {:ok, uri} -> uri
@@ -493,6 +501,9 @@ defmodule Ltix.Test do
 
       atom when is_atom(atom) ->
         Role.from_atom(atom).uri
+
+      uri when is_binary(uri) ->
+        uri
     end)
   end
 
