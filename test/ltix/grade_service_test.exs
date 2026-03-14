@@ -348,7 +348,7 @@ defmodule Ltix.GradeServiceTest do
     test "creates line item and returns parsed response", ctx do
       Req.Test.stub(__MODULE__, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        json = JSON.decode!(body)
+        json = Ltix.AppConfig.json_library!().decode!(body)
         assert json["label"] == "Quiz 1"
         assert json["scoreMaximum"] == 100
 
@@ -356,7 +356,7 @@ defmodule Ltix.GradeServiceTest do
 
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
-        |> Plug.Conn.send_resp(201, JSON.encode!(response))
+        |> Plug.Conn.send_resp(201, Ltix.AppConfig.json_library!().encode!(response))
       end)
 
       client = build_client(ctx.platform)
@@ -377,7 +377,7 @@ defmodule Ltix.GradeServiceTest do
 
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
-        |> Plug.Conn.send_resp(201, JSON.encode!(response))
+        |> Plug.Conn.send_resp(201, Ltix.AppConfig.json_library!().encode!(response))
       end)
 
       client = build_client(ctx.platform)
@@ -420,7 +420,7 @@ defmodule Ltix.GradeServiceTest do
         assert conn.method == "PUT"
 
         {:ok, body, conn} = Plug.Conn.read_body(conn)
-        json = JSON.decode!(body)
+        json = Ltix.AppConfig.json_library!().decode!(body)
         assert json["label"] == "Updated Quiz"
         assert json["id"] == "#{@lineitems_url}/1/lineitem"
 
