@@ -20,7 +20,52 @@ defmodule Ltix do
       config :ltix,
         storage_adapter: MyApp.LtiStorage
 
-  All configuration can be overridden per-call via opts.
+  All configuration can also be passed (or overridden) per-call via opts.
+
+  ### Required
+
+    * `:storage_adapter` — module implementing `Ltix.StorageAdapter`.
+      Looked up at runtime, so it works with releases.
+
+  ### Optional
+
+    * `:allow_anonymous` — when `true`, allow launches without a `sub`
+      claim in the ID Token. Defaults to `false`.
+
+    * `:json_library` — JSON encoder/decoder module. Detected at
+      compile time: uses `JSON` (Elixir 1.18+/OTP 27+) if available,
+      then `Jason`. Only set this if you need a different library.
+
+    * `:req_options` — default options passed to `Req.request/2` for
+      all HTTP calls (JWKS fetching, OAuth token requests, service
+      calls). Useful for setting timeouts, middleware, or test
+      adapters:
+
+          config :ltix, req_options: [receive_timeout: 10_000]
+
+    * `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` for
+      caching platform public keys. Defaults to
+      `Ltix.JWT.KeySet.EtsCache`. A `Ltix.JWT.KeySet.CachexCache`
+      adapter is also provided.
+
+    * `:cachex_cache_name` — Cachex cache name when using
+      `Ltix.JWT.KeySet.CachexCache`. Defaults to `:ltix_jwks`.
+
+  ### Launch claim parsers
+
+  Custom claim and role parsers are configured under the
+  `Ltix.LaunchClaims` key:
+
+      config :ltix, Ltix.LaunchClaims,
+        claim_parsers: %{
+          "https://example.com/custom" => MyApp.CustomClaimParser
+        },
+        role_parsers: %{
+          "https://example.com/roles/" => MyApp.CustomRoleParser
+        }
+
+  See [Custom Claim Parsers](custom-claim-parsers.md) and
+  [Custom Role Parsers](custom-role-parsers.md) for details.
 
   ## Handling Launches
 
