@@ -25,6 +25,7 @@ defmodule Ltix.GradeService do
 
   @behaviour Ltix.AdvantageService
 
+  alias Ltix.AppConfig
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.ServiceNotAvailable
@@ -555,7 +556,7 @@ defmodule Ltix.GradeService do
     client.req_options
     |> Keyword.put(:url, url)
     |> Keyword.put(:headers, [{"content-type", content_type} | headers])
-    |> Keyword.put(:body, JSON.encode!(body))
+    |> Keyword.put(:body, AppConfig.json_library!().encode!(body))
   end
 
   defp list_line_items_params(opts) do
