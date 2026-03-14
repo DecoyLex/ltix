@@ -25,40 +25,48 @@ defmodule Ltix.Test do
   This is safe for `async: true` tests — each test process gets its own
   in-memory storage via the process dictionary.
 
-  ## Integration tests (full OIDC flow)
+  ## Controller tests (full OIDC flow)
 
-      test "successful launch", %{platform: platform} do
-        login_params = Ltix.Test.login_params(platform)
+  Simulate a platform-initiated launch against your controller endpoints:
 
-        {:ok, login_result} =
-          Ltix.handle_login(login_params, "https://tool.example.com/launch")
+      test "instructor launch renders dashboard", %{conn: conn, platform: platform} do
+        conn = post(conn, ~p"/lti/login", Ltix.Test.login_params(platform))
 
-        nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+        state = get_session(conn, :lti_state)
+        nonce = Ltix.Test.extract_nonce(redirected_to(conn, 302))
 
-        launch_params = Ltix.Test.launch_params(platform,
-          nonce: nonce,
-          state: login_result.state,
-          roles: [:instructor]
-        )
-
-        {:ok, context} =
-          Ltix.handle_callback(launch_params, login_result.state,
-            Ltix.Test.callback_opts(platform)
+        conn =
+          conn
+          |> recycle()
+          |> Plug.Test.init_test_session(%{lti_state: state})
+          |> post(~p"/lti/launch",
+            Ltix.Test.launch_params(platform,
+              nonce: nonce,
+              state: state,
+              roles: [:instructor],
+              name: "Jane Doe"
+            )
           )
 
-        assert Ltix.LaunchClaims.Role.instructor?(context.claims.roles)
+        assert html_response(conn, 200) =~ "Dashboard"
       end
 
   ## Unit tests (direct context construction)
 
-      test "instructor authorization", %{platform: platform} do
+  When testing business logic that receives a `%LaunchContext{}`, skip
+  the OIDC flow entirely with `build_launch_context/2`:
+
+      test "instructors can manage grades", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
           roles: [:instructor],
           name: "Jane Smith"
         )
 
-        assert MyApp.authorize(context) == :instructor
+        assert MyApp.Permissions.can_manage_grades?(context)
       end
+
+  See the [Testing LTI Launches](testing-lti-launches.md) cookbook for
+  more examples, including role customization and raw claim overrides.
   """
 
   alias Ltix.Deployment
