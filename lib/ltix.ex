@@ -145,6 +145,7 @@ defmodule Ltix do
     * `:allow_anonymous` — allow launches without a `sub` claim
       (defaults to application config, then `false`)
     * `:req_options` — options passed to the HTTP client for JWKS fetching
+    * `:claim_parsers` — custom claim parser modules (see `Ltix.LaunchClaims.from_json/2`)
     * `:clock_skew` — seconds of tolerance for token expiration (default: `5`)
   """
   # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)

@@ -91,6 +91,11 @@ defmodule Ltix.LaunchClaims.Role do
 
   Returns `{:ok, %Role{}}` for recognized roles, `:error` for unknown URIs.
 
+  ## Options
+
+    * `:parsers` — map of URI prefix to parser module or function
+      (defaults to application config, with LIS as a fallback)
+
   ## Examples
 
       iex> Ltix.LaunchClaims.Role.parse("http://purl.imsglobal.org/vocab/lis/v2/membership#Learner")
@@ -135,6 +140,11 @@ defmodule Ltix.LaunchClaims.Role do
   Parse a list of role URIs, separating recognized from unrecognized.
 
   Returns `{parsed_roles, unrecognized_uris}` where order is preserved.
+
+  ## Options
+
+    * `:parsers` — map of URI prefix to parser module or function
+      (defaults to application config, with LIS as a fallback)
 
   ## Examples
 

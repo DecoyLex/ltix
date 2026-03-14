@@ -73,7 +73,7 @@ defmodule Ltix.LaunchClaims do
 
     * `:extensions` — map of unrecognized claim keys to their raw values.
       Register custom parsers via the `:parsers` option in `from_json/2`
-      or application config (`:ltix, :launch_claim_parsers`).
+      or application config (`:ltix, Ltix.LaunchClaims, :claim_parsers`).
 
   ## Examples
 
@@ -237,6 +237,10 @@ defmodule Ltix.LaunchClaims do
   - `:parsers` — Map of extension claim keys to parser functions.
     Each parser receives the raw value and must return `{:ok, parsed}` or
     `{:error, reason}`. Per-call parsers override application config.
+  - `:role_parsers` — Map of role URI prefixes to parser functions for
+    parsing the `roles` claim. Each parser receives a role URI and must
+    return a `{:ok, t:Ltix.LaunchClaims.Role.t/0}` struct or `:error`. Per-call
+    parsers override application config.
 
   ## Examples
 
@@ -250,10 +254,11 @@ defmodule Ltix.LaunchClaims do
   @spec from_json(map(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json, opts \\ []) when is_map(json) do
     extension_parsers = resolve_extension_parsers(opts)
+    role_parsers = Keyword.get(opts, :role_parsers, %{})
     {fields, extensions} = classify_keys(json)
 
     with {:ok, fields} <- parse_nested_claims(fields),
-         {:ok, fields} <- parse_roles(fields),
+         {:ok, fields} <- parse_roles(fields, role_parsers),
          {:ok, extensions} <- parse_extensions(extensions, extension_parsers) do
       {:ok, struct!(__MODULE__, Map.put(fields, :extensions, extensions))}
     end
@@ -310,13 +315,13 @@ defmodule Ltix.LaunchClaims do
     end
   end
 
-  defp parse_roles(fields) do
+  defp parse_roles(fields, role_parsers) do
     case Map.get(fields, :roles) do
       nil ->
         {:ok, fields}
 
       role_uris when is_list(role_uris) ->
-        {parsed, unrecognized} = Role.parse_all(role_uris)
+        {parsed, unrecognized} = Role.parse_all(role_uris, parsers: role_parsers)
 
         {:ok,
          fields
@@ -350,7 +355,12 @@ defmodule Ltix.LaunchClaims do
 
   defp resolve_extension_parsers(opts) do
     config_parsers = AppConfig.claims_parsers!()
-    call_parsers = Keyword.get(opts, :parsers, %{})
+
+    call_parsers =
+      opts
+      |> Keyword.get(:parsers, %{})
+      |> Map.new()
+
     Map.merge(config_parsers, call_parsers)
   end
 end

@@ -21,6 +21,8 @@ defmodule Ltix.OIDC.Callback do
   @spec call(map(), String.t(), module(), keyword()) ::
           {:ok, LaunchContext.t()} | {:error, Exception.t()}
   def call(params, expected_state, callback_module, opts \\ []) do
+    claim_parsers = Keyword.get(opts, :claim_parsers, [])
+
     with :ok <- check_error_response(params),
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
@@ -30,7 +32,7 @@ defmodule Ltix.OIDC.Callback do
          :ok <- validate_nonce(raw_claims, registration, callback_module),
          :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, deployment} <- lookup_deployment(raw_claims, registration, callback_module),
-         {:ok, claims} <- LaunchClaims.from_json(raw_claims) do
+         {:ok, claims} <- LaunchClaims.from_json(raw_claims, parsers: claim_parsers) do
       {:ok, %LaunchContext{claims: claims, registration: registration, deployment: deployment}}
     end
   end

@@ -29,7 +29,7 @@ defmodule Ltix.AppConfig do
   end
 
   def claims_parsers! do
-    Application.get_env(:ltix, LaunchClaims, [])[:parsers] || %{}
+    Application.get_env(:ltix, LaunchClaims, [])[:claim_parsers] || %{}
   end
 
   def role_parsers! do
