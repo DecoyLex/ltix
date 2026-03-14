@@ -25,11 +25,8 @@ AI assistants should MUST NEVER be listed as co-authors, even if they contribute
 
 ### Validation
 ```bash
-cog verify "$(jj log --no-graph -r @ -T description)"   # check working copy
-cog check --from-latest-tag                               # check all since last tag
+cog check --from-latest-tag   # check all since last tag
 ```
-
-Do NOT use `cog commit` — it bypasses JJ and creates raw git commits.
 
 ## Quality Checks
 
@@ -59,10 +56,6 @@ Always link spec annotations to the relevant section of the online spec. Use the
 anchor mappings in `.claude/projects/-home-alex-Code-elixir-ltix/memory/spec-anchors.md`.
 
 Format: `[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
-
-## VCS
-
-This project uses **JJ (Jujutsu)**, not raw git. Use `jj` commands for all version control.
 
 <!-- usage-rules-start -->
 <!-- usage_rules-start -->
