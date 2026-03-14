@@ -82,8 +82,6 @@ defmodule LtixTest do
     end
 
     test "reads storage_adapter from application config" do
-      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
-
       assert {:ok, %{redirect_uri: redirect_uri, state: state}} =
                Ltix.handle_login(login_params(), @redirect_uri)
 
@@ -92,8 +90,6 @@ defmodule LtixTest do
     end
 
     test "opts override application config" do
-      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
-
       assert {:ok, result} =
                Ltix.handle_login(login_params(), "https://override.example.com/callback",
                  storage_adapter: StorageAdapter
@@ -128,8 +124,6 @@ defmodule LtixTest do
     end
 
     test "reads storage_adapter from application config", ctx do
-      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
-
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
 
       assert {:ok, %LaunchContext{}} =
@@ -137,7 +131,6 @@ defmodule LtixTest do
     end
 
     test "reads allow_anonymous from application config", ctx do
-      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
       Application.put_env(:ltix, :allow_anonymous, true)
 
       claims = Map.delete(ctx.claims, "sub")
@@ -151,7 +144,6 @@ defmodule LtixTest do
     end
 
     test "opts override application config", ctx do
-      Application.put_env(:ltix, :storage_adapter, StorageAdapter)
       Application.put_env(:ltix, :allow_anonymous, false)
 
       claims = Map.delete(ctx.claims, "sub")

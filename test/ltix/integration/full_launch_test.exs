@@ -41,7 +41,6 @@ defmodule Ltix.Integration.FullLaunchTest do
     end)
 
     on_exit(fn ->
-      Application.delete_env(:ltix, :storage_adapter)
       Application.delete_env(:ltix, :allow_anonymous)
     end)
 

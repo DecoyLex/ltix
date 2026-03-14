@@ -17,13 +17,7 @@ defmodule Ltix.DeepLinkingTest do
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
 
   setup do
-    platform = Ltix.Test.setup_platform!()
-
-    on_exit(fn ->
-      Application.delete_env(:ltix, :storage_adapter)
-    end)
-
-    %{platform: platform}
+    %{platform: Ltix.Test.setup_platform!()}
   end
 
   describe "build_response/3 message type validation" do

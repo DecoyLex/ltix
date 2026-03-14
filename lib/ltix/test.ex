@@ -8,14 +8,22 @@ defmodule Ltix.Test do
   `setup_platform!/1`:
 
       setup do
-        platform = Ltix.Test.setup_platform!()
-
-        on_exit(fn ->
-          Application.delete_env(:ltix, :storage_adapter)
-        end)
-
-        %{platform: platform}
+        %{platform: Ltix.Test.setup_platform!()}
       end
+
+  The in-memory storage adapter state is scoped to the calling process
+  via the process dictionary, so async tests are safe without any cleanup.
+
+  ## Configuration
+
+  If your app's controllers call `Ltix.handle_login/3` or
+  `Ltix.handle_callback/3` without passing `:storage_adapter` in opts
+  (relying on application config), add this to `config/test.exs`:
+
+      config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+
+  This is safe for `async: true` tests — each test process gets its own
+  in-memory storage via the process dictionary.
 
   ## Integration tests (full OIDC flow)
 
@@ -121,8 +129,6 @@ defmodule Ltix.Test do
       |> Req.Test.json(jwks)
     end)
 
-    Application.put_env(:ltix, :storage_adapter, StorageAdapter)
-
     %Platform{
       registration: registration,
       deployment: deployment,
@@ -201,6 +207,16 @@ defmodule Ltix.Test do
     |> Map.get(:query)
     |> URI.decode_query()
     |> Map.fetch!("nonce")
+  end
+
+  @doc """
+  Options for `Ltix.handle_login/3` that work with `setup_platform!/1`.
+
+      Ltix.handle_login(params, redirect_uri, Ltix.Test.login_opts(platform))
+  """
+  @spec login_opts(Platform.t()) :: keyword()
+  def login_opts(%Platform{}) do
+    [storage_adapter: StorageAdapter]
   end
 
   @doc """

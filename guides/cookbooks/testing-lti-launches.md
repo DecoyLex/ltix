@@ -6,25 +6,31 @@ authorization logic, and role-based behavior without a real LMS.
 
 ## Setup
 
-Create a test platform in your setup block. This gives you everything a
-real platform would provide: signed JWTs, a JWKS endpoint, a
-registration, and a deployment.
+Add the test storage adapter to your `config/test.exs` so your
+controllers can resolve registrations and nonces during tests:
+
+```elixir
+# config/test.exs
+config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+```
+
+Then create a test platform in your setup block. This gives you
+everything a real platform would provide: signed JWTs, a JWKS endpoint,
+a registration, and a deployment.
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do
   use MyAppWeb.ConnCase, async: true
 
   setup do
-    platform = Ltix.Test.setup_platform!()
-
-    on_exit(fn ->
-      Application.delete_env(:ltix, :storage_adapter)
-    end)
-
-    %{platform: platform}
+    %{platform: Ltix.Test.setup_platform!()}
   end
 end
 ```
+
+Each call to `setup_platform!/1` starts its own in-memory storage agent
+scoped to the calling process, so `async: true` tests are safe without
+any cleanup.
 
 ## Testing your controller
 
