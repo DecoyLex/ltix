@@ -5,7 +5,7 @@ defmodule Ltix.MixProject do
     [
       app: :ltix,
       version: "0.1.0",
-      elixir: "~> 1.18",
+      elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
