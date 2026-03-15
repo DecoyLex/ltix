@@ -25,10 +25,22 @@ defmodule Ltix.GradeService.Score do
   """
 
   # [AGS §3.4.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#activityprogress)
-  @activity_progress_values [:initialized, :started, :in_progress, :submitted, :completed]
+  @activity_progress_values [
+    initialized: "initialized",
+    started: "started",
+    in_progress: "in_progress",
+    submitted: "submitted",
+    completed: "completed"
+  ]
 
   # [AGS §3.4.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#gradingprogress)
-  @grading_progress_values [:fully_graded, :pending, :pending_manual, :failed, :not_ready]
+  @grading_progress_values [
+    fully_graded: "fully_graded",
+    pending: "pending",
+    pending_manual: "pending_manual",
+    failed: "failed",
+    not_ready: "not_ready"
+  ]
 
   @schema Zoi.struct(
             __MODULE__,
@@ -36,10 +48,12 @@ defmodule Ltix.GradeService.Score do
               user_id: Zoi.string(description: "LTI user ID of the score recipient."),
               activity_progress:
                 Zoi.enum(@activity_progress_values,
+                  coerce: true,
                   description: "User's progress toward completing the activity."
                 ),
               grading_progress:
                 Zoi.enum(@grading_progress_values,
+                  coerce: true,
                   description:
                     "Status of the grading process. Must be `:fully_graded` for final scores."
                 ),
@@ -119,6 +133,13 @@ defmodule Ltix.GradeService.Score do
       iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
       iex> score.user_id
       "u1"
+
+  Strings are also accepted for `activity_progress` and `grading_progress`,
+  which is convenient when values come from form params:
+
+      iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: "completed", grading_progress: "fully_graded")
+      iex> score.activity_progress
+      :completed
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts) do

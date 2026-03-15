@@ -217,8 +217,8 @@ defmodule PhoenixExampleWeb.LtiController do
     opts =
       [
         user_id: params["user_id"],
-        activity_progress: cast_activity_progress(params["activity_progress"]),
-        grading_progress: cast_grading_progress(params["grading_progress"])
+        activity_progress: params["activity_progress"],
+        grading_progress: params["grading_progress"]
       ]
       |> maybe_put(:score_given, score_given)
       |> maybe_put(:score_maximum, score_maximum)
@@ -226,18 +226,6 @@ defmodule PhoenixExampleWeb.LtiController do
 
     Score.new(opts)
   end
-
-  defp cast_activity_progress("initialized"), do: :initialized
-  defp cast_activity_progress("started"), do: :started
-  defp cast_activity_progress("in_progress"), do: :in_progress
-  defp cast_activity_progress("submitted"), do: :submitted
-  defp cast_activity_progress("completed"), do: :completed
-
-  defp cast_grading_progress("fully_graded"), do: :fully_graded
-  defp cast_grading_progress("pending"), do: :pending
-  defp cast_grading_progress("pending_manual"), do: :pending_manual
-  defp cast_grading_progress("failed"), do: :failed
-  defp cast_grading_progress("not_ready"), do: :not_ready
 
   defp score_opts(nil), do: []
   defp score_opts(""), do: []
