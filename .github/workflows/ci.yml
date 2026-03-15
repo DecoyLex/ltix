@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - "**.ex"
+      - "**.exs"
+      - "mix.lock"
   pull_request:
     branches: [main]
+    paths:
+      - "**.ex"
+      - "**.exs"
+      - "mix.lock"
 
 env:
   MIX_ENV: test
