@@ -1,5 +1,10 @@
 # Ltix
 
+[![CI](https://github.com/DecoyLex/ltix/actions/workflows/ci.yml/badge.svg)](https://github.com/DecoyLex/ltix/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/ltix.svg)](https://hex.pm/packages/ltix)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/ltix)
+[![License](https://img.shields.io/hexpm/l/ltix.svg)](https://github.com/DecoyLex/ltix/blob/main/LICENSE)
+
 Ltix is an Elixir library for building LTI 1.3 tool applications focused on
 correctness and developer experience. It handles the OIDC launch flow, JWT
 verification, claim parsing, and spec compliance so you can focus on what
