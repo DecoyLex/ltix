@@ -69,3 +69,7 @@ defmodule Ltix.Deployment do
 
   defp ascii?(string), do: string == for(<<c <- string>>, c < 128, into: "", do: <<c>>)
 end
+
+defimpl Ltix.Deployable, for: Ltix.Deployment do
+  def to_deployment(dep), do: {:ok, dep}
+end

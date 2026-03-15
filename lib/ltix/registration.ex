@@ -187,3 +187,7 @@ defmodule Ltix.Registration do
      )}
   end
 end
+
+defimpl Ltix.Registerable, for: Ltix.Registration do
+  def to_registration(reg), do: {:ok, reg}
+end
