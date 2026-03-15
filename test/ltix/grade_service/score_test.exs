@@ -3,6 +3,8 @@ defmodule Ltix.GradeService.ScoreTest do
 
   alias Ltix.GradeService.Score
 
+  doctest Score
+
   @valid_attrs [
     user_id: "12345",
     activity_progress: :completed,
