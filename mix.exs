@@ -168,6 +168,8 @@ defmodule Ltix.MixProject do
       ],
       groups_for_modules: [
         Core: [
+          Ltix.Deployable,
+          Ltix.Registerable,
           Ltix.Registration,
           Ltix.Deployment,
           Ltix.LaunchContext,
