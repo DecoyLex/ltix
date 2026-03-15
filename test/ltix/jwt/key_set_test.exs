@@ -88,6 +88,28 @@ defmodule Ltix.JWT.KeySetTest do
       assert :counters.get(fetch_count, 1) == 2
     end
 
+    test "returns error for non-200 HTTP response", ctx do
+      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+        Plug.Conn.send_resp(conn, 404, "Not Found")
+      end)
+
+      assert {:error, %Ltix.Errors.Unknown.Unknown{}} =
+               KeySet.get_key(ctx.registration, ctx.kid,
+                 req_options: req_options() ++ [retry: false]
+               )
+    end
+
+    test "handles JWKS with no keys array gracefully", ctx do
+      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
+        |> Req.Test.json(%{"not_keys" => []})
+      end)
+
+      assert {:error, %Ltix.Errors.Security.KidNotFound{}} =
+               KeySet.get_key(ctx.registration, ctx.kid, req_options: req_options())
+    end
+
     test "returns Unknown error on network failure", ctx do
       Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
         Req.Test.transport_error(conn, :timeout)
