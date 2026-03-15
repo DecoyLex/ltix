@@ -1,9 +1,11 @@
 defmodule Ltix.OIDC.LoginInitiation do
   @moduledoc false
 
+  alias Ltix.OIDC.AuthenticationRequest
+  alias Ltix.Registerable
+
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
-  alias Ltix.OIDC.AuthenticationRequest
 
   @required_params ~w(iss login_hint target_link_uri)
 
@@ -12,7 +14,8 @@ defmodule Ltix.OIDC.LoginInitiation do
           {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Exception.t()}
   def call(params, callback_module, redirect_uri) do
     with :ok <- validate_required_params(params),
-         {:ok, registration} <- lookup_registration(params, callback_module) do
+         {:ok, user_registration} <- lookup_registration(params, callback_module),
+         {:ok, registration} <- Registerable.to_registration(user_registration) do
       state = generate_token()
       nonce = generate_token()
 

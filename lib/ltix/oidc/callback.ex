@@ -1,18 +1,22 @@
 defmodule Ltix.OIDC.Callback do
   @moduledoc false
 
+  alias Ltix.Deployable
+  alias Ltix.JWT.Token
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchContext
+  alias Ltix.Registerable
+
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
+
   alias Ltix.Errors.Security.AuthenticationFailed
   alias Ltix.Errors.Security.NonceNotFound
   alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Security.StateMismatch
-  alias Ltix.JWT.Token
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchContext
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl_settings_key "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
@@ -27,13 +31,20 @@ defmodule Ltix.OIDC.Callback do
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
          {:ok, iss, client_id} <- peek_issuer_and_audience(id_token),
-         {:ok, registration} <- lookup_registration(iss, client_id, callback_module),
+         {:ok, user_registration} <- lookup_registration(iss, client_id, callback_module),
+         {:ok, registration} <- Registerable.to_registration(user_registration),
          {:ok, raw_claims} <- Token.verify(id_token, registration, opts),
          :ok <- validate_nonce(raw_claims, registration, callback_module),
          :ok <- validate_required_lti_claims(raw_claims, opts),
-         {:ok, deployment} <- lookup_deployment(raw_claims, registration, callback_module),
+         {:ok, user_deployment} <- lookup_deployment(raw_claims, registration, callback_module),
+         {:ok, _deployment} <- Deployable.to_deployment(user_deployment),
          {:ok, claims} <- LaunchClaims.from_json(raw_claims, parsers: claim_parsers) do
-      {:ok, %LaunchContext{claims: claims, registration: registration, deployment: deployment}}
+      {:ok,
+       %LaunchContext{
+         claims: claims,
+         registration: user_registration,
+         deployment: user_deployment
+       }}
     end
   end
 

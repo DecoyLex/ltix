@@ -1,9 +1,6 @@
 defmodule Ltix.LaunchContext do
   @moduledoc """
-  The validated output of a successful LTI launch.
-
-  Wraps the parsed `%LaunchClaims{}` together with the resolved
-  `%Registration{}` and `%Deployment{}` that were used during validation.
+  Validated output of a successful LTI launch.
 
   Access claim data through `context.claims` — for example,
   `context.claims.roles`, `context.claims.resource_link.id`, or
@@ -11,20 +8,21 @@ defmodule Ltix.LaunchContext do
 
   ## Fields
 
-  - `:claims` — all parsed claim data from the ID Token
-  - `:registration` — the platform registration matched during login
-  - `:deployment` — the deployment matched from the JWT's `deployment_id`
+    * `:claims` — parsed claim data from the ID Token
+    * `:registration` — whatever your `c:Ltix.StorageAdapter.get_registration/2`
+      returned. Access your own fields (database IDs, tenant info, etc.)
+      directly on this struct.
+    * `:deployment` — whatever your `c:Ltix.StorageAdapter.get_deployment/2`
+      returned.
   """
 
-  alias Ltix.Deployment
-  alias Ltix.LaunchClaims
-  alias Ltix.Registration
+  alias Ltix.{Deployable, LaunchClaims, Registerable}
 
   defstruct [:claims, :registration, :deployment]
 
   @type t :: %__MODULE__{
           claims: LaunchClaims.t(),
-          registration: Registration.t(),
-          deployment: Deployment.t()
+          registration: Registerable.t(),
+          deployment: Deployable.t()
         }
 end
