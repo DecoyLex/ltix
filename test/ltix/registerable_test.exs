@@ -26,11 +26,11 @@ defmodule Ltix.RegisterableTest do
       custom = %CustomRegistration{
         id: 42,
         tenant_id: 7,
-        issuer: "https://canvas.example.edu",
-        client_id: "10000000000042",
-        auth_endpoint: "https://canvas.example.edu/api/lti/authorize_redirect",
-        jwks_uri: "https://canvas.example.edu/api/lti/security/jwks",
-        tool_jwk: @tool_jwk
+        platform_issuer: "https://canvas.example.edu",
+        oauth_client_id: "10000000000042",
+        oidc_auth_url: "https://canvas.example.edu/api/lti/authorize_redirect",
+        platform_jwks_url: "https://canvas.example.edu/api/lti/security/jwks",
+        signing_key: @tool_jwk
       }
 
       assert {:ok, %Registration{} = reg} = Registerable.to_registration(custom)
@@ -42,11 +42,11 @@ defmodule Ltix.RegisterableTest do
       custom = %CustomRegistration{
         id: 1,
         tenant_id: 1,
-        issuer: "not-https",
-        client_id: "client",
-        auth_endpoint: "https://example.com/auth",
-        jwks_uri: "https://example.com/jwks",
-        tool_jwk: @tool_jwk
+        platform_issuer: "not-https",
+        oauth_client_id: "client",
+        oidc_auth_url: "https://example.com/auth",
+        platform_jwks_url: "https://example.com/jwks",
+        signing_key: @tool_jwk
       }
 
       assert {:error, error} = Registerable.to_registration(custom)

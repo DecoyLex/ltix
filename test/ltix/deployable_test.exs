@@ -16,7 +16,7 @@ defmodule Ltix.DeployableTest do
       custom = %CustomDeployment{
         id: 99,
         registration_id: 42,
-        deployment_id: "deploy-abc",
+        platform_deployment_id: "deploy-abc",
         label: "Production"
       }
 
@@ -28,7 +28,7 @@ defmodule Ltix.DeployableTest do
       custom = %CustomDeployment{
         id: 1,
         registration_id: 1,
-        deployment_id: "",
+        platform_deployment_id: "",
         label: "Bad"
       }
 
