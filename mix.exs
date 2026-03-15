@@ -35,7 +35,7 @@ defmodule Ltix.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/DecoyLex/ltix"},
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE usage-rules.md usage-rules)
     ]
   end
 
