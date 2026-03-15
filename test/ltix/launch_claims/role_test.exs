@@ -190,6 +190,65 @@ defmodule Ltix.LaunchClaims.RoleTest do
     end
   end
 
+  # --- LIS Edge Cases ---
+
+  describe "parse/1 LIS edge cases" do
+    test "returns :error for unrecognized context role name" do
+      uri = @context_base <> "Janitor"
+      assert :error = Role.parse(uri)
+    end
+
+    test "returns :error for sub-role URI without # separator" do
+      uri = @sub_role_base <> "InstructorTeachingAssistant"
+      assert :error = Role.parse(uri)
+    end
+
+    test "returns :error for unrecognized sub-role principal/sub combo" do
+      uri = @sub_role_base <> "Instructor#BogusRole"
+      assert :error = Role.parse(uri)
+    end
+
+    test "returns :error for unrecognized institution role name" do
+      uri = @institution_base <> "Janitor"
+      assert :error = Role.parse(uri)
+    end
+
+    test "returns :error for unrecognized system LIS role name" do
+      uri = "http://purl.imsglobal.org/vocab/lis/v2/system/person#Janitor"
+      assert :error = Role.parse(uri)
+    end
+
+    test "returns :error for unrecognized system LTI role name" do
+      uri = "http://purl.imsglobal.org/vocab/lti/system/person#Janitor"
+      assert :error = Role.parse(uri)
+    end
+
+    test "returns :error for deprecated URI with unrecognized role name" do
+      uri = "http://purl.imsglobal.org/vocab/lis/v2/person#Janitor"
+      assert :error = Role.parse(uri)
+    end
+
+    test "to_uri returns :error for unrecognized context role name" do
+      assert :error = Role.to_uri(%Role{type: :context, name: :janitor, sub_role: nil})
+    end
+
+    test "to_uri returns :error for unrecognized sub-role" do
+      assert :error = Role.to_uri(%Role{type: :context, name: :instructor, sub_role: :janitor})
+    end
+
+    test "to_uri returns :error for unrecognized institution role name" do
+      assert :error = Role.to_uri(%Role{type: :institution, name: :janitor})
+    end
+
+    test "to_uri returns :error for unrecognized system role name" do
+      assert :error = Role.to_uri(%Role{type: :system, name: :janitor})
+    end
+
+    test "to_uri returns :error for unknown role type" do
+      assert :error = Role.to_uri(%Role{type: :custom, name: :something})
+    end
+  end
+
   # --- Short Role Names [Cert §6.1.2] ---
 
   describe "parse/1 short role names [Cert §6.1.2]" do
