@@ -3,10 +3,16 @@ defmodule Ltix.ErrorsTest do
 
   alias Ltix.Errors
 
+  alias Ltix.Errors.Invalid.ContentItemsExceedLimit
+  alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
+  alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidJson
+  alias Ltix.Errors.Invalid.InvalidMessageType
+  alias Ltix.Errors.Invalid.LineItemNotAccepted
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.MissingParameter
@@ -19,6 +25,7 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Security.AlgorithmNotAllowed
   alias Ltix.Errors.Security.AudienceMismatch
+  alias Ltix.Errors.Security.AuthenticationFailed
   alias Ltix.Errors.Security.IssuerMismatch
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
@@ -28,6 +35,8 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.Errors.Security.StateMismatch
   alias Ltix.Errors.Security.TokenExpired
+  alias Ltix.Errors.Unknown.TransportError
+  alias Ltix.Errors.Unknown.Unknown
 
   describe "error classes" do
     test "invalid errors produce Invalid class" do
@@ -53,7 +62,7 @@ defmodule Ltix.ErrorsTest do
     end
 
     test "unknown errors produce Unknown class" do
-      error = Errors.Unknown.Unknown.exception(error: "something unexpected")
+      error = Unknown.exception(error: "something unexpected")
       class = Errors.to_class([error])
       assert %Errors.Unknown{} = class
     end
@@ -288,10 +297,188 @@ defmodule Ltix.ErrorsTest do
     end
   end
 
+  describe "Deep linking and Advantage error modules" do
+    test "ContentItemTypeNotAccepted includes type and accept_types" do
+      error =
+        ContentItemTypeNotAccepted.exception(
+          type: "link",
+          accept_types: ["ltiResourceLink"],
+          spec_ref: "DL §4.4.1"
+        )
+
+      assert Exception.message(error) =~ "link"
+      assert Exception.message(error) =~ "ltiResourceLink"
+      assert Exception.message(error) =~ "DL §4.4.1"
+    end
+
+    test "CoupledLineItem includes line_item_url" do
+      error =
+        CoupledLineItem.exception(
+          line_item_url: "https://lms.example.com/lineitems/1",
+          spec_ref: "AGS §4.3"
+        )
+
+      assert Exception.message(error) =~ "https://lms.example.com/lineitems/1"
+      assert Exception.message(error) =~ "coupled"
+    end
+
+    test "InvalidMessageType includes message_type" do
+      error =
+        InvalidMessageType.exception(
+          message_type: "LtiResourceLinkRequest",
+          spec_ref: "DL §4.5"
+        )
+
+      assert Exception.message(error) =~ "LtiResourceLinkRequest"
+      assert Exception.message(error) =~ "DL §4.5"
+    end
+
+    test "ContentItemsExceedLimit includes count" do
+      error =
+        ContentItemsExceedLimit.exception(
+          count: 3,
+          spec_ref: "DL §4.4.1"
+        )
+
+      assert Exception.message(error) =~ "3"
+      assert Exception.message(error) =~ "DL §4.4.1"
+    end
+
+    test "LineItemNotAccepted includes spec ref" do
+      error =
+        LineItemNotAccepted.exception(spec_ref: "DL §4.4.1")
+
+      assert Exception.message(error) =~ "line_item"
+      assert Exception.message(error) =~ "DL §4.4.1"
+    end
+
+    test "InvalidContentItem with nil message shows value" do
+      error =
+        InvalidContentItem.exception(
+          field: "url",
+          value: nil,
+          message: nil,
+          spec_ref: "DL §4.1"
+        )
+
+      assert Exception.message(error) =~ "url"
+      assert Exception.message(error) =~ "nil"
+    end
+
+    test "InvalidContentItem with message shows message" do
+      error =
+        InvalidContentItem.exception(
+          field: "url",
+          value: "",
+          message: "must be a valid URL",
+          spec_ref: "DL §4.1"
+        )
+
+      assert Exception.message(error) =~ "must be a valid URL"
+      assert Exception.message(error) =~ "url"
+    end
+  end
+
+  describe "Security error modules (additional)" do
+    test "AuthenticationFailed with description" do
+      error =
+        AuthenticationFailed.exception(
+          error: "access_denied",
+          error_description: "User cancelled",
+          error_uri: nil,
+          spec_ref: "Sec §5.1.1.5"
+        )
+
+      assert Exception.message(error) =~ "access_denied"
+      assert Exception.message(error) =~ "User cancelled"
+    end
+
+    test "AuthenticationFailed without description" do
+      error =
+        AuthenticationFailed.exception(
+          error: "access_denied",
+          error_description: nil,
+          error_uri: nil,
+          spec_ref: "Sec §5.1.1.5"
+        )
+
+      msg = Exception.message(error)
+      assert msg =~ "access_denied"
+      refute msg =~ " — "
+    end
+  end
+
   describe "Unknown error modules" do
-    test "Unknown wraps arbitrary error" do
-      error = Errors.Unknown.Unknown.exception(error: "something went wrong")
+    test "Unknown wraps arbitrary string error" do
+      error = Unknown.exception(error: "something went wrong")
       assert Exception.message(error) =~ "something went wrong"
+    end
+
+    test "Unknown wraps non-string error" do
+      error = Unknown.exception(error: {:connection_refused, :econnrefused})
+      assert Exception.message(error) =~ "connection_refused"
+    end
+
+    test "TransportError with status includes HTTP status and URL" do
+      error =
+        TransportError.exception(
+          status: 502,
+          body: nil,
+          url: "https://platform.example.com/jwks",
+          spec_ref: "Sec §6.3"
+        )
+
+      assert Exception.message(error) =~ "502"
+      assert Exception.message(error) =~ "https://platform.example.com/jwks"
+    end
+
+    test "TransportError without status includes body" do
+      error =
+        TransportError.exception(
+          status: nil,
+          body: "connection refused",
+          url: nil,
+          spec_ref: "Sec §6.3"
+        )
+
+      assert Exception.message(error) =~ "connection refused"
+    end
+
+    test "TransportError without status with non-string body" do
+      error =
+        TransportError.exception(
+          status: nil,
+          body: %{"error" => "timeout"},
+          url: nil,
+          spec_ref: "Sec §6.3"
+        )
+
+      assert Exception.message(error) =~ "timeout"
+    end
+  end
+
+  describe "MalformedResponse additional branches" do
+    test "MalformedResponse without service but with spec_ref" do
+      error =
+        MalformedResponse.exception(
+          service: nil,
+          reason: "invalid JSON",
+          spec_ref: "NRPS §2.1"
+        )
+
+      assert Exception.message(error) =~ "invalid JSON"
+      assert Exception.message(error) =~ "NRPS §2.1"
+    end
+
+    test "MalformedResponse without service and without spec_ref" do
+      error =
+        MalformedResponse.exception(
+          service: nil,
+          reason: "unexpected format",
+          spec_ref: nil
+        )
+
+      assert Exception.message(error) =~ "unexpected format"
     end
   end
 end
