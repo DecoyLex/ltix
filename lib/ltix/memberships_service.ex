@@ -36,22 +36,26 @@ defmodule Ltix.MembershipsService do
 
   @behaviour Ltix.AdvantageService
 
-  alias Ltix.Errors.Invalid.InvalidEndpoint
-  alias Ltix.Errors.Invalid.MalformedResponse
-  alias Ltix.Errors.Invalid.RosterTooLarge
-  alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.Errors.Security.AccessTokenExpired
+  alias Ltix.MembershipsService.Member
+  alias Ltix.MembershipsService.MembershipContainer
+
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
-  alias Ltix.MembershipsService.Member
-  alias Ltix.MembershipsService.MembershipContainer
+
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Pagination
+  alias Ltix.Registerable
   alias Ltix.Registration
+
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.RosterTooLarge
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.Errors.Security.AccessTokenExpired
 
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
   @media_type "application/vnd.ims.lti-nrps.v2.membershipcontainer+json"
@@ -127,21 +131,23 @@ defmodule Ltix.MembershipsService do
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Zoi.parse!(@context_auth_schema, opts)
 
-    case endpoint_from_claims(context.claims) do
-      {:ok, endpoint} ->
-        with :ok <- validate_service_version(endpoint) do
-          OAuth.authenticate(context.registration,
-            endpoints: %{__MODULE__ => endpoint},
-            req_options: Keyword.get(opts, :req_options, [])
-          )
-        end
+    with {:ok, registration} <- Registerable.to_registration(context.registration) do
+      case endpoint_from_claims(context.claims) do
+        {:ok, endpoint} ->
+          with :ok <- validate_service_version(endpoint) do
+            OAuth.authenticate(registration,
+              endpoints: %{__MODULE__ => endpoint},
+              req_options: Keyword.get(opts, :req_options, [])
+            )
+          end
 
-      :error ->
-        {:error,
-         ServiceNotAvailable.exception(
-           service: __MODULE__,
-           spec_ref: "NRPS §3.6.1.1"
-         )}
+        :error ->
+          {:error,
+           ServiceNotAvailable.exception(
+             service: __MODULE__,
+             spec_ref: "NRPS §3.6.1.1"
+           )}
+      end
     end
   end
 

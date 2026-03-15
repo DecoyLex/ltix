@@ -23,11 +23,15 @@ defmodule Ltix.DeepLinking do
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItem.LtiResourceLink
   alias Ltix.DeepLinking.Response
+
+  alias Ltix.Deployable
+  alias Ltix.LaunchContext
+  alias Ltix.Registerable
+
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
-  alias Ltix.LaunchContext
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
@@ -91,12 +95,14 @@ defmodule Ltix.DeepLinking do
     settings = context.claims.deep_linking_settings
 
     with {:ok, opts} <- validate_opts(opts),
+         {:ok, registration} <- Registerable.to_registration(context.registration),
+         {:ok, deployment} <- Deployable.to_deployment(context.deployment),
          :ok <- validate_item_types(items, settings.accept_types),
          :ok <- validate_multiplicity(items, settings.accept_multiple),
          :ok <- validate_line_items(items, settings.accept_lineitem) do
       items_json = Enum.map(items, &ContentItem.to_json/1)
-      claims = build_jwt_claims(context, items_json, opts)
-      jwt = sign_jwt(claims, context.registration.tool_jwk)
+      claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
+      jwt = sign_jwt(claims, registration.tool_jwk)
       {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
     end
   end
@@ -159,19 +165,17 @@ defmodule Ltix.DeepLinking do
 
   # [DL §4.5](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-response-message)
   # [Sec §5.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
-  defp build_jwt_claims(context, items_json, opts) do
+  defp build_jwt_claims(registration, deployment, settings, items_json, opts) do
     now = System.system_time(:second)
-    settings = context.claims.deep_linking_settings
-    reg = context.registration
 
     %{
-      "iss" => reg.client_id,
-      "aud" => reg.issuer,
-      "azp" => reg.issuer,
+      "iss" => registration.client_id,
+      "aud" => registration.issuer,
+      "azp" => registration.issuer,
       "exp" => now + 300,
       "iat" => now,
       "nonce" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false),
-      (@lti <> "deployment_id") => context.deployment.deployment_id,
+      (@lti <> "deployment_id") => deployment.deployment_id,
       (@lti <> "message_type") => "LtiDeepLinkingResponse",
       (@lti <> "version") => "1.3.0",
       (@dl <> "content_items") => items_json

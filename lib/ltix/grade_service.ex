@@ -25,22 +25,27 @@ defmodule Ltix.GradeService do
 
   @behaviour Ltix.AdvantageService
 
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
+  alias Ltix.GradeService.Score
+
   alias Ltix.AppConfig
+
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchContext
+
+  alias Ltix.OAuth
+  alias Ltix.OAuth.Client
+  alias Ltix.Pagination
+  alias Ltix.Registerable
+  alias Ltix.Registration
+
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
-  alias Ltix.GradeService.LineItem
-  alias Ltix.GradeService.Result
-  alias Ltix.GradeService.Score
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AgsEndpoint
-  alias Ltix.LaunchContext
-  alias Ltix.OAuth
-  alias Ltix.OAuth.Client
-  alias Ltix.Pagination
-  alias Ltix.Registration
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
   @scope_lineitem_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
@@ -122,19 +127,21 @@ defmodule Ltix.GradeService do
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Zoi.parse!(@context_auth_schema, opts)
 
-    case endpoint_from_claims(context.claims) do
-      {:ok, endpoint} ->
-        OAuth.authenticate(context.registration,
-          endpoints: %{__MODULE__ => endpoint},
-          req_options: Keyword.get(opts, :req_options, [])
-        )
+    with {:ok, registration} <- Registerable.to_registration(context.registration) do
+      case endpoint_from_claims(context.claims) do
+        {:ok, endpoint} ->
+          OAuth.authenticate(registration,
+            endpoints: %{__MODULE__ => endpoint},
+            req_options: Keyword.get(opts, :req_options, [])
+          )
 
-      :error ->
-        {:error,
-         ServiceNotAvailable.exception(
-           service: __MODULE__,
-           spec_ref: "AGS §3.1"
-         )}
+        :error ->
+          {:error,
+           ServiceNotAvailable.exception(
+             service: __MODULE__,
+             spec_ref: "AGS §3.1"
+           )}
+      end
     end
   end
 
