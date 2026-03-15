@@ -403,6 +403,21 @@ defmodule Ltix.MembershipsServiceTest do
       assert {:ok, _} = MembershipsService.get_members(client, per_page: 25)
     end
 
+    test "role filter with %Role{} struct", ctx do
+      Req.Test.stub(__MODULE__, fn conn ->
+        params = Plug.Conn.fetch_query_params(conn).query_params
+        assert params["role"] == @instructor_uri
+
+        conn
+        |> Plug.Conn.put_resp_content_type(@nrps_media_type)
+        |> Req.Test.json(build_membership_response([]))
+      end)
+
+      client = build_client(ctx.platform)
+      role = %Role{type: :context, name: :instructor, sub_role: nil}
+      assert {:ok, _} = MembershipsService.get_members(client, role: role)
+    end
+
     test "resource_link_id appended as rlid parameter", ctx do
       Req.Test.stub(__MODULE__, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
