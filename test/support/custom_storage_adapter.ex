@@ -25,7 +25,7 @@ defmodule CustomStorageAdapter do
   def set_pid(pid), do: Process.put(:custom_storage_adapter_pid, pid)
   defp get_pid, do: Process.get(:custom_storage_adapter_pid)
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def get_registration(issuer, client_id) do
     Agent.get(get_pid(), fn state ->
       state.registrations
@@ -40,7 +40,7 @@ defmodule CustomStorageAdapter do
     end)
   end
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def get_deployment(_registration, deployment_id) do
     Agent.get(get_pid(), fn state ->
       state.deployments
@@ -52,14 +52,14 @@ defmodule CustomStorageAdapter do
     end)
   end
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def store_nonce(nonce, _registration) do
     Agent.update(get_pid(), fn state ->
       %{state | nonces: MapSet.put(state.nonces, nonce)}
     end)
   end
 
-  @impl true
+  @impl Ltix.StorageAdapter
   def validate_nonce(nonce, _registration) do
     Agent.get_and_update(get_pid(), fn state ->
       cond do

@@ -16,7 +16,9 @@ defmodule Ltix.LaunchContext do
       returned.
   """
 
-  alias Ltix.{Deployable, LaunchClaims, Registerable}
+  alias Ltix.Deployable
+  alias Ltix.LaunchClaims
+  alias Ltix.Registerable
 
   defstruct [:claims, :registration, :deployment]
 

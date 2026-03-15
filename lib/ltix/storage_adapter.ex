@@ -24,7 +24,9 @@ defmodule Ltix.StorageAdapter do
   | `c:validate_nonce/2` | Launch validation | Verify a nonce was issued by the tool, then consume it |
   """
 
-  alias Ltix.{Deployable, Registerable, Registration}
+  alias Ltix.Deployable
+  alias Ltix.Registerable
+  alias Ltix.Registration
 
   @doc """
   Look up a platform registration by issuer and client_id.
