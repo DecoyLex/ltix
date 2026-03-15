@@ -62,10 +62,12 @@ defmodule Ltix.MembershipsService do
 
   @impl Ltix.AdvantageService
   # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
-  def endpoint_from_claims(%LaunchClaims{memberships_endpoint: %MembershipsEndpoint{} = ep}),
-    do: {:ok, ep}
-
-  def endpoint_from_claims(_), do: :error
+  def endpoint_from_claims(claims) do
+    case fetch_endpoint(claims) do
+      {:ok, _} = ok -> ok
+      {:error, _} -> :error
+    end
+  end
 
   @impl Ltix.AdvantageService
   def validate_endpoint(%MembershipsEndpoint{}), do: :ok
@@ -131,23 +133,13 @@ defmodule Ltix.MembershipsService do
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Zoi.parse!(@context_auth_schema, opts)
 
-    with {:ok, registration} <- Registerable.to_registration(context.registration) do
-      case endpoint_from_claims(context.claims) do
-        {:ok, endpoint} ->
-          with :ok <- validate_service_version(endpoint) do
-            OAuth.authenticate(registration,
-              endpoints: %{__MODULE__ => endpoint},
-              req_options: Keyword.get(opts, :req_options, [])
-            )
-          end
-
-        :error ->
-          {:error,
-           ServiceNotAvailable.exception(
-             service: __MODULE__,
-             spec_ref: "NRPS §3.6.1.1"
-           )}
-      end
+    with {:ok, registration} <- Registerable.to_registration(context.registration),
+         {:ok, endpoint} <- fetch_endpoint(context.claims),
+         :ok <- validate_service_version(endpoint) do
+      OAuth.authenticate(registration,
+        endpoints: %{__MODULE__ => endpoint},
+        req_options: Keyword.get(opts, :req_options, [])
+      )
     end
   end
 
@@ -448,6 +440,17 @@ defmodule Ltix.MembershipsService do
   end
 
   defp resolve_role(string) when is_binary(string), do: string
+
+  defp fetch_endpoint(%LaunchClaims{memberships_endpoint: %MembershipsEndpoint{} = ep}),
+    do: {:ok, ep}
+
+  defp fetch_endpoint(_) do
+    {:error,
+     ServiceNotAvailable.exception(
+       service: __MODULE__,
+       spec_ref: "NRPS §3.6.1.1"
+     )}
+  end
 
   # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
   defp validate_service_version(%MembershipsEndpoint{service_versions: nil}), do: :ok
