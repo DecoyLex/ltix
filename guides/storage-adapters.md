@@ -19,8 +19,14 @@ common pitfalls.
 
 ```elixir
 @callback get_registration(issuer :: String.t(), client_id :: String.t() | nil) ::
-            {:ok, Registration.t()} | {:error, :not_found}
+            {:ok, Registerable.t()} | {:error, :not_found}
 ```
+
+Return any struct that implements `Ltix.Registerable`. The library
+extracts the `Ltix.Registration` it needs via the protocol, and
+your original struct is preserved in the `Ltix.LaunchContext` — so
+you can access your own fields (database IDs, tenant info, etc.)
+after a successful launch without an extra query.
 
 The `client_id` may be `nil` — some platforms don't include it in the
 login initiation request. Your adapter must handle both cases:
@@ -29,26 +35,32 @@ login initiation request. Your adapter must handle both cases:
 def get_registration(issuer, nil) do
   case Repo.get_by(PlatformRegistration, issuer: issuer) do
     nil -> {:error, :not_found}
-    record -> {:ok, to_ltix_registration(record)}
+    record -> {:ok, record}
   end
 end
 
 def get_registration(issuer, client_id) do
   case Repo.get_by(PlatformRegistration, issuer: issuer, client_id: client_id) do
     nil -> {:error, :not_found}
-    record -> {:ok, to_ltix_registration(record)}
+    record -> {:ok, record}
   end
 end
+```
 
-defp to_ltix_registration(record) do
-  %Ltix.Registration{
-    issuer: record.issuer,
-    client_id: record.client_id,
-    auth_endpoint: record.auth_endpoint,
-    jwks_uri: record.jwks_uri,
-    token_endpoint: record.token_endpoint,
-    tool_jwk: record.tool_jwk
-  }
+Your Ecto schema implements `Ltix.Registerable` to map its fields:
+
+```elixir
+defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do
+  def to_registration(record) do
+    Ltix.Registration.new(%{
+      issuer: record.issuer,
+      client_id: record.client_id,
+      auth_endpoint: record.auth_endpoint,
+      jwks_uri: record.jwks_uri,
+      token_endpoint: record.token_endpoint,
+      tool_jwk: record.tool_jwk
+    })
+  end
 end
 ```
 
@@ -63,11 +75,15 @@ end
 
 ```elixir
 @callback get_deployment(registration :: Registration.t(), deployment_id :: String.t()) ::
-            {:ok, Deployment.t()} | {:error, :not_found}
+            {:ok, Deployable.t()} | {:error, :not_found}
 ```
 
-A deployment is scoped to a registration. The `deployment_id` is
-case-sensitive and assigned by the platform:
+Return any struct that implements `Ltix.Deployable`. Like registrations,
+your original struct is preserved in the `Ltix.LaunchContext`.
+
+The `registration` parameter is the resolved `Ltix.Registration` (not
+your custom struct). The `deployment_id` is case-sensitive and assigned
+by the platform:
 
 ```elixir
 def get_deployment(%Ltix.Registration{} = reg, deployment_id) do
@@ -76,7 +92,15 @@ def get_deployment(%Ltix.Registration{} = reg, deployment_id) do
          deployment_id: deployment_id
        ) do
     nil -> {:error, :not_found}
-    record -> {:ok, %Ltix.Deployment{deployment_id: record.deployment_id}}
+    record -> {:ok, record}
+  end
+end
+```
+
+```elixir
+defimpl Ltix.Deployable, for: MyApp.Lti.PlatformDeployment do
+  def to_deployment(record) do
+    Ltix.Deployment.new(record.deployment_id)
   end
 end
 ```
@@ -184,14 +208,14 @@ defmodule MyApp.LtiStorage do
   def get_registration(issuer, nil) do
     case Repo.get_by(PlatformRegistration, issuer: issuer) do
       nil -> {:error, :not_found}
-      record -> {:ok, to_registration(record)}
+      record -> {:ok, record}
     end
   end
 
   def get_registration(issuer, client_id) do
     case Repo.get_by(PlatformRegistration, issuer: issuer, client_id: client_id) do
       nil -> {:error, :not_found}
-      record -> {:ok, to_registration(record)}
+      record -> {:ok, record}
     end
   end
 
@@ -206,7 +230,7 @@ defmodule MyApp.LtiStorage do
 
     case Repo.one(query) do
       nil -> {:error, :not_found}
-      record -> {:ok, %Ltix.Deployment{deployment_id: record.deployment_id}}
+      record -> {:ok, record}
     end
   end
 
@@ -226,18 +250,40 @@ defmodule MyApp.LtiStorage do
       {0, _} -> {:error, :nonce_not_found}
     end
   end
+end
+```
 
-  defp to_registration(record) do
-    %Ltix.Registration{
+The protocol implementations live on your Ecto schemas:
+
+```elixir
+defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do
+  def to_registration(record) do
+    Ltix.Registration.new(%{
       issuer: record.issuer,
       client_id: record.client_id,
       auth_endpoint: record.auth_endpoint,
       jwks_uri: record.jwks_uri,
       token_endpoint: record.token_endpoint,
       tool_jwk: record.tool_jwk
-    }
+    })
   end
 end
+
+defimpl Ltix.Deployable, for: MyApp.Lti.PlatformDeployment do
+  def to_deployment(record) do
+    Ltix.Deployment.new(record.deployment_id)
+  end
+end
+```
+
+After a successful launch, `context.registration` is your
+`%PlatformRegistration{}` and `context.deployment` is your
+`%PlatformDeployment{}` — access your own fields directly:
+
+```elixir
+context.registration.id          #=> 42
+context.registration.tenant_id   #=> 7
+context.deployment.id            #=> 99
 ```
 
 ## Per-call override

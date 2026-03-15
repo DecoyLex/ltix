@@ -52,8 +52,8 @@ context.claims.context          #=> %Context{id: "course-1", title: "Intro to El
 context.claims.resource_link    #=> %ResourceLink{id: "link-1", title: "Assignment 1"}
 context.claims.target_link_uri  #=> "https://mytool.example.com/activity/42"
 
-context.registration            #=> %Registration{issuer: "https://canvas.instructure.com", ...}
-context.deployment              #=> %Deployment{deployment_id: "1"}
+context.registration            #=> your struct from StorageAdapter.get_registration/2
+context.deployment              #=> your struct from StorageAdapter.get_deployment/2
 ```
 
 Between those two calls, Ltix has verified the JWT signature against

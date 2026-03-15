@@ -19,7 +19,7 @@ what your tool actually does.
 
 context.claims.roles          #=> [%Role{type: :context, name: :instructor}, ...]
 context.claims.resource_link  #=> %ResourceLink{id: "link-1", title: "Assignment 1"}
-context.registration          #=> %Registration{issuer: "https://canvas.instructure.com", ...}
+context.registration          #=> your struct from StorageAdapter.get_registration/2
 ```
 
 ## Features

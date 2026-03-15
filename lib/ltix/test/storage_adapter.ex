@@ -26,8 +26,8 @@ defmodule Ltix.Test.StorageAdapter do
 
   ## Options
 
-    * `:registrations` — list of `%Registration{}` structs (default: `[]`)
-    * `:deployments` — list of `%Deployment{}` structs (default: `[]`)
+    * `:registrations` — list of structs implementing `Ltix.Registerable` (default: `[]`)
+    * `:deployments` — list of structs implementing `Ltix.Deployable` (default: `[]`)
   """
   def start_link(opts \\ []) do
     registrations = Keyword.get(opts, :registrations, [])

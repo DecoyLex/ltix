@@ -58,8 +58,8 @@ These are the 4 required callbacks:
    pattern to avoid race conditions.
 
 Return types:
-- `get_registration/2`: `{:ok, %Registration{}} | {:error, :not_found}`
-- `get_deployment/2`: `{:ok, %Deployment{}} | {:error, :not_found}`
+- `get_registration/2`: `{:ok, Registerable.t()} | {:error, :not_found}` — any struct implementing `Ltix.Registerable`
+- `get_deployment/2`: `{:ok, Deployable.t()} | {:error, :not_found}` — any struct implementing `Ltix.Deployable`
 - `store_nonce/2`: `:ok`
 - `validate_nonce/2`: `:ok | {:error, :nonce_already_used | :nonce_not_found}`
 
@@ -117,8 +117,8 @@ iframe:
   `Content-Security-Policy` header (`frame-ancestors 'self' *`) on LTI routes to allow
   this. The platform domains should be scoped down in production.
 - The login endpoint should accept both GET and POST — the LTI spec allows either.
-- **Never store `%LaunchContext{}` in the session.** It contains the full
-  `%Registration{}` including `tool_jwk` (private key material). Extract only the fields
+- **Never store `%LaunchContext{}` in the session.** The registration struct
+  may contain `tool_jwk` (private key material). Extract only the fields
   you need (e.g., `subject`, `roles`, `context.id`).
 
 ## Service Availability

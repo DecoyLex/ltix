@@ -32,7 +32,7 @@ def get_deployment(%Ltix.Registration{} = reg, deployment_id) do
          deployment_id: deployment_id
        ) do
     nil -> {:error, :not_found}
-    record -> {:ok, %Ltix.Deployment{deployment_id: record.deployment_id}}
+    record -> {:ok, record}
   end
 end
 ```
