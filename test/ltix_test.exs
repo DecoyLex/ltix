@@ -85,8 +85,8 @@ defmodule LtixTest do
       assert {:ok, %{redirect_uri: redirect_uri, state: state}} =
                Ltix.handle_login(login_params(), @redirect_uri)
 
-      assert is_binary(redirect_uri)
-      assert is_binary(state)
+      assert redirect_uri =~ "platform.example.com"
+      assert byte_size(state) > 0
     end
 
     test "opts override application config" do

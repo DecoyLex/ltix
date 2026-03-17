@@ -575,11 +575,8 @@ defmodule Ltix.MembershipsServiceTest do
       assert {:ok, %MembershipContainer{} = roster} =
                MembershipsService.get_members(client, resource_link_id: "resource-link-001")
 
-      member = hd(roster.members)
-      assert is_list(member.message)
-      assert length(member.message) == 1
-
-      msg = hd(member.message)
+      assert [member] = roster.members
+      assert [msg] = member.message
       assert msg.custom == %{"grade" => "85"}
     end
   end

@@ -199,9 +199,7 @@ defmodule Ltix.GradeServiceTest do
 
       client = build_client(ctx.platform)
 
-      assert {:ok, line_items} = GradeService.list_line_items(client)
-      assert length(line_items) == 2
-      assert Enum.all?(line_items, &match?(%LineItem{}, &1))
+      assert {:ok, [%LineItem{}, %LineItem{}]} = GradeService.list_line_items(client)
     end
 
     test "sends correct Accept header", ctx do
@@ -619,9 +617,7 @@ defmodule Ltix.GradeServiceTest do
 
       client = build_client(ctx.platform)
 
-      assert {:ok, results} = GradeService.get_results(client)
-      assert length(results) == 2
-      assert Enum.all?(results, &match?(%Result{}, &1))
+      assert {:ok, [%Result{}, %Result{}]} = GradeService.get_results(client)
     end
 
     test "fetches results for explicit line item", ctx do
