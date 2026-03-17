@@ -42,6 +42,7 @@ defmodule Ltix.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:telemetry, "~> 1.4"},
       {:recase, "~> 0.9"},
       {:zoi, "~> 0.17"},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false, warn_if_outdated: true},
