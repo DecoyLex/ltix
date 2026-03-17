@@ -2,7 +2,7 @@
 
 Every Advantage service call requires a signed JWT assertion, which
 means your tool needs an RSA key pair. This guide covers generating
-key pairs, serving a JWKS endpoint, and rotating keys.
+keys, serving a JWKS endpoint, and rotating keys.
 
 > #### Leaked keys let attackers impersonate your tool {: .warning}
 >
@@ -12,18 +12,17 @@ key pairs, serving a JWKS endpoint, and rotating keys.
 > data, posting grades, or reading course content. Never commit key
 > material to version control, log it, or expose it via API responses.
 
-## Generating key pairs
+## Generating a key
 
 ```elixir
-{private, _public} = Ltix.JWK.generate_key_pair()
+jwk = Ltix.JWK.generate()
 ```
 
-The private key goes into your registration as `tool_jwk`. You only
-need to store the private key. `Ltix.JWK.to_jwks/1` derives the
-public half automatically when serving your JWKS endpoint.
+Store `private_key_pem` and `kid` in your database or config. To
+reconstruct the struct later, pass them to `Ltix.JWK.new/1`.
 
-The spec recommends a separate key per registration so you can rotate
-them independently and limit blast radius if one is compromised.
+Use a separate key per registration so you can rotate them
+independently.
 
 ## Serving a JWKS endpoint
 
@@ -32,16 +31,15 @@ assertions. You provide the JWKS endpoint URL during tool
 registration.
 
 Each key has a unique `kid`, so platforms match signatures to the
-correct key automatically. Pass your private keys to `to_jwks/1` and
-it returns a JWKS map with only the public halves:
+correct key automatically. Pass your JWKs to `to_jwks/1` and it
+returns a JWKS map with only the public halves:
 
 ```elixir
-Ltix.JWK.to_jwks([private_key_1, private_key_2])
+Ltix.JWK.to_jwks([jwk_1, jwk_2])
 #=> %{"keys" => [%{"kty" => "RSA", "kid" => "...", "n" => "...", ...}, ...]}
 ```
 
-Private material is stripped automatically, so it's safe to pass
-private keys directly.
+Private material is stripped automatically.
 
 For tools with a single registration, you can hard-code a single key.
 For tools managing multiple registrations, see the
@@ -56,7 +54,7 @@ overlap period is 24-48 hours.
 
 The rotation sequence:
 
-1. Generate a new key pair
+1. Generate a new key
 2. Start using the new key for signing
 3. Serve both old and new public keys from your JWKS endpoint
 4. After the overlap period, stop serving the old key
@@ -65,7 +63,7 @@ During the overlap, `to_jwks/1` accepts a list, so serving both keys
 is straightforward:
 
 ```elixir
-Ltix.JWK.to_jwks([old_private, new_private])
+Ltix.JWK.to_jwks([old_jwk, new_jwk])
 ```
 
 ## Next steps

@@ -8,57 +8,55 @@ background on key pairs, JWKS endpoints, and rotation.
 ## Migration
 
 A dedicated table keeps key management separate from registration
-logic and makes rotation straightforward:
+logic and makes rotation straightforward. Since `Ltix.JWK` stores the
+private key as a PEM string and the kid as a plain string, you only
+need text columns:
 
 ```elixir
-create table(:lti_jwks) do
-  add :private_jwk, :binary, null: false
+create table(:lti_keys) do
+  add :private_key_pem, :text, null: false
+  add :kid, :string, null: false
   add :active, :boolean, default: true
   timestamps()
 end
 
 alter table(:platform_registrations) do
-  add :jwk_id, references(:lti_jwks), null: false
+  add :key_id, references(:lti_keys), null: false
 end
 ```
 
 > #### Encrypt private keys at rest {: .warning}
 >
-> The `private_jwk` column holds secret key material. Use
+> The `private_key_pem` column holds secret key material. Use
 > [Cloak](https://hexdocs.pm/cloak_ecto) or your database's native
 > encryption to encrypt it at rest.
 
 ## Creating registrations with keys
 
-Generate a key pair when creating a registration, and store only the
-private key:
+Generate a key when creating a registration:
 
 ```elixir
 defmodule MyApp.Lti do
   def create_registration(attrs) do
-    {private, _public} = Ltix.JWK.generate_key_pair()
+    jwk = Ltix.JWK.generate()
 
-    jwk =
-      Repo.insert!(%LtiJwk{
-        private_jwk: serialize(private)
+    key =
+      Repo.insert!(%LtiKey{
+        private_key_pem: jwk.private_key_pem,
+        kid: jwk.kid
       })
 
     %PlatformRegistration{}
-    |> PlatformRegistration.changeset(Map.put(attrs, :jwk_id, jwk.id))
+    |> PlatformRegistration.changeset(Map.put(attrs, :key_id, key.id))
     |> Repo.insert()
-  end
-
-  defp serialize(jwk) do
-    jwk |> JOSE.JWK.to_map() |> elem(1) |> Jason.encode!()
-  end
-
-  defp deserialize(json) do
-    json |> JSON.decode!() |> JOSE.JWK.from_map()
   end
 end
 ```
 
-Your storage adapter preloads the key and deserializes it:
+No serialization functions needed — PEM strings and kids are stored
+directly.
+
+Your storage adapter reconstructs the struct:
 
 ```elixir
 defp to_registration(record) do
@@ -68,9 +66,21 @@ defp to_registration(record) do
     auth_endpoint: record.auth_endpoint,
     jwks_uri: record.jwks_uri,
     token_endpoint: record.token_endpoint,
-    tool_jwk: deserialize(record.jwk.private_jwk)
+    tool_jwk: %Ltix.JWK{
+      private_key_pem: record.key.private_key_pem,
+      kid: record.key.kid
+    }
   }
 end
+```
+
+Or use `Ltix.JWK.new/1` if you want validation on load:
+
+```elixir
+{:ok, tool_jwk} = Ltix.JWK.new(
+  private_key_pem: record.key.private_key_pem,
+  kid: record.key.kid
+)
 ```
 
 ## JWKS controller
@@ -84,14 +94,14 @@ defmodule MyAppWeb.JwksController do
 
   import Ecto.Query
   alias MyApp.Repo
-  alias MyApp.Lti.LtiJwk
+  alias MyApp.Lti.LtiKey
 
   def index(conn, _params) do
     keys =
-      from(j in LtiJwk, where: j.active == true)
+      from(k in LtiKey, where: k.active == true)
       |> Repo.all()
-      |> Enum.map(fn jwk ->
-        jwk.private_jwk |> JSON.decode!() |> JOSE.JWK.from_map()
+      |> Enum.map(fn key ->
+        %Ltix.JWK{private_key_pem: key.private_key_pem, kid: key.kid}
       end)
 
     conn
@@ -120,15 +130,16 @@ period:
 
 ```elixir
 def rotate_key(registration_id) do
-  {new_private, _public} = Ltix.JWK.generate_key_pair()
+  jwk = Ltix.JWK.generate()
 
-  new_jwk =
-    Repo.insert!(%LtiJwk{
-      private_jwk: serialize(new_private)
+  new_key =
+    Repo.insert!(%LtiKey{
+      private_key_pem: jwk.private_key_pem,
+      kid: jwk.kid
     })
 
   Repo.get!(PlatformRegistration, registration_id)
-  |> PlatformRegistration.changeset(%{jwk_id: new_jwk.id})
+  |> PlatformRegistration.changeset(%{key_id: new_key.id})
   |> Repo.update!()
 end
 ```
@@ -138,5 +149,5 @@ serving it. After platforms have refreshed their cache (24-48 hours
 is typical), mark it inactive:
 
 ```elixir
-Repo.update!(LtiJwk.changeset(old_jwk, %{active: false}))
+Repo.update!(LtiKey.changeset(old_key, %{active: false}))
 ```

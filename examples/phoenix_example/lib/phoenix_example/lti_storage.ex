@@ -25,23 +25,16 @@ defmodule PhoenixExample.LtiStorage do
   def start_link(_opts) do
     Agent.start_link(
       fn ->
-        {private_jwk, _public_jwk} = Ltix.JWK.generate_key_pair()
+        tool_jwk = Ltix.JWK.generate()
 
         # Print out the JWK to the console so it can be copied into the platform's tool registration.
         IO.puts("Generated tool JWK (copy this into your platform registration):")
-        [private_jwk]
-        |> Ltix.JWK.to_jwks()
-        |> JSON.encode!()
-        |> IO.puts()
+        tool_jwk |> Ltix.JWK.to_jwks() |> JSON.encode!() |> IO.puts()
 
         IO.puts("Or use the following RSA public key:")
-        private_jwk
-        |> JOSE.JWK.to_public()
-        |> JOSE.JWK.to_pem()
-        |> elem(1)
-        |> IO.puts()
+        tool_jwk |> Ltix.JWK.to_public_key() |> IO.puts()
 
-        %{nonces: MapSet.new(), contexts: %{}, tool_jwk: private_jwk}
+        %{nonces: MapSet.new(), contexts: %{}, tool_jwk: tool_jwk}
       end,
       name: __MODULE__
     )

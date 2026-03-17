@@ -70,7 +70,7 @@ A registration contains:
 | `auth_endpoint` | Where to redirect users for authentication |
 | `jwks_uri` | Where to fetch the platform's public keys |
 | `token_endpoint` | Where to request access tokens for service calls (optional) |
-| `tool_jwk` | Your tool's private signing key for this registration (`JOSE.JWK.t()`) |
+| `tool_jwk` | Your tool's private signing key for this registration (`Ltix.JWK.t()`) |
 
 In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter`
 looks up registrations by issuer during login initiation.
