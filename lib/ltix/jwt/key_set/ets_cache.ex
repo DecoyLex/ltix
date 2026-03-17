@@ -15,18 +15,9 @@ defmodule Ltix.JWT.KeySet.EtsCache do
   def get(jwks_uri) do
     ensure_table()
 
-    case :ets.lookup(@table, jwks_uri) do
-      [{^jwks_uri, keys, inserted_at, max_age}] ->
-        elapsed = System.monotonic_time(:second) - inserted_at
-
-        if elapsed < max_age do
-          {:ok, keys}
-        else
-          :miss
-        end
-
-      [] ->
-        :miss
+    with {:ok, entry} <- lookup(jwks_uri),
+         :ok <- ensure_valid(entry) do
+      {:ok, entry.keys}
     end
   end
 
@@ -49,4 +40,19 @@ defmodule Ltix.JWT.KeySet.EtsCache do
   rescue
     ArgumentError -> :ok
   end
+
+  defp lookup(jwks_uri) do
+    case :ets.lookup(@table, jwks_uri) do
+      [{^jwks_uri, keys, inserted_at, max_age}] ->
+        elapsed = System.monotonic_time(:second) - inserted_at
+
+        {:ok, %{keys: keys, max_age: max_age, elapsed: elapsed}}
+
+      [] ->
+        :miss
+    end
+  end
+
+  defp ensure_valid(%{max_age: max_age, elapsed: elapsed}) when elapsed < max_age, do: :ok
+  defp ensure_valid(_), do: :miss
 end
