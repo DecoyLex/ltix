@@ -127,18 +127,24 @@ defmodule Ltix.MixProject do
           "guides/concepts.md",
           "guides/comparing-lti-libraries.md"
         ],
-        Guides: [
+        "Getting started": [
           "guides/getting-started.md",
           "guides/testing-with-ims-ri.md",
-          "guides/storage-adapters.md",
+          "guides/storage-adapters.md"
+        ],
+        "Launch flow": [
           "guides/working-with-roles.md",
           "guides/custom-role-parsers.md",
           "guides/custom-claim-parsers.md",
-          "guides/error-handling.md",
+          "guides/error-handling.md"
+        ],
+        Services: [
           "guides/advantage-services.md",
           "guides/deep-linking.md",
           "guides/memberships-service.md",
-          "guides/grade-service.md",
+          "guides/grade-service.md"
+        ],
+        Operations: [
           "guides/jwk-management.md",
           "guides/telemetry.md"
         ],
