@@ -214,16 +214,21 @@ defmodule Ltix.MembershipsService do
   @spec get_members(Client.t(), keyword()) ::
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
   def get_members(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- parse_opts(@get_members_schema, opts) do
-      max = Keyword.get(opts, :max_members)
-      query_opts = Keyword.drop(opts, [:max_members])
+    metadata = span_metadata(client, opts)
 
-      with :ok <- check_expiry(client),
-           :ok <- Client.require_scope(client, @nrps_scope),
-           {:ok, pages} <- fetch_pages(client, query_opts) do
-        collect_roster(pages, max)
-      end
-    end
+    :telemetry.span([:ltix, :memberships_service, :get_members], metadata, fn ->
+      result =
+        with {:ok, opts} <- parse_opts(@get_members_schema, opts),
+             max = Keyword.get(opts, :max_members),
+             query_opts = Keyword.drop(opts, [:max_members]),
+             :ok <- check_expiry(client),
+             :ok <- Client.require_scope(client, @nrps_scope),
+             {:ok, pages} <- fetch_pages(client, query_opts) do
+          collect_roster(pages, max)
+        end
+
+      {result, metadata}
+    end)
   end
 
   @doc """
@@ -252,12 +257,19 @@ defmodule Ltix.MembershipsService do
   @spec stream_members(Client.t(), keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_members(%Client{} = client, opts \\ []) do
-    with {:ok, opts} <- parse_opts(@stream_members_schema, opts),
-         :ok <- check_expiry(client),
-         :ok <- Client.require_scope(client, @nrps_scope),
-         {:ok, pages} <- fetch_pages(client, opts) do
-      {:ok, Stream.flat_map(pages, &parse_members!/1)}
-    end
+    metadata = span_metadata(client, opts)
+
+    :telemetry.span([:ltix, :memberships_service, :stream_members], metadata, fn ->
+      result =
+        with {:ok, opts} <- parse_opts(@stream_members_schema, opts),
+             :ok <- check_expiry(client),
+             :ok <- Client.require_scope(client, @nrps_scope),
+             {:ok, pages} <- fetch_pages(client, opts) do
+          {:ok, Stream.flat_map(pages, &parse_members!/1)}
+        end
+
+      {result, metadata}
+    end)
   end
 
   @doc """
@@ -450,6 +462,11 @@ defmodule Ltix.MembershipsService do
        service: __MODULE__,
        spec_ref: "NRPS §3.6.1.1"
      )}
+  end
+
+  defp span_metadata(%Client{} = client, opts) do
+    endpoint = Keyword.get(opts, :endpoint) || get_endpoint(client)
+    %{endpoint: endpoint.context_memberships_url}
   end
 
   # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
