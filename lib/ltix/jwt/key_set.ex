@@ -76,24 +76,31 @@ defmodule Ltix.JWT.KeySet do
   end
 
   defp do_get_key(registration, kid, cache, opts, refetched?) do
-    case get_cached_or_fetch(registration.jwks_uri, cache, opts) do
-      {:ok, keys} ->
-        case find_key(keys, kid) do
-          {:ok, jwk} ->
-            {:ok, jwk}
+    with {:ok, {status, keys}} <- get_cached_or_fetch(registration.jwks_uri, cache, opts),
+         {:ok, jwk} <- find_key(keys, kid) do
+      :telemetry.execute([:ltix, :jwks, status], %{}, %{
+        jwks_uri: registration.jwks_uri,
+        kid: kid
+      })
 
-          :not_found when not refetched? ->
-            # [Sec §6.4] Key rotation: re-fetch once on kid miss
-            cache.delete(registration.jwks_uri)
-            do_get_key(registration, kid, cache, opts, _refetched? = true)
+      {:ok, jwk}
+    else
+      :not_found when not refetched? ->
+        # [Sec §6.4] Key rotation: re-fetch once on kid miss
+        cache.delete(registration.jwks_uri)
+        do_get_key(registration, kid, cache, opts, _refetched? = true)
 
-          :not_found ->
-            {:error,
-             KidNotFound.exception(
-               kid: kid,
-               spec_ref: "Sec §6.3"
-             )}
-        end
+      :not_found ->
+        :telemetry.execute([:ltix, :jwks, :cache_miss], %{}, %{
+          jwks_uri: registration.jwks_uri,
+          kid: kid
+        })
+
+        {:error,
+         KidNotFound.exception(
+           kid: kid,
+           spec_ref: "Sec §6.3"
+         )}
 
       {:error, reason} ->
         {:error, Unknown.Unknown.exception(error: reason)}
@@ -102,8 +109,11 @@ defmodule Ltix.JWT.KeySet do
 
   defp get_cached_or_fetch(jwks_uri, cache, opts) do
     case cache.get(jwks_uri) do
-      {:ok, keys} -> {:ok, keys}
-      :miss -> fetch_and_cache(jwks_uri, cache, opts)
+      {:ok, keys} ->
+        {:ok, {:cache_hit, keys}}
+
+      :miss ->
+        fetch_and_cache(jwks_uri, cache, opts)
     end
   end
 
@@ -111,7 +121,7 @@ defmodule Ltix.JWT.KeySet do
     case fetch_jwks(jwks_uri, opts) do
       {:ok, keys, max_age} ->
         if max_age > 0, do: cache.put(jwks_uri, keys, max_age)
-        {:ok, keys}
+        {:ok, {:cache_miss, keys}}
 
       {:error, reason} ->
         {:error, reason}
