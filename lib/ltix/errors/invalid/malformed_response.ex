@@ -1,6 +1,6 @@
 defmodule Ltix.Errors.Invalid.MalformedResponse do
   @moduledoc "Service returned an unparseable response body."
-  use Splode.Error, fields: [:service, :reason, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:service, :reason, :spec_ref], class: :invalid
 
   def message(%{service: service, reason: reason, spec_ref: ref}) when not is_nil(service) do
     "Malformed response from #{inspect(service)}: #{reason} [#{ref}]"

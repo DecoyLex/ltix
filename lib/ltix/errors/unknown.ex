@@ -2,5 +2,5 @@ defmodule Ltix.Errors.Unknown do
   @moduledoc """
   Catch-all error class for unexpected errors.
   """
-  use Splode.ErrorClass, class: :unknown
+  use Ltix.Errors, type: :error_class, class: :unknown
 end

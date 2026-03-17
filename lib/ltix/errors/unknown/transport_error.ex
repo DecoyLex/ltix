@@ -1,6 +1,6 @@
 defmodule Ltix.Errors.Unknown.TransportError do
   @moduledoc "HTTP or connection error from a platform endpoint."
-  use Splode.Error, fields: [:status, :body, :url, :spec_ref], class: :unknown
+  use Ltix.Errors, fields: [:status, :body, :url, :spec_ref], class: :unknown
 
   def message(%{status: status, url: url, spec_ref: ref}) when not is_nil(status) do
     "HTTP #{status} from #{url} [#{ref}]"

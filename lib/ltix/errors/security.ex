@@ -5,5 +5,5 @@ defmodule Ltix.Errors.Security do
   Covers JWT signature failures, token expiry, issuer/audience mismatches,
   algorithm restrictions, nonce replay, CSRF state mismatches, and key ID issues.
   """
-  use Splode.ErrorClass, class: :security
+  use Ltix.Errors, type: :error_class, class: :security
 end

@@ -160,7 +160,7 @@ defmodule MyAppWeb.LtiController do
 
       {:error, reason} ->
         conn
-        |> put_status(400)
+        |> put_status(Ltix.Errors.status_code(reason))
         |> text("Login initiation failed: #{Exception.message(reason)}")
     end
   end
@@ -176,7 +176,7 @@ defmodule MyAppWeb.LtiController do
 
       {:error, reason} ->
         conn
-        |> put_status(401)
+        |> put_status(Ltix.Errors.status_code(reason))
         |> text("Launch validation failed: #{Exception.message(reason)}")
     end
   end

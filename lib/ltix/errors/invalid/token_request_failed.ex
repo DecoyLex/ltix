@@ -1,7 +1,7 @@
 defmodule Ltix.Errors.Invalid.TokenRequestFailed do
   @moduledoc "OAuth token request failed."
 
-  use Splode.Error,
+  use Ltix.Errors,
     fields: [:error, :error_description, :status, :body, :spec_ref],
     class: :invalid
 

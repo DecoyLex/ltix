@@ -5,5 +5,5 @@ defmodule Ltix.Errors.Invalid do
   Covers malformed JWTs, missing/invalid claims, missing OIDC parameters,
   and unknown registrations/deployments.
   """
-  use Splode.ErrorClass, class: :invalid
+  use Ltix.Errors, type: :error_class, class: :invalid
 end

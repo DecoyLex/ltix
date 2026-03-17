@@ -38,6 +38,50 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.Errors.Unknown.Unknown
 
+  doctest Ltix.Errors
+
+  describe "status_code/1" do
+    test "invalid errors return 400" do
+      error = MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
+      assert Errors.status_code(error) == 400
+    end
+
+    test "security errors return 401" do
+      error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3")
+      assert Errors.status_code(error) == 401
+    end
+
+    test "unknown errors return 500" do
+      error = Unknown.exception(error: "something broke")
+      assert Errors.status_code(error) == 500
+    end
+
+    test "error class aggregates return correct codes" do
+      assert Errors.status_code(Errors.Invalid.exception(errors: [])) == 400
+      assert Errors.status_code(Errors.Security.exception(errors: [])) == 401
+      assert Errors.status_code(Errors.Unknown.exception(errors: [])) == 500
+    end
+  end
+
+  if Code.ensure_loaded?(Plug) do
+    describe "Plug.Exception" do
+      test "invalid errors return 400" do
+        error = MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
+        assert Plug.Exception.status(error) == 400
+      end
+
+      test "security errors return 401" do
+        error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3")
+        assert Plug.Exception.status(error) == 401
+      end
+
+      test "unknown errors return 500" do
+        error = Unknown.exception(error: "something broke")
+        assert Plug.Exception.status(error) == 500
+      end
+    end
+  end
+
   describe "error classes" do
     test "invalid errors produce Invalid class" do
       error = MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")

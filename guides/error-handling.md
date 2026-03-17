@@ -14,9 +14,17 @@ without knowing every individual error type.
 | `:security` | `Ltix.Errors.Security` | Security violation — bad signature, expired token, nonce replay |
 | `:unknown` | `Ltix.Errors.Unknown` | Unexpected failure — network errors, bugs |
 
-## Matching on class
+## HTTP status codes
 
-Every Ltix error struct has a `class` field you can match on:
+Every error carries an HTTP status code derived from its class:
+
+| Class | Status |
+|---|---|
+| `:invalid` | 400 |
+| `:security` | 401 |
+| `:unknown` | 500 |
+
+Use `Ltix.Errors.status_code/1` to get it:
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -24,16 +32,41 @@ case Ltix.handle_callback(params, state) do
     handle_launch(conn, context)
 
   {:error, error} ->
+    conn
+    |> put_status(Ltix.Errors.status_code(error))
+    |> text(Exception.message(error))
+end
+```
+
+### Plug.Exception
+
+If your application depends on Plug, Ltix errors automatically implement
+the `Plug.Exception` protocol. Phoenix error views and `Plug.Debugger`
+pick up the correct status code without any extra work on your part.
+
+## Matching on class
+
+Every Ltix error struct has a `class` field you can match on for
+different handling per category:
+
+```elixir
+case Ltix.handle_callback(params, state) do
+  {:ok, context} ->
+    handle_launch(conn, context)
+
+  {:error, error} ->
+    status = Ltix.Errors.status_code(error)
+
     case error.class do
       :invalid ->
-        conn |> put_status(400) |> text("Bad request: #{Exception.message(error)}")
+        conn |> put_status(status) |> text("Bad request: #{Exception.message(error)}")
 
       :security ->
-        conn |> put_status(401) |> text("Unauthorized: #{Exception.message(error)}")
+        conn |> put_status(status) |> text("Unauthorized: #{Exception.message(error)}")
 
       :unknown ->
         Logger.error("LTI launch failed: #{Exception.message(error)}")
-        conn |> put_status(500) |> text("Internal error")
+        conn |> put_status(status) |> text("Internal error")
     end
 end
 ```
