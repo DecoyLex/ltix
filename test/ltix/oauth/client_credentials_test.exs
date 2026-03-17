@@ -9,7 +9,12 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
   @scopes ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
 
   setup do
-    {private_jwk, public_jwk} = Ltix.JWK.generate_key_pair()
+    tool_jwk = Ltix.JWK.generate()
+
+    public_jwk =
+      tool_jwk
+      |> Ltix.JWK.to_jose()
+      |> JOSE.JWK.to_public()
 
     {:ok, registration} =
       Ltix.Registration.new(%{
@@ -18,10 +23,10 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri: "https://platform.example.com/.well-known/jwks.json",
         token_endpoint: "https://platform.example.com/token",
-        tool_jwk: private_jwk
+        tool_jwk: tool_jwk
       })
 
-    %{registration: registration, private_jwk: private_jwk, public_jwk: public_jwk}
+    %{registration: registration, tool_jwk: tool_jwk, public_jwk: public_jwk}
   end
 
   defp req_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
@@ -92,7 +97,6 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
 
     test "JWT header includes typ, alg, and kid", ctx do
       public_jwk = ctx.public_jwk
-      {_kty, private_fields} = JOSE.JWK.to_map(ctx.private_jwk)
 
       Req.Test.stub(__MODULE__, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -108,7 +112,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
 
         assert header["typ"] == "JWT"
         assert header["alg"] == "RS256"
-        assert header["kid"] == private_fields["kid"]
+        assert header["kid"] == ctx.tool_jwk.kid
 
         # Still verify the signature
         {true, _jwt, _jws} = JOSE.JWT.verify(public_jwk, params["client_assertion"])
@@ -236,7 +240,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     end
 
     test "nil token_endpoint returns ServiceNotAvailable" do
-      {private_jwk, _public_jwk} = Ltix.JWK.generate_key_pair()
+      tool_jwk = Ltix.JWK.generate()
 
       {:ok, registration} =
         Ltix.Registration.new(%{
@@ -244,7 +248,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
           client_id: "tool-client-id",
           auth_endpoint: "https://platform.example.com/auth",
           jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-          tool_jwk: private_jwk
+          tool_jwk: tool_jwk
         })
 
       assert {:error, %ServiceNotAvailable{}} =

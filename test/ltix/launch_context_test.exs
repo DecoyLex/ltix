@@ -7,7 +7,7 @@ defmodule Ltix.LaunchContextTest do
   alias Ltix.Registration
   alias Ltix.Test.JWTHelper
 
-  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+  @tool_jwk Ltix.JWK.generate()
 
   describe "%LaunchContext{}" do
     test "wraps claims, registration, and deployment" do

@@ -76,8 +76,7 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
 
       %JOSE.JWS{alg: {_mod, alg}, fields: header} = JOSE.JWT.peek_protected(jwt)
-      {_kty, fields} = JOSE.JWK.to_map(p.registration.tool_jwk)
-      assert header["kid"] == fields["kid"]
+      assert header["kid"] == p.registration.tool_jwk.kid
       assert alg == :RS256
     end
 

@@ -189,12 +189,13 @@ defmodule Ltix.DeepLinking do
 
   # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
   defp sign_jwt(claims, tool_jwk) do
-    {_kty, fields} = JOSE.JWK.to_map(tool_jwk)
+    jose_jwk = Ltix.JWK.to_jose(tool_jwk)
+    {_kty, fields} = JOSE.JWK.to_map(jose_jwk)
     jws = JOSE.JWS.from_map(%{"typ" => "JWT", "alg" => "RS256", "kid" => fields["kid"]})
     jwt = JOSE.JWT.from_map(claims)
 
     {_meta, token} =
-      tool_jwk
+      jose_jwk
       |> JOSE.JWT.sign(jws, jwt)
       |> JOSE.JWS.compact()
 

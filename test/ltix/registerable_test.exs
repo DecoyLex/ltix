@@ -4,7 +4,7 @@ defmodule Ltix.RegisterableTest do
   alias Ltix.Registerable
   alias Ltix.Registration
 
-  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+  @tool_jwk Ltix.JWK.generate()
 
   describe "Ltix.Registration identity implementation" do
     test "returns the registration unchanged" do

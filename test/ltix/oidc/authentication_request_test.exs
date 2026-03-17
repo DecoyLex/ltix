@@ -4,7 +4,7 @@ defmodule Ltix.OIDC.AuthenticationRequestTest do
   alias Ltix.OIDC.AuthenticationRequest
   alias Ltix.Registration
 
-  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+  @tool_jwk Ltix.JWK.generate()
 
   setup do
     {:ok, registration} =

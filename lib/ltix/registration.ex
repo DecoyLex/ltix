@@ -15,9 +15,9 @@ defmodule Ltix.Registration do
     * `:jwks_uri` — HTTPS URL where the platform publishes its public keys
     * `:token_endpoint` — HTTPS URL for OAuth token requests (required for
       Advantage services; `nil` if not using them)
-    * `:tool_jwk` — the tool's private signing key (`JOSE.JWK.t()`),
+    * `:tool_jwk` — the tool's private signing key (`Ltix.JWK.t()`),
       used to sign client assertion JWTs. Generate one with
-      `Ltix.JWK.generate_key_pair/1` and serve the matching public key
+      `Ltix.JWK.generate/1` and serve the matching public key
       from your JWKS endpoint.
 
   ## Examples
@@ -49,7 +49,7 @@ defmodule Ltix.Registration do
           auth_endpoint: String.t(),
           jwks_uri: String.t(),
           token_endpoint: String.t() | nil,
-          tool_jwk: JOSE.JWK.t()
+          tool_jwk: Ltix.JWK.t()
         }
 
   @doc """
@@ -62,7 +62,7 @@ defmodule Ltix.Registration do
   - `auth_endpoint` — HTTPS URL
   - `jwks_uri` — HTTPS URL
   - `token_endpoint` — HTTPS URL (when present)
-  - `tool_jwk` — `JOSE.JWK.t()` (the tool's private signing key for this registration)
+  - `tool_jwk` — `Ltix.JWK.t()` (the tool's private signing key for this registration)
 
   ## Examples
 
@@ -71,7 +71,7 @@ defmodule Ltix.Registration do
       ...>   client_id: "tool-123",
       ...>   auth_endpoint: "https://platform.example.com/auth",
       ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-      ...>   tool_jwk: elem(Ltix.JWK.generate_key_pair(), 0)
+      ...>   tool_jwk: Ltix.JWK.generate()
       ...> })
       iex> reg.issuer
       "https://platform.example.com"
@@ -175,14 +175,14 @@ defmodule Ltix.Registration do
   # [Sec §7.2](https://www.imsglobal.org/spec/security/v1p0/#h_key-management):
   # "A system SHOULD NOT use a single key pair to secure message signing for more
   # than one system." Keys are per-registration, exchanged during setup [Sec §6].
-  defp validate_tool_jwk(%JOSE.JWK{}), do: :ok
+  defp validate_tool_jwk(%Ltix.JWK{}), do: :ok
 
   defp validate_tool_jwk(_) do
     {:error,
      InvalidClaim.exception(
        claim: "tool_jwk",
        value: nil,
-       message: "tool_jwk must be a valid JWK",
+       message: "tool_jwk must be an %Ltix.JWK{} struct",
        spec_ref: "Sec §7.2 (per-registration key)"
      )}
   end

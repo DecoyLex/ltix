@@ -105,8 +105,8 @@ defmodule Ltix.Test do
     {private_key, public_key, kid} = generate_rsa_key_pair()
     jwks = build_jwks([public_key])
 
-    # Tool's own key pair for signing client assertions (separate from platform keys)
-    {tool_private, _tool_public} = Ltix.JWK.generate_key_pair()
+    # Tool's own key for signing client assertions (separate from platform keys)
+    tool_jwk = Ltix.JWK.generate()
 
     # Unique JWKS URI per call for async test safety
     suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
@@ -118,7 +118,7 @@ defmodule Ltix.Test do
         auth_endpoint: "#{issuer}/auth",
         jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
         token_endpoint: "#{issuer}/token",
-        tool_jwk: tool_private
+        tool_jwk: tool_jwk
       })
 
     {:ok, deployment} = Deployment.new(deployment_id)
@@ -335,7 +335,10 @@ defmodule Ltix.Test do
   @spec verify_deep_linking_response(Platform.t(), String.t()) ::
           {:ok, map()} | {:error, term()}
   def verify_deep_linking_response(%Platform{} = platform, jwt) do
-    public_key = JOSE.JWK.to_public(platform.registration.tool_jwk)
+    public_key =
+      platform.registration.tool_jwk
+      |> Ltix.JWK.to_jose()
+      |> JOSE.JWK.to_public()
 
     case JOSE.JWT.verify_strict(public_key, ["RS256"], jwt) do
       {true, %JOSE.JWT{fields: claims}, _jws} -> {:ok, claims}
@@ -346,23 +349,42 @@ defmodule Ltix.Test do
   @doc """
   Generate an RSA key pair for testing.
 
-  Returns `{private_jwk, public_jwk, kid}`. Delegates to `Ltix.JWK.generate_key_pair/0`.
+  Returns `{private_jwk, public_jwk, kid}` as `JOSE.JWK.t()` values.
+  Used internally for platform-side keys in test helpers.
   """
   @spec generate_rsa_key_pair() :: {JOSE.JWK.t(), JOSE.JWK.t(), String.t()}
   def generate_rsa_key_pair do
-    {private_jwk, public_jwk} = Ltix.JWK.generate_key_pair()
-    {_kty, fields} = JOSE.JWK.to_map(private_jwk)
-    {private_jwk, public_jwk, fields["kid"]}
+    private_jwk =
+      {:rsa, 2048}
+      |> JOSE.JWK.generate_key()
+      |> JOSE.JWK.merge(%{"alg" => "RS256", "use" => "sig"})
+
+    kid = JOSE.JWK.thumbprint(private_jwk)
+    private_jwk = JOSE.JWK.merge(private_jwk, %{"kid" => kid})
+    public_jwk = JOSE.JWK.to_public(private_jwk)
+
+    {private_jwk, public_jwk, kid}
   end
 
   @doc """
   Build a JWKS map from a list of public JWKs.
 
-  Returns `%{"keys" => [...]}`. Delegates to `Ltix.JWK.to_jwks/1`.
+  Returns `%{"keys" => [...]}`. Accepts `JOSE.JWK.t()` values
+  (platform-side keys used in test helpers).
   """
   @spec build_jwks([JOSE.JWK.t()]) :: map()
   def build_jwks(public_keys) do
-    Ltix.JWK.to_jwks(public_keys)
+    keys =
+      Enum.map(public_keys, fn jwk ->
+        {_kty, fields} =
+          jwk
+          |> JOSE.JWK.to_public()
+          |> JOSE.JWK.to_map()
+
+        fields
+      end)
+
+    %{"keys" => keys}
   end
 
   @doc """
@@ -378,10 +400,7 @@ defmodule Ltix.Test do
     kid = Keyword.get(opts, :kid)
     alg = Keyword.get(opts, :alg, "RS256")
 
-    jws_fields =
-      then(%{"alg" => alg}, fn fields ->
-        if kid, do: Map.put(fields, "kid", kid), else: fields
-      end)
+    jws_fields = if kid, do: %{"alg" => alg, "kid" => kid}, else: %{"alg" => alg}
 
     jws = JOSE.JWS.from_map(jws_fields)
     jwt = JOSE.JWT.from_map(claims)
@@ -657,6 +676,5 @@ defmodule Ltix.Test do
   defp maybe_put_lti(map, _key, nil), do: map
   defp maybe_put_lti(map, key, value), do: Map.put(map, @lti_claim_prefix <> key, value)
 
-  defp merge_overrides(claims, overrides) when map_size(overrides) == 0, do: claims
   defp merge_overrides(claims, overrides), do: Map.merge(claims, overrides)
 end

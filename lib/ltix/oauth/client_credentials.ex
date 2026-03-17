@@ -81,7 +81,8 @@ defmodule Ltix.OAuth.ClientCredentials do
   # Build and sign the JWT client assertion with all MUST claims.
   defp build_assertion(%Registration{} = registration) do
     now = System.system_time(:second)
-    {_kty, fields} = JOSE.JWK.to_map(registration.tool_jwk)
+    jose_jwk = Ltix.JWK.to_jose(registration.tool_jwk)
+    {_kty, fields} = JOSE.JWK.to_map(jose_jwk)
 
     claims = %{
       "iss" => registration.client_id,
@@ -97,7 +98,7 @@ defmodule Ltix.OAuth.ClientCredentials do
     jwt = JOSE.JWT.from_map(claims)
 
     {_meta, token} =
-      registration.tool_jwk
+      jose_jwk
       |> JOSE.JWT.sign(jws, jwt)
       |> JOSE.JWS.compact()
 

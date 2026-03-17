@@ -5,7 +5,7 @@ defmodule Ltix.RegistrationTest do
 
   doctest Ltix.Registration
 
-  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+  @tool_jwk Ltix.JWK.generate()
 
   @valid_attrs %{
     issuer: "https://platform.example.com",
@@ -93,7 +93,7 @@ defmodule Ltix.RegistrationTest do
     end
 
     test "stores tool_jwk on registration" do
-      assert {:ok, %Registration{tool_jwk: %JOSE.JWK{}}} = Registration.new(@valid_attrs)
+      assert {:ok, %Registration{tool_jwk: %Ltix.JWK{}}} = Registration.new(@valid_attrs)
     end
 
     # [Sec §7.2] Keys are per-registration

@@ -16,7 +16,7 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
       oauth_client_id: "tool-client-id",
       oidc_auth_url: "https://platform.example.com/auth",
       platform_jwks_url: "https://platform.example.com/.well-known/jwks.json",
-      signing_key: private
+      signing_key: Ltix.JWK.generate()
     }
 
     custom_dep = %CustomDeployment{

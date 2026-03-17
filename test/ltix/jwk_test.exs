@@ -5,127 +5,174 @@ defmodule Ltix.JWKTest do
 
   doctest Ltix.JWK
 
-  describe "generate_key_pair/1" do
-    test "default generates 2048-bit RSA key pair" do
-      {private, public} = JWK.generate_key_pair()
-
-      {_kty, priv_fields} = JOSE.JWK.to_map(private)
-      {_kty, pub_fields} = JOSE.JWK.to_map(public)
-
-      assert priv_fields["kty"] == "RSA"
-      assert pub_fields["kty"] == "RSA"
+  describe "generate/1" do
+    test "returns a %Ltix.JWK{} struct" do
+      assert %JWK{} = JWK.generate()
     end
 
-    test "custom key size" do
-      {private, _public} = JWK.generate_key_pair(key_size: 4096)
+    test "private_key_pem is a valid PEM" do
+      jwk = JWK.generate()
+      assert String.starts_with?(jwk.private_key_pem, "-----BEGIN")
+      assert String.contains?(jwk.private_key_pem, "PRIVATE KEY-----")
+    end
 
-      {_kty, fields} = JOSE.JWK.to_map(private)
-      assert fields["kty"] == "RSA"
+    test "kid is a non-empty string" do
+      jwk = JWK.generate()
+      assert is_binary(jwk.kid)
+      assert byte_size(jwk.kid) > 0
+    end
 
-      # 4096-bit key has a larger modulus than 2048-bit
-      n_bytes =
-        fields["n"]
-        |> Base.url_decode64!(padding: false)
-        |> byte_size()
+    test "kid is deterministic (thumbprint-based)" do
+      jwk = JWK.generate()
 
-      assert n_bytes > 256
+      # Reconstruct the kid from the PEM to verify it matches
+      recomputed_kid =
+        jwk.private_key_pem
+        |> JOSE.JWK.from_pem()
+        |> JOSE.JWK.thumbprint()
+
+      assert jwk.kid == recomputed_kid
     end
 
     test "rejects key size below 2048" do
       assert_raise Zoi.ParseError, ~r/must be at least 2048/, fn ->
-        JWK.generate_key_pair(key_size: 1024)
+        JWK.generate(key_size: 1024)
       end
     end
 
-    test "private key contains RSA private material" do
-      {private, _public} = JWK.generate_key_pair()
+    test "each call generates a unique key" do
+      jwk1 = JWK.generate()
+      jwk2 = JWK.generate()
 
-      {_kty, fields} = JOSE.JWK.to_map(private)
-      assert Map.has_key?(fields, "d")
-      assert Map.has_key?(fields, "p")
-      assert Map.has_key?(fields, "q")
+      refute jwk1.private_key_pem == jwk2.private_key_pem
+      refute jwk1.kid == jwk2.kid
+    end
+  end
+
+  describe "new/1" do
+    setup do
+      jwk = JWK.generate()
+      %{pem: jwk.private_key_pem, kid: jwk.kid}
     end
 
-    test "public key contains only public material" do
-      {_private, public} = JWK.generate_key_pair()
-
-      {_kty, fields} = JOSE.JWK.to_map(public)
-      assert Map.has_key?(fields, "n")
-      assert Map.has_key?(fields, "e")
-      refute Map.has_key?(fields, "d")
-      refute Map.has_key?(fields, "p")
-      refute Map.has_key?(fields, "q")
+    test "valid PEM and kid returns {:ok, %Ltix.JWK{}}", ctx do
+      assert {:ok, %JWK{} = jwk} = JWK.new(private_key_pem: ctx.pem, kid: ctx.kid)
+      assert jwk.private_key_pem == ctx.pem
+      assert jwk.kid == ctx.kid
     end
 
-    # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
-    test "both keys share the same kid" do
-      {private, public} = JWK.generate_key_pair()
-
-      {_kty, priv_fields} = JOSE.JWK.to_map(private)
-      {_kty, pub_fields} = JOSE.JWK.to_map(public)
-
-      assert priv_fields["kid"] == pub_fields["kid"]
-      assert is_binary(priv_fields["kid"])
-      assert byte_size(priv_fields["kid"]) > 0
+    test "missing private_key_pem returns error" do
+      assert {:error, error} = JWK.new(kid: "some-kid")
+      assert Exception.message(error) =~ "private_key_pem"
     end
 
-    # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
-    test "keys include alg RS256 and use sig" do
-      {private, public} = JWK.generate_key_pair()
-
-      {_kty, priv_fields} = JOSE.JWK.to_map(private)
-      {_kty, pub_fields} = JOSE.JWK.to_map(public)
-
-      assert priv_fields["alg"] == "RS256"
-      assert priv_fields["use"] == "sig"
-      assert pub_fields["alg"] == "RS256"
-      assert pub_fields["use"] == "sig"
+    test "missing kid returns error" do
+      jwk = JWK.generate()
+      assert {:error, error} = JWK.new(private_key_pem: jwk.private_key_pem)
+      assert Exception.message(error) =~ "kid"
     end
 
-    test "each call generates a unique kid" do
-      {priv1, _} = JWK.generate_key_pair()
-      {priv2, _} = JWK.generate_key_pair()
+    test "empty string kid returns error" do
+      jwk = JWK.generate()
+      assert {:error, error} = JWK.new(private_key_pem: jwk.private_key_pem, kid: "")
+      assert Exception.message(error) =~ "kid"
+    end
 
-      {_kty, fields1} = JOSE.JWK.to_map(priv1)
-      {_kty, fields2} = JOSE.JWK.to_map(priv2)
+    test "non-PEM string returns error" do
+      assert {:error, error} = JWK.new(private_key_pem: "not-a-pem", kid: "some-kid")
+      assert Exception.message(error) =~ "private_key_pem"
+    end
 
-      refute fields1["kid"] == fields2["kid"]
+    test "PEM containing an EC key returns error" do
+      # Generate an EC key PEM
+      ec_key = :public_key.generate_key({:namedCurve, :secp256r1})
+      ec_pem = :public_key.pem_encode([:public_key.pem_entry_encode(:ECPrivateKey, ec_key)])
+
+      assert {:error, error} = JWK.new(private_key_pem: ec_pem, kid: "ec-kid")
+      assert Exception.message(error) =~ "RSA private key"
+    end
+
+    test "PEM containing a public key returns error" do
+      jwk = JWK.generate()
+      public_pem = JWK.to_public_key(jwk)
+
+      assert {:error, error} = JWK.new(private_key_pem: public_pem, kid: "pub-kid")
+      assert Exception.message(error) =~ "RSA private key"
     end
   end
 
   describe "to_jwks/1" do
-    test "returns valid JWKS map with keys array" do
-      {_private, public} = JWK.generate_key_pair()
-
-      jwks = JWK.to_jwks([public])
+    test "single JWK returns %{keys => [key]} with one entry" do
+      jwk = JWK.generate()
+      jwks = JWK.to_jwks(jwk)
 
       assert %{"keys" => [key]} = jwks
       assert key["kty"] == "RSA"
-      assert Map.has_key?(key, "kid")
     end
 
-    test "includes multiple keys" do
-      {_, pub1} = JWK.generate_key_pair()
-      {_, pub2} = JWK.generate_key_pair()
+    test "list of JWKs returns matching count" do
+      jwk1 = JWK.generate()
+      jwk2 = JWK.generate()
 
-      jwks = JWK.to_jwks([pub1, pub2])
+      jwks = JWK.to_jwks([jwk1, jwk2])
 
       assert %{"keys" => keys} = jwks
       assert length(keys) == 2
     end
 
-    test "strips private material from output" do
-      {private, _public} = JWK.generate_key_pair()
+    test "output keys contain kty, n, e, kid, alg, use" do
+      jwk = JWK.generate()
+      %{"keys" => [key]} = JWK.to_jwks(jwk)
 
-      # Pass the private key — to_jwks should still only output public material
-      jwks = JWK.to_jwks([private])
-
-      [key] = jwks["keys"]
+      assert Map.has_key?(key, "kty")
       assert Map.has_key?(key, "n")
       assert Map.has_key?(key, "e")
+      assert Map.has_key?(key, "kid")
+      assert Map.has_key?(key, "alg")
+      assert Map.has_key?(key, "use")
+    end
+
+    test "output keys do NOT contain private material" do
+      jwk = JWK.generate()
+      %{"keys" => [key]} = JWK.to_jwks(jwk)
+
       refute Map.has_key?(key, "d")
       refute Map.has_key?(key, "p")
       refute Map.has_key?(key, "q")
+      refute Map.has_key?(key, "dp")
+      refute Map.has_key?(key, "dq")
+      refute Map.has_key?(key, "qi")
+    end
+
+    test "kid in output matches the struct's kid field" do
+      jwk = JWK.generate()
+      %{"keys" => [key]} = JWK.to_jwks(jwk)
+
+      assert key["kid"] == jwk.kid
+    end
+
+    test "alg is RS256, use is sig" do
+      jwk = JWK.generate()
+      %{"keys" => [key]} = JWK.to_jwks(jwk)
+
+      assert key["alg"] == "RS256"
+      assert key["use"] == "sig"
+    end
+  end
+
+  describe "to_public_key/1" do
+    test "returns a string starting with BEGIN" do
+      jwk = JWK.generate()
+      public_pem = JWK.to_public_key(jwk)
+
+      assert String.starts_with?(public_pem, "-----BEGIN")
+    end
+
+    test "does not contain private key material" do
+      jwk = JWK.generate()
+      public_pem = JWK.to_public_key(jwk)
+
+      refute String.contains?(public_pem, "PRIVATE")
     end
   end
 end

@@ -4,7 +4,7 @@ defmodule Ltix.JWT.KeySetTest do
   alias Ltix.JWT.KeySet
   alias Ltix.Test.JWTHelper
 
-  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+  @tool_jwk Ltix.JWK.generate()
 
   setup do
     {_private, public, kid} = JWTHelper.generate_rsa_key_pair()

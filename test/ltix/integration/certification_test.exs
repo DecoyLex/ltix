@@ -23,7 +23,7 @@ defmodule Ltix.Integration.CertificationTest do
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        tool_jwk: private
+        tool_jwk: Ltix.JWK.generate()
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")

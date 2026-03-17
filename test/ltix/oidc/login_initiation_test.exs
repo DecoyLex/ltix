@@ -6,7 +6,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
   alias Ltix.OIDC.LoginInitiation
   alias Ltix.Test.StorageAdapter
 
-  @tool_jwk elem(Ltix.JWK.generate_key_pair(), 0)
+  @tool_jwk Ltix.JWK.generate()
 
   setup do
     {:ok, registration} =

@@ -40,6 +40,10 @@ defmodule Ltix.AppConfig do
     Application.get_env(:ltix, :allow_anonymous, false)
   end
 
+  def default_key_size do
+    Application.get_env(:ltix, :default_key_size, 4096)
+  end
+
   def pop_required!(opts, key) do
     with {nil, _opts} <- Keyword.pop(opts, key),
          nil <- Application.get_env(:ltix, key) do

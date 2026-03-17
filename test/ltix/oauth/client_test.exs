@@ -41,7 +41,7 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   defp build_registration do
-    {private_jwk, _public_jwk} = Ltix.JWK.generate_key_pair()
+    tool_jwk = Ltix.JWK.generate()
 
     {:ok, registration} =
       Ltix.Registration.new(%{
@@ -50,7 +50,7 @@ defmodule Ltix.OAuth.ClientTest do
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri: "https://platform.example.com/.well-known/jwks.json",
         token_endpoint: "https://platform.example.com/token",
-        tool_jwk: private_jwk
+        tool_jwk: tool_jwk
       })
 
     registration
