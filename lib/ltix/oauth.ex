@@ -40,6 +40,7 @@ defmodule Ltix.OAuth do
   #{Zoi.describe(@authenticate_schema)}
   """
 
+  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Registration
@@ -59,8 +60,7 @@ defmodule Ltix.OAuth do
 
     with :ok <- validate_endpoints(endpoints),
          scopes = collect_scopes(endpoints),
-         {:ok, token} <-
-           ClientCredentials.request_token(registration, scopes, req_options: req_options) do
+         {:ok, token} <- do_request_token(registration, scopes, req_options) do
       {:ok,
        %Client{
          access_token: token.access_token,
@@ -97,5 +97,28 @@ defmodule Ltix.OAuth do
     endpoints
     |> Enum.flat_map(fn {module, endpoint} -> module.scopes(endpoint) end)
     |> Enum.uniq()
+  end
+
+  defp do_request_token(registration, scopes, req_options) do
+    metadata = %{scopes_requested: scopes}
+
+    :telemetry.span([:ltix, :oauth, :authenticate], metadata, fn ->
+      result = ClientCredentials.request_token(registration, scopes, req_options: req_options)
+      {result, Map.merge(metadata, stop_metadata(scopes, result))}
+    end)
+  end
+
+  defp stop_metadata(scopes_requested, {:ok, %AccessToken{} = token}) do
+    expires_in = DateTime.diff(token.expires_at, DateTime.utc_now())
+
+    %{
+      scopes_requested: scopes_requested,
+      scopes_granted: token.granted_scopes,
+      expires_in: expires_in
+    }
+  end
+
+  defp stop_metadata(scopes_requested, {:error, _}) do
+    %{scopes_requested: scopes_requested, scopes_granted: nil, expires_in: nil}
   end
 end
