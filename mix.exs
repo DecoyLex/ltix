@@ -77,6 +77,7 @@ defmodule Ltix.MixProject do
         "guides/memberships-service.md",
         "guides/grade-service.md",
         "guides/jwk-management.md",
+        "guides/telemetry.md",
         "guides/cookbooks/auto-create-deployments.md",
         "guides/cookbooks/testing-lti-launches.md",
         "guides/cookbooks/jwk-management.md",
@@ -138,7 +139,8 @@ defmodule Ltix.MixProject do
           "guides/deep-linking.md",
           "guides/memberships-service.md",
           "guides/grade-service.md",
-          "guides/jwk-management.md"
+          "guides/jwk-management.md",
+          "guides/telemetry.md"
         ],
         Cookbooks: [
           "guides/cookbooks/auto-create-deployments.md",
