@@ -171,7 +171,12 @@ defmodule Ltix do
   def handle_login(params, redirect_uri, opts \\ []) do
     {storage_adapter, _opts} = AppConfig.pop_required!(opts, :storage_adapter)
 
-    LoginInitiation.call(params, storage_adapter, redirect_uri)
+    meta = span_metadata(:handle_login_start, params)
+
+    :telemetry.span([:ltix, :login], meta, fn ->
+      result = LoginInitiation.call(params, storage_adapter, redirect_uri)
+      {result, meta}
+    end)
   end
 
   @doc """
@@ -201,6 +206,37 @@ defmodule Ltix do
     {storage_adapter, opts} = AppConfig.pop_required!(opts, :storage_adapter)
     opts = Keyword.put_new(opts, :allow_anonymous, AppConfig.allow_anonymous_launches?())
 
-    Callback.call(params, state, storage_adapter, opts)
+    :telemetry.span([:ltix, :callback], %{}, fn ->
+      result = Callback.call(params, state, storage_adapter, opts)
+
+      metadata = span_metadata(:handle_callback_stop, result)
+      {result, metadata}
+    end)
+  end
+
+  defp span_metadata(:handle_login_start, params) do
+    %{
+      issuer: params["iss"],
+      client_id: params["client_id"],
+      redirect_uri: params["redirect_uri"]
+    }
+  end
+
+  defp span_metadata(:handle_callback_stop, {:ok, %LaunchContext{claims: claims}}) do
+    %{
+      issuer: claims.issuer,
+      client_id: claims.audience,
+      deployment_id: claims.deployment_id,
+      message_type: claims.message_type
+    }
+  end
+
+  defp span_metadata(:handle_callback_stop, {:error, _error}) do
+    %{
+      issuer: nil,
+      client_id: nil,
+      deployment_id: nil,
+      message_type: nil
+    }
   end
 end
