@@ -92,19 +92,32 @@ defmodule Ltix.DeepLinking do
         items,
         opts
       ) do
-    settings = context.claims.deep_linking_settings
+    metadata = %{
+      item_count: length(items),
+      item_types:
+        items
+        |> Enum.map(&ContentItem.item_type/1)
+        |> Enum.uniq()
+    }
 
-    with {:ok, opts} <- validate_opts(opts),
-         {:ok, registration} <- Registerable.to_registration(context.registration),
-         {:ok, deployment} <- Deployable.to_deployment(context.deployment),
-         :ok <- validate_item_types(items, settings.accept_types),
-         :ok <- validate_multiplicity(items, settings.accept_multiple),
-         :ok <- validate_line_items(items, settings.accept_lineitem) do
-      items_json = Enum.map(items, &ContentItem.to_json/1)
-      claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
-      jwt = sign_jwt(claims, registration.tool_jwk)
-      {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
-    end
+    :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
+      settings = context.claims.deep_linking_settings
+
+      result =
+        with {:ok, opts} <- validate_opts(opts),
+             {:ok, registration} <- Registerable.to_registration(context.registration),
+             {:ok, deployment} <- Deployable.to_deployment(context.deployment),
+             :ok <- validate_item_types(items, settings.accept_types),
+             :ok <- validate_multiplicity(items, settings.accept_multiple),
+             :ok <- validate_line_items(items, settings.accept_lineitem) do
+          items_json = Enum.map(items, &ContentItem.to_json/1)
+          claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
+          jwt = sign_jwt(claims, registration.tool_jwk)
+          {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
+        end
+
+      {result, metadata}
+    end)
   end
 
   def build_response(%LaunchContext{claims: %{message_type: mt}}, _items, _opts) do
