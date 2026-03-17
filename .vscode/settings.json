@@ -1,12 +1,21 @@
 {
     "markdown.styles": [".vscode/markdown-preview.css"],
     "cSpell.words": [
+        "afterend",
         "Brightspace",
+        "Cachex",
+        "exdoc",
+        "gradebook",
         "lineitem",
+        "lineitemcontainer",
+        "lineitems",
         "Ltix",
         "membershipcontainer",
         "Moodle",
         "NRPS",
+        "passback",
+        "refetched",
+        "resultcontainer",
         "rlid",
         "sourcedid",
         "Splode"
