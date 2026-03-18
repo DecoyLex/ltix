@@ -45,8 +45,9 @@ defmodule Ltix do
 
     * `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` for
       caching platform public keys. Defaults to
-      `Ltix.JWT.KeySet.EtsCache`. A `Ltix.JWT.KeySet.CachexCache`
-      adapter is also provided.
+      `Ltix.JWT.KeySet.EtsCache`, which must be started in your
+      supervision tree. A `Ltix.JWT.KeySet.CachexCache` adapter is
+      also provided.
 
     * `:cachex_cache_name` — Cachex cache name when using
       `Ltix.JWT.KeySet.CachexCache`. Defaults to `:ltix_jwks`.
