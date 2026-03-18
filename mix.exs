@@ -80,7 +80,7 @@ defmodule Ltix.MixProject do
         "guides/telemetry.md",
         "guides/cookbooks/auto-create-deployments.md",
         "guides/cookbooks/testing-lti-launches.md",
-        "guides/cookbooks/jwk-management.md",
+        "guides/cookbooks/managing-jwks-with-ecto.md",
         "guides/cookbooks/score-construction.md",
         "guides/cookbooks/background-grade-sync.md",
         "guides/cookbooks/canvas-grade-extensions.md",
@@ -151,7 +151,7 @@ defmodule Ltix.MixProject do
         Cookbooks: [
           "guides/cookbooks/auto-create-deployments.md",
           "guides/cookbooks/testing-lti-launches.md",
-          "guides/cookbooks/jwk-management.md",
+          "guides/cookbooks/managing-jwks-with-ecto.md",
           "guides/cookbooks/score-construction.md",
           "guides/cookbooks/background-grade-sync.md",
           "guides/cookbooks/canvas-grade-extensions.md",

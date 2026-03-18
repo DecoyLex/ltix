@@ -43,7 +43,7 @@ Private material is stripped automatically.
 
 For tools with a single registration, you can hard-code a single key.
 For tools managing multiple registrations, see the
-[Managing JWKs with Ecto](cookbooks/jwk-management.md) cookbook for a
+[Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) cookbook for a
 database-backed approach with key rotation.
 
 ## Key rotation
@@ -68,7 +68,7 @@ Ltix.JWK.to_jwks([old_jwk, new_jwk])
 
 ## Next steps
 
-- [Managing JWKs with Ecto](cookbooks/jwk-management.md): database
+- [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md): database
   storage, JWKS controller, and automated rotation
 - [Advantage Services](advantage-services.md): how keys are used
   in service authentication
