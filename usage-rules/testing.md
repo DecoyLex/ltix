@@ -94,7 +94,7 @@ end
 
 ## Claim Customization
 
-Both `launch_params/2` and `build_launch_context/2` accept the same options:
+`launch_params/2` and `build_launch_context/2` share most options:
 
 - `:roles` — list of atoms (`:instructor`, `:learner`, `:teaching_assistant`, etc.),
   `%Role{}` structs, or URI strings
@@ -104,9 +104,12 @@ Both `launch_params/2` and `build_launch_context/2` accept the same options:
 - `:resource_link` — map with `:id`, `:title` keys
 - `:message_type` — `:deep_linking` for deep linking requests
 - `:deep_linking_settings` — map of settings (for deep linking)
+- `:claims` — raw claim map merged last (for advanced overrides)
+
+`build_launch_context/2` also accepts:
+
 - `:memberships_endpoint` — URL string or map (enables memberships service in tests)
 - `:ags_endpoint` — map with `:lineitems`, `:lineitem`, `:scope` (enables grade service)
-- `:claims` — raw claim map merged last (for advanced overrides)
 
 ## Login and Callback Options
 

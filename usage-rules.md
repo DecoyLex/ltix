@@ -39,6 +39,12 @@ preferred structure before creating modules.
 
 - Construct with `Registration.new/1` and `Deployment.new/1` (Zoi-validated). **Never**
   build `%Registration{}` or `%Deployment{}` structs directly — always go through `new/1`.
+- Storage adapters return structs implementing `Ltix.Registerable` and `Ltix.Deployable`
+  protocols. These can be your own Ecto schemas — the library extracts the `Registration`
+  and `Deployment` it needs internally. `%Registration{}` and `%Deployment{}` implement
+  both protocols as identity transforms, so returning them directly still works.
+- The original struct from the storage adapter is preserved in `LaunchContext`, so you can
+  access your own fields (DB IDs, tenant info) without extra queries after launch.
 - Issuer must be an HTTPS URL with no query or fragment components.
 - All endpoints (`auth_endpoint`, `jwks_uri`, `token_endpoint`) must be HTTPS.
 - `client_id` is a non-empty string.
@@ -58,8 +64,10 @@ These are the 4 required callbacks:
    pattern to avoid race conditions.
 
 Return types:
-- `get_registration/2`: `{:ok, Registerable.t()} | {:error, :not_found}` — any struct implementing `Ltix.Registerable`
-- `get_deployment/2`: `{:ok, Deployable.t()} | {:error, :not_found}` — any struct implementing `Ltix.Deployable`
+- `get_registration/2`: `{:ok, Registerable.t()} | {:error, :not_found}` — any struct
+  implementing `Ltix.Registerable` (including `%Registration{}` itself)
+- `get_deployment/2`: `{:ok, Deployable.t()} | {:error, :not_found}` — any struct
+  implementing `Ltix.Deployable` (including `%Deployment{}` itself)
 - `store_nonce/2`: `:ok`
 - `validate_nonce/2`: `:ok | {:error, :nonce_already_used | :nonce_not_found}`
 
@@ -77,19 +85,22 @@ Errors use the Splode framework with three classes:
 - `:security` — bad signature, expired token, nonce replay (HTTP 401/403)
 - `:unknown` — network errors, unexpected failures (HTTP 500)
 
-Most errors carry a `.spec_ref` field pointing to the violated spec passage. Match on
-specific error modules for targeted handling, or fall back to `.class` for broad categories:
+Most errors carry a `.spec_ref` field pointing to the violated spec passage. Use
+`Ltix.Errors.status_code/1` to get the HTTP status for any error (invalid=400,
+security=401, unknown=500). When Plug is a dependency, all errors also implement
+`Plug.Exception`, so Phoenix error views pick up the correct status automatically.
+
+Match on specific error modules for targeted handling, or fall back to `.class` for broad
+categories:
 
 ```elixir
 case Ltix.handle_callback(params, state) do
   {:ok, context} -> # success
   {:error, %Ltix.Errors.Invalid.DeploymentNotFound{}} -> # auto-create or onboard
   {:error, error} ->
-    case Ltix.Errors.class(error) do
-      :security -> # 401
-      :invalid -> # 400
-      :unknown -> # 500
-    end
+    status = Ltix.Errors.status_code(error)
+    class = Ltix.Errors.class(error)
+    # ...
 end
 ```
 
@@ -139,8 +150,26 @@ end
 - `:allow_anonymous` — allow launches without a `sub` claim (default: `false`)
 - `:json_library` — auto-detected (`JSON` on Elixir 1.18+/OTP 27+, else `Jason`)
 - `:req_options` — default HTTP options for all outgoing requests
-- `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` (default: ETS-based)
+- `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` (default:
+  `Ltix.JWT.KeySet.EtsCache`). The default ETS cache is a GenServer that must be started
+  in your supervision tree: `children = [Ltix.JWT.KeySet.EtsCache]`
 - Custom claim/role parsers under the `Ltix.LaunchClaims` config key
+
+## Telemetry
+
+Ltix emits `:telemetry` events across the OIDC flow, Advantage services, OAuth, JWKS
+cache, and deep linking. All span events follow the `[:ltix, <component>, ...]` naming
+convention with `:start`, `:stop`, and `:exception` suffixes.
+
+Key event prefixes:
+- `[:ltix, :login, ...]` and `[:ltix, :callback, ...]` — OIDC launch flow
+- `[:ltix, :grade_service, <action>, ...]` — grade service operations
+- `[:ltix, :memberships_service, <action>, ...]` — memberships service operations
+- `[:ltix, :deep_linking, :build_response, ...]` — deep linking response building
+- `[:ltix, :oauth, :authenticate, ...]` — OAuth token acquisition
+- `[:ltix, :jwks, :cache_hit]` and `[:ltix, :jwks, :cache_miss]` — single events (not spans)
+
+See the [telemetry guide](https://hexdocs.pm/ltix/telemetry.md) for full metadata details.
 
 ## Finding Documentation
 
@@ -171,6 +200,7 @@ https://hexdocs.pm/ltix/grade-service.md
 https://hexdocs.pm/ltix/memberships-service.md
 https://hexdocs.pm/ltix/working-with-roles.md
 https://hexdocs.pm/ltix/jwk-management.md
+https://hexdocs.pm/ltix/telemetry.md
 
 # Cookbooks
 https://hexdocs.pm/ltix/testing-lti-launches.md
@@ -179,6 +209,8 @@ https://hexdocs.pm/ltix/building-content-items.md
 https://hexdocs.pm/ltix/token-caching-and-reuse.md
 https://hexdocs.pm/ltix/auto-create-deployments.md
 https://hexdocs.pm/ltix/background-grade-sync.md
+https://hexdocs.pm/ltix/managing-jwks-with-ecto.md
+https://hexdocs.pm/ltix/canvas-grade-extensions.md
 ```
 
 Use the `.md` URLs with `curl` or web fetch tools for detailed reference when the mix
