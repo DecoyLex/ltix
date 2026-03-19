@@ -563,7 +563,7 @@ defmodule Ltix.Test do
     }
   end
 
-  defp build_context(nil), do: nil
+  defp build_context(nil), do: %Context{id: "context-001"}
 
   defp build_context(map) when is_map(map) do
     %Context{
@@ -586,7 +586,7 @@ defmodule Ltix.Test do
     }
   end
 
-  defp build_context_claim(nil), do: nil
+  defp build_context_claim(nil), do: %{"id" => "context-001"}
 
   defp build_context_claim(map) when is_map(map) do
     claim = %{"id" => Map.get(map, :id, "context-001")}

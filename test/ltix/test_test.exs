@@ -129,6 +129,15 @@ defmodule Ltix.TestTest do
 
       assert context.claims.subject == "student-42"
     end
+
+    test "includes a default context when none is specified", %{platform: platform} do
+      {:ok, login_result} = do_login(platform)
+      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+
+      {:ok, context} = do_callback(platform, login_result, nonce, [])
+
+      assert context.claims.context.id == "context-001"
+    end
   end
 
   describe "build_launch_context/2" do
@@ -163,6 +172,23 @@ defmodule Ltix.TestTest do
 
       assert Role.teaching_assistant?(context.claims.roles)
       assert Role.instructor?(context.claims.roles)
+    end
+
+    test "includes a default context when none is specified", %{platform: platform} do
+      context = Ltix.Test.build_launch_context(platform)
+
+      assert context.claims.context.id == "context-001"
+    end
+
+    test "explicit context overrides the default", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform,
+          context: %{id: "my-course", label: "CS101", title: "Intro to CS"}
+        )
+
+      assert context.claims.context.id == "my-course"
+      assert context.claims.context.label == "CS101"
+      assert context.claims.context.title == "Intro to CS"
     end
   end
 
