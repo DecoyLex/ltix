@@ -19,6 +19,9 @@ defmodule Ltix.Test.StorageAdapter do
 
   @behaviour Ltix.StorageAdapter
 
+  alias Ltix.Deployable
+  alias Ltix.Registerable
+
   use Agent
 
   @doc """
@@ -50,9 +53,9 @@ defmodule Ltix.Test.StorageAdapter do
   @impl Ltix.StorageAdapter
   def get_registration(issuer, client_id) do
     Agent.get(get_pid(), fn state ->
-      state.registrations
-      |> Enum.find(fn reg ->
-        reg.issuer == issuer and (client_id == nil or reg.client_id == client_id)
+      Enum.find(state.registrations, fn reg ->
+        {:ok, resolved} = Registerable.to_registration(reg)
+        resolved.issuer == issuer and (client_id == nil or resolved.client_id == client_id)
       end)
       |> case do
         nil -> {:error, :not_found}
@@ -64,8 +67,10 @@ defmodule Ltix.Test.StorageAdapter do
   @impl Ltix.StorageAdapter
   def get_deployment(_registration, deployment_id) do
     Agent.get(get_pid(), fn state ->
-      state.deployments
-      |> Enum.find(fn dep -> dep.deployment_id == deployment_id end)
+      Enum.find(state.deployments, fn dep ->
+        {:ok, resolved} = Deployable.to_deployment(dep)
+        resolved.deployment_id == deployment_id
+      end)
       |> case do
         nil -> {:error, :not_found}
         dep -> {:ok, dep}

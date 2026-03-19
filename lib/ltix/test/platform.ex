@@ -9,14 +9,14 @@ defmodule Ltix.Test.Platform do
   Created by `Ltix.Test.setup_platform!/1`.
   """
 
-  alias Ltix.Deployment
-  alias Ltix.Registration
+  alias Ltix.Deployable
+  alias Ltix.Registerable
 
   defstruct [:registration, :deployment, :private_key, :public_key, :kid, :jwks]
 
   @type t :: %__MODULE__{
-          registration: Registration.t(),
-          deployment: Deployment.t(),
+          registration: Registerable.t(),
+          deployment: Deployable.t(),
           private_key: JOSE.JWK.t(),
           public_key: JOSE.JWK.t(),
           kid: String.t(),

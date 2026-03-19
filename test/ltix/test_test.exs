@@ -201,6 +201,85 @@ defmodule Ltix.TestTest do
     end
   end
 
+  describe "setup_platform!/1 with custom structs" do
+    setup do
+      tool_jwk = Ltix.JWK.generate()
+
+      registration = %CustomRegistration{
+        id: "reg-uuid-001",
+        tenant_id: "tenant-1",
+        platform_issuer: "https://custom-lms.example.com",
+        oauth_client_id: "custom-tool-client",
+        oidc_auth_url: "https://custom-lms.example.com/auth",
+        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
+        platform_token_url: "https://custom-lms.example.com/token",
+        signing_key: tool_jwk
+      }
+
+      deployment = %CustomDeployment{
+        id: "dep-uuid-001",
+        registration_id: "reg-uuid-001",
+        platform_deployment_id: "custom-dep-001",
+        label: "My Course Section"
+      }
+
+      %{custom_registration: registration, custom_deployment: deployment}
+    end
+
+    test "accepts custom registration and deployment structs",
+         %{custom_registration: reg, custom_deployment: dep} do
+      platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
+
+      assert %CustomRegistration{id: "reg-uuid-001"} = platform.registration
+      assert %CustomDeployment{id: "dep-uuid-001"} = platform.deployment
+    end
+
+    test "raises when :registration and :issuer are both set",
+         %{custom_registration: reg} do
+      assert_raise ArgumentError, fn ->
+        Ltix.Test.setup_platform!(registration: reg, issuer: "https://other.example.com")
+      end
+    end
+
+    test "raises when :registration and :client_id are both set",
+         %{custom_registration: reg} do
+      assert_raise ArgumentError, fn ->
+        Ltix.Test.setup_platform!(registration: reg, client_id: "other-client")
+      end
+    end
+
+    test "raises when :deployment and :deployment_id are both set",
+         %{custom_deployment: dep} do
+      assert_raise ArgumentError, fn ->
+        Ltix.Test.setup_platform!(deployment: dep, deployment_id: "other-dep")
+      end
+    end
+
+    test "build_launch_context carries custom structs through",
+         %{custom_registration: reg, custom_deployment: dep} do
+      platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
+      context = Ltix.Test.build_launch_context(platform, roles: [:instructor])
+
+      assert %CustomRegistration{id: "reg-uuid-001"} = context.registration
+      assert %CustomDeployment{id: "dep-uuid-001"} = context.deployment
+      assert context.claims.issuer == "https://custom-lms.example.com"
+      assert context.claims.audience == "custom-tool-client"
+      assert context.claims.deployment_id == "custom-dep-001"
+    end
+
+    test "full OIDC flow carries custom structs through",
+         %{custom_registration: reg, custom_deployment: dep} do
+      platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
+      {:ok, login_result} = do_login(platform)
+      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+
+      {:ok, context} = do_callback(platform, login_result, nonce, [])
+
+      assert %CustomRegistration{id: "reg-uuid-001"} = context.registration
+      assert %CustomDeployment{id: "dep-uuid-001"} = context.deployment
+    end
+  end
+
   # -- Helpers --
 
   defp do_login(platform) do

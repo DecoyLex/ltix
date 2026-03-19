@@ -69,6 +69,7 @@ defmodule Ltix.Test do
   more examples, including role customization and raw claim overrides.
   """
 
+  alias Ltix.Deployable
   alias Ltix.Deployment
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AgsEndpoint
@@ -78,6 +79,7 @@ defmodule Ltix.Test do
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
+  alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Test.Platform
   alias Ltix.Test.StorageAdapter
@@ -95,33 +97,28 @@ defmodule Ltix.Test do
     * `:issuer` — platform issuer URL (default: `"https://platform.example.com"`)
     * `:client_id` — OAuth client ID (default: `"tool-client-id"`)
     * `:deployment_id` — deployment identifier (default: `"deployment-001"`)
+    * `:registration` — an app struct implementing `Ltix.Registerable`.
+      When set, the struct is stored on the platform and carried through
+      to any `%LaunchContext{}` built from it, matching production behavior.
+      Mutually exclusive with `:issuer` and `:client_id`.
+    * `:deployment` — an app struct implementing `Ltix.Deployable`.
+      When set, the struct is stored on the platform and carried through
+      to any `%LaunchContext{}` built from it. Mutually exclusive with
+      `:deployment_id`.
   """
   @spec setup_platform!(keyword()) :: Platform.t()
   def setup_platform!(opts \\ []) do
-    issuer = Keyword.get(opts, :issuer, "https://platform.example.com")
-    client_id = Keyword.get(opts, :client_id, "tool-client-id")
-    deployment_id = Keyword.get(opts, :deployment_id, "deployment-001")
+    validate_setup_opts!(opts)
 
     {private_key, public_key, kid} = generate_rsa_key_pair()
     jwks = build_jwks([public_key])
 
-    # Tool's own key for signing client assertions (separate from platform keys)
-    tool_jwk = Ltix.JWK.generate()
+    registration = build_or_use_registration(opts)
+    deployment = build_or_use_deployment(opts)
 
-    # Unique JWKS URI per call for async test safety
-    suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
-
-    {:ok, registration} =
-      Registration.new(%{
-        issuer: issuer,
-        client_id: client_id,
-        auth_endpoint: "#{issuer}/auth",
-        jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
-        token_endpoint: "#{issuer}/token",
-        tool_jwk: tool_jwk
-      })
-
-    {:ok, deployment} = Deployment.new(deployment_id)
+    # Eagerly validate protocol implementations
+    {:ok, _} = Registerable.to_registration(registration)
+    {:ok, _} = Deployable.to_deployment(deployment)
 
     {:ok, pid} =
       StorageAdapter.start_link(
@@ -160,7 +157,7 @@ defmodule Ltix.Test do
   @spec login_params(Platform.t(), keyword()) :: map()
   def login_params(%Platform{} = platform, opts \\ []) do
     %{
-      "iss" => platform.registration.issuer,
+      "iss" => resolved_registration(platform).issuer,
       "login_hint" => Keyword.get(opts, :login_hint, "user-hint"),
       "target_link_uri" => Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch")
     }
@@ -281,11 +278,14 @@ defmodule Ltix.Test do
       |> Keyword.get(:message_type)
       |> normalize_message_type()
 
+    reg = resolved_registration(platform)
+    dep = resolved_deployment(platform)
+
     base_claims = %LaunchClaims{
-      issuer: platform.registration.issuer,
-      audience: platform.registration.client_id,
+      issuer: reg.issuer,
+      audience: reg.client_id,
       version: "1.3.0",
-      deployment_id: platform.deployment.deployment_id,
+      deployment_id: dep.deployment_id,
       target_link_uri: Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch"),
       roles: parsed_roles,
       name: Keyword.get(opts, :name),
@@ -336,7 +336,7 @@ defmodule Ltix.Test do
           {:ok, map()} | {:error, term()}
   def verify_deep_linking_response(%Platform{} = platform, jwt) do
     public_key =
-      platform.registration.tool_jwk
+      resolved_registration(platform).tool_jwk
       |> Ltix.JWK.to_jose()
       |> JOSE.JWK.to_public()
 
@@ -450,15 +450,17 @@ defmodule Ltix.Test do
 
   defp build_claims(platform, nonce, opts) do
     now = System.system_time(:second)
+    reg = resolved_registration(platform)
+    dep = resolved_deployment(platform)
 
     base = %{
-      "iss" => platform.registration.issuer,
-      "aud" => platform.registration.client_id,
+      "iss" => reg.issuer,
+      "aud" => reg.client_id,
       "exp" => now + 3600,
       "iat" => now,
       "nonce" => nonce,
       (@lti_claim_prefix <> "version") => "1.3.0",
-      (@lti_claim_prefix <> "deployment_id") => platform.deployment.deployment_id,
+      (@lti_claim_prefix <> "deployment_id") => dep.deployment_id,
       (@lti_claim_prefix <> "target_link_uri") =>
         Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch")
     }
@@ -677,4 +679,73 @@ defmodule Ltix.Test do
   defp maybe_put_lti(map, key, value), do: Map.put(map, @lti_claim_prefix <> key, value)
 
   defp merge_overrides(claims, overrides), do: Map.merge(claims, overrides)
+
+  # --- Setup Helpers ---
+
+  defp validate_setup_opts!(opts) do
+    has_registration = Keyword.has_key?(opts, :registration)
+    has_deployment = Keyword.has_key?(opts, :deployment)
+
+    if has_registration and Keyword.has_key?(opts, :issuer) do
+      raise ArgumentError,
+            ":registration and :issuer are mutually exclusive in setup_platform!/1"
+    end
+
+    if has_registration and Keyword.has_key?(opts, :client_id) do
+      raise ArgumentError,
+            ":registration and :client_id are mutually exclusive in setup_platform!/1"
+    end
+
+    if has_deployment and Keyword.has_key?(opts, :deployment_id) do
+      raise ArgumentError,
+            ":deployment and :deployment_id are mutually exclusive in setup_platform!/1"
+    end
+  end
+
+  defp build_or_use_registration(opts) do
+    case Keyword.get(opts, :registration) do
+      nil ->
+        issuer = Keyword.get(opts, :issuer, "https://platform.example.com")
+        client_id = Keyword.get(opts, :client_id, "tool-client-id")
+        tool_jwk = Ltix.JWK.generate()
+        suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
+
+        {:ok, registration} =
+          Registration.new(%{
+            issuer: issuer,
+            client_id: client_id,
+            auth_endpoint: "#{issuer}/auth",
+            jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
+            token_endpoint: "#{issuer}/token",
+            tool_jwk: tool_jwk
+          })
+
+        registration
+
+      registration ->
+        registration
+    end
+  end
+
+  defp build_or_use_deployment(opts) do
+    case Keyword.get(opts, :deployment) do
+      nil ->
+        deployment_id = Keyword.get(opts, :deployment_id, "deployment-001")
+        {:ok, deployment} = Deployment.new(deployment_id)
+        deployment
+
+      deployment ->
+        deployment
+    end
+  end
+
+  defp resolved_registration(%Platform{} = platform) do
+    {:ok, reg} = Registerable.to_registration(platform.registration)
+    reg
+  end
+
+  defp resolved_deployment(%Platform{} = platform) do
+    {:ok, dep} = Deployable.to_deployment(platform.deployment)
+    dep
+  end
 end
