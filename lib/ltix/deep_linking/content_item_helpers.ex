@@ -45,7 +45,11 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   @spec new(Zoi.schema(), keyword(), atom(), String.t()) ::
           {:ok, struct()} | {:error, Exception.t()}
   def new(schema, opts, item_name, spec_ref) do
-    case Zoi.parse(schema, Map.new(opts)) do
+    schema =
+      schema
+      |> Zoi.Schema.traverse(&make_maps_accept_keywords/1)
+
+    case Zoi.parse(schema, Map.new(opts), coerce: true) do
       {:ok, _} = ok -> ok
       {:error, errors} -> {:error, to_error(errors, item_name, spec_ref)}
     end
@@ -99,4 +103,45 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
     end)
     |> Ltix.Errors.to_class()
   end
+
+  # HERE BE DRAGONS
+  #
+  # This function rewrites Zoi's schema tree at runtime to work around two
+  # separate issues. Think carefully before changing it — the interaction
+  # between Zoi.Schema.traverse, union backtracking, and nested transforms
+  # is subtle, and earlier attempts that looked correct broke error reporting
+  # in ways that only surfaced for specific content item types.
+  #
+  # Zoi's map schemas only accept maps, but our public API accepts keyword
+  # lists at the top level (via Map.new/1 in new/4). Without this, nested
+  # map fields like `line_item` and `icon` silently drop keyword list values
+  # because they never match the inner Zoi.map schema — the field parses as
+  # nil with no error, and the problem only surfaces later in build_response
+  # as a confusing "expected map, got nil" on a value the caller definitely
+  # provided.
+  #
+  # The obvious fix (wrapping each map schema in a Zoi.union of the original
+  # map and a keyword variant) runs into Zoi's union backtracking behavior:
+  # when the winning branch's downstream transform fails (e.g. a missing
+  # required field), the union retries with the next branch instead of
+  # surfacing that error. This swallows field-level validation messages and
+  # replaces them with a generic "expected map" type error.
+  #
+  # So instead we bypass Zoi's type dispatch entirely. Zoi.any() accepts the
+  # value unconditionally, a first transform coerces keyword lists to maps,
+  # and a second transform re-parses against the original map schema for
+  # validation. No union means no backtracking, and validation errors
+  # propagate with their full paths intact.
+  defp make_maps_accept_keywords(%Zoi.Types.Map{} = schema) do
+    Zoi.any()
+    |> Zoi.transform(fn
+      value when is_list(value) -> {:ok, Map.new(value)}
+      other -> {:ok, other}
+    end)
+    |> Zoi.transform(fn value ->
+      Zoi.parse(schema, value, coerce: true)
+    end)
+  end
+
+  defp make_maps_accept_keywords(other), do: other
 end

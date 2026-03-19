@@ -79,6 +79,53 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
       assert link.available.start_date_time == "2026-01-01T00:00:00Z"
       assert link.submission.end_date_time == "2026-06-15T23:59:59Z"
     end
+
+    test "accepts line_item as keyword list" do
+      assert {:ok, link} =
+               LtiResourceLink.new(
+                 line_item: [
+                   score_maximum: 100,
+                   label: "Final Exam",
+                   resource_id: "res-1",
+                   tag: "exam",
+                   grades_released: true
+                 ]
+               )
+
+      assert link.line_item.score_maximum == 100
+      assert link.line_item.label == "Final Exam"
+      assert link.line_item.grades_released == true
+    end
+
+    test "validates line_item keyword list (missing required field)" do
+      assert {:error, %Ltix.Errors.Invalid{} = error} =
+               LtiResourceLink.new(line_item: [label: "Quiz"])
+
+      assert Exception.message(error) =~ "lti_resource_link.line_item.score_maximum"
+      assert Exception.message(error) =~ "is required"
+    end
+
+    test "validates line_item keyword list (invalid value)" do
+      assert {:error, %Ltix.Errors.Invalid{} = error} =
+               LtiResourceLink.new(line_item: [score_maximum: 0])
+
+      assert Exception.message(error) =~ "lti_resource_link.line_item.score_maximum"
+      assert Exception.message(error) =~ "must be greater than 0"
+    end
+
+    test "accepts available and submission as keyword lists" do
+      assert {:ok, link} =
+               LtiResourceLink.new(
+                 available: [
+                   start_date_time: "2026-01-01T00:00:00Z",
+                   end_date_time: "2026-06-30T23:59:59Z"
+                 ],
+                 submission: [end_date_time: "2026-06-15T23:59:59Z"]
+               )
+
+      assert link.available.start_date_time == "2026-01-01T00:00:00Z"
+      assert link.submission.end_date_time == "2026-06-15T23:59:59Z"
+    end
   end
 
   describe "to_json/1" do
@@ -157,6 +204,20 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
       assert json["type"] == "ltiResourceLink"
       assert json["lineItem"] == %{"scoreMaximum" => 50}
       refute Map.has_key?(json, "url")
+    end
+
+    test "serializes line_item from keyword list" do
+      {:ok, link} =
+        LtiResourceLink.new(
+          line_item: [score_maximum: 100, label: "Quiz 1"]
+        )
+
+      json = ContentItem.to_json(link)
+
+      assert json["lineItem"] == %{
+               "scoreMaximum" => 100,
+               "label" => "Quiz 1"
+             }
     end
 
     test "merges extensions at top level" do

@@ -38,6 +38,31 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
       assert link.iframe.src == "https://example.com/embed"
       assert link.embed.html == "<iframe src='https://example.com'></iframe>"
     end
+
+    test "accepts sub-structures as keyword lists" do
+      assert {:ok, link} =
+               Link.new(
+                 url: "https://example.com",
+                 icon: [url: "https://example.com/icon.png", width: 16, height: 16],
+                 embed: [html: "<iframe></iframe>"],
+                 window: [target_name: "example", width: 800],
+                 iframe: [src: "https://example.com/embed", width: 640, height: 480]
+               )
+
+      assert link.icon.url == "https://example.com/icon.png"
+      assert link.icon.width == 16
+      assert link.embed.html == "<iframe></iframe>"
+      assert link.window.target_name == "example"
+      assert link.iframe.src == "https://example.com/embed"
+    end
+
+    test "validates keyword list sub-structures (missing required field)" do
+      assert {:error, %Ltix.Errors.Invalid{} = error} =
+               Link.new(url: "https://example.com", icon: [width: 16])
+
+      assert Exception.message(error) =~ "link.icon.url"
+      assert Exception.message(error) =~ "is required"
+    end
   end
 
   describe "to_json/1" do
