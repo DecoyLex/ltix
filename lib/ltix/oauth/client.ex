@@ -35,6 +35,7 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
+  alias Ltix.Registerable
   alias Ltix.Registration
 
   defstruct [:access_token, :expires_at, :scopes, :registration, :req_options, endpoints: %{}]
@@ -184,17 +185,18 @@ defmodule Ltix.OAuth.Client do
 
   ## Options
 
-    * `:registration` (required) - the `Ltix.Registration` for refresh
+    * `:registration` (required) - any struct implementing `Ltix.Registerable`
     * `:endpoints` (required) - map of service modules to endpoint structs
     * `:req_options` - options passed through to `Req.request/2` (default: `[]`)
   """
   @spec from_access_token(AccessToken.t(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def from_access_token(%AccessToken{} = token, opts) do
-    registration = Keyword.fetch!(opts, :registration)
+    registerable = Keyword.fetch!(opts, :registration)
     endpoints = Keyword.fetch!(opts, :endpoints)
     req_options = Keyword.get(opts, :req_options, [])
 
-    with :ok <- validate_endpoints(endpoints),
+    with {:ok, registration} <- Registerable.to_registration(registerable),
+         :ok <- validate_endpoints(endpoints),
          :ok <- check_scope_coverage(collect_scopes(endpoints), token.granted_scopes) do
       {:ok,
        %__MODULE__{

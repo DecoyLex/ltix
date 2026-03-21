@@ -43,22 +43,26 @@ defmodule Ltix.OAuth do
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
-  alias Ltix.Registration
+  alias Ltix.Registerable
 
   @doc """
   Given a registration, authenticate with a platform's token endpoint.
 
+  Accepts any struct that implements `Ltix.Registerable`, including
+  `Ltix.Registration` itself.
+
   Request scopes by passing service endpoints in the `:endpoints` option.
   """
   # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
-  @spec authenticate(Registration.t(), keyword()) ::
+  @spec authenticate(Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
-  def authenticate(%Registration{} = registration, opts \\ []) do
+  def authenticate(registerable, opts \\ []) do
     opts = Zoi.parse!(@authenticate_schema, opts)
     endpoints = Keyword.fetch!(opts, :endpoints)
     req_options = Keyword.fetch!(opts, :req_options)
 
-    with :ok <- validate_endpoints(endpoints),
+    with {:ok, registration} <- Registerable.to_registration(registerable),
+         :ok <- validate_endpoints(endpoints),
          scopes = collect_scopes(endpoints),
          {:ok, token} <- do_request_token(registration, scopes, req_options) do
       {:ok,
@@ -76,9 +80,9 @@ defmodule Ltix.OAuth do
   @doc """
   Same as `authenticate/2` but raises on error.
   """
-  @spec authenticate!(Registration.t(), keyword()) :: Client.t()
-  def authenticate!(%Registration{} = registration, opts \\ []) do
-    case authenticate(registration, opts) do
+  @spec authenticate!(Registerable.t(), keyword()) :: Client.t()
+  def authenticate!(registerable, opts \\ []) do
+    case authenticate(registerable, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
     end

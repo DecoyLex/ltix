@@ -180,6 +180,35 @@ defmodule Ltix.GradeServiceTest do
         GradeService.authenticate(ctx.platform.registration, [])
       end
     end
+
+    test "accepts a custom Registerable struct", _ctx do
+      stub_token_response()
+
+      custom_registration = %CustomRegistration{
+        id: "reg-001",
+        tenant_id: "tenant-1",
+        platform_issuer: "https://custom-lms.example.com",
+        oauth_client_id: "custom-tool-client",
+        oidc_auth_url: "https://custom-lms.example.com/auth",
+        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
+        platform_token_url: "https://custom-lms.example.com/token",
+        signing_key: Ltix.JWK.generate()
+      }
+
+      endpoint = %AgsEndpoint{
+        lineitems: @lineitems_url,
+        scope: @all_scopes
+      }
+
+      assert {:ok, %Client{} = client} =
+               GradeService.authenticate(custom_registration,
+                 endpoint: endpoint,
+                 req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
+               )
+
+      assert client.registration.issuer == "https://custom-lms.example.com"
+      assert client.registration.client_id == "custom-tool-client"
+    end
   end
 
   # --- list_line_items/2 ---

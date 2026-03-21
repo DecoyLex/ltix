@@ -39,7 +39,6 @@ defmodule Ltix.GradeService do
   alias Ltix.OAuth.Client
   alias Ltix.Pagination
   alias Ltix.Registerable
-  alias Ltix.Registration
 
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
@@ -95,9 +94,10 @@ defmodule Ltix.GradeService do
   @doc """
   Acquire an OAuth token for the grade service.
 
-  Accepts a `%LaunchContext{}` or a `%Registration{}`. With a launch context,
-  the endpoint and scopes are extracted from the AGS claim. With a
-  registration, pass the endpoint via the `:endpoint` option.
+  Accepts a `%LaunchContext{}` or any struct implementing `Ltix.Registerable`
+  (including `Ltix.Registration`). With a launch context, the endpoint and
+  scopes are extracted from the AGS claim. With a registration, pass the
+  endpoint via the `:endpoint` option.
 
   ## From a launch context
 
@@ -120,9 +120,9 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@registration_auth_schema)}
   """
-  @spec authenticate(LaunchContext.t() | Registration.t(), keyword()) ::
+  @spec authenticate(LaunchContext.t() | Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
-  def authenticate(context_or_registration, opts \\ [])
+  def authenticate(context_or_registerable, opts \\ [])
 
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Zoi.parse!(@context_auth_schema, opts)
@@ -145,11 +145,11 @@ defmodule Ltix.GradeService do
     end
   end
 
-  def authenticate(%Registration{} = registration, opts) do
+  def authenticate(registerable, opts) do
     opts = Zoi.parse!(@registration_auth_schema, opts)
     endpoint = Keyword.fetch!(opts, :endpoint)
 
-    OAuth.authenticate(registration,
+    OAuth.authenticate(registerable,
       endpoints: %{__MODULE__ => endpoint},
       req_options: Keyword.get(opts, :req_options, [])
     )
@@ -158,9 +158,9 @@ defmodule Ltix.GradeService do
   @doc """
   Same as `authenticate/2` but raises on error.
   """
-  @spec authenticate!(LaunchContext.t() | Registration.t(), keyword()) :: Client.t()
-  def authenticate!(context_or_registration, opts \\ []) do
-    case authenticate(context_or_registration, opts) do
+  @spec authenticate!(LaunchContext.t() | Registerable.t(), keyword()) :: Client.t()
+  def authenticate!(context_or_registerable, opts \\ []) do
+    case authenticate(context_or_registerable, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
     end

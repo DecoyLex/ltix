@@ -208,9 +208,7 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
 
     test "serializes line_item from keyword list" do
       {:ok, link} =
-        LtiResourceLink.new(
-          line_item: [score_maximum: 100, label: "Quiz 1"]
-        )
+        LtiResourceLink.new(line_item: [score_maximum: 100, label: "Quiz 1"])
 
       json = ContentItem.to_json(link)
 

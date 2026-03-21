@@ -56,7 +56,18 @@ defmodule Ltix.OAuthTest do
         tool_jwk: tool_jwk
       })
 
-    %{registration: registration}
+    custom_registration = %CustomRegistration{
+      id: "reg-001",
+      tenant_id: "tenant-1",
+      platform_issuer: "https://platform.example.com",
+      oauth_client_id: "tool-client-id",
+      oidc_auth_url: "https://platform.example.com/auth",
+      platform_jwks_url: "https://platform.example.com/.well-known/jwks.json",
+      platform_token_url: "https://platform.example.com/token",
+      signing_key: tool_jwk
+    }
+
+    %{registration: registration, custom_registration: custom_registration}
   end
 
   defp req_options, do: [plug: {Req.Test, __MODULE__}]
@@ -177,6 +188,20 @@ defmodule Ltix.OAuthTest do
       assert_raise Zoi.ParseError, fn ->
         OAuth.authenticate(ctx.registration, [])
       end
+    end
+
+    test "accepts a custom Registerable struct", ctx do
+      stub_token_response(@test_scope)
+
+      assert {:ok, %Client{} = client} =
+               OAuth.authenticate(ctx.custom_registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+
+      assert %Ltix.Registration{} = client.registration
+      assert client.registration.issuer == "https://platform.example.com"
+      assert client.registration.client_id == "tool-client-id"
     end
   end
 

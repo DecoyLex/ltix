@@ -180,6 +180,39 @@ defmodule Ltix.OAuth.ClientTest do
                  endpoints: %{TestService => :wrong_endpoint}
                )
     end
+
+    test "accepts a custom Registerable struct" do
+      tool_jwk = Ltix.JWK.generate()
+
+      custom_registration = %CustomRegistration{
+        id: "reg-001",
+        tenant_id: "tenant-1",
+        platform_issuer: "https://custom-lms.example.com",
+        oauth_client_id: "custom-tool-client",
+        oidc_auth_url: "https://custom-lms.example.com/auth",
+        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
+        platform_token_url: "https://custom-lms.example.com/token",
+        signing_key: tool_jwk
+      }
+
+      {:ok, token} =
+        AccessToken.from_response(%{
+          "access_token" => "cached-token",
+          "token_type" => "Bearer",
+          "expires_in" => 3600,
+          "scope" => @test_scope
+        })
+
+      assert {:ok, %Client{} = client} =
+               Client.from_access_token(token,
+                 registration: custom_registration,
+                 endpoints: %{TestService => :valid_endpoint}
+               )
+
+      assert %Ltix.Registration{} = client.registration
+      assert client.registration.issuer == "https://custom-lms.example.com"
+      assert client.registration.client_id == "custom-tool-client"
+    end
   end
 
   describe "with_endpoints/2" do
