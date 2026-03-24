@@ -3,31 +3,55 @@ defmodule Ltix.Test do
   Helpers for testing applications that use Ltix.
 
   Reduces LTI test setup to a single call. Instead of manually generating
-  RSA keys, building JWKS payloads, creating registrations and deployments,
-  starting storage adapters, and stubbing HTTP endpoints, call
-  `setup_platform!/1`:
+  RSA keys, building JWKS payloads, and creating registrations and
+  deployments, call `setup_platform!/1`:
 
       setup do
         %{platform: Ltix.Test.setup_platform!()}
       end
 
-  The in-memory storage adapter state is scoped to the calling process
-  via the process dictionary, so async tests are safe without any cleanup.
+  Your application's own storage adapter (configured in `config/test.exs`)
+  handles persistence. `setup_platform!/1` provides the platform-side
+  simulation: RSA keys, a JWKS endpoint stub, and registration/deployment
+  data your adapter can look up.
 
-  ## Configuration
+  ## Connecting to your storage adapter
 
-  If your app's controllers call `Ltix.handle_login/3` or
-  `Ltix.handle_callback/3` without passing `:storage_adapter` in opts
-  (relying on application config), add this to `config/test.exs`:
+  Pass a `:registration` function to create records in your own persistence
+  layer. The function receives a valid `Ltix.Registration` with the
+  platform details and returns your app's struct (which must implement
+  `Ltix.Registerable`):
 
-      config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+      setup do
+        platform = Ltix.Test.setup_platform!(
+          registration: fn reg ->
+            jwk = MyApp.Lti.generate_jwk!()
 
-  This is safe for `async: true` tests — each test process gets its own
-  in-memory storage via the process dictionary.
+            MyApp.Lti.create_registration!(%{
+              issuer: reg.issuer,
+              client_id: reg.client_id,
+              auth_endpoint: reg.auth_endpoint,
+              jwks_uri: reg.jwks_uri,
+              token_endpoint: reg.token_endpoint,
+              tool_jwk_id: jwk.id
+            })
+          end,
+          deployment: fn dep, my_reg ->
+            MyApp.Lti.create_deployment!(%{
+              deployment_id: dep.deployment_id,
+              registration_id: my_reg.id
+            })
+          end
+        )
+
+        %{platform: platform}
+      end
 
   ## Controller tests (full OIDC flow)
 
-  Simulate a platform-initiated launch against your controller endpoints:
+  Simulate a platform-initiated launch against your controller endpoints.
+  Your app's storage adapter resolves registrations and nonces as it would
+  in production:
 
       test "instructor launch renders dashboard", %{conn: conn, platform: platform} do
         conn = post(conn, ~p"/lti/login", Ltix.Test.login_params(platform))
@@ -82,29 +106,33 @@ defmodule Ltix.Test do
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Test.Platform
-  alias Ltix.Test.StorageAdapter
 
   # --- Platform Setup ---
 
   @doc """
   Set up a simulated LTI platform in one call.
 
-  Generates RSA keys, creates a registration and deployment, starts the
-  in-memory storage adapter, and stubs the JWKS HTTP endpoint.
+  Generates platform-side RSA keys, builds a registration and deployment,
+  and stubs the JWKS HTTP endpoint. Your app's own storage adapter
+  (configured via `config :ltix, storage_adapter: ...`) handles
+  persistence during the OIDC flow.
 
   ## Options
 
     * `:issuer` — platform issuer URL (default: `"https://platform.example.com"`)
     * `:client_id` — OAuth client ID (default: `"tool-client-id"`)
     * `:deployment_id` — deployment identifier (default: `"deployment-001"`)
-    * `:registration` — an app struct implementing `Ltix.Registerable`.
-      When set, the struct is stored on the platform and carried through
-      to any `%LaunchContext{}` built from it, matching production behavior.
-      Mutually exclusive with `:issuer` and `:client_id`.
-    * `:deployment` — an app struct implementing `Ltix.Deployable`.
-      When set, the struct is stored on the platform and carried through
-      to any `%LaunchContext{}` built from it. Mutually exclusive with
-      `:deployment_id`.
+    * `:registration` — either an app struct implementing `Ltix.Registerable`
+      (mutually exclusive with `:issuer` and `:client_id`), or a 1-arity
+      function that receives an `Ltix.Registration` and returns your app's
+      struct. The function form lets you create a matching record in your
+      own persistence layer using the platform details (issuer, client_id,
+      endpoints). Works with `:issuer` and `:client_id` overrides.
+    * `:deployment` — either an app struct implementing `Ltix.Deployable`
+      (mutually exclusive with `:deployment_id`), or a 2-arity function
+      `(Ltix.Deployment, registration)` where `registration` is whatever
+      the registration step returned. Lets you create a deployment record
+      linked to your registration.
   """
   @spec setup_platform!(keyword()) :: Platform.t()
   def setup_platform!(opts \\ []) do
@@ -114,19 +142,11 @@ defmodule Ltix.Test do
     jwks = build_jwks([public_key])
 
     registration = build_or_use_registration(opts)
-    deployment = build_or_use_deployment(opts)
+    deployment = build_or_use_deployment(opts, registration)
 
     # Eagerly validate protocol implementations
     {:ok, _} = Registerable.to_registration(registration)
     {:ok, _} = Deployable.to_deployment(deployment)
-
-    {:ok, pid} =
-      StorageAdapter.start_link(
-        registrations: [registration],
-        deployments: [deployment]
-      )
-
-    StorageAdapter.set_pid(pid)
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
@@ -212,26 +232,6 @@ defmodule Ltix.Test do
     |> Map.get(:query)
     |> URI.decode_query()
     |> Map.fetch!("nonce")
-  end
-
-  @doc """
-  Options for `Ltix.handle_login/3` that work with `setup_platform!/1`.
-
-      Ltix.handle_login(params, redirect_uri, Ltix.Test.login_opts(platform))
-  """
-  @spec login_opts(Platform.t()) :: keyword()
-  def login_opts(%Platform{}) do
-    [storage_adapter: StorageAdapter]
-  end
-
-  @doc """
-  Options for `Ltix.handle_callback/3` that work with `setup_platform!/1`.
-
-      Ltix.handle_callback(params, state, Ltix.Test.callback_opts(platform))
-  """
-  @spec callback_opts(Platform.t()) :: keyword()
-  def callback_opts(%Platform{}) do
-    [storage_adapter: StorageAdapter, req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]]
   end
 
   # --- Direct Context Construction ---
@@ -683,56 +683,75 @@ defmodule Ltix.Test do
   # --- Setup Helpers ---
 
   defp validate_setup_opts!(opts) do
-    has_registration = Keyword.has_key?(opts, :registration)
-    has_deployment = Keyword.has_key?(opts, :deployment)
+    registration = Keyword.get(opts, :registration)
+    deployment = Keyword.get(opts, :deployment)
 
-    if has_registration and Keyword.has_key?(opts, :issuer) do
-      raise ArgumentError,
-            ":registration and :issuer are mutually exclusive in setup_platform!/1"
+    # Struct registrations are mutually exclusive with :issuer/:client_id.
+    # Function registrations are not — the function receives a registration
+    # built from those values.
+    if not is_nil(registration) and not is_function(registration) do
+      if Keyword.has_key?(opts, :issuer) do
+        raise ArgumentError,
+              ":registration and :issuer are mutually exclusive in setup_platform!/1"
+      end
+
+      if Keyword.has_key?(opts, :client_id) do
+        raise ArgumentError,
+              ":registration and :client_id are mutually exclusive in setup_platform!/1"
+      end
     end
 
-    if has_registration and Keyword.has_key?(opts, :client_id) do
-      raise ArgumentError,
-            ":registration and :client_id are mutually exclusive in setup_platform!/1"
-    end
-
-    if has_deployment and Keyword.has_key?(opts, :deployment_id) do
-      raise ArgumentError,
-            ":deployment and :deployment_id are mutually exclusive in setup_platform!/1"
+    if not is_nil(deployment) and not is_function(deployment) do
+      if Keyword.has_key?(opts, :deployment_id) do
+        raise ArgumentError,
+              ":deployment and :deployment_id are mutually exclusive in setup_platform!/1"
+      end
     end
   end
 
   defp build_or_use_registration(opts) do
     case Keyword.get(opts, :registration) do
       nil ->
-        issuer = Keyword.get(opts, :issuer, "https://platform.example.com")
-        client_id = Keyword.get(opts, :client_id, "tool-client-id")
-        tool_jwk = Ltix.JWK.generate()
-        suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
+        build_default_registration(opts)
 
-        {:ok, registration} =
-          Registration.new(%{
-            issuer: issuer,
-            client_id: client_id,
-            auth_endpoint: "#{issuer}/auth",
-            jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
-            token_endpoint: "#{issuer}/token",
-            tool_jwk: tool_jwk
-          })
-
-        registration
+      fun when is_function(fun, 1) ->
+        fun.(build_default_registration(opts))
 
       registration ->
         registration
     end
   end
 
-  defp build_or_use_deployment(opts) do
+  defp build_default_registration(opts) do
+    issuer = Keyword.get(opts, :issuer, "https://platform.example.com")
+    client_id = Keyword.get(opts, :client_id, "tool-client-id")
+    tool_jwk = Ltix.JWK.generate()
+    suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
+
+    {:ok, registration} =
+      Registration.new(%{
+        issuer: issuer,
+        client_id: client_id,
+        auth_endpoint: "#{issuer}/auth",
+        jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
+        token_endpoint: "#{issuer}/token",
+        tool_jwk: tool_jwk
+      })
+
+    registration
+  end
+
+  defp build_or_use_deployment(opts, registration) do
     case Keyword.get(opts, :deployment) do
       nil ->
         deployment_id = Keyword.get(opts, :deployment_id, "deployment-001")
         {:ok, deployment} = Deployment.new(deployment_id)
         deployment
+
+      fun when is_function(fun, 2) ->
+        deployment_id = Keyword.get(opts, :deployment_id, "deployment-001")
+        {:ok, default} = Deployment.new(deployment_id)
+        fun.(default, registration)
 
       deployment ->
         deployment

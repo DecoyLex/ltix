@@ -7,10 +7,13 @@ Rules for testing applications that use Ltix.
 Add to `config/test.exs`:
 
 ```elixir
-config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+config :ltix,
+  storage_adapter: MyApp.LtiStorageAdapter,
+  req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
 ```
 
-This in-memory adapter is process-scoped, safe for `async: true` tests.
+Point at your own storage adapter. The `req_options` routes JWKS fetches
+through the test stub that `setup_platform!/1` sets up.
 
 ## Platform Setup
 
@@ -18,12 +21,28 @@ In your test's `setup` block:
 
 ```elixir
 setup do
-  %{platform: Ltix.Test.setup_platform!()}
+  platform = Ltix.Test.setup_platform!(
+    registration: fn reg ->
+      jwk = MyApp.Lti.generate_jwk!()
+
+      MyApp.Lti.create_registration!(%{
+        issuer: reg.issuer,
+        client_id: reg.client_id,
+        auth_endpoint: reg.auth_endpoint,
+        jwks_uri: reg.jwks_uri,
+        token_endpoint: reg.token_endpoint,
+        tool_jwk_id: jwk.id
+      })
+    end
+  )
+
+  %{platform: platform}
 end
 ```
 
-`setup_platform!/1` generates RSA keys, creates a registration and deployment, starts
-the in-memory storage adapter, and stubs the JWKS HTTP endpoint. Options:
+`setup_platform!/1` generates platform-side RSA keys, builds a registration
+and deployment, and stubs the JWKS HTTP endpoint. Pass a `:registration`
+function to create matching records in your persistence layer. Options:
 `:issuer`, `:client_id`, `:deployment_id`.
 
 ## Three Test Patterns
@@ -111,14 +130,4 @@ end
 - `:memberships_endpoint` — URL string or map (enables memberships service in tests)
 - `:ags_endpoint` — map with `:lineitems`, `:lineitem`, `:scope` (enables grade service)
 
-## Login and Callback Options
 
-When testing the library directly (not through your routes):
-
-```elixir
-{:ok, result} = Ltix.handle_login(params, redirect_uri, Ltix.Test.login_opts(platform))
-{:ok, context} = Ltix.handle_callback(params, state, Ltix.Test.callback_opts(platform))
-```
-
-`login_opts/1` and `callback_opts/1` return the correct storage adapter and HTTP stub
-configuration for the test platform.

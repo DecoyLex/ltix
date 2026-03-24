@@ -10,6 +10,14 @@ defmodule Ltix.TestTest do
   setup do
     platform = Ltix.Test.setup_platform!()
 
+    {:ok, pid} =
+      StorageAdapter.start_link(
+        registrations: [platform.registration],
+        deployments: [platform.deployment]
+      )
+
+    StorageAdapter.set_pid(pid)
+
     %{platform: platform}
   end
 
@@ -28,7 +36,8 @@ defmodule Ltix.TestTest do
         Ltix.handle_callback(
           Ltix.Test.launch_params(platform, nonce: nonce, state: login_result.state),
           login_result.state,
-          Ltix.Test.callback_opts(platform)
+          storage_adapter: StorageAdapter,
+          req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
         )
 
       assert %LaunchContext{} = context
@@ -296,6 +305,15 @@ defmodule Ltix.TestTest do
     test "full OIDC flow carries custom structs through",
          %{custom_registration: reg, custom_deployment: dep} do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
+
+      {:ok, pid} =
+        StorageAdapter.start_link(
+          registrations: [platform.registration],
+          deployments: [platform.deployment]
+        )
+
+      StorageAdapter.set_pid(pid)
+
       {:ok, login_result} = do_login(platform)
       nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
 
@@ -326,7 +344,8 @@ defmodule Ltix.TestTest do
     Ltix.handle_callback(
       params,
       login_result.state,
-      Ltix.Test.callback_opts(platform)
+      storage_adapter: StorageAdapter,
+      req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
     )
   end
 end

@@ -6,31 +6,48 @@ authorization logic, and role-based behavior without a real LMS.
 
 ## Setup
 
-Add the test storage adapter to your `config/test.exs` so your
-controllers can resolve registrations and nonces during tests:
+Add your storage adapter and the JWKS test stub to `config/test.exs`:
 
 ```elixir
 # config/test.exs
-config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+config :ltix,
+  storage_adapter: MyApp.LtiStorageAdapter,
+  req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
 ```
 
-Then create a test platform in your setup block. This gives you
-everything a real platform would provide: signed JWTs, a JWKS endpoint,
-a registration, and a deployment.
+Then create a test platform in your setup block. Pass a `:registration`
+function to create matching records in your own persistence layer. The
+function receives an `Ltix.Registration` with the platform details
+(issuer, client_id, endpoints) and returns your app's struct:
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do
   use MyAppWeb.ConnCase, async: true
 
   setup do
-    %{platform: Ltix.Test.setup_platform!()}
+    platform = Ltix.Test.setup_platform!(
+      registration: fn reg ->
+        jwk = MyApp.Lti.generate_jwk!()
+
+        MyApp.Lti.create_registration!(%{
+          issuer: reg.issuer,
+          client_id: reg.client_id,
+          auth_endpoint: reg.auth_endpoint,
+          jwks_uri: reg.jwks_uri,
+          token_endpoint: reg.token_endpoint,
+          tool_jwk_id: jwk.id
+        })
+      end
+    )
+
+    %{platform: platform}
   end
 end
 ```
 
-Each call to `setup_platform!/1` starts its own in-memory storage agent
-scoped to the calling process, so `async: true` tests are safe without
-any cleanup.
+If your storage adapter auto-creates deployments (common pattern), you
+don't need a deployment factory. Otherwise, pass a 2-arity
+`:deployment` function that receives `(Ltix.Deployment, your_registration)`.
 
 ## Testing your controller
 
