@@ -206,7 +206,7 @@ defmodule Ltix.GradeService do
              {:ok, pages} <-
                Pagination.stream(url, headers,
                  params: params,
-                 req_options: client.req_options
+                 req_options: merged_req_options(client)
                ) do
           collect_line_items(pages)
         end
@@ -243,7 +243,15 @@ defmodule Ltix.GradeService do
                Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
              {:ok, url} <- resolve_line_item_url(client, opts),
              headers = auth_headers(client, @lineitem_media_type),
-             req_opts = build_request(:get, client, url, headers, @lineitem_media_type, nil),
+             req_opts =
+               build_request(
+                 :get,
+                 merged_req_options(client),
+                 url,
+                 headers,
+                 @lineitem_media_type,
+                 nil
+               ),
              {:ok, body} <- request(req_opts) do
           LineItem.from_json(body)
         end
@@ -297,7 +305,14 @@ defmodule Ltix.GradeService do
              {:ok, json} <- LineItem.to_json(struct!(LineItem, Enum.into(opts, %{}))),
              headers = auth_headers(client, nil),
              req_opts =
-               build_request(:post, client, url, headers, @lineitem_media_type, json),
+               build_request(
+                 :post,
+                 merged_req_options(client),
+                 url,
+                 headers,
+                 @lineitem_media_type,
+                 json
+               ),
              {:ok, body} <- request(req_opts) do
           LineItem.from_json(body)
         end
@@ -334,7 +349,14 @@ defmodule Ltix.GradeService do
              url = item.id,
              headers = auth_headers(client, nil),
              req_opts =
-               build_request(:put, client, url, headers, @lineitem_media_type, json),
+               build_request(
+                 :put,
+                 merged_req_options(client),
+                 url,
+                 headers,
+                 @lineitem_media_type,
+                 json
+               ),
              {:ok, body} <- request(req_opts) do
           LineItem.from_json(body)
         end
@@ -380,7 +402,7 @@ defmodule Ltix.GradeService do
              :ok <- Client.require_scope(client, @scope_lineitem),
              :ok <- check_coupled_guard(client, url, Keyword.get(opts, :force, false)),
              headers = auth_headers(client, nil),
-             req_opts = build_request(:delete, client, url, headers),
+             req_opts = build_request(:delete, merged_req_options(client), url, headers),
              {:ok, _body} <- request(req_opts) do
           :ok
         end
@@ -422,7 +444,15 @@ defmodule Ltix.GradeService do
              url = derive_url(base_url, "scores"),
              json = Score.to_json(score),
              headers = auth_headers(client, nil),
-             req_opts = build_request(:post, client, url, headers, @score_media_type, json),
+             req_opts =
+               build_request(
+                 :post,
+                 merged_req_options(client),
+                 url,
+                 headers,
+                 @score_media_type,
+                 json
+               ),
              {:ok, _body} <- request(req_opts) do
           :ok
         end
@@ -469,7 +499,7 @@ defmodule Ltix.GradeService do
              {:ok, pages} <-
                Pagination.stream(url, headers,
                  params: params,
-                 req_options: client.req_options
+                 req_options: merged_req_options(client)
                ) do
           collect_results(pages)
         end
@@ -584,15 +614,19 @@ defmodule Ltix.GradeService do
     ]
   end
 
-  defp build_request(method, %Client{} = client, url, headers) do
-    client.req_options
+  defp merged_req_options(%Client{} = client) do
+    Ltix.HTTP.req_options(client.req_options, __MODULE__)
+  end
+
+  defp build_request(method, req_options, url, headers) do
+    req_options
     |> Keyword.put(:method, method)
     |> Keyword.put(:url, url)
     |> Keyword.put(:headers, headers)
   end
 
-  defp build_request(method, %Client{} = client, url, headers, content_type, body) do
-    client.req_options
+  defp build_request(method, req_options, url, headers, content_type, body) do
+    req_options
     |> Keyword.put(:method, method)
     |> Keyword.put(:url, url)
     |> Keyword.put(:headers, [{"content-type", content_type} | headers])

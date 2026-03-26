@@ -34,17 +34,13 @@ defmodule Ltix.GradeServiceTest do
     %{platform: platform}
   end
 
-  defp req_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
+  defp req_options, do: [plug: {Req.Test, Ltix.GradeService}, retry: false]
 
   defp stub_token_response(scopes \\ @all_scopes) do
-    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-      Req.Test.json(conn, %{
-        "access_token" => "test-ags-token",
-        "token_type" => "Bearer",
-        "expires_in" => 3600,
-        "scope" => Enum.join(scopes, " ")
-      })
-    end)
+    Ltix.Test.stub_token_response(
+      scopes: scopes,
+      access_token: "test-ags-token"
+    )
   end
 
   defp build_client(platform, opts \\ []) do
@@ -220,7 +216,7 @@ defmodule Ltix.GradeServiceTest do
         build_line_item_json(id: "#{@lineitems_url}/2", label: "Quiz 2")
       ]
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
         |> Req.Test.json(items)
@@ -232,7 +228,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "sends correct Accept header", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         [accept] = Plug.Conn.get_req_header(conn, "accept")
         assert accept == @lineitem_container_media_type
 
@@ -246,7 +242,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "passes filter query parameters", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["resource_link_id"] == "rl-123"
         assert params["resource_id"] == "res-456"
@@ -270,7 +266,7 @@ defmodule Ltix.GradeServiceTest do
     test "follows rel=next pagination", ctx do
       counter = :counters.new(1, [:atomics])
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         page = :counters.get(counter, 1)
         :counters.add(counter, 1, 1)
 
@@ -329,7 +325,7 @@ defmodule Ltix.GradeServiceTest do
     test "fetches line item from explicit URL", ctx do
       item_json = build_line_item_json()
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
         |> Req.Test.json(item_json)
@@ -344,7 +340,7 @@ defmodule Ltix.GradeServiceTest do
     test "uses endpoint lineitem URL when no option given", ctx do
       item_json = build_line_item_json()
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
         |> Req.Test.json(item_json)
@@ -373,7 +369,7 @@ defmodule Ltix.GradeServiceTest do
 
   describe "create_line_item/2" do
     test "creates line item and returns parsed response", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         json = Ltix.AppConfig.json_library!().decode!(body)
         assert json["label"] == "Quiz 1"
@@ -396,7 +392,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "sends correct Content-Type", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         [content_type] = Plug.Conn.get_req_header(conn, "content-type")
         assert content_type =~ @lineitem_media_type
 
@@ -443,7 +439,7 @@ defmodule Ltix.GradeServiceTest do
 
   describe "update_line_item/2" do
     test "PUTs full line item to its id URL", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "PUT"
 
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -488,7 +484,7 @@ defmodule Ltix.GradeServiceTest do
 
   describe "delete_line_item/3" do
     test "deletes line item by struct", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "DELETE"
         Plug.Conn.send_resp(conn, 204, "")
       end)
@@ -500,7 +496,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "deletes line item by URL string", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "DELETE"
         Plug.Conn.send_resp(conn, 204, "")
       end)
@@ -518,7 +514,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "succeeds with force: true when URL matches endpoint lineitem", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "DELETE"
         Plug.Conn.send_resp(conn, 204, "")
       end)
@@ -529,7 +525,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "no guard when endpoint has no lineitem URL", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
@@ -564,7 +560,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "posts to {lineitem}/scores using endpoint lineitem", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "POST"
         assert conn.request_path =~ "/scores"
 
@@ -579,7 +575,7 @@ defmodule Ltix.GradeServiceTest do
     test "posts to explicit line item URL", ctx do
       explicit_url = "#{@lineitems_url}/42/lineitem"
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.request_path =~ "/42/lineitem/scores"
         Plug.Conn.send_resp(conn, 200, "")
       end)
@@ -591,7 +587,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "sends correct Content-Type", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         [content_type] = Plug.Conn.get_req_header(conn, "content-type")
         assert content_type =~ @score_media_type
 
@@ -604,7 +600,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns :ok on HTTP 204", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
@@ -636,7 +632,7 @@ defmodule Ltix.GradeServiceTest do
         build_result_json("user-2", result_score: 0.95, result_maximum: 1)
       ]
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.request_path =~ "/results"
 
         conn
@@ -652,7 +648,7 @@ defmodule Ltix.GradeServiceTest do
     test "fetches results for explicit line item", ctx do
       explicit_url = "#{@lineitems_url}/42/lineitem"
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.request_path =~ "/42/lineitem/results"
 
         conn
@@ -667,7 +663,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "filters by user_id query parameter", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["user_id"] == "user-123"
 
@@ -685,7 +681,7 @@ defmodule Ltix.GradeServiceTest do
     test "follows rel=next pagination", ctx do
       counter = :counters.new(1, [:atomics])
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         page = :counters.get(counter, 1)
         :counters.add(counter, 1, 1)
 
@@ -717,7 +713,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "sends correct Accept header", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.GradeService, fn conn ->
         [accept] = Plug.Conn.get_req_header(conn, "accept")
         assert accept == @result_container_media_type
 

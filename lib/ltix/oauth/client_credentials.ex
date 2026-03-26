@@ -106,7 +106,6 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   defp req_options(opts) do
-    default = Application.get_env(:ltix, :req_options, [])
-    Keyword.merge(default, Keyword.get(opts, :req_options, []))
+    Ltix.HTTP.req_options(Keyword.get(opts, :req_options, []), __MODULE__)
   end
 end

@@ -89,12 +89,46 @@ defmodule Ltix.Test do
         assert MyApp.Permissions.can_manage_grades?(context)
       end
 
+  ## Advantage service tests
+
+  When testing code that calls `Ltix.GradeService` or
+  `Ltix.MembershipsService`, stub the OAuth token endpoint and the
+  service's HTTP calls. Each service has a well-known `Req.Test` stub
+  name matching its module.
+
+      setup do
+        platform = Ltix.Test.setup_platform!()
+
+        Ltix.Test.stub_token_response(scopes: [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ])
+
+        Ltix.Test.stub_post_score()
+
+        %{platform: platform}
+      end
+
+      test "posts a score", %{platform: platform} do
+        context = Ltix.Test.build_launch_context(platform,
+          ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+            lineitem: "https://platform.example.com/lineitems/1",
+            scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+          }
+        )
+
+        {:ok, client} = Ltix.GradeService.authenticate(context)
+        :ok = Ltix.GradeService.post_score(client, score)
+      end
+
   See the [Testing LTI Launches](testing-lti-launches.md) cookbook for
-  more examples, including role customization and raw claim overrides.
+  more examples, including role customization, raw claim overrides, and
+  memberships service testing.
   """
 
   alias Ltix.Deployable
   alias Ltix.Deployment
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AgsEndpoint
   alias Ltix.LaunchClaims.Context
@@ -103,6 +137,7 @@ defmodule Ltix.Test do
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
+  alias Ltix.MembershipsService.Member
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Test.Platform
@@ -318,6 +353,238 @@ defmodule Ltix.Test do
         resource_link: build_resource_link(Keyword.get(opts, :resource_link))
     }
   end
+
+  # --- Service Test Helpers ---
+
+  @doc """
+  Stub the OAuth token endpoint for advantage service tests.
+
+  Registers a `Req.Test` stub on `Ltix.OAuth.ClientCredentials` that
+  returns a successful token response. Call this in your test setup
+  before authenticating a service client.
+
+      Ltix.Test.stub_token_response(scopes: [
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+      ])
+
+  ## Options
+
+    * `:scopes` — list of granted scope URIs (default: `[]`)
+    * `:access_token` — token string (default: `"test-token"`)
+    * `:expires_in` — token lifetime in seconds (default: `3600`)
+  """
+  @spec stub_token_response(keyword()) :: :ok
+  def stub_token_response(opts \\ []) do
+    scopes = Keyword.get(opts, :scopes, [])
+
+    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+      Req.Test.json(conn, %{
+        "access_token" => Keyword.get(opts, :access_token, "test-token"),
+        "token_type" => "Bearer",
+        "expires_in" => Keyword.get(opts, :expires_in, 3600),
+        "scope" => Enum.join(scopes, " ")
+      })
+    end)
+  end
+
+  # --- Grade Service Stubs ---
+
+  @doc """
+  Stub `list_line_items/2` to return the given line items.
+
+      Ltix.Test.stub_list_line_items([
+        %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
+        %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
+      ])
+
+  Registers a stub on `Ltix.GradeService`. Overwrites any previous
+  grade service stub in the current process.
+  """
+  @spec stub_list_line_items([LineItem.t()]) :: :ok
+  def stub_list_line_items(line_items) when is_list(line_items) do
+    json = Enum.map(line_items, &line_item_to_json/1)
+
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      Req.Test.json(conn, json)
+    end)
+  end
+
+  @doc """
+  Stub `get_line_item/2` to return the given line item.
+
+      Ltix.Test.stub_get_line_item(
+        %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100}
+      )
+  """
+  @spec stub_get_line_item(LineItem.t()) :: :ok
+  def stub_get_line_item(%LineItem{} = item) do
+    json = line_item_to_json(item)
+
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      Req.Test.json(conn, json)
+    end)
+  end
+
+  @doc """
+  Stub `create_line_item/2` to return the given line item.
+
+  Pass the line item you want the platform to "return" (typically the
+  same fields the caller sent, plus an `:id` assigned by the platform).
+
+      Ltix.Test.stub_create_line_item(
+        %LineItem{id: "https://lms.example.com/lineitems/new", label: "Quiz 1", score_maximum: 100}
+      )
+  """
+  @spec stub_create_line_item(LineItem.t()) :: :ok
+  def stub_create_line_item(%LineItem{} = item) do
+    json = line_item_to_json(item)
+
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      conn
+      |> Plug.Conn.put_status(201)
+      |> Req.Test.json(json)
+    end)
+  end
+
+  @doc """
+  Stub `update_line_item/2` to return the given line item.
+
+      Ltix.Test.stub_update_line_item(
+        %LineItem{id: "https://lms.example.com/lineitems/1", label: "Updated Quiz", score_maximum: 100}
+      )
+  """
+  @spec stub_update_line_item(LineItem.t()) :: :ok
+  def stub_update_line_item(%LineItem{} = item) do
+    json = line_item_to_json(item)
+
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      Req.Test.json(conn, json)
+    end)
+  end
+
+  @doc """
+  Stub `delete_line_item/3` to succeed.
+
+      Ltix.Test.stub_delete_line_item()
+  """
+  @spec stub_delete_line_item() :: :ok
+  def stub_delete_line_item do
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      Plug.Conn.send_resp(conn, 204, "")
+    end)
+  end
+
+  @doc """
+  Stub `post_score/3` to succeed.
+
+      Ltix.Test.stub_post_score()
+  """
+  @spec stub_post_score() :: :ok
+  def stub_post_score do
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      Plug.Conn.send_resp(conn, 200, "")
+    end)
+  end
+
+  @doc """
+  Stub `get_results/2` to return the given results.
+
+      Ltix.Test.stub_get_results([
+        %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
+        %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
+      ])
+  """
+  @spec stub_get_results([Result.t()]) :: :ok
+  def stub_get_results(results) when is_list(results) do
+    json = Enum.map(results, &result_to_json/1)
+
+    Req.Test.stub(Ltix.GradeService, fn conn ->
+      Req.Test.json(conn, json)
+    end)
+  end
+
+  # --- Memberships Service Stubs ---
+
+  @doc """
+  Stub `get_members/2` (and `stream_members/2`) to return the given members.
+
+      Ltix.Test.stub_get_members([
+        %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},
+        %Member{user_id: "student-2", roles: [Role.from_atom(:instructor)], name: "Bob"}
+      ])
+
+  ## Options
+
+    * `:context` — `%Context{}` for the container (default: `%Context{id: "context-001"}`)
+    * `:id` — container ID URL (default: `nil`)
+  """
+  @spec stub_get_members([Member.t()], keyword()) :: :ok
+  def stub_get_members(members, opts \\ []) when is_list(members) do
+    context = Keyword.get(opts, :context, %Context{id: "context-001"})
+    container_id = Keyword.get(opts, :id)
+
+    json =
+      %{
+        "context" => context_to_json(context),
+        "members" => Enum.map(members, &member_to_json/1)
+      }
+      |> maybe_put("id", container_id)
+
+    Req.Test.stub(Ltix.MembershipsService, fn conn ->
+      Req.Test.json(conn, json)
+    end)
+  end
+
+  # --- Struct Serialization (test only) ---
+
+  defp line_item_to_json(%LineItem{} = item) do
+    {:ok, json} = LineItem.to_json(item)
+    json
+  end
+
+  defp result_to_json(%Result{} = result) do
+    %{}
+    |> maybe_put("id", result.id)
+    |> maybe_put("scoreOf", result.score_of)
+    |> maybe_put("userId", result.user_id)
+    |> maybe_put("resultScore", result.result_score)
+    |> maybe_put("resultMaximum", result.result_maximum)
+    |> maybe_put("scoringUserId", result.scoring_user_id)
+    |> maybe_put("comment", result.comment)
+    |> Map.merge(result.extensions)
+  end
+
+  defp member_to_json(%Member{} = member) do
+    role_uris =
+      Enum.map(member.roles, fn role ->
+        {:ok, uri} = Role.to_uri(role)
+        uri
+      end) ++ member.unrecognized_roles
+
+    %{"user_id" => member.user_id, "roles" => role_uris}
+    |> maybe_put("status", status_to_string(member.status))
+    |> maybe_put("name", member.name)
+    |> maybe_put("picture", member.picture)
+    |> maybe_put("given_name", member.given_name)
+    |> maybe_put("family_name", member.family_name)
+    |> maybe_put("middle_name", member.middle_name)
+    |> maybe_put("email", member.email)
+    |> maybe_put("lis_person_sourcedid", member.lis_person_sourcedid)
+    |> maybe_put("lti11_legacy_user_id", member.lti11_legacy_user_id)
+  end
+
+  defp context_to_json(%Context{} = ctx) do
+    %{"id" => ctx.id}
+    |> maybe_put("label", ctx.label)
+    |> maybe_put("title", ctx.title)
+    |> maybe_put("type", ctx.type)
+  end
+
+  defp status_to_string(:active), do: "Active"
+  defp status_to_string(:inactive), do: "Inactive"
+  defp status_to_string(:deleted), do: "Deleted"
+  defp status_to_string(nil), do: nil
 
   # --- Lower-Level Helpers ---
 

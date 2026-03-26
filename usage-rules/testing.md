@@ -9,11 +9,21 @@ Add to `config/test.exs`:
 ```elixir
 config :ltix,
   storage_adapter: MyApp.LtiStorageAdapter,
-  req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
+  req_options: [plug: {Req.Test, :ltix}]
 ```
 
-Point at your own storage adapter. The `req_options` routes JWKS fetches
-through the test stub that `setup_platform!/1` sets up.
+Point at your own storage adapter. The `req_options` plug routes all
+outbound HTTP through `Req.Test`. Each internal module rewrites the plug
+name to its own well-known stub name, so you can stub each independently:
+
+| Stub name                       | HTTP call                         |
+|---------------------------------|-----------------------------------|
+| `Ltix.JWT.KeySet`               | JWKS public key fetches           |
+| `Ltix.OAuth.ClientCredentials`  | OAuth token requests              |
+| `Ltix.GradeService`            | Grade service (AGS) requests       |
+| `Ltix.MembershipsService`      | Memberships (NRPS) requests        |
+
+`setup_platform!/1` automatically stubs `Ltix.JWT.KeySet`.
 
 ## Platform Setup
 
@@ -130,4 +140,48 @@ end
 - `:memberships_endpoint` — URL string or map (enables memberships service in tests)
 - `:ags_endpoint` — map with `:lineitems`, `:lineitem`, `:scope` (enables grade service)
 
+## Testing Advantage Services
 
+When testing code that uses `Ltix.GradeService` or `Ltix.MembershipsService`,
+stub both the OAuth token endpoint and the service endpoint:
+
+```elixir
+test "posts a score after launch", %{platform: platform} do
+  Ltix.Test.stub_token_response(scopes: [
+    "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+  ])
+
+  Ltix.Test.stub_post_score()
+
+  context = Ltix.Test.build_launch_context(platform,
+    ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+      lineitem: "https://platform.example.com/lineitems/1",
+      scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+    }
+  )
+
+  {:ok, client} = Ltix.GradeService.authenticate(context)
+
+  {:ok, score} = Ltix.GradeService.Score.new(
+    user_id: "student-42",
+    score_given: 85,
+    score_maximum: 100,
+    activity_progress: :completed,
+    grading_progress: :fully_graded
+  )
+
+  :ok = Ltix.GradeService.post_score(client, score)
+end
+```
+
+Per-operation stubs are available for each service call:
+
+- `stub_list_line_items/1`, `stub_get_line_item/1`, `stub_create_line_item/1`,
+  `stub_update_line_item/1`, `stub_delete_line_item/0`
+- `stub_post_score/0`, `stub_get_results/1`
+- `stub_get_members/1`
+
+Each accepts the struct(s) the platform would return. For custom response
+logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly.
+
+`stub_token_response/1` accepts `:scopes`, `:access_token`, and `:expires_in`.

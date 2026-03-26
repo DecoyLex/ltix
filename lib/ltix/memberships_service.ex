@@ -285,7 +285,8 @@ defmodule Ltix.MembershipsService do
 
   defp fetch_pages(%Client{} = client, opts) do
     {url, headers, params} = prepare_request(client, opts)
-    Pagination.stream(url, headers, params: params, req_options: client.req_options)
+    req_options = Ltix.HTTP.req_options(client.req_options, __MODULE__)
+    Pagination.stream(url, headers, params: params, req_options: req_options)
   end
 
   defp prepare_request(%Client{} = client, opts) do

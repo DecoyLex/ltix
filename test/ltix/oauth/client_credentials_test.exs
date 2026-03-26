@@ -29,10 +29,10 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     %{registration: registration, tool_jwk: tool_jwk, public_jwk: public_jwk}
   end
 
-  defp req_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
+  defp req_options, do: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}, retry: false]
 
   defp stub_token_response(body, status \\ 200) do
-    Req.Test.stub(__MODULE__, fn conn ->
+    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
       conn
       |> Plug.Conn.put_resp_content_type("application/json")
       |> Plug.Conn.send_resp(status, Jason.encode!(body))
@@ -62,7 +62,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
       public_jwk = ctx.public_jwk
       registration = ctx.registration
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
@@ -98,7 +98,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     test "JWT header includes typ, alg, and kid", ctx do
       public_jwk = ctx.public_jwk
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
@@ -130,7 +130,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     end
 
     test "POST body contains correct form params", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
@@ -160,7 +160,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     test "multiple scopes are space-separated", ctx do
       scopes = ["scope:read", "scope:write", "scope:admin"]
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
@@ -184,7 +184,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     test "jti is unique across calls", ctx do
       jtis = :ets.new(:jtis, [:set, :public])
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
@@ -226,7 +226,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     end
 
     test "non-JSON error response preserves status and body", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         Plug.Conn.send_resp(conn, 502, "Bad Gateway")
       end)
 

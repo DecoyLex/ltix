@@ -70,10 +70,10 @@ defmodule Ltix.OAuthTest do
     %{registration: registration, custom_registration: custom_registration}
   end
 
-  defp req_options, do: [plug: {Req.Test, __MODULE__}]
+  defp req_options, do: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
 
   defp stub_token_response(scope_string) do
-    Req.Test.stub(__MODULE__, fn conn ->
+    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
       Req.Test.json(conn, %{
         "access_token" => "test-token",
         "token_type" => "Bearer",
@@ -100,7 +100,7 @@ defmodule Ltix.OAuthTest do
     end
 
     test "multiple endpoints send space-separated scopes", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
         scope_parts = String.split(params["scope"])
@@ -155,7 +155,7 @@ defmodule Ltix.OAuthTest do
     end
 
     test "token request failure propagated", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Plug.Conn.send_resp(400, Jason.encode!(%{"error" => "invalid_grant"}))
@@ -169,7 +169,7 @@ defmodule Ltix.OAuthTest do
     end
 
     test "req_options passed through to token request", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         # If we got here, the plug option was passed through correctly
         Req.Test.json(conn, %{
           "access_token" => "plug-test",

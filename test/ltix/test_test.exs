@@ -1,6 +1,8 @@
 defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.GradeService.Score
+  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
   alias Ltix.Test.StorageAdapter
@@ -324,7 +326,260 @@ defmodule Ltix.TestTest do
     end
   end
 
+  # --- Service Stub Helpers ---
+
+  describe "stub_token_response/1" do
+    test "stubs a successful OAuth token response", %{platform: platform} do
+      Ltix.Test.stub_token_response(
+        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+        access_token: "my-token"
+      )
+
+      context =
+        Ltix.Test.build_launch_context(platform,
+          ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+            lineitem: "https://platform.example.com/lineitems/1",
+            scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+          }
+        )
+
+      assert {:ok, client} =
+               Ltix.GradeService.authenticate(context,
+                 req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
+               )
+
+      assert client.access_token == "my-token"
+    end
+  end
+
+  describe "stub_list_line_items/1" do
+    test "returns serialized line items", %{platform: platform} do
+      alias Ltix.GradeService.LineItem
+
+      items = [
+        %LineItem{id: "https://lms.example.com/items/1", label: "Quiz 1", score_maximum: 100},
+        %LineItem{id: "https://lms.example.com/items/2", label: "Quiz 2", score_maximum: 50}
+      ]
+
+      Ltix.Test.stub_token_response(
+        scopes: [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
+        ]
+      )
+
+      Ltix.Test.stub_list_line_items(items)
+
+      client = build_grade_client(platform)
+
+      assert {:ok, [%LineItem{label: "Quiz 1"}, %LineItem{label: "Quiz 2"}]} =
+               Ltix.GradeService.list_line_items(client)
+    end
+  end
+
+  describe "stub_get_line_item/1" do
+    test "returns a single serialized line item", %{platform: platform} do
+      alias Ltix.GradeService.LineItem
+
+      item = %LineItem{
+        id: "https://lms.example.com/items/1",
+        label: "Final Exam",
+        score_maximum: 200
+      }
+
+      Ltix.Test.stub_get_line_item(item)
+
+      client = build_grade_client(platform)
+
+      assert {:ok, %LineItem{label: "Final Exam", score_maximum: 200}} =
+               Ltix.GradeService.get_line_item(client)
+    end
+  end
+
+  describe "stub_create_line_item/1" do
+    test "returns the created line item with 201", %{platform: platform} do
+      alias Ltix.GradeService.LineItem
+
+      item = %LineItem{
+        id: "https://lms.example.com/items/new",
+        label: "New Quiz",
+        score_maximum: 100
+      }
+
+      Ltix.Test.stub_create_line_item(item)
+
+      client = build_grade_client(platform)
+
+      assert {:ok, %LineItem{id: "https://lms.example.com/items/new", label: "New Quiz"}} =
+               Ltix.GradeService.create_line_item(client, label: "New Quiz", score_maximum: 100)
+    end
+  end
+
+  describe "stub_update_line_item/1" do
+    test "returns the updated line item", %{platform: platform} do
+      alias Ltix.GradeService.LineItem
+
+      item = %LineItem{
+        id: "https://lms.example.com/items/1",
+        label: "Updated",
+        score_maximum: 100
+      }
+
+      Ltix.Test.stub_update_line_item(item)
+
+      client = build_grade_client(platform)
+
+      assert {:ok, %LineItem{label: "Updated"}} =
+               Ltix.GradeService.update_line_item(client, item)
+    end
+  end
+
+  describe "stub_delete_line_item/0" do
+    test "succeeds with 204", %{platform: platform} do
+      Ltix.Test.stub_delete_line_item()
+
+      client = build_grade_client(platform)
+      assert :ok = Ltix.GradeService.delete_line_item(client, "https://lms.example.com/items/99")
+    end
+  end
+
+  describe "stub_post_score/0" do
+    test "succeeds", %{platform: platform} do
+      Ltix.Test.stub_post_score()
+
+      client =
+        build_grade_client(platform,
+          scopes: [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ]
+        )
+
+      {:ok, score} =
+        Score.new(
+          user_id: "student-1",
+          score_given: 85,
+          score_maximum: 100,
+          activity_progress: :completed,
+          grading_progress: :fully_graded
+        )
+
+      assert :ok = Ltix.GradeService.post_score(client, score)
+    end
+  end
+
+  describe "stub_get_results/1" do
+    test "returns serialized results", %{platform: platform} do
+      alias Ltix.GradeService.Result
+
+      results = [
+        %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
+        %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
+      ]
+
+      Ltix.Test.stub_get_results(results)
+
+      client =
+        build_grade_client(platform,
+          scopes: [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
+          ]
+        )
+
+      assert {:ok, [%Result{user_id: "student-1"}, %Result{user_id: "student-2"}]} =
+               Ltix.GradeService.get_results(client)
+    end
+  end
+
+  describe "stub_get_members/1" do
+    test "returns serialized members in a container", %{platform: platform} do
+      alias Ltix.MembershipsService.Member
+      alias Ltix.MembershipsService.MembershipContainer
+
+      members = [
+        %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},
+        %Member{user_id: "teacher-1", roles: [Role.from_atom(:instructor)], name: "Bob"}
+      ]
+
+      Ltix.Test.stub_get_members(members,
+        context: %Ltix.LaunchClaims.Context{
+          id: "course-42",
+          title: "Elixir 101"
+        }
+      )
+
+      client = build_memberships_client(platform)
+
+      assert {:ok, %MembershipContainer{} = roster} =
+               Ltix.MembershipsService.get_members(client)
+
+      assert roster.context.id == "course-42"
+      assert roster.context.title == "Elixir 101"
+      assert length(roster.members) == 2
+
+      alice = Enum.find(roster.members, &(&1.user_id == "student-1"))
+      assert alice.name == "Alice"
+      assert Role.learner?(alice.roles)
+    end
+
+    test "uses default context when none given", %{platform: platform} do
+      alias Ltix.MembershipsService.Member
+      alias Ltix.MembershipsService.MembershipContainer
+
+      Ltix.Test.stub_get_members([
+        %Member{user_id: "student-1", roles: [Role.from_atom(:learner)]}
+      ])
+
+      client = build_memberships_client(platform)
+
+      assert {:ok, %MembershipContainer{} = roster} =
+               Ltix.MembershipsService.get_members(client)
+
+      assert roster.context.id == "context-001"
+    end
+  end
+
   # -- Helpers --
+
+  defp build_grade_client(platform, opts \\ []) do
+    scopes =
+      Keyword.get(opts, :scopes, [
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+      ])
+
+    %Ltix.OAuth.Client{
+      access_token: "test-token",
+      expires_at: DateTime.add(DateTime.utc_now(), 3600),
+      scopes: MapSet.new(scopes),
+      registration: platform.registration,
+      req_options: [plug: {Req.Test, Ltix.GradeService}, retry: false],
+      endpoints: %{
+        Ltix.GradeService => %Ltix.LaunchClaims.AgsEndpoint{
+          lineitems: "https://lms.example.com/lineitems",
+          lineitem: "https://lms.example.com/lineitems/1",
+          scope: scopes
+        }
+      }
+    }
+  end
+
+  defp build_memberships_client(platform) do
+    %Ltix.OAuth.Client{
+      access_token: "test-token",
+      expires_at: DateTime.add(DateTime.utc_now(), 3600),
+      scopes:
+        MapSet.new([
+          "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+        ]),
+      registration: platform.registration,
+      req_options: [plug: {Req.Test, Ltix.MembershipsService}, retry: false],
+      endpoints: %{
+        Ltix.MembershipsService => MembershipsEndpoint.new("https://lms.example.com/memberships")
+      }
+    }
+  end
+
+  # -- OIDC Flow Helpers --
 
   defp do_login(platform) do
     Ltix.handle_login(

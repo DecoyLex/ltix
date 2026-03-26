@@ -23,23 +23,19 @@ defmodule Ltix.MembershipsServiceTest do
     %{platform: platform}
   end
 
-  defp req_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
+  defp req_options, do: [plug: {Req.Test, Ltix.MembershipsService}, retry: false]
 
   defp stub_token_response do
-    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-      Req.Test.json(conn, %{
-        "access_token" => "test-nrps-token",
-        "token_type" => "Bearer",
-        "expires_in" => 3600,
-        "scope" => @nrps_scope
-      })
-    end)
+    Ltix.Test.stub_token_response(
+      scopes: [@nrps_scope],
+      access_token: "test-nrps-token"
+    )
   end
 
   defp stub_memberships_response(body, opts \\ []) do
     next_url = Keyword.get(opts, :next_url)
 
-    Req.Test.stub(__MODULE__, fn conn ->
+    Req.Test.stub(Ltix.MembershipsService, fn conn ->
       conn =
         Plug.Conn.put_resp_content_type(conn, @nrps_media_type)
 
@@ -245,7 +241,7 @@ defmodule Ltix.MembershipsServiceTest do
     test "follows all rel=next links across pages", ctx do
       counter = :counters.new(1, [:atomics])
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         page = :counters.get(counter, 1)
         :counters.add(counter, 1, 1)
 
@@ -330,7 +326,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "sends correct Accept header", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         [accept] = Plug.Conn.get_req_header(conn, "accept")
         assert accept == @nrps_media_type
 
@@ -344,7 +340,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "sends correct Authorization header", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         [auth] = Plug.Conn.get_req_header(conn, "authorization")
         assert auth == "Bearer test-nrps-token"
 
@@ -358,7 +354,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "HTTP error returns error tuple", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         Plug.Conn.send_resp(conn, 403, "Forbidden")
       end)
 
@@ -372,7 +368,7 @@ defmodule Ltix.MembershipsServiceTest do
 
   describe "query parameters" do
     test "role filter with atom", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["role"] == @learner_uri
 
@@ -386,7 +382,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "role filter with URI string", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["role"] == @instructor_uri
 
@@ -400,7 +396,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "role filter with short name string", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["role"] == "Learner"
 
@@ -414,7 +410,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "per_page passed as limit query parameter", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["limit"] == "25"
 
@@ -428,7 +424,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "role filter with %Role{} struct", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["role"] == @instructor_uri
 
@@ -443,7 +439,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "resource_link_id appended as rlid parameter", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["rlid"] == "resource-link-001"
 
@@ -470,7 +466,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "accepts media type with parameters", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@nrps_media_type <> "; charset=utf-8")
         |> Req.Test.json(build_membership_response([]))
@@ -481,7 +477,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "robustly handles wrong but compatible content type", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
         |> Req.Test.json(build_membership_response([]))
@@ -494,7 +490,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "rejects wrong content type", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("text/html")
         |> Req.Test.text("This class's students are Alice, Bob, Carol, Dave, Eve")
@@ -526,7 +522,7 @@ defmodule Ltix.MembershipsServiceTest do
       counter = :counters.new(1, [:atomics])
       fetch_count = :counters.new(1, [:atomics])
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         :counters.add(fetch_count, 1, 1)
         page = :counters.get(counter, 1)
         :counters.add(counter, 1, 1)
@@ -567,7 +563,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "returns error on first page failure", ctx do
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
         Plug.Conn.send_resp(conn, 401, "Unauthorized")
       end)
 

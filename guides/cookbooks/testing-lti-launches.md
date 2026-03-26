@@ -6,14 +6,19 @@ authorization logic, and role-based behavior without a real LMS.
 
 ## Setup
 
-Add your storage adapter and the JWKS test stub to `config/test.exs`:
+Add your storage adapter and the Req test plug to `config/test.exs`:
 
 ```elixir
 # config/test.exs
 config :ltix,
   storage_adapter: MyApp.LtiStorageAdapter,
-  req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
+  req_options: [plug: {Req.Test, :ltix}]
 ```
+
+The `:ltix` atom is a sentinel; each internal module rewrites it to its
+own stub name (`Ltix.JWT.KeySet`, `Ltix.OAuth.ClientCredentials`,
+`Ltix.GradeService`, `Ltix.MembershipsService`). `setup_platform!/1`
+automatically stubs `Ltix.JWT.KeySet` for JWKS fetches.
 
 Then create a test platform in your setup block. Pass a `:registration`
 function to create matching records in your own persistence layer. The
@@ -207,3 +212,100 @@ Ltix.Test.launch_params(platform,
   }
 )
 ```
+
+## Testing advantage services
+
+When your application uses `Ltix.GradeService` or
+`Ltix.MembershipsService`, you need to stub both the OAuth token
+request and the service's HTTP calls.
+
+### Grade service
+
+```elixir
+test "submits a score after launch", %{platform: platform} do
+  Ltix.Test.stub_token_response(scopes: [
+    "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+  ])
+
+  Ltix.Test.stub_post_score()
+
+  context = Ltix.Test.build_launch_context(platform,
+    ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+      lineitem: "https://platform.example.com/lineitems/1",
+      scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+    }
+  )
+
+  {:ok, client} = Ltix.GradeService.authenticate(context)
+
+  {:ok, score} = Ltix.GradeService.Score.new(
+    user_id: "student-42",
+    score_given: 85,
+    score_maximum: 100,
+    activity_progress: :completed,
+    grading_progress: :fully_graded
+  )
+
+  assert :ok = Ltix.GradeService.post_score(client, score)
+end
+```
+
+### Memberships service
+
+```elixir
+test "fetches roster", %{platform: platform} do
+  alias Ltix.LaunchClaims.Role
+  alias Ltix.MembershipsService.Member
+
+  Ltix.Test.stub_token_response(scopes: [
+    "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+  ])
+
+  Ltix.Test.stub_get_members([
+    %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"}
+  ])
+
+  context = Ltix.Test.build_launch_context(platform,
+    memberships_endpoint: "https://platform.example.com/memberships"
+  )
+
+  {:ok, client} = Ltix.MembershipsService.authenticate(context)
+  {:ok, roster} = Ltix.MembershipsService.get_members(client)
+
+  assert length(roster.members) == 1
+  assert hd(roster.members).name == "Alice"
+end
+```
+
+### Listing line items
+
+```elixir
+test "lists line items", %{platform: platform} do
+  alias Ltix.GradeService.LineItem
+
+  Ltix.Test.stub_token_response(scopes: [
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
+  ])
+
+  Ltix.Test.stub_list_line_items([
+    %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
+    %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
+  ])
+
+  context = Ltix.Test.build_launch_context(platform,
+    ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+      lineitems: "https://lms.example.com/lineitems",
+      scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+    }
+  )
+
+  {:ok, client} = Ltix.GradeService.authenticate(context)
+  {:ok, items} = Ltix.GradeService.list_line_items(client)
+
+  assert length(items) == 2
+end
+```
+
+Per-operation stubs accept the struct(s) the platform would return. For
+custom response logic (inspecting headers, returning errors, etc.), use
+`Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly.

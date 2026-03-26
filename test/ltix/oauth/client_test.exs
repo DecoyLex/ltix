@@ -57,7 +57,7 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   defp stub_token_response do
-    Req.Test.stub(__MODULE__, fn conn ->
+    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
       Req.Test.json(conn, %{
         "access_token" => "refreshed-token",
         "token_type" => "Bearer",
@@ -249,7 +249,7 @@ defmodule Ltix.OAuth.ClientTest do
       client =
         build_client(%{
           registration: registration,
-          req_options: [plug: {Req.Test, __MODULE__}]
+          req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
         })
 
       assert {:ok, %Client{} = refreshed} = Client.refresh(client)
@@ -261,14 +261,14 @@ defmodule Ltix.OAuth.ClientTest do
     test "refresh!/1 raises on error" do
       registration = build_registration()
 
-      Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         Plug.Conn.send_resp(conn, 400, Jason.encode!(%{"error" => "invalid_grant"}))
       end)
 
       client =
         build_client(%{
           registration: registration,
-          req_options: [plug: {Req.Test, __MODULE__}]
+          req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
         })
 
       assert_raise Ltix.Errors.Invalid.TokenRequestFailed, fn -> Client.refresh!(client) end
