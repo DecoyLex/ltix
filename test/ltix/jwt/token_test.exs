@@ -58,13 +58,8 @@ defmodule Ltix.JWT.TokenTest do
     end
 
     # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
-    test "valid JWT with aud as array containing client_id", ctx do
-      claims =
-        JWTHelper.valid_lti_claims(%{
-          "aud" => ["other-client", "tool-client-id"],
-          "azp" => "tool-client-id"
-        })
-
+    test "valid JWT with aud as single-element array", ctx do
+      claims = JWTHelper.valid_lti_claims(%{"aud" => ["tool-client-id"]})
       token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
 
       assert {:ok, _claims} = Token.verify(token, ctx.registration, req_options: req_options())
@@ -170,11 +165,25 @@ defmodule Ltix.JWT.TokenTest do
     end
 
     # [Sec §5.1.3 step 5](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects wrong azp with multiple audiences", ctx do
+    test "rejects wrong azp with single string aud", ctx do
+      claims =
+        JWTHelper.valid_lti_claims(%{
+          "aud" => "tool-client-id",
+          "azp" => "other-client"
+        })
+
+      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+
+      assert {:error, %AudienceMismatch{}} =
+               Token.verify(token, ctx.registration, req_options: req_options())
+    end
+
+    # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+    test "rejects aud array with untrusted additional audience", ctx do
       claims =
         JWTHelper.valid_lti_claims(%{
           "aud" => ["tool-client-id", "other-client"],
-          "azp" => "other-client"
+          "azp" => "tool-client-id"
         })
 
       token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
@@ -209,6 +218,52 @@ defmodule Ltix.JWT.TokenTest do
       token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
 
       assert {:error, %NonceMissing{}} =
+               Token.verify(token, ctx.registration, req_options: req_options())
+    end
+
+    # Issuer spoofing — attacker sends a near-miss issuer hoping the tool
+    # treats it as equivalent to the registered one.
+
+    # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+    test "rejects issuer with trailing slash", ctx do
+      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://platform.example.com/"})
+      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+
+      assert {:error, %IssuerMismatch{}} =
+               Token.verify(token, ctx.registration, req_options: req_options())
+    end
+
+    # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+    test "rejects issuer with different case", ctx do
+      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://PLATFORM.example.com"})
+      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+
+      assert {:error, %IssuerMismatch{}} =
+               Token.verify(token, ctx.registration, req_options: req_options())
+    end
+
+    # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+    test "rejects issuer with unicode homoglyph", ctx do
+      # Cyrillic 'а' (U+0430) looks identical to Latin 'a'
+      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://plаtform.example.com"})
+      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+
+      assert {:error, %IssuerMismatch{}} =
+               Token.verify(token, ctx.registration, req_options: req_options())
+    end
+
+    # Audience confusion — attacker includes untrusted client_ids in aud array
+    # without setting azp, hoping the tool accepts the token.
+    # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+    test "rejects aud array containing untrusted audiences without azp", ctx do
+      claims =
+        JWTHelper.valid_lti_claims(%{
+          "aud" => ["tool-client-id", "evil-client"]
+        })
+
+      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+
+      assert {:error, %AudienceMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
   end

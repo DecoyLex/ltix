@@ -290,6 +290,16 @@ defmodule Ltix.OIDC.CallbackTest do
       assert {:error, %MissingClaim{claim: "roles"}} =
                Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
+
+    # Message type injection — attacker sends a fabricated message type
+    # hoping to bypass validation or trigger unexpected code paths.
+    test "rejects fabricated message_type", ctx do
+      claims = put_lti_claim(ctx.claims, "message_type", "LtiAdminRequest")
+      id_token = mint_and_params(claims, ctx)
+
+      assert {:error, %InvalidClaim{claim: "message_type"}} =
+               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
+    end
   end
 
   # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)

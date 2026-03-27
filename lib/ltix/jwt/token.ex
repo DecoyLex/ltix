@@ -143,7 +143,8 @@ defmodule Ltix.JWT.Token do
      )}
   end
 
-  # [Sec §5.1.3 step 3] aud MUST contain client_id.
+  # [Sec §5.1.3 step 3] aud MUST contain client_id. The tool MUST reject
+  # tokens containing additional audiences not trusted by the tool.
   # [Sec §5.1.3 step 5] If azp present, SHOULD match client_id.
   defp validate_audience(claims, %Registration{client_id: client_id}) do
     aud = Map.get(claims, "aud")
@@ -152,10 +153,10 @@ defmodule Ltix.JWT.Token do
     cond do
       # Single string audience
       is_binary(aud) and aud == client_id ->
-        :ok
+        validate_azp(azp, client_id)
 
-      # Array audience containing client_id
-      is_list(aud) and client_id in aud ->
+      # Array audience — must contain only client_id, no untrusted audiences
+      is_list(aud) and aud == [client_id] ->
         validate_azp(azp, client_id)
 
       true ->
