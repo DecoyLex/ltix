@@ -38,33 +38,34 @@ defmodule Ltix.Pagination do
     opts = Zoi.parse!(@stream_schema, opts)
     params = Keyword.fetch!(opts, :params)
     req_options = req_options(opts)
+    base_uri = URI.parse(url)
 
-    with {:ok, first_body, next_url} <- fetch_page(url, headers, params, req_options) do
+    with {:ok, first_body, next_url} <- fetch_page(url, headers, params, req_options, base_uri) do
       {:ok,
        Stream.resource(
          fn -> {:first, first_body, next_url} end,
-         &next_page(&1, headers, req_options),
+         &next_page(&1, headers, req_options, base_uri),
          fn _ -> :ok end
        )}
     end
   end
 
-  defp next_page({:first, body, next_url}, _headers, _req_options) do
+  defp next_page({:first, body, next_url}, _headers, _req_options, _base_uri) do
     {[body], next_url}
   end
 
-  defp next_page(nil, _headers, _req_options) do
+  defp next_page(nil, _headers, _req_options, _base_uri) do
     {:halt, :done}
   end
 
-  defp next_page(url, headers, req_options) do
-    case fetch_page(url, headers, %{}, req_options) do
+  defp next_page(url, headers, req_options, base_uri) do
+    case fetch_page(url, headers, %{}, req_options, base_uri) do
       {:ok, body, next_url} -> {[body], next_url}
       {:error, reason} -> raise reason
     end
   end
 
-  defp fetch_page(url, headers, params, req_options) do
+  defp fetch_page(url, headers, params, req_options, base_uri) do
     req_opts =
       req_options
       |> Keyword.put(:url, url)
@@ -75,7 +76,11 @@ defmodule Ltix.Pagination do
 
     case Req.get(req_opts) do
       {:ok, %Req.Response{status: 200, body: body, headers: resp_headers}} ->
-        next_url = parse_next_link(resp_headers)
+        next_url =
+          resp_headers
+          |> parse_next_link()
+          |> validate_next_url!(base_uri)
+
         {:ok, body, next_url}
 
       {:ok, %Req.Response{status: status, body: body}} ->
@@ -83,6 +88,27 @@ defmodule Ltix.Pagination do
 
       {:error, exception} ->
         {:error, exception}
+    end
+  end
+
+  defp validate_next_url!(nil, _base_uri), do: nil
+
+  defp validate_next_url!(url, base_uri) do
+    next_uri = URI.parse(url)
+
+    cond do
+      next_uri.scheme != "https" ->
+        raise TransportError,
+          url: url,
+          body: "next page URL must use HTTPS, got #{next_uri.scheme}"
+
+      next_uri.host != base_uri.host ->
+        raise TransportError,
+          url: url,
+          body: "next page URL host mismatch: expected #{base_uri.host}, got #{next_uri.host}"
+
+      true ->
+        url
     end
   end
 
