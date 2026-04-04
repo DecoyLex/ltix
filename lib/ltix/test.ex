@@ -359,9 +359,9 @@ defmodule Ltix.Test do
   @doc """
   Stub the OAuth token endpoint for advantage service tests.
 
-  Registers a `Req.Test` stub on `Ltix.OAuth.ClientCredentials` that
-  returns a successful token response. Call this in your test setup
-  before authenticating a service client.
+  Stubs the OAuth token endpoint so advantage service tests don't make
+  real HTTP calls. Call this in your test setup before authenticating a
+  service client.
 
       Ltix.Test.stub_token_response(scopes: [
         "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",

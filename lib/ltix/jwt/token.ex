@@ -10,14 +10,7 @@ defmodule Ltix.JWT.Token do
 
   ## Examples
 
-      {:ok, registration} = Ltix.Registration.new(%{
-        issuer: "https://platform.example.com",
-        client_id: "tool-123",
-        auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
-      })
-
-      #iex> {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
+      {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
 
   ## Validation Steps
 

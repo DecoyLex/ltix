@@ -16,9 +16,8 @@ config :ltix,
 ```
 
 The `:ltix` atom is a sentinel; each internal module rewrites it to its
-own stub name (`Ltix.JWT.KeySet`, `Ltix.OAuth.ClientCredentials`,
-`Ltix.GradeService`, `Ltix.MembershipsService`). `setup_platform!/1`
-automatically stubs `Ltix.JWT.KeySet` for JWKS fetches.
+own stub name so that HTTP calls are isolated per service.
+`setup_platform!/1` automatically stubs JWKS fetches.
 
 Then create a test platform in your setup block. Pass a `:registration`
 function to create matching records in your own persistence layer. The

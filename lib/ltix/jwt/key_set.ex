@@ -12,14 +12,7 @@ defmodule Ltix.JWT.KeySet do
 
   ## Examples
 
-      {:ok, registration} = Ltix.Registration.new(%{
-        issuer: "https://platform.example.com",
-        client_id: "tool-123",
-        auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
-      })
-
-      #iex> {:ok, _jwk} = Ltix.JWT.KeySet.get_key(registration, "some-kid")
+      {:ok, jwk} = Ltix.JWT.KeySet.get_key(registration, "some-kid")
 
   ## Caching
 
