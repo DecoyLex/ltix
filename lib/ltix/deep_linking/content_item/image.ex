@@ -63,16 +63,16 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
     def item_type(_item), do: "image"
 
     @doc """
-    Serialize an image to a JSON-compatible map.
+    Serialize an image to a map.
 
     ## Examples
 
         iex> {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(url: "https://example.com/photo.png")
-        iex> json = Ltix.DeepLinking.ContentItem.Image.to_json(image)
+        iex> json = Ltix.DeepLinking.ContentItem.Image.to_map(image)
         iex> json["type"]
         "image"
     """
-    def to_json(item) do
+    def to_map(item) do
       %{"type" => "image"}
       |> put_fields(item, [:url, :title, :text, :width, :height])
       |> put_sub_map("icon", item.icon)

@@ -36,10 +36,10 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "to_map/1" do
     test "includes type and url" do
       {:ok, image} = Image.new(url: "https://example.com/image.png", width: 800, height: 600)
-      json = ContentItem.to_json(image)
+      json = ContentItem.to_map(image)
 
       assert json["type"] == "image"
       assert json["url"] == "https://example.com/image.png"
@@ -54,7 +54,7 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
           icon: %{url: "https://example.com/icon.png", width: 16, height: 16}
         )
 
-      json = ContentItem.to_json(image)
+      json = ContentItem.to_map(image)
 
       assert json["icon"] == %{
                "url" => "https://example.com/icon.png",
@@ -65,7 +65,7 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
 
     test "excludes nil optional fields" do
       {:ok, image} = Image.new(url: "https://example.com/image.png")
-      json = ContentItem.to_json(image)
+      json = ContentItem.to_map(image)
 
       refute Map.has_key?(json, "title")
       refute Map.has_key?(json, "icon")
@@ -79,7 +79,7 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
           extensions: %{"com.example" => "extra"}
         )
 
-      json = ContentItem.to_json(image)
+      json = ContentItem.to_map(image)
 
       assert json["com.example"] == "extra"
       refute Map.has_key?(json, "extensions")

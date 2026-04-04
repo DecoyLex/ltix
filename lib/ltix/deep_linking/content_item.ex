@@ -13,7 +13,7 @@ defprotocol Ltix.DeepLinking.ContentItem do
         defimpl Ltix.DeepLinking.ContentItem do
           def item_type(_item), do: "https://myapp.example.com/proctored_exam"
 
-          def to_json(item) do
+          def to_map(item) do
             %{
               "type" => "https://myapp.example.com/proctored_exam",
               "url" => item.url,
@@ -32,14 +32,14 @@ defprotocol Ltix.DeepLinking.ContentItem do
   def item_type(content_item)
 
   @doc "Serialize the content item to a JSON-compatible map."
-  @spec to_json(t) :: %{String.t() => any()}
-  def to_json(content_item)
+  @spec to_map(t) :: %{String.t() => any()}
+  def to_map(content_item)
 end
 
 defimpl Ltix.DeepLinking.ContentItem, for: Map do
   def item_type(%{"type" => type}), do: type
   def item_type(_), do: raise(ArgumentError, "Invalid content item map: missing 'type' field")
 
-  def to_json(map) when is_map(map), do: map
-  def to_json(_), do: raise(ArgumentError, "Invalid content item: expected a map")
+  def to_map(map) when is_map(map), do: map
+  def to_map(_), do: raise(ArgumentError, "Invalid content item: expected a map")
 end

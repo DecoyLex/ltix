@@ -112,16 +112,16 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLink do
     def item_type(_item), do: "ltiResourceLink"
 
     @doc """
-    Serialize an LTI resource link to a JSON-compatible map.
+    Serialize an LTI resource link to a map.
 
     ## Examples
 
         iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(url: "https://tool.example.com")
-        iex> json = Ltix.DeepLinking.ContentItem.LtiResourceLink.to_json(link)
+        iex> json = Ltix.DeepLinking.ContentItem.LtiResourceLink.to_map(link)
         iex> json["type"]
         "ltiResourceLink"
     """
-    def to_json(item) do
+    def to_map(item) do
       %{"type" => "ltiResourceLink"}
       |> put_fields(item, [:url, :title, :text])
       |> put_sub_map("icon", item.icon)

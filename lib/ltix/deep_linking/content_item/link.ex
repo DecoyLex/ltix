@@ -83,16 +83,16 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
     def item_type(_item), do: "link"
 
     @doc """
-    Serialize a link to a JSON-compatible map.
+    Serialize a link to a map.
 
     ## Examples
 
         iex> {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(url: "https://example.com")
-        iex> json = Ltix.DeepLinking.ContentItem.Link.to_json(link)
+        iex> json = Ltix.DeepLinking.ContentItem.Link.to_map(link)
         iex> json["type"]
         "link"
     """
-    def to_json(item) do
+    def to_map(item) do
       %{"type" => "link"}
       |> put_fields(item, [:url, :title, :text])
       |> put_sub_map("icon", item.icon)

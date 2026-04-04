@@ -128,10 +128,10 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "to_map/1" do
     test "includes type" do
       {:ok, link} = LtiResourceLink.new([])
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["type"] == "ltiResourceLink"
     end
@@ -148,7 +148,7 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
           }
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["lineItem"] == %{
                "scoreMaximum" => 100,
@@ -169,7 +169,7 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
           submission: %{end_date_time: "2026-06-15T23:59:59Z"}
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["available"] == %{
                "startDateTime" => "2026-01-01T00:00:00Z",
@@ -181,14 +181,14 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
 
     test "serializes custom map as-is" do
       {:ok, link} = LtiResourceLink.new(custom: %{"chapter" => "12"})
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["custom"] == %{"chapter" => "12"}
     end
 
     test "excludes nil optional fields" do
       {:ok, link} = LtiResourceLink.new([])
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       refute Map.has_key?(json, "url")
       refute Map.has_key?(json, "title")
@@ -199,7 +199,7 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
 
     test "with only line_item (no url) produces valid output" do
       {:ok, link} = LtiResourceLink.new(line_item: %{score_maximum: 50})
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["type"] == "ltiResourceLink"
       assert json["lineItem"] == %{"scoreMaximum" => 50}
@@ -210,7 +210,7 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
       {:ok, link} =
         LtiResourceLink.new(line_item: [score_maximum: 100, label: "Quiz 1"])
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["lineItem"] == %{
                "scoreMaximum" => 100,
@@ -222,7 +222,7 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLinkTest do
       {:ok, link} =
         LtiResourceLink.new(extensions: %{"com.example" => "extra"})
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["com.example"] == "extra"
       refute Map.has_key?(json, "extensions")

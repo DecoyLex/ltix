@@ -53,18 +53,18 @@ defmodule Ltix.DeepLinking.ContentItem.HtmlFragment do
     def item_type(_item), do: "html"
 
     @doc """
-    Serialize an HTML fragment to a JSON-compatible map.
+    Serialize an HTML fragment to a map.
 
     ## Examples
 
         iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HtmlFragment.new(html: "<p>Hello</p>")
-        iex> json = Ltix.DeepLinking.ContentItem.HtmlFragment.to_json(fragment)
+        iex> json = Ltix.DeepLinking.ContentItem.HtmlFragment.to_map(fragment)
         iex> json["type"]
         "html"
         iex> json["html"]
         "<p>Hello</p>"
     """
-    def to_json(item) do
+    def to_map(item) do
       %{"type" => "html"}
       |> put_fields(item, [:html, :title, :text])
       |> Map.merge(item.extensions)

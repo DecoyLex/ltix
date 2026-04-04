@@ -32,10 +32,10 @@ defmodule Ltix.DeepLinking.ContentItem.HtmlFragmentTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "to_map/1" do
     test "includes type and html field" do
       {:ok, fragment} = HtmlFragment.new(html: "<p>Hello</p>")
-      json = ContentItem.to_json(fragment)
+      json = ContentItem.to_map(fragment)
 
       assert json["type"] == "html"
       assert json["html"] == "<p>Hello</p>"
@@ -43,7 +43,7 @@ defmodule Ltix.DeepLinking.ContentItem.HtmlFragmentTest do
 
     test "excludes nil optional fields" do
       {:ok, fragment} = HtmlFragment.new(html: "<p>Hello</p>")
-      json = ContentItem.to_json(fragment)
+      json = ContentItem.to_map(fragment)
 
       refute Map.has_key?(json, "title")
       refute Map.has_key?(json, "text")
@@ -56,7 +56,7 @@ defmodule Ltix.DeepLinking.ContentItem.HtmlFragmentTest do
           extensions: %{"com.example.extra" => "value"}
         )
 
-      json = ContentItem.to_json(fragment)
+      json = ContentItem.to_map(fragment)
 
       assert json["com.example.extra"] == "value"
       refute Map.has_key?(json, "extensions")

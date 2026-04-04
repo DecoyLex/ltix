@@ -110,7 +110,7 @@ defmodule Ltix.DeepLinking do
              :ok <- validate_item_types(items, settings.accept_types),
              :ok <- validate_multiplicity(items, settings.accept_multiple),
              :ok <- validate_line_items(items, settings.accept_lineitem) do
-          items_json = Enum.map(items, &ContentItem.to_json/1)
+          items_json = Enum.map(items, &ContentItem.to_map/1)
           claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
           jwt = sign_jwt(claims, registration.tool_jwk)
           {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}

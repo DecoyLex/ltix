@@ -148,11 +148,11 @@ defmodule Ltix.GradeService.ScoreTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "JSON encoding" do
     test "serializes enums to PascalCase strings" do
       {:ok, score} = Score.new(@valid_attrs)
 
-      json = Score.to_json(score)
+      json = encode_decode!(score)
       assert json["activityProgress"] == "Completed"
       assert json["gradingProgress"] == "FullyGraded"
     end
@@ -169,7 +169,7 @@ defmodule Ltix.GradeService.ScoreTest do
       for {atom, string} <- expected do
         attrs = Keyword.put(@valid_attrs, :activity_progress, atom)
         {:ok, score} = Score.new(attrs)
-        json = Score.to_json(score)
+        json = encode_decode!(score)
         assert json["activityProgress"] == string
       end
     end
@@ -186,7 +186,7 @@ defmodule Ltix.GradeService.ScoreTest do
       for {atom, string} <- expected do
         attrs = Keyword.put(@valid_attrs, :grading_progress, atom)
         {:ok, score} = Score.new(attrs)
-        json = Score.to_json(score)
+        json = encode_decode!(score)
         assert json["gradingProgress"] == string
       end
     end
@@ -194,7 +194,7 @@ defmodule Ltix.GradeService.ScoreTest do
     test "serializes timestamp with sub-second precision and Z" do
       {:ok, score} = Score.new(@valid_attrs ++ [timestamp: ~U[2024-01-15 10:30:00.123456Z]])
 
-      json = Score.to_json(score)
+      json = encode_decode!(score)
       assert json["timestamp"] == "2024-01-15T10:30:00.123456Z"
     end
 
@@ -209,7 +209,7 @@ defmodule Ltix.GradeService.ScoreTest do
           ]
 
       {:ok, score} = Score.new(attrs)
-      json = Score.to_json(score)
+      json = encode_decode!(score)
 
       assert json["submission"] == %{
                "startedAt" => "2024-01-15T09:00:00.000Z",
@@ -220,7 +220,7 @@ defmodule Ltix.GradeService.ScoreTest do
     test "excludes nil optional fields" do
       {:ok, score} = Score.new(@valid_attrs)
 
-      json = Score.to_json(score)
+      json = encode_decode!(score)
       assert Map.has_key?(json, "userId")
       assert Map.has_key?(json, "activityProgress")
       assert Map.has_key?(json, "gradingProgress")
@@ -236,8 +236,17 @@ defmodule Ltix.GradeService.ScoreTest do
       attrs = @valid_attrs ++ [extensions: %{"https://example.com/extra" => %{"key" => "value"}}]
       {:ok, score} = Score.new(attrs)
 
-      json = Score.to_json(score)
+      json = encode_decode!(score)
       assert json["https://example.com/extra"] == %{"key" => "value"}
     end
+  end
+
+  defp encode_decode!(score) do
+    json_lib = Ltix.AppConfig.json_library!()
+
+    score
+    |> json_lib.encode!()
+    |> IO.iodata_to_binary()
+    |> json_lib.decode!()
   end
 end

@@ -65,10 +65,10 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "to_map/1" do
     test "includes type and url" do
       {:ok, link} = Link.new(url: "https://example.com")
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["type"] == "link"
       assert json["url"] == "https://example.com"
@@ -82,7 +82,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
           thumbnail: %{url: "https://example.com/thumb.png", width: 100, height: 75}
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["icon"] == %{"url" => "https://example.com/icon.png"}
 
@@ -100,7 +100,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
           embed: %{html: "<iframe></iframe>"}
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["embed"] == %{"html" => "<iframe></iframe>"}
     end
@@ -117,7 +117,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
           }
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["window"] == %{
                "targetName" => "example",
@@ -134,7 +134,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
           iframe: %{src: "https://example.com/embed", width: 640, height: 480}
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["iframe"] == %{
                "src" => "https://example.com/embed",
@@ -145,7 +145,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
 
     test "excludes nil optional fields" do
       {:ok, link} = Link.new(url: "https://example.com")
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       refute Map.has_key?(json, "title")
       refute Map.has_key?(json, "icon")
@@ -161,7 +161,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
           extensions: %{"com.example" => "extra"}
         )
 
-      json = ContentItem.to_json(link)
+      json = ContentItem.to_map(link)
 
       assert json["com.example"] == "extra"
       refute Map.has_key?(json, "extensions")

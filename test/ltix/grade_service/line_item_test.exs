@@ -104,7 +104,44 @@ defmodule Ltix.GradeService.LineItemTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "validate/1" do
+    test "validates label is present" do
+      item = %LineItem{label: nil, score_maximum: 100}
+
+      assert {:error, error} = LineItem.validate(item)
+      assert Exception.message(error) =~ "label"
+    end
+
+    test "validates label is non-blank" do
+      item = %LineItem{label: "   ", score_maximum: 100}
+
+      assert {:error, error} = LineItem.validate(item)
+      assert Exception.message(error) =~ "label"
+    end
+
+    test "validates score_maximum is present" do
+      item = %LineItem{label: "Quiz 1", score_maximum: nil}
+
+      assert {:error, error} = LineItem.validate(item)
+      assert Exception.message(error) =~ "scoreMaximum"
+    end
+
+    test "validates score_maximum is greater than 0" do
+      item = %LineItem{label: "Quiz 1", score_maximum: 0}
+
+      assert {:error, error} = LineItem.validate(item)
+      assert Exception.message(error) =~ "scoreMaximum"
+    end
+
+    test "validates score_maximum rejects negative" do
+      item = %LineItem{label: "Quiz 1", score_maximum: -5}
+
+      assert {:error, error} = LineItem.validate(item)
+      assert Exception.message(error) =~ "scoreMaximum"
+    end
+  end
+
+  describe "JSON encoding" do
     test "serializes to camelCase keys" do
       item = %LineItem{
         id: "https://lms.example.com/lineitems/1",
@@ -118,7 +155,11 @@ defmodule Ltix.GradeService.LineItemTest do
         grades_released: true
       }
 
-      assert {:ok, json} = LineItem.to_json(item)
+      json =
+        item
+        |> encode!()
+        |> decode!()
+
       assert json["id"] == "https://lms.example.com/lineitems/1"
       assert json["label"] == "Chapter 5 Test"
       assert json["scoreMaximum"] == 60
@@ -137,7 +178,11 @@ defmodule Ltix.GradeService.LineItemTest do
         score_maximum: 100
       }
 
-      assert {:ok, json} = LineItem.to_json(item)
+      json =
+        item
+        |> encode!()
+        |> decode!()
+
       assert Map.has_key?(json, "id")
       assert Map.has_key?(json, "label")
       assert Map.has_key?(json, "scoreMaximum")
@@ -149,42 +194,7 @@ defmodule Ltix.GradeService.LineItemTest do
       refute Map.has_key?(json, "gradesReleased")
     end
 
-    test "validates label is present" do
-      item = %LineItem{label: nil, score_maximum: 100}
-
-      assert {:error, error} = LineItem.to_json(item)
-      assert Exception.message(error) =~ "label"
-    end
-
-    test "validates label is non-blank" do
-      item = %LineItem{label: "   ", score_maximum: 100}
-
-      assert {:error, error} = LineItem.to_json(item)
-      assert Exception.message(error) =~ "label"
-    end
-
-    test "validates score_maximum is present" do
-      item = %LineItem{label: "Quiz 1", score_maximum: nil}
-
-      assert {:error, error} = LineItem.to_json(item)
-      assert Exception.message(error) =~ "scoreMaximum"
-    end
-
-    test "validates score_maximum is greater than 0" do
-      item = %LineItem{label: "Quiz 1", score_maximum: 0}
-
-      assert {:error, error} = LineItem.to_json(item)
-      assert Exception.message(error) =~ "scoreMaximum"
-    end
-
-    test "validates score_maximum rejects negative" do
-      item = %LineItem{label: "Quiz 1", score_maximum: -5}
-
-      assert {:error, error} = LineItem.to_json(item)
-      assert Exception.message(error) =~ "scoreMaximum"
-    end
-
-    test "extensions round-trip through from_json → to_json" do
+    test "extensions round-trip through from_json and encoding" do
       json = %{
         "label" => "Quiz 1",
         "scoreMaximum" => 100,
@@ -194,14 +204,18 @@ defmodule Ltix.GradeService.LineItemTest do
       }
 
       assert {:ok, item} = LineItem.from_json(json)
-      assert {:ok, output} = LineItem.to_json(item)
+
+      output =
+        item
+        |> encode!()
+        |> decode!()
 
       assert output["https://canvas.instructure.com/lti/submission_type"] == %{
                "type" => "external_tool"
              }
     end
 
-    test "non-URL extensions round-trip through from_json → to_json" do
+    test "non-URL extensions round-trip through from_json and encoding" do
       json = %{
         "label" => "Quiz 1",
         "scoreMaximum" => 100,
@@ -209,7 +223,12 @@ defmodule Ltix.GradeService.LineItemTest do
       }
 
       assert {:ok, item} = LineItem.from_json(json)
-      assert {:ok, output} = LineItem.to_json(item)
+
+      output =
+        item
+        |> encode!()
+        |> decode!()
+
       assert output["customPlatformField"] == 42
     end
 
@@ -220,8 +239,15 @@ defmodule Ltix.GradeService.LineItemTest do
         score_maximum: 100
       }
 
-      assert {:ok, json} = LineItem.to_json(item)
+      json =
+        item
+        |> encode!()
+        |> decode!()
+
       assert json["id"] == "https://lms.example.com/lineitems/1"
     end
   end
+
+  defp encode!(item), do: Ltix.AppConfig.json_library!().encode!(item)
+  defp decode!(iodata), do: Ltix.AppConfig.json_library!().decode!(IO.iodata_to_binary(iodata))
 end

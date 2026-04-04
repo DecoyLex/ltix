@@ -302,7 +302,8 @@ defmodule Ltix.GradeService do
              :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_lineitem),
              {:ok, url} <- require_line_items_url(client),
-             {:ok, json} <- LineItem.to_json(struct!(LineItem, Enum.into(opts, %{}))),
+             item = struct!(LineItem, Enum.into(opts, %{})),
+             :ok <- LineItem.validate(item),
              headers = auth_headers(client, nil),
              req_opts =
                build_request(
@@ -311,7 +312,7 @@ defmodule Ltix.GradeService do
                  url,
                  headers,
                  @lineitem_media_type,
-                 json
+                 item
                ),
              {:ok, body} <- request(req_opts) do
           LineItem.from_json(body)
@@ -345,7 +346,7 @@ defmodule Ltix.GradeService do
       result =
         with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_lineitem),
-             {:ok, json} <- LineItem.to_json(item),
+             :ok <- LineItem.validate(item),
              url = item.id,
              headers = auth_headers(client, nil),
              req_opts =
@@ -355,7 +356,7 @@ defmodule Ltix.GradeService do
                  url,
                  headers,
                  @lineitem_media_type,
-                 json
+                 item
                ),
              {:ok, body} <- request(req_opts) do
           LineItem.from_json(body)
@@ -442,7 +443,6 @@ defmodule Ltix.GradeService do
              :ok <- Client.require_scope(client, @scope_score),
              {:ok, base_url} <- resolve_line_item_url(client, opts),
              url = derive_url(base_url, "scores"),
-             json = Score.to_json(score),
              headers = auth_headers(client, nil),
              req_opts =
                build_request(
@@ -451,7 +451,7 @@ defmodule Ltix.GradeService do
                  url,
                  headers,
                  @score_media_type,
-                 json
+                 score
                ),
              {:ok, _body} <- request(req_opts) do
           :ok

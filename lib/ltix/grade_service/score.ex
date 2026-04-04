@@ -157,17 +157,17 @@ defmodule Ltix.GradeService.Score do
   end
 
   @doc """
-  Serialize a score to a JSON-compatible map.
+  Serialize a score to a map with camelCase string keys.
 
   ## Examples
 
       iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded, timestamp: ~U[2024-01-15 10:30:00.123456Z])
-      iex> json = Ltix.GradeService.Score.to_json(score)
-      iex> json["userId"]
+      iex> map = Ltix.GradeService.Score.to_map(score)
+      iex> map["userId"]
       "u1"
   """
-  @spec to_json(t()) :: map()
-  def to_json(%__MODULE__{} = score) do
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = score) do
     json = %{
       "userId" => score.user_id,
       "activityProgress" => Map.fetch!(@activity_progress_to_json, score.activity_progress),
@@ -208,5 +208,25 @@ defmodule Ltix.GradeService.Score do
       end)
 
     Map.put(map, "submission", json_submission)
+  end
+end
+
+if Code.ensure_loaded?(JSON.Encoder) do
+  defimpl JSON.Encoder, for: Ltix.GradeService.Score do
+    def encode(score, encoder) do
+      score
+      |> Ltix.GradeService.Score.to_map()
+      |> JSON.Encoder.Map.encode(encoder)
+    end
+  end
+end
+
+if Code.ensure_loaded?(Jason.Encoder) do
+  defimpl Jason.Encoder, for: Ltix.GradeService.Score do
+    def encode(score, opts) do
+      score
+      |> Ltix.GradeService.Score.to_map()
+      |> Jason.Encode.map(opts)
+    end
   end
 end

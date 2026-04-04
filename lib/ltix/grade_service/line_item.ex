@@ -84,28 +84,39 @@ defmodule Ltix.GradeService.LineItem do
   end
 
   @doc """
-  Serialize a line item to a JSON-compatible map.
+  Validate that a line item has the required fields for publishing.
 
-  Validates that `label` is present and non-blank, and that
-  `score_maximum` is a positive number. Returns `{:ok, map}` or
-  `{:error, exception}`.
+  Checks that `label` is present and non-blank, and that
+  `score_maximum` is a positive number.
 
   ## Examples
 
       iex> item = %Ltix.GradeService.LineItem{label: "Quiz 1", score_maximum: 100}
-      iex> {:ok, json} = Ltix.GradeService.LineItem.to_json(item)
-      iex> {json["label"], json["scoreMaximum"]}
-      {"Quiz 1", 100}
+      iex> Ltix.GradeService.LineItem.validate(item)
+      :ok
+
+      iex> item = %Ltix.GradeService.LineItem{label: nil, score_maximum: 100}
+      iex> {:error, _} = Ltix.GradeService.LineItem.validate(item)
   """
-  @spec to_json(t()) :: {:ok, map()} | {:error, Exception.t()}
-  def to_json(%__MODULE__{} = item) do
-    with :ok <- validate_label(item.label),
-         :ok <- validate_score_maximum(item.score_maximum) do
-      {:ok, serialize(item)}
+  @spec validate(t()) :: :ok | {:error, Exception.t()}
+  def validate(%__MODULE__{} = item) do
+    with :ok <- validate_label(item.label) do
+      validate_score_maximum(item.score_maximum)
     end
   end
 
-  defp serialize(item) do
+  @doc """
+  Serialize a line item to a map with camelCase string keys.
+
+  ## Examples
+
+      iex> item = %Ltix.GradeService.LineItem{label: "Quiz 1", score_maximum: 100}
+      iex> map = Ltix.GradeService.LineItem.to_map(item)
+      iex> {map["label"], map["scoreMaximum"]}
+      {"Quiz 1", 100}
+  """
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = item) do
     @reverse_keys
     |> Enum.reduce(%{}, fn {field, json_key}, acc ->
       case Map.fetch!(item, field) do
@@ -166,5 +177,25 @@ defmodule Ltix.GradeService.LineItem do
        message: "must be a positive number",
        spec_ref: "AGS §3.2.8"
      )}
+  end
+end
+
+if Code.ensure_loaded?(JSON.Encoder) do
+  defimpl JSON.Encoder, for: Ltix.GradeService.LineItem do
+    def encode(item, encoder) do
+      item
+      |> Ltix.GradeService.LineItem.to_map()
+      |> JSON.Encoder.Map.encode(encoder)
+    end
+  end
+end
+
+if Code.ensure_loaded?(Jason.Encoder) do
+  defimpl Jason.Encoder, for: Ltix.GradeService.LineItem do
+    def encode(item, opts) do
+      item
+      |> Ltix.GradeService.LineItem.to_map()
+      |> Jason.Encode.map(opts)
+    end
   end
 end

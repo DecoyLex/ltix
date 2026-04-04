@@ -33,10 +33,10 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "to_map/1" do
     test "includes type and url" do
       {:ok, file} = ContentFile.new(url: "https://example.com/doc.pdf")
-      json = ContentItem.to_json(file)
+      json = ContentItem.to_map(file)
 
       assert json["type"] == "file"
       assert json["url"] == "https://example.com/doc.pdf"
@@ -50,7 +50,7 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
           expires_at: "2026-12-31T23:59:59Z"
         )
 
-      json = ContentItem.to_json(file)
+      json = ContentItem.to_map(file)
 
       assert json["mediaType"] == "application/pdf"
       assert json["expiresAt"] == "2026-12-31T23:59:59Z"
@@ -60,7 +60,7 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
 
     test "excludes nil optional fields" do
       {:ok, file} = ContentFile.new(url: "https://example.com/doc.pdf")
-      json = ContentItem.to_json(file)
+      json = ContentItem.to_map(file)
 
       refute Map.has_key?(json, "title")
       refute Map.has_key?(json, "mediaType")
@@ -74,7 +74,7 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
           extensions: %{"com.example" => "extra"}
         )
 
-      json = ContentItem.to_json(file)
+      json = ContentItem.to_map(file)
 
       assert json["com.example"] == "extra"
       refute Map.has_key?(json, "extensions")

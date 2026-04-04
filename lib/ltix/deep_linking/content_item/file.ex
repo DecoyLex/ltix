@@ -66,16 +66,16 @@ defmodule Ltix.DeepLinking.ContentItem.File do
     def item_type(_item), do: "file"
 
     @doc """
-    Serialize a file to a JSON-compatible map.
+    Serialize a file to a map.
 
     ## Examples
 
         iex> {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(url: "https://example.com/doc.pdf")
-        iex> json = Ltix.DeepLinking.ContentItem.File.to_json(file)
+        iex> json = Ltix.DeepLinking.ContentItem.File.to_map(file)
         iex> json["type"]
         "file"
     """
-    def to_json(item) do
+    def to_map(item) do
       %{"type" => "file"}
       |> put_fields(item, [:url, :title, :text, :media_type, :expires_at])
       |> put_sub_map("icon", item.icon)

@@ -403,7 +403,7 @@ defmodule Ltix.Test do
   """
   @spec stub_list_line_items([LineItem.t()]) :: :ok
   def stub_list_line_items(line_items) when is_list(line_items) do
-    json = Enum.map(line_items, &line_item_to_json/1)
+    json = Enum.map(line_items, &LineItem.to_map/1)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
       Req.Test.json(conn, json)
@@ -419,7 +419,7 @@ defmodule Ltix.Test do
   """
   @spec stub_get_line_item(LineItem.t()) :: :ok
   def stub_get_line_item(%LineItem{} = item) do
-    json = line_item_to_json(item)
+    json = LineItem.to_map(item)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
       Req.Test.json(conn, json)
@@ -438,7 +438,7 @@ defmodule Ltix.Test do
   """
   @spec stub_create_line_item(LineItem.t()) :: :ok
   def stub_create_line_item(%LineItem{} = item) do
-    json = line_item_to_json(item)
+    json = LineItem.to_map(item)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
       conn
@@ -456,7 +456,7 @@ defmodule Ltix.Test do
   """
   @spec stub_update_line_item(LineItem.t()) :: :ok
   def stub_update_line_item(%LineItem{} = item) do
-    json = line_item_to_json(item)
+    json = LineItem.to_map(item)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
       Req.Test.json(conn, json)
@@ -537,11 +537,6 @@ defmodule Ltix.Test do
   end
 
   # --- Struct Serialization (test only) ---
-
-  defp line_item_to_json(%LineItem{} = item) do
-    {:ok, json} = LineItem.to_json(item)
-    json
-  end
 
   defp result_to_json(%Result{} = result) do
     %{}

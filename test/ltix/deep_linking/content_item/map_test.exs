@@ -15,10 +15,10 @@ defmodule Ltix.DeepLinking.ContentItem.MapTest do
     end
   end
 
-  describe "to_json/1" do
+  describe "to_map/1" do
     test "returns the map as-is" do
       map = %{"type" => "link", "url" => "https://a.com"}
-      assert map == ContentItem.to_json(map)
+      assert map == ContentItem.to_map(map)
     end
   end
 end
