@@ -242,7 +242,32 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   describe "refresh/1" do
-    test "re-acquires token and returns new client" do
+    test "returns client unchanged when not expired" do
+      client = build_client()
+
+      assert {:ok, ^client} = Client.refresh(client)
+    end
+
+    test "re-acquires token when expired" do
+      stub_token_response()
+      registration = build_registration()
+
+      client =
+        build_client(%{
+          registration: registration,
+          expires_at: DateTime.add(DateTime.utc_now(), -1),
+          req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
+        })
+
+      assert {:ok, %Client{} = refreshed} = Client.refresh(client)
+      assert refreshed.access_token == "refreshed-token"
+      assert refreshed.registration == registration
+      assert refreshed.endpoints == client.endpoints
+    end
+  end
+
+  describe "force_refresh/1" do
+    test "re-acquires token regardless of expiry" do
       stub_token_response()
       registration = build_registration()
 
@@ -252,13 +277,13 @@ defmodule Ltix.OAuth.ClientTest do
           req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
         })
 
-      assert {:ok, %Client{} = refreshed} = Client.refresh(client)
+      assert {:ok, %Client{} = refreshed} = Client.force_refresh(client)
       assert refreshed.access_token == "refreshed-token"
       assert refreshed.registration == registration
       assert refreshed.endpoints == client.endpoints
     end
 
-    test "refresh!/1 raises on error" do
+    test "raises on token request failure" do
       registration = build_registration()
 
       Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
@@ -271,7 +296,9 @@ defmodule Ltix.OAuth.ClientTest do
           req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
         })
 
-      assert_raise Ltix.Errors.Invalid.TokenRequestFailed, fn -> Client.refresh!(client) end
+      assert_raise Ltix.Errors.Invalid.TokenRequestFailed, fn ->
+        Client.force_refresh!(client)
+      end
     end
   end
 end

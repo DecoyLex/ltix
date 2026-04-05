@@ -6,14 +6,9 @@ defmodule Ltix.OAuth.Client do
   explicit refresh. Pass this struct to service functions like
   `Ltix.MembershipsService.get_members/2`.
 
-  ## Checking expiry
+  ## Refreshing
 
-      client =
-        if Ltix.OAuth.Client.expired?(client) do
-          Ltix.OAuth.Client.refresh!(client)
-        else
-          client
-        end
+      client = Ltix.OAuth.Client.refresh!(client)
 
   ## Reusing tokens across contexts
 
@@ -137,7 +132,8 @@ defmodule Ltix.OAuth.Client do
   # --- Refresh ---
 
   @doc """
-  Re-acquire the token using the stored registration and endpoints.
+  If expired, re-acquire the token using the stored registration and endpoints.
+  Otherwise, return the client unchanged.
 
   Re-derives requested scopes from endpoints via each service's `scopes/1`
   callback, so a transient partial grant does not become permanent.
@@ -145,22 +141,10 @@ defmodule Ltix.OAuth.Client do
   # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
   @spec refresh(t()) :: {:ok, t()} | {:error, Exception.t()}
   def refresh(%__MODULE__{} = client) do
-    scopes = collect_scopes(client.endpoints)
-
-    case ClientCredentials.request_token(client.registration, scopes,
-           req_options: client.req_options
-         ) do
-      {:ok, token} ->
-        {:ok,
-         %{
-           client
-           | access_token: token.access_token,
-             expires_at: token.expires_at,
-             scopes: MapSet.new(token.granted_scopes)
-         }}
-
-      {:error, _} = error ->
-        error
+    if expired?(client) do
+      force_refresh(client)
+    else
+      {:ok, client}
     end
   end
 
@@ -175,7 +159,41 @@ defmodule Ltix.OAuth.Client do
     end
   end
 
-  # --- Constructors ---
+  @doc """
+  Force a refresh regardless of expiry.
+  Useful for testing or if the client wants to proactively refresh before making a batch of calls.
+  """
+  @spec force_refresh(t()) :: {:ok, t()} | {:error, Exception.t()}
+  def force_refresh(%__MODULE__{} = client) do
+    scopes = collect_scopes(client.endpoints)
+
+    with {:ok, token} <-
+           ClientCredentials.request_token(client.registration, scopes,
+             req_options: client.req_options
+           ) do
+      {:ok,
+       %{
+         client
+         | access_token: token.access_token,
+           expires_at: token.expires_at,
+           scopes: MapSet.new(token.granted_scopes)
+       }}
+    else
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Same as `force_refresh/1` but raises on error.
+  """
+  @spec force_refresh!(t()) :: t()
+  def force_refresh!(%__MODULE__{} = client) do
+    case force_refresh(client) do
+      {:ok, client} -> client
+      {:error, error} -> raise error
+    end
+  end
 
   @doc """
   Build a client from a cached `AccessToken`.
