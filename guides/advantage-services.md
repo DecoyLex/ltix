@@ -87,14 +87,7 @@ tokens last long enough that you don't need to worry about expiry.
 For long-running processes, check before each operation:
 
 ```elixir
-alias Ltix.OAuth.Client
-
-client =
-  if Client.expired?(client) do
-    Client.refresh!(client)
-  else
-    client
-  end
+client = Ltix.OAuth.Client.refresh!(client)
 ```
 
 > #### Token lifetime {: .info}

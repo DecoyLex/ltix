@@ -38,7 +38,7 @@ end
 - For background jobs, check expiry before each call:
 
 ```elixir
-client = if Ltix.OAuth.Client.expired?(client), do: Ltix.OAuth.Client.refresh!(client), else: client
+client = Ltix.OAuth.Client.refresh!(client)
 ```
 
 - Tokens are scoped to a registration (platform + client_id), not a course. Reuse across

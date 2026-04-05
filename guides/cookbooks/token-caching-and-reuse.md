@@ -44,11 +44,7 @@ def perform(%{args: %{"course_id" => course_id}}) do
 end
 
 defp ensure_fresh(client) do
-  if Ltix.OAuth.Client.expired?(client) do
-    Ltix.OAuth.Client.refresh!(client)
-  else
-    client
-  end
+  Ltix.OAuth.Client.refresh!(client)
 end
 ```
 
