@@ -156,7 +156,8 @@ token by passing multiple endpoints:
 If your platform exposes proprietary APIs (e.g., proctoring,
 analytics), you can plug them into the same authentication flow by
 implementing the `Ltix.AdvantageService` behaviour. See
-`Ltix.AdvantageService` for a full example.
+[Building a Custom Advantage Service](cookbooks/custom-advantage-service.md)
+for a complete walkthrough.
 
 ## Next steps
 

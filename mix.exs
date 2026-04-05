@@ -86,7 +86,8 @@ defmodule Ltix.MixProject do
         "guides/cookbooks/background-grade-sync.md",
         "guides/cookbooks/canvas-grade-extensions.md",
         "guides/cookbooks/building-content-items.md",
-        "guides/cookbooks/token-caching-and-reuse.md"
+        "guides/cookbooks/token-caching-and-reuse.md",
+        "guides/cookbooks/custom-advantage-service.md"
       ],
       before_closing_body_tag: fn
         :html ->
@@ -158,7 +159,8 @@ defmodule Ltix.MixProject do
           "guides/cookbooks/background-grade-sync.md",
           "guides/cookbooks/canvas-grade-extensions.md",
           "guides/cookbooks/building-content-items.md",
-          "guides/cookbooks/token-caching-and-reuse.md"
+          "guides/cookbooks/token-caching-and-reuse.md",
+          "guides/cookbooks/custom-advantage-service.md"
         ]
       ],
       nest_modules_by_prefix: [
