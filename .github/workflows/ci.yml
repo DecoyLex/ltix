@@ -35,6 +35,10 @@ jobs:
             otp: "26"
           - elixir: "1.18"
             otp: "27"
+          - elixir: "1.19"
+            otp: "28"
+          - elixir: "v1.20.0-rc.4"
+            otp: "28"
 
     steps:
       - uses: actions/checkout@v6
@@ -44,6 +48,7 @@ jobs:
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
+          version-type: ${{ contains(matrix.elixir, '-rc.') && 'strict' || 'loose' }}
 
       - uses: actions/cache@v5
         id: deps-cache
