@@ -167,18 +167,18 @@ defmodule Ltix.OAuth.Client do
   def force_refresh(%__MODULE__{} = client) do
     scopes = collect_scopes(client.endpoints)
 
-    with {:ok, token} <-
-           ClientCredentials.request_token(client.registration, scopes,
-             req_options: client.req_options
-           ) do
-      {:ok,
-       %{
-         client
-         | access_token: token.access_token,
-           expires_at: token.expires_at,
-           scopes: MapSet.new(token.granted_scopes)
-       }}
-    else
+    case ClientCredentials.request_token(client.registration, scopes,
+           req_options: client.req_options
+         ) do
+      {:ok, token} ->
+        {:ok,
+         %{
+           client
+           | access_token: token.access_token,
+             expires_at: token.expires_at,
+             scopes: MapSet.new(token.granted_scopes)
+         }}
+
       {:error, _} = error ->
         error
     end
