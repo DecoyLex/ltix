@@ -29,16 +29,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - elixir: "1.15"
-            otp: "26"
-          - elixir: "1.16"
-            otp: "26"
+          - elixir: "1.17"
+            otp: "27"
           - elixir: "1.18"
             otp: "27"
           - elixir: "1.19"
             otp: "28"
-          - elixir: "v1.20.0-rc.4"
-            otp: "28"
+          - elixir: "1.20"
+            otp: "29"
 
     steps:
       - uses: actions/checkout@v6
@@ -48,7 +46,6 @@ jobs:
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
-          version-type: ${{ contains(matrix.elixir, '-rc.') && 'strict' || 'loose' }}
 
       - uses: actions/cache@v5
         id: deps-cache
@@ -76,8 +73,8 @@ jobs:
       - uses: erlef/setup-beam@v1
         id: setup-beam
         with:
-          elixir-version: "1.18"
-          otp-version: "27"
+          elixir-version: "1.20"
+          otp-version: "29"
 
       - uses: actions/cache@v5
         with:

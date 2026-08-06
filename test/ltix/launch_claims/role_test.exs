@@ -319,8 +319,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert {[
                 %Role{type: :context, name: :instructor},
                 %Role{type: :custom, name: :custom_role}
-              ],
-              []} =
+              ], []} =
                Role.parse_all(uris,
                  parsers: %{
                    "http://example.com" => custom_parser

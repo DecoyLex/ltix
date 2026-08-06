@@ -16,13 +16,14 @@
         inherit system;
         config.allowUnfree = true;
       };
+      beam29 = pkgs.beam29Packages;
     in {
       default = pkgs.mkShell {
         packages = with pkgs;
           [
             # Language toolchains
-            elixir
-            erlang
+            beam29.elixir_1_20
+            beam29.erlang
 
             # Dev tools
             nixd
