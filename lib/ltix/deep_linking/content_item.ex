@@ -40,6 +40,5 @@ defimpl Ltix.DeepLinking.ContentItem, for: Map do
   def item_type(%{"type" => type}), do: type
   def item_type(_), do: raise(ArgumentError, "Invalid content item map: missing 'type' field")
 
-  def to_map(map) when is_map(map), do: map
-  def to_map(_), do: raise(ArgumentError, "Invalid content item: expected a map")
+  def to_map(map), do: map
 end
