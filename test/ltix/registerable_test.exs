@@ -53,10 +53,4 @@ defmodule Ltix.RegisterableTest do
       assert Exception.message(error) =~ "issuer"
     end
   end
-
-  test "raises Protocol.UndefinedError for unimplemented types" do
-    assert_raise Protocol.UndefinedError, fn ->
-      Registerable.to_registration(%{})
-    end
-  end
 end

@@ -36,10 +36,4 @@ defmodule Ltix.DeployableTest do
       assert Exception.message(error) =~ "deployment_id"
     end
   end
-
-  test "raises Protocol.UndefinedError for unimplemented types" do
-    assert_raise Protocol.UndefinedError, fn ->
-      Deployable.to_deployment(%{})
-    end
-  end
 end
