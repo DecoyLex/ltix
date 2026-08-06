@@ -45,11 +45,8 @@
           # IEx history
           export ERL_AFLAGS="-kernel shell_history enabled -kernel shell_history_path '\"$PWD/.nix-shell/.erlang-history\"'"
 
-          # First-time setup
-          if [ ! -d "$MIX_HOME" ]; then
-            mix local.hex --force
-            mix local.rebar --force
-          fi
+          mix local.hex --if-missing --force
+          mix local.rebar --if-missing --force
 
           if [ -f mix.exs ]; then
             mix deps.get > /dev/null
