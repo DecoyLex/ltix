@@ -8,6 +8,7 @@ defmodule Ltix.MixProject do
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
+      aliases: aliases(),
       deps: deps(),
       package: package(),
       usage_rules: usage_rules(),
@@ -19,6 +20,10 @@ defmodule Ltix.MixProject do
       homepage_url: "https://github.com/DecoyLex/ltix",
       docs: docs()
     ]
+  end
+
+  def cli do
+    [preferred_envs: [precommit: :test]]
   end
 
   # Run "mix help compile.app" to learn about applications.
@@ -36,6 +41,17 @@ defmodule Ltix.MixProject do
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/DecoyLex/ltix"},
       files: ~w(lib .formatter.exs mix.exs README.md LICENSE usage-rules.md usage-rules)
+    ]
+  end
+
+  defp aliases do
+    [
+      precommit: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "test"
+      ]
     ]
   end
 

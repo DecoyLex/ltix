@@ -30,7 +30,13 @@ cog check --from-latest-tag   # check all since last tag
 
 ## Quality Checks
 
-Run `/qc` before committing to check formatting, credo, and test hygiene.
+Always run quality checks before committing. 
+
+```bash
+mix precommit
+```
+
+Use the `qc` skill for checks on test hygiene
 
 ## Pipes
 
