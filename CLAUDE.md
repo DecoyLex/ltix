@@ -18,7 +18,7 @@ When multiple people contribute to a commit, include co-authors in the footer:
 Co-authored-by: Name <email@example.com>
 ```
 
-AI assistants should MUST NEVER be listed as co-authors, even if they contributed to the commit message or code. Only the human(s) responsible for the commit may be listed as co-authors.
+AI assistants MUST NEVER be listed as co-authors, even if they contributed to the commit message or code. Only the human(s) responsible for the commit may be listed as co-authors.
 
 ### Allowed types
 `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`
