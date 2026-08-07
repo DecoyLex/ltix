@@ -58,8 +58,7 @@ Claim structs (in `lib/ltix/launch_claims/`) use Zoi for parsing JSON maps:
 
 ## Spec References
 
-Always link spec annotations to the relevant section of the online spec. Use the
-anchor mappings in `.claude/projects/-home-alex-Code-elixir-ltix/memory/spec-anchors.md`.
+Always link spec annotations to the relevant section of the online spec. 
 
 Format: `[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
 
