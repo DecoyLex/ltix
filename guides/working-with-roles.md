@@ -274,7 +274,7 @@ No sub-roles, no ContentDeveloper, no institution or system roles (site
 admins may receive an institution Administrator in some configurations).
 This means TAs, course designers, and instructors are all
 indistinguishable in the LTI launch. This is a [known
-limitation](https://tracker.moodle.org/browse/MDL-75368).
+limitation](https://tracker.moodle.org/browse/MDL-72066).
 
 Any tool that needs to work with Moodle cannot depend on sub-roles or
 on distinguishing TAs from instructors via roles alone.
