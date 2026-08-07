@@ -226,7 +226,7 @@ defmodule MyApp.ProctoredExam do
   defimpl Ltix.DeepLinking.ContentItem do
     def item_type(_item), do: "https://myapp.example.com/proctored_exam"
 
-    def to_json(item) do
+    def to_map(item) do
       %{
         "type" => "https://myapp.example.com/proctored_exam",
         "url" => item.url,
