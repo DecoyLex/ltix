@@ -2,6 +2,7 @@ defmodule Ltix.OAuthTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
@@ -150,6 +151,74 @@ defmodule Ltix.OAuthTest do
       assert {:error, %InvalidEndpoint{}} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :wrong_endpoint},
+                 req_options: req_options()
+               )
+    end
+
+    for status <- [201, 400] do
+      test "rejects token-shaped HTTP #{status} responses", ctx do
+        status = unquote(status)
+        body = %{"access_token" => "must-not-be-used", "token_type" => "Bearer"}
+
+        Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.send_resp(status, Jason.encode!(body))
+        end)
+
+        assert {:error, %TokenRequestFailed{status: ^status, body: ^body}} =
+                 OAuth.authenticate(ctx.registration,
+                   endpoints: %{TestService => :valid_endpoint},
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    for status <- [400, 401] do
+      test "preserves OAuth error details and HTTP #{status}", ctx do
+        status = unquote(status)
+        body = %{"error" => "invalid_client", "error_description" => "Unknown client"}
+
+        Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.send_resp(status, Jason.encode!(body))
+        end)
+
+        assert {:error,
+                %TokenRequestFailed{
+                  status: ^status,
+                  error: "invalid_client",
+                  error_description: "Unknown client",
+                  body: ^body
+                }} =
+                 OAuth.authenticate(ctx.registration,
+                   endpoints: %{TestService => :valid_endpoint},
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    test "preserves a non-JSON error response", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        Plug.Conn.send_resp(conn, 502, "Bad Gateway")
+      end)
+
+      assert {:error, %TokenRequestFailed{status: 502, body: "Bad Gateway"}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+    end
+
+    test "rejects a non-JSON HTTP 200 response", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        Plug.Conn.send_resp(conn, 200, "<html>Not a token</html>")
+      end)
+
+      assert {:error, %MalformedResponse{service: :oauth}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options()
                )
     end

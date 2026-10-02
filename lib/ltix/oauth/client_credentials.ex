@@ -50,16 +50,17 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:body, body)
       |> Keyword.put(:retry, false)
 
+    # [RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1)
     case Req.post(req_opts) do
-      {:ok, %Req.Response{body: %{"access_token" => _} = body}} ->
+      {:ok, %Req.Response{status: 200, body: body}} ->
         AccessToken.from_response(body, requested_scopes: scopes)
 
-      {:ok, %Req.Response{status: _status, body: body}} when is_map(body) ->
+      {:ok, %Req.Response{status: status, body: body}} when is_map(body) ->
         {:error,
          TokenRequestFailed.exception(
            error: body["error"],
            error_description: body["error_description"],
-           status: nil,
+           status: status,
            body: body,
            spec_ref: "Sec §4.1"
          )}
