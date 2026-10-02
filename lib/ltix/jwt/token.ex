@@ -8,6 +8,10 @@ defmodule Ltix.JWT.Token do
   using the platform's public key (fetched via `Ltix.JWT.KeySet`), enforces
   RS256-only signing, and validates all required claims.
 
+  Critical header extensions ([RFC 7515 §4.1.11][crit]) are not supported.
+
+  [crit]: https://www.rfc-editor.org/rfc/rfc7515#section-4.1.11
+
   ## Examples
 
       {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
@@ -62,6 +66,7 @@ defmodule Ltix.JWT.Token do
   def verify(token_string, %Registration{} = registration, opts \\ []) do
     with {:ok, header} <- peek_header(token_string),
          :ok <- validate_algorithm(header),
+         :ok <- validate_critical_headers(header),
          {:ok, kid} <- extract_kid(header),
          {:ok, jwk} <- KeySet.get_key(registration, kid, opts),
          {:ok, claims} <- verify_signature(token_string, jwk),
@@ -70,22 +75,20 @@ defmodule Ltix.JWT.Token do
     end
   end
 
-  # Decode the JWT header without verifying the signature.
-  # We need the header to determine the algorithm and kid before verification.
-  defp peek_header(token_string) do
-    %JOSE.JWS{alg: {_alg_module, alg_name}} = JOSE.JWT.peek_protected(token_string)
+  # [RFC 7515 §5.2](https://www.rfc-editor.org/rfc/rfc7515#section-5.2)
+  defp peek_header(token_string) when is_binary(token_string) do
+    with [encoded_header, _payload, _signature] <- String.split(token_string, "."),
+         {:ok, header_json} <- Base.url_decode64(encoded_header, padding: false),
+         {:ok, %{"alg" => algorithm} = header} when is_binary(algorithm) <-
+           Ltix.AppConfig.json_library!().decode(header_json) do
+      {:ok, Map.put_new(header, "kid", nil)}
+    else
+      _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
+    end
+  end
 
-    # Also extract kid from raw header
-    [header_b64 | _] = String.split(token_string, ".")
-
-    header_json =
-      header_b64
-      |> Base.url_decode64!(padding: false)
-      |> Ltix.AppConfig.json_library!().decode!()
-
-    {:ok, %{"alg" => to_string(alg_name), "kid" => Map.get(header_json, "kid")}}
-  rescue
-    _ -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
+  defp peek_header(_token) do
+    {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
   end
 
   # [Sec §5.1.3 step 6; Cert §4.2] Only RS256 is permitted.
@@ -98,6 +101,14 @@ defmodule Ltix.JWT.Token do
        spec_ref: "Sec §5.1.3 step 6"
      )}
   end
+
+  # [RFC 7515 §4.1.11](https://www.rfc-editor.org/rfc/rfc7515#section-4.1.11)
+  # [RFC 7515 §5.2 step 5](https://www.rfc-editor.org/rfc/rfc7515#section-5.2)
+  defp validate_critical_headers(%{"crit" => _critical}) do
+    {:error, SignatureInvalid.exception(spec_ref: "RFC 7515 §4.1.11")}
+  end
+
+  defp validate_critical_headers(_header), do: :ok
 
   # [Sec §6.3] The kid MUST be present in the JWT header.
   defp extract_kid(%{"kid" => nil}) do

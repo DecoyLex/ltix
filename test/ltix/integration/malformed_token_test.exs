@@ -33,7 +33,14 @@ defmodule Ltix.Integration.MalformedTokenTest do
         "nonce" => Ltix.Test.extract_nonce(login.redirect_uri)
       })
 
-    %{platform: platform, login: login, claims: claims}
+    query = URI.decode_query(URI.parse(login.redirect_uri).query)
+
+    %{
+      platform: platform,
+      login: login,
+      request_state: Map.fetch!(query, "state"),
+      claims: claims
+    }
   end
 
   for kid <- [123, 1.5, true, false, [], ["key"], %{"key" => "value"}] do
@@ -106,6 +113,25 @@ defmodule Ltix.Integration.MalformedTokenTest do
     assert {:error, %MissingClaim{claim: "iat", class: :invalid}} = callback(token, context)
   end
 
+  test "callback rejects an unsupported critical extension", context do
+    protected =
+      context
+      |> header()
+      |> Map.merge(%{
+        "crit" => ["https://platform.example.com/extension"],
+        "https://platform.example.com/extension" => true
+      })
+
+    token = sign(context.claims, protected, context)
+    assert {:error, %SignatureInvalid{class: :security}} = callback(token, context)
+  end
+
+  test "callback permits an unknown noncritical header", context do
+    protected = Map.put(header(context), "https://platform.example.com/extension", true)
+    token = sign(context.claims, protected, context)
+    assert {:ok, %LaunchContext{claims: %{subject: "user-12345"}}} = callback(token, context)
+  end
+
   defp header(context), do: %{"alg" => "RS256", "kid" => context.platform.kid}
 
   defp sign(claims, protected, context) do
@@ -119,7 +145,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
   end
 
   defp callback(token, context, opts \\ []) do
-    params = %{"id_token" => token, "state" => context.login.state}
+    params = %{"id_token" => token, "state" => context.request_state}
     opts = Keyword.merge([storage_adapter: StorageAdapter] ++ verifier_options(), opts)
     Ltix.handle_callback(params, context.login.state, opts)
   end
