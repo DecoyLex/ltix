@@ -100,6 +100,21 @@ defmodule Ltix.OAuthTest do
       assert client.registration == ctx.registration
     end
 
+    test "configured token response helper grants only its configured scopes", ctx do
+      Ltix.Test.stub_token_response(scopes: [@other_scope], access_token: "configured-token")
+
+      assert {:ok, %Client{access_token: "configured-token"} = client} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{
+                   TestService => :valid_endpoint,
+                   OtherService => :other_endpoint
+                 },
+                 req_options: req_options()
+               )
+
+      assert client.scopes == MapSet.new([@other_scope])
+    end
+
     test "multiple endpoints send space-separated scopes", ctx do
       Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)

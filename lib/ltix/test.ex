@@ -382,7 +382,8 @@ defmodule Ltix.Test do
 
   ## Options
 
-    * `:scopes` — list of granted scope URIs (default: `[]`)
+    * `:scopes` - list of granted scope URIs (default: `[]`). An empty list
+      grants the requested scopes.
     * `:access_token` — token string (default: `"test-token"`)
     * `:expires_in` — token lifetime in seconds (default: `3600`)
   """
@@ -392,13 +393,17 @@ defmodule Ltix.Test do
 
     scopes = Keyword.get(opts, :scopes, [])
 
+    response = %{
+      "access_token" => Keyword.get(opts, :access_token, "test-token"),
+      "token_type" => "Bearer",
+      "expires_in" => Keyword.get(opts, :expires_in, 3600)
+    }
+
+    response =
+      if scopes == [], do: response, else: Map.put(response, "scope", Enum.join(scopes, " "))
+
     Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-      Req.Test.json(conn, %{
-        "access_token" => Keyword.get(opts, :access_token, "test-token"),
-        "token_type" => "Bearer",
-        "expires_in" => Keyword.get(opts, :expires_in, 3600),
-        "scope" => Enum.join(scopes, " ")
-      })
+      Req.Test.json(conn, response)
     end)
   end
 
