@@ -50,6 +50,7 @@ defmodule Ltix.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:req, "~> 0.5"},
       {:jose, "~> 1.11"},
+      {:jason, "~> 1.4", optional: true},
       {:splode, "~> 0.3"},
       {:usage_rules, "~> 1.2", only: [:dev, :test], runtime: false},
       {:plug, "~> 1.19", optional: true},
