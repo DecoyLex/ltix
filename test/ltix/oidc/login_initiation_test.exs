@@ -120,17 +120,22 @@ defmodule Ltix.OIDC.LoginInitiationTest do
     end
 
     # [Core §4.1.3](https://www.imsglobal.org/spec/lti/v1p3/#client_id-login-parameter)
-    test "client_id used for registration lookup when present", %{redirect_uri: redirect_uri} do
-      {:ok, other_reg} =
+    test "client_id used for registration lookup when present", %{
+      registration: registration,
+      redirect_uri: redirect_uri
+    } do
+      {:ok, other_registration} =
         Ltix.Registration.new(%{
           issuer: "https://platform.example.com",
           client_id: "other-client-id",
-          auth_endpoint: "https://platform.example.com/authorize",
+          auth_endpoint: "https://platform.example.com/other-authorize",
           jwks_uri: "https://platform.example.com/.well-known/jwks.json",
           tool_jwk: @tool_jwk
         })
 
-      {:ok, pid} = StorageAdapter.start_link(registrations: [other_reg])
+      {:ok, pid} =
+        StorageAdapter.start_link(registrations: [registration, other_registration])
+
       StorageAdapter.set_pid(pid)
 
       params = %{
@@ -144,6 +149,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       assert query["client_id"] == "other-client-id"
+      assert URI.parse(result.redirect_uri).path == "/other-authorize"
     end
 
     test "client_id absent — registration looked up by issuer alone", %{

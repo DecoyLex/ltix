@@ -3,6 +3,7 @@ defmodule LtixTest do
 
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.LaunchContext
   alias Ltix.Registration
   alias Ltix.Test.JWTHelper
@@ -10,7 +11,29 @@ defmodule LtixTest do
 
   @redirect_uri "https://tool.example.com/callback"
 
+  defmodule UnregisteredStorageAdapter do
+    @moduledoc false
+    @behaviour Ltix.StorageAdapter
+
+    @impl Ltix.StorageAdapter
+    def get_registration(_issuer, _client_id), do: {:error, :not_found}
+
+    @impl Ltix.StorageAdapter
+    defdelegate get_deployment(registration, deployment_id), to: StorageAdapter
+
+    @impl Ltix.StorageAdapter
+    defdelegate store_nonce(nonce, registration), to: StorageAdapter
+
+    @impl Ltix.StorageAdapter
+    defdelegate validate_nonce(nonce, registration), to: StorageAdapter
+  end
+
   setup do
+    previous_configuration =
+      Map.new([:allow_anonymous, :storage_adapter], fn key ->
+        {key, Application.fetch_env(:ltix, key)}
+      end)
+
     {private, public, kid} = JWTHelper.generate_rsa_key_pair()
     jwks = JWTHelper.build_jwks([public])
 
@@ -58,7 +81,10 @@ defmodule LtixTest do
     id_token = JWTHelper.mint_id_token(claims, private, kid: kid)
 
     on_exit(fn ->
-      Application.delete_env(:ltix, :allow_anonymous)
+      Enum.each(previous_configuration, fn
+        {key, {:ok, value}} -> Application.put_env(:ltix, key, value)
+        {key, :error} -> Application.delete_env(:ltix, key)
+      end)
     end)
 
     %{
@@ -100,13 +126,17 @@ defmodule LtixTest do
     end
 
     test "opts override application config" do
+      Application.put_env(:ltix, :storage_adapter, UnregisteredStorageAdapter)
+
+      assert {:error, %RegistrationNotFound{issuer: "https://platform.example.com"}} =
+               Ltix.handle_login(login_params(), @redirect_uri)
+
       assert {:ok, result} =
-               Ltix.handle_login(login_params(), "https://override.example.com/callback",
-                 storage_adapter: StorageAdapter
-               )
+               Ltix.handle_login(login_params(), @redirect_uri, storage_adapter: StorageAdapter)
 
       query = URI.decode_query(URI.parse(result.redirect_uri).query)
-      assert query["redirect_uri"] == "https://override.example.com/callback"
+      assert query["client_id"] == "tool-client-id"
+      assert query["redirect_uri"] == @redirect_uri
     end
 
     test "delegates errors from underlying modules" do

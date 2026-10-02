@@ -17,13 +17,14 @@ defmodule Ltix.OAuth.ClientTest do
     def endpoint_from_claims(_), do: :error
 
     @impl Ltix.AdvantageService
-    def validate_endpoint(:valid_endpoint), do: :ok
+    def validate_endpoint(endpoint) when endpoint in [:valid_endpoint, :other_valid_endpoint],
+      do: :ok
 
     def validate_endpoint(_),
       do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "test")}
 
     @impl Ltix.AdvantageService
-    def scopes(:valid_endpoint),
+    def scopes(endpoint) when endpoint in [:valid_endpoint, :other_valid_endpoint],
       do: ["https://example.com/scope/test.readonly"]
   end
 
@@ -220,8 +221,9 @@ defmodule Ltix.OAuth.ClientTest do
       client = build_client()
 
       assert {:ok, %Client{} = new_client} =
-               Client.with_endpoints(client, %{TestService => :valid_endpoint})
+               Client.with_endpoints(client, %{TestService => :other_valid_endpoint})
 
+      assert new_client.endpoints == %{TestService => :other_valid_endpoint}
       assert new_client.access_token == client.access_token
       assert new_client.scopes == client.scopes
     end

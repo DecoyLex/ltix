@@ -59,10 +59,6 @@ defmodule Ltix.Integration.CertificationTest do
 
     claims = JWTHelper.valid_lti_claims(%{"nonce" => nonce})
 
-    on_exit(fn ->
-      Application.delete_env(:ltix, :allow_anonymous)
-    end)
-
     %{
       registration: registration,
       deployment: deployment,

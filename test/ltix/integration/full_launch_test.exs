@@ -40,10 +40,6 @@ defmodule Ltix.Integration.FullLaunchTest do
       |> Req.Test.json(jwks)
     end)
 
-    on_exit(fn ->
-      Application.delete_env(:ltix, :allow_anonymous)
-    end)
-
     %{private: private, kid: kid, registration: registration, deployment: deployment}
   end
 
