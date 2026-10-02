@@ -28,9 +28,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
 
     {:ok, deployment} = Ltix.Deployment.new("deployment-001")
 
-    nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-
     {:ok, pid} =
       StorageAdapter.start_link(
         registrations: [registration],
@@ -38,7 +35,21 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
       )
 
     StorageAdapter.set_pid(pid)
-    StorageAdapter.store_nonce(nonce, registration)
+
+    {:ok, login} =
+      Ltix.handle_login(
+        %{
+          "iss" => registration.issuer,
+          "client_id" => registration.client_id,
+          "login_hint" => "user-hint",
+          "target_link_uri" => "https://tool.example.com/launch"
+        },
+        "https://tool.example.com/launch",
+        storage_adapter: StorageAdapter
+      )
+
+    nonce = Ltix.Test.extract_nonce(login.redirect_uri)
+    state = login.state
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn

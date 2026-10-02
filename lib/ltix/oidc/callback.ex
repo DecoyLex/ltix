@@ -5,6 +5,7 @@ defmodule Ltix.OIDC.Callback do
   alias Ltix.JWT.Token
   alias Ltix.LaunchClaims
   alias Ltix.LaunchContext
+  alias Ltix.OIDC.State
   alias Ltix.Registerable
 
   alias Ltix.Errors.Invalid.DeploymentNotFound
@@ -34,6 +35,7 @@ defmodule Ltix.OIDC.Callback do
          {:ok, user_registration} <- lookup_registration(iss, client_id, callback_module),
          {:ok, registration} <- Registerable.to_registration(user_registration),
          {:ok, raw_claims} <- Token.verify(id_token, registration, opts),
+         :ok <- verify_nonce_binding(raw_claims, expected_state),
          :ok <- validate_nonce(raw_claims, registration, callback_module),
          :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, user_deployment} <- lookup_deployment(raw_claims, registration, callback_module),
@@ -71,10 +73,12 @@ defmodule Ltix.OIDC.Callback do
   end
 
   # [Sec §7.3.1](https://www.imsglobal.org/spec/security/v1p0/#prohibiting-the-login-csrf-vulnerability)
-  defp verify_state(%{"state" => state}, expected_state) when state == expected_state, do: :ok
-
-  defp verify_state(_params, _expected_state) do
-    {:error, StateMismatch.exception(spec_ref: "Sec §7.3.1")}
+  defp verify_state(params, expected_state) do
+    if State.matches?(params["state"], expected_state) do
+      :ok
+    else
+      {:error, StateMismatch.exception(spec_ref: "Sec §7.3.1")}
+    end
   end
 
   # Peek at unverified JWT claims to get iss and aud for registration lookup.
@@ -106,8 +110,19 @@ defmodule Ltix.OIDC.Callback do
     end
   end
 
+  # [nonce-validation]:
+  # https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation
+  #
+  # [OIDC §3.2.2.11][nonce-validation]
+  defp verify_nonce_binding(claims, expected_state) do
+    if State.nonce_matches?(claims["nonce"], expected_state) do
+      :ok
+    else
+      {:error, NonceNotFound.exception(spec_ref: "OIDC §3.2.2.11")}
+    end
+  end
+
   # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-  # Token.verify already checked nonce is present; now validate binding + replay.
   defp validate_nonce(%{"nonce" => nonce}, registration, callback_module) do
     case callback_module.validate_nonce(nonce, registration) do
       :ok ->

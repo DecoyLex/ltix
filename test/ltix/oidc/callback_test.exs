@@ -32,9 +32,6 @@ defmodule Ltix.OIDC.CallbackTest do
 
     {:ok, deployment} = Deployment.new("deployment-001")
 
-    nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-
     {:ok, pid} =
       StorageAdapter.start_link(
         registrations: [registration],
@@ -42,7 +39,21 @@ defmodule Ltix.OIDC.CallbackTest do
       )
 
     StorageAdapter.set_pid(pid)
-    StorageAdapter.store_nonce(nonce, registration)
+
+    {:ok, login} =
+      Ltix.handle_login(
+        %{
+          "iss" => registration.issuer,
+          "client_id" => registration.client_id,
+          "login_hint" => "user-hint",
+          "target_link_uri" => "https://tool.example.com/launch"
+        },
+        "https://tool.example.com/launch",
+        storage_adapter: StorageAdapter
+      )
+
+    nonce = Ltix.Test.extract_nonce(login.redirect_uri)
+    state = login.state
 
     stub_jwks(jwks)
 
@@ -199,21 +210,10 @@ defmodule Ltix.OIDC.CallbackTest do
     test "replayed nonce returns NonceReused", ctx do
       opts = [req_options: req_options()]
 
-      # First call consumes the nonce
-      assert {:ok, _} = Callback.call(ctx.params, ctx.state, StorageAdapter, opts)
-
-      # Store a fresh nonce for a second token, but reuse the consumed one
-      fresh_nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-      StorageAdapter.store_nonce(fresh_nonce, ctx.registration)
-
-      # Mint a new token that reuses the original (now consumed) nonce
-      claims = Map.put(ctx.claims, "nonce", ctx.nonce)
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
-      new_state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-      params = %{"id_token" => id_token, "state" => new_state}
+      assert {:ok, %LaunchContext{}} = Callback.call(ctx.params, ctx.state, StorageAdapter, opts)
 
       assert {:error, %Security.NonceReused{}} =
-               Callback.call(params, new_state, StorageAdapter, opts)
+               Callback.call(ctx.params, ctx.state, StorageAdapter, opts)
     end
   end
 

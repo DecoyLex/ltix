@@ -185,7 +185,7 @@ defmodule Ltix do
 
   Returns `{:ok, %LaunchContext{}}` on success with parsed claims, registration,
   and deployment. The `state` parameter should be the value stored in the
-  session during `handle_login/2`.
+  session during `handle_login/3`.
 
   Use `context.claims.target_link_uri` for the final redirect destination.
 

@@ -26,9 +26,6 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
       label: "Production"
     }
 
-    nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-
     {:ok, pid} =
       CustomStorageAdapter.start_link(
         registrations: [custom_reg],
@@ -37,9 +34,20 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
 
     CustomStorageAdapter.set_pid(pid)
 
-    # store_nonce receives a resolved Registration.t(), but the custom
-    # adapter ignores the registration argument — just needs the nonce
-    CustomStorageAdapter.store_nonce(nonce, nil)
+    {:ok, login} =
+      Ltix.handle_login(
+        %{
+          "iss" => custom_reg.platform_issuer,
+          "client_id" => custom_reg.oauth_client_id,
+          "login_hint" => "user-hint",
+          "target_link_uri" => "https://tool.example.com/launch"
+        },
+        "https://tool.example.com/launch",
+        storage_adapter: CustomStorageAdapter
+      )
+
+    nonce = Ltix.Test.extract_nonce(login.redirect_uri)
+    state = login.state
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn

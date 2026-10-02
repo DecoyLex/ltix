@@ -2,6 +2,7 @@ defmodule Ltix.OIDC.LoginInitiation do
   @moduledoc false
 
   alias Ltix.OIDC.AuthenticationRequest
+  alias Ltix.OIDC.State
   alias Ltix.Registerable
 
   alias Ltix.Errors.Invalid.MissingParameter
@@ -16,8 +17,7 @@ defmodule Ltix.OIDC.LoginInitiation do
     with :ok <- validate_required_params(params),
          {:ok, user_registration} <- lookup_registration(params, callback_module),
          {:ok, registration} <- Registerable.to_registration(user_registration) do
-      state = generate_token()
-      nonce = generate_token()
+      {state, nonce} = State.generate()
 
       callback_module.store_nonce(nonce, registration)
 
@@ -62,9 +62,5 @@ defmodule Ltix.OIDC.LoginInitiation do
            client_id: client_id
          )}
     end
-  end
-
-  defp generate_token do
-    Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
   end
 end
