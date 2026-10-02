@@ -204,7 +204,7 @@ defmodule Ltix.GradeService do
              params = list_line_items_params(opts),
              headers = auth_headers(client, @lineitem_container_media_type),
              {:ok, pages} <-
-               Pagination.stream(url, headers,
+               Pagination.stream_results(url, headers,
                  params: params,
                  req_options: merged_req_options(client)
                ) do
@@ -499,7 +499,7 @@ defmodule Ltix.GradeService do
              params = get_results_params(opts),
              headers = auth_headers(client, @result_container_media_type),
              {:ok, pages} <-
-               Pagination.stream(url, headers,
+               Pagination.stream_results(url, headers,
                  params: params,
                  req_options: merged_req_options(client)
                ) do
@@ -667,28 +667,34 @@ defmodule Ltix.GradeService do
   defp maybe_put_param(params, _key, nil), do: params
   defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
 
-  defp collect_line_items(pages) do
-    items =
-      Enum.flat_map(pages, fn body ->
-        Enum.map(body, fn item_json ->
-          {:ok, item} = LineItem.from_json(item_json)
-          item
-        end)
-      end)
+  defp collect_line_items(pages), do: collect_items(pages, &LineItem.from_json/1)
 
-    {:ok, items}
+  defp collect_results(pages), do: collect_items(pages, &Result.from_json/1)
+
+  defp collect_items(pages, parser) do
+    result = Enum.reduce_while(pages, {:ok, []}, &collect_page(&1, &2, parser))
+
+    case result do
+      {:ok, items} -> {:ok, Enum.reverse(items)}
+      {:error, _} = error -> error
+    end
   end
 
-  defp collect_results(pages) do
-    results =
-      Enum.flat_map(pages, fn body ->
-        Enum.map(body, fn result_json ->
-          {:ok, result} = Result.from_json(result_json)
-          result
-        end)
+  defp collect_page({:error, _} = error, _accumulator, _parser), do: {:halt, error}
+
+  defp collect_page({:ok, body}, accumulator, parser) do
+    result =
+      Enum.reduce_while(body, accumulator, fn json, {:ok, items} ->
+        case parser.(json) do
+          {:ok, item} -> {:cont, {:ok, [item | items]}}
+          {:error, _} = error -> {:halt, error}
+        end
       end)
 
-    {:ok, results}
+    case result do
+      {:ok, _} = collected -> {:cont, collected}
+      {:error, _} = error -> {:halt, error}
+    end
   end
 
   @doc false

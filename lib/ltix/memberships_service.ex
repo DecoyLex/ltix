@@ -248,6 +248,7 @@ defmodule Ltix.MembershipsService do
   Returns `{:ok, stream}` where each element is a `%Member{}`.
   Use this instead of `get_members/2` for large rosters where you
   want to process members incrementally or stop early.
+  Later page failures and member parsing errors raise during enumeration.
 
   ## Options
 
@@ -265,7 +266,11 @@ defmodule Ltix.MembershipsService do
              :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @nrps_scope),
              {:ok, pages} <- fetch_pages(client, opts) do
-          {:ok, Stream.flat_map(pages, &parse_members!/1)}
+          {:ok,
+           Stream.flat_map(pages, fn
+             {:ok, body} -> parse_members!(body)
+             {:error, error} -> raise error
+           end)}
         end
 
       {result, metadata}
@@ -286,7 +291,7 @@ defmodule Ltix.MembershipsService do
   defp fetch_pages(%Client{} = client, opts) do
     {url, headers, params} = prepare_request(client, opts)
     req_options = Ltix.HTTP.req_options(client.req_options, __MODULE__)
-    Pagination.stream(url, headers, params: params, req_options: req_options)
+    Pagination.stream_results(url, headers, params: params, req_options: req_options)
   end
 
   defp prepare_request(%Client{} = client, opts) do
@@ -334,7 +339,9 @@ defmodule Ltix.MembershipsService do
     |> finalize_roster(max)
   end
 
-  defp accumulate_page(body, {first_body, chunks, count}, limit) do
+  defp accumulate_page({:error, _} = error, _accumulator, _limit), do: {:halt, error}
+
+  defp accumulate_page({:ok, body}, {first_body, chunks, count}, limit) do
     first_body = first_body || body
 
     case parse_members(body) do

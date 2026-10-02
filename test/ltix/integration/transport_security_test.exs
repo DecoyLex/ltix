@@ -639,6 +639,46 @@ defmodule Ltix.Integration.TransportSecurityTest do
     refute_receive _, 0
   end
 
+  test "eager grade collections return later redirect errors instead of partial collections", %{
+    client: client
+  } do
+    owner = self()
+
+    Req.Test.stub(GradeService, fn conn ->
+      send(owner, {:collection_request, conn.host, conn.request_path})
+      assert conn.host == "grades.example.com"
+
+      case conn.request_path do
+        "/lineitems" ->
+          conn
+          |> Plug.Conn.put_resp_header("link", "</second>; rel=next")
+          |> Req.Test.json([
+            %{
+              "id" => "https://grades.example.com/lineitems/1",
+              "label" => "Quiz",
+              "scoreMaximum" => 100
+            }
+          ])
+
+        "/second" ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "/safe")
+          |> Plug.Conn.send_resp(307, "")
+
+        "/safe" ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "https://unsafe.example.com/steal")
+          |> Plug.Conn.send_resp(308, "")
+      end
+    end)
+
+    assert {:error, %RedirectNotAllowed{status: 308}} = GradeService.list_line_items(client)
+    assert_receive {:collection_request, "grades.example.com", "/lineitems"}
+    assert_receive {:collection_request, "grades.example.com", "/second"}
+    assert_receive {:collection_request, "grades.example.com", "/safe"}
+    refute_receive {:collection_request, _, _}, 0
+  end
+
   test "redirected AGS and JWKS server failures retain their error contracts", %{
     client: client,
     registration: registration

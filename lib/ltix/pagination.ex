@@ -29,7 +29,7 @@ defmodule Ltix.Pagination do
   Fetches the first page eagerly. If it succeeds, returns `{:ok, stream}`
   where each element is a decoded JSON response body. Subsequent pages are
   fetched lazily as the stream is consumed. If the first page fails, returns
-  `{:error, reason}` immediately.
+  `{:error, reason}` immediately. Later failures raise during enumeration.
 
   ## Options
 
@@ -38,6 +38,33 @@ defmodule Ltix.Pagination do
   @spec stream(String.t(), [{String.t(), String.t()}], keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream(url, headers, opts \\ []) do
+    case stream_results(url, headers, opts) do
+      {:ok, pages} ->
+        {:ok,
+         Stream.map(pages, fn
+           {:ok, body} -> body
+           {:error, error} -> raise error
+         end)}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Fetch a paginated endpoint as a lazy stream of result tuples.
+
+  Fetches the first page eagerly. Returns `{:ok, stream}` with `{:ok, body}`
+  for each page, or `{:error, error}` if the first page fails. A later failure
+  emits one `{:error, error}` and ends the stream.
+
+  ## Options
+
+  #{Zoi.describe(@stream_schema)}
+  """
+  @spec stream_results(String.t(), [{String.t(), String.t()}], keyword()) ::
+          {:ok, Enumerable.t()} | {:error, Exception.t()}
+  def stream_results(url, headers, opts \\ []) do
     opts = Zoi.parse!(@stream_schema, opts)
     params = Keyword.fetch!(opts, :params)
     req_options = req_options(opts)
@@ -54,7 +81,7 @@ defmodule Ltix.Pagination do
   end
 
   defp next_page({:first, body, next_url}, _headers, _req_options, _base_uri) do
-    {[body], next_url}
+    {[{:ok, body}], next_url}
   end
 
   defp next_page(nil, _headers, _req_options, _base_uri) do
@@ -63,8 +90,8 @@ defmodule Ltix.Pagination do
 
   defp next_page(url, headers, req_options, base_uri) do
     case fetch_page(url, headers, %{}, Keyword.delete(req_options, :params), base_uri) do
-      {:ok, body, next_url} -> {[body], next_url}
-      {:error, reason} -> raise reason
+      {:ok, body, next_url} -> {[{:ok, body}], next_url}
+      {:error, reason} -> {[{:error, reason}], nil}
     end
   end
 
