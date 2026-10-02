@@ -101,6 +101,11 @@ defmodule Ltix.Integration.MalformedTokenTest do
              Token.verify(token, context.platform.registration, verifier_options())
   end
 
+  test "callback rejects a signed token without an issue time", context do
+    token = sign(Map.delete(context.claims, "iat"), header(context), context)
+    assert {:error, %MissingClaim{claim: "iat", class: :invalid}} = callback(token, context)
+  end
+
   defp header(context), do: %{"alg" => "RS256", "kid" => context.platform.kid}
 
   defp sign(claims, protected, context) do

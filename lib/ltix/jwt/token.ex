@@ -22,7 +22,8 @@ defmodule Ltix.JWT.Token do
   6. Validate `aud` contains the tool's `client_id`
   7. Validate `azp` matches `client_id` (when present)
   8. Validate `exp` is not in the past (with configurable clock skew)
-  9. Validate `nonce` is present
+  9. Validate `iat` is a NumericDate
+  10. Validate `nonce` is present
 
   ## Options
 
@@ -32,6 +33,7 @@ defmodule Ltix.JWT.Token do
     * `:cache` — cache module passed through to `Ltix.JWT.KeySet`
   """
 
+  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security.AlgorithmNotAllowed
   alias Ltix.Errors.Security.AudienceMismatch
@@ -48,7 +50,7 @@ defmodule Ltix.JWT.Token do
   @doc """
   Verify and decode an LTI ID Token.
 
-  Implements the nine validation steps from
+  Implements the validation steps from
   [Sec §5.1.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation).
 
   Returns `{:ok, claims}` with the decoded claims map on success, or
@@ -124,7 +126,8 @@ defmodule Ltix.JWT.Token do
   defp validate_claims(claims, registration, opts) do
     with :ok <- validate_issuer(claims, registration),
          :ok <- validate_audience(claims, registration),
-         :ok <- validate_expiration(claims, opts) do
+         :ok <- validate_expiration(claims, opts),
+         :ok <- validate_issued_at(claims) do
       validate_nonce(claims)
     end
   end
@@ -197,6 +200,18 @@ defmodule Ltix.JWT.Token do
     else
       {:error, TokenExpired.exception(spec_ref: "Sec §5.1.3 step 7")}
     end
+  end
+
+  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
+  # [RFC 7519 §4.1.6](https://www.rfc-editor.org/rfc/rfc7519#section-4.1.6)
+  defp validate_issued_at(%{"iat" => issued_at}) when is_number(issued_at), do: :ok
+
+  defp validate_issued_at(%{"iat" => issued_at}) do
+    {:error, InvalidClaim.exception(claim: "iat", value: issued_at, spec_ref: "Sec §5.1.2")}
+  end
+
+  defp validate_issued_at(_claims) do
+    {:error, MissingClaim.exception(claim: "iat", spec_ref: "Sec §5.1.2")}
   end
 
   # [Sec §5.1.3 step 9] nonce MUST be present.
