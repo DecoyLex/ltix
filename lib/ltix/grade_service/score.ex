@@ -179,7 +179,7 @@ defmodule Ltix.GradeService.Score do
       "userId" => score.user_id,
       "activityProgress" => Map.fetch!(@activity_progress_to_json, score.activity_progress),
       "gradingProgress" => Map.fetch!(@grading_progress_to_json, score.grading_progress),
-      "timestamp" => DateTime.to_iso8601(timestamp)
+      "timestamp" => DateTime.to_iso8601(timestamp, :extended, 0)
     }
 
     json
