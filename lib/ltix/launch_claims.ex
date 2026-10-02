@@ -83,8 +83,10 @@ defmodule Ltix.LaunchClaims do
   """
 
   alias Ltix.AppConfig
+  alias Ltix.Errors.Invalid.InvalidClaim
 
   alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.ClaimHelpers
   alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchClaims.LaunchPresentation
@@ -93,6 +95,45 @@ defmodule Ltix.LaunchClaims do
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchClaims.ToolPlatform
+
+  # [standard-claims]:
+  # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+  # [required-message-claims]:
+  # https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims
+  # [role-scope-mentor-claim]:
+  # https://www.imsglobal.org/spec/lti/v1p3/#role-scope-mentor-claim
+  #
+  # [OIDC §2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
+  # [OIDC §5.1][standard-claims]
+  # [Core §5.3][required-message-claims]
+  # [Core §5.4.3][role-scope-mentor-claim]
+  # [JWT §2](https://www.rfc-editor.org/rfc/rfc7519.html#section-2)
+  @scalar_schema Zoi.struct(
+                   __MODULE__,
+                   %{
+                     issuer: Zoi.string() |> Zoi.nullish(),
+                     subject: Zoi.string() |> Zoi.nullish(),
+                     audience: Zoi.union([Zoi.string(), Zoi.list(Zoi.string())]) |> Zoi.nullish(),
+                     expires_at: Zoi.number() |> Zoi.nullish(),
+                     issued_at: Zoi.number() |> Zoi.nullish(),
+                     nonce: Zoi.string() |> Zoi.nullish(),
+                     authorized_party: Zoi.string() |> Zoi.nullish(),
+                     email: Zoi.string() |> ClaimHelpers.optional(),
+                     name: Zoi.string() |> ClaimHelpers.optional(),
+                     given_name: Zoi.string() |> ClaimHelpers.optional(),
+                     family_name: Zoi.string() |> ClaimHelpers.optional(),
+                     middle_name: Zoi.string() |> ClaimHelpers.optional(),
+                     picture: Zoi.string() |> ClaimHelpers.optional(),
+                     locale: Zoi.string() |> ClaimHelpers.optional(),
+                     message_type: Zoi.string() |> Zoi.nullish(),
+                     version: Zoi.string() |> Zoi.nullish(),
+                     deployment_id: Zoi.string() |> Zoi.nullish(),
+                     target_link_uri: Zoi.string() |> Zoi.nullish(),
+                     role_scope_mentor: Zoi.list(Zoi.string()) |> ClaimHelpers.optional()
+                   },
+                   coerce: true
+                 )
+  @scalar_fields Zoi.Struct.struct_fields(@scalar_schema)
 
   defstruct [
     # OIDC Standard Claims [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
@@ -138,8 +179,8 @@ defmodule Ltix.LaunchClaims do
           issuer: String.t() | nil,
           subject: String.t() | nil,
           audience: String.t() | [String.t()] | nil,
-          expires_at: integer() | nil,
-          issued_at: integer() | nil,
+          expires_at: number() | nil,
+          issued_at: number() | nil,
           nonce: String.t() | nil,
           authorized_party: String.t() | nil,
           email: String.t() | nil,
@@ -215,16 +256,18 @@ defmodule Ltix.LaunchClaims do
     "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => :deep_linking_settings
   }
 
-  # Nested claim fields → parser functions
-  @nested_parsers %{
-    context: &Context.from_json/1,
-    resource_link: &ResourceLink.from_json/1,
-    launch_presentation: &LaunchPresentation.from_json/1,
-    tool_platform: &ToolPlatform.from_json/1,
-    lis: &Lis.from_json/1,
-    ags_endpoint: &AgsEndpoint.from_json/1,
-    memberships_endpoint: &MembershipsEndpoint.from_json/1,
-    deep_linking_settings: &DeepLinkingSettings.from_json/1
+  @nested_claims %{
+    context: {ClaimHelpers.optional(Context.schema()), "context", "Core §5.4.1"},
+    resource_link: {ResourceLink.schema(), "resource_link", "Core §5.3.5"},
+    launch_presentation:
+      {ClaimHelpers.optional(LaunchPresentation.schema()), "launch_presentation", "Core §5.4.4"},
+    tool_platform: {ClaimHelpers.optional(ToolPlatform.schema()), "tool_platform", "Core §5.4.2"},
+    lis: {ClaimHelpers.optional(Lis.schema()), "lis", "Core §5.4.5"},
+    ags_endpoint: {ClaimHelpers.optional(AgsEndpoint.schema()), "ags_endpoint", "AGS §3.1"},
+    memberships_endpoint:
+      {ClaimHelpers.optional(MembershipsEndpoint.schema()), "memberships_endpoint",
+       "NRPS §3.6.1.1"},
+    deep_linking_settings: {DeepLinkingSettings.schema(), "deep_linking_settings", "DL §4.4.1"}
   }
 
   # --- Public API ---
@@ -234,9 +277,10 @@ defmodule Ltix.LaunchClaims do
 
   ## Options
 
-  - `:parsers` — Map of extension claim keys to parser functions.
-    Each parser receives the raw value and must return `{:ok, parsed}` or
-    `{:error, reason}`. Per-call parsers override application config.
+  - `:parsers` - Map of claim keys to parser functions. Standard claim keys
+    replace built-in parsers. Each parser receives the raw value and must
+    return `{:ok, parsed}` or `{:error, reason}`. Per-call parsers override
+    application config.
   - `:role_parsers` — Map of role URI prefixes to parser functions for
     parsing the `roles` claim. Each parser receives a role URI and must
     return a `{:ok, t:Ltix.LaunchClaims.Role.t/0}` struct or `:error`. Per-call
@@ -253,14 +297,23 @@ defmodule Ltix.LaunchClaims do
   """
   @spec from_json(map(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json, opts \\ []) when is_map(json) do
-    extension_parsers = resolve_extension_parsers(opts)
+    claim_parsers = resolve_claim_parsers(opts)
     role_parsers = Keyword.get(opts, :role_parsers, %{})
-    {fields, extensions} = classify_keys(json)
+    {configured_claims, builtin_claims} = Map.split(json, Map.keys(claim_parsers))
+    {fields, extensions} = classify_keys(builtin_claims)
 
-    with {:ok, fields} <- parse_nested_claims(fields),
-         {:ok, fields} <- parse_roles(fields, role_parsers),
-         {:ok, extensions} <- parse_extensions(extensions, extension_parsers) do
-      {:ok, struct!(__MODULE__, Map.put(fields, :extensions, extensions))}
+    with {:ok, configured_claims} <- parse_configured_claims(configured_claims, claim_parsers),
+         {:ok, fields} <- parse_scalar_claims(fields),
+         {:ok, fields} <- parse_nested_claims(fields, json[@lti_claim_prefix <> "message_type"]),
+         {:ok, fields} <- parse_roles(fields, role_parsers) do
+      {configured_fields, configured_extensions} = classify_keys(configured_claims)
+
+      parsed_fields =
+        fields
+        |> Map.merge(configured_fields)
+        |> Map.put(:extensions, Map.merge(extensions, configured_extensions))
+
+      {:ok, struct!(__MODULE__, parsed_fields)}
     end
   end
 
@@ -298,62 +351,100 @@ defmodule Ltix.LaunchClaims do
     end
   end
 
-  defp parse_nested_claims(fields) do
-    Enum.reduce_while(@nested_parsers, {:ok, fields}, fn {field, parser}, {:ok, acc} ->
+  defp parse_scalar_claims(fields) do
+    case ClaimHelpers.from_json(
+           @scalar_schema,
+           Map.take(fields, @scalar_fields),
+           "launch",
+           "Core §5.3"
+         ) do
+      {:ok, scalars} ->
+        parsed =
+          scalars
+          |> Map.from_struct()
+          |> Map.take(@scalar_fields)
+
+        {:ok, Map.merge(fields, parsed)}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp parse_nested_claims(fields, message_type) do
+    Enum.reduce_while(@nested_claims, {:ok, fields}, fn {field, {schema, prefix, spec_ref}},
+                                                        {:ok, acc} ->
+      schema = nested_schema(field, schema, message_type)
+
       acc
       |> Map.get(field)
-      |> parse_nested_field(field, parser, acc)
+      |> parse_nested_field(field, {schema, prefix, spec_ref}, acc)
     end)
   end
 
-  defp parse_nested_field(nil, _field, _parser, acc), do: {:cont, {:ok, acc}}
+  defp nested_schema(:resource_link, schema, "LtiDeepLinkingRequest"),
+    do: ClaimHelpers.optional(schema)
 
-  defp parse_nested_field(raw_value, field, parser, acc) do
-    case parser.(raw_value) do
+  defp nested_schema(:deep_linking_settings, schema, "LtiResourceLinkRequest"),
+    do: ClaimHelpers.optional(schema)
+
+  defp nested_schema(_field, schema, _message_type), do: schema
+
+  defp parse_nested_field(value, field, _schema, acc) when value in [nil, :null],
+    do: {:cont, {:ok, Map.put(acc, field, nil)}}
+
+  defp parse_nested_field(raw_value, field, {schema, prefix, spec_ref}, acc) do
+    case ClaimHelpers.from_json(schema, raw_value, prefix, spec_ref) do
       {:ok, parsed} -> {:cont, {:ok, Map.put(acc, field, parsed)}}
       {:error, _} = error -> {:halt, error}
     end
   end
 
+  # [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim)
   defp parse_roles(fields, role_parsers) do
     case Map.get(fields, :roles) do
       nil ->
         {:ok, fields}
 
       role_uris when is_list(role_uris) ->
-        {parsed, unrecognized} = Role.parse_all(role_uris, parsers: role_parsers)
+        if Enum.all?(role_uris, &is_binary/1) do
+          {parsed, unrecognized} = Role.parse_all(role_uris, parsers: role_parsers)
 
-        {:ok,
-         fields
-         |> Map.put(:roles, parsed)
-         |> Map.put(:unrecognized_roles, unrecognized)}
+          {:ok,
+           fields
+           |> Map.put(:roles, parsed)
+           |> Map.put(:unrecognized_roles, unrecognized)}
+        else
+          invalid_roles(role_uris)
+        end
+
+      role_uris ->
+        invalid_roles(role_uris)
     end
   end
 
-  defp parse_extensions(extensions, parsers) when map_size(parsers) == 0 do
-    {:ok, extensions}
+  defp invalid_roles(role_uris) do
+    {:error,
+     InvalidClaim.exception(
+       claim: "roles",
+       value: role_uris,
+       message: "must be an array of strings",
+       spec_ref: "Core §5.3.7"
+     )}
   end
 
-  defp parse_extensions(extensions, parsers) do
-    Enum.reduce_while(extensions, {:ok, extensions}, fn {key, value}, {:ok, acc} ->
-      parse_extension_field(key, value, parsers, acc)
+  defp parse_configured_claims(claims, parsers) do
+    Enum.reduce_while(claims, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
+      parser = Map.fetch!(parsers, key)
+
+      case parser.(value) do
+        {:ok, parsed} -> {:cont, {:ok, Map.put(acc, key, parsed)}}
+        {:error, _} = error -> {:halt, error}
+      end
     end)
   end
 
-  defp parse_extension_field(key, value, parsers, acc) do
-    case Map.fetch(parsers, key) do
-      {:ok, parser} ->
-        case parser.(value) do
-          {:ok, parsed} -> {:cont, {:ok, Map.put(acc, key, parsed)}}
-          {:error, _} = error -> {:halt, error}
-        end
-
-      :error ->
-        {:cont, {:ok, acc}}
-    end
-  end
-
-  defp resolve_extension_parsers(opts) do
+  defp resolve_claim_parsers(opts) do
     config_parsers = AppConfig.claims_parsers!()
 
     call_parsers =

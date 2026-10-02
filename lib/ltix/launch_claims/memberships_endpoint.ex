@@ -18,11 +18,14 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
   @schema Zoi.struct(
             __MODULE__,
             %{
-              context_memberships_url: Zoi.string(coerce: true) |> Zoi.optional(),
-              service_versions: Zoi.list(Zoi.string(coerce: true)) |> Zoi.optional()
+              context_memberships_url: Zoi.string() |> ClaimHelpers.optional(),
+              service_versions: Zoi.list(Zoi.string()) |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -50,7 +53,7 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
       {:ok, %Ltix.LaunchClaims.MembershipsEndpoint{context_memberships_url: nil, service_versions: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "memberships_endpoint", "NRPS §3.6.1.1")
   end
 end

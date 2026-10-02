@@ -16,16 +16,19 @@ defmodule Ltix.LaunchClaims.ToolPlatform do
   @schema Zoi.struct(
             __MODULE__,
             %{
-              guid: Zoi.string(coerce: true),
-              name: Zoi.string(coerce: true) |> Zoi.optional(),
-              contact_email: Zoi.string(coerce: true) |> Zoi.optional(),
-              description: Zoi.string(coerce: true) |> Zoi.optional(),
-              url: Zoi.string(coerce: true) |> Zoi.optional(),
-              product_family_code: Zoi.string(coerce: true) |> Zoi.optional(),
-              version: Zoi.string(coerce: true) |> Zoi.optional()
+              guid: Zoi.string(),
+              name: Zoi.string() |> ClaimHelpers.optional(),
+              contact_email: Zoi.string() |> ClaimHelpers.optional(),
+              description: Zoi.string() |> ClaimHelpers.optional(),
+              url: Zoi.string() |> ClaimHelpers.optional(),
+              product_family_code: Zoi.string() |> ClaimHelpers.optional(),
+              version: Zoi.string() |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -40,7 +43,7 @@ defmodule Ltix.LaunchClaims.ToolPlatform do
       {:ok, %Ltix.LaunchClaims.ToolPlatform{guid: "plat-1", name: nil, contact_email: nil, description: nil, url: nil, product_family_code: nil, version: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "tool_platform", "Core §5.4.2")
   end
 end

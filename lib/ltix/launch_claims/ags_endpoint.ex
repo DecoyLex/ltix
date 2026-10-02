@@ -16,12 +16,15 @@ defmodule Ltix.LaunchClaims.AgsEndpoint do
   @schema Zoi.struct(
             __MODULE__,
             %{
-              scope: Zoi.list(Zoi.string(coerce: true)) |> Zoi.optional(),
-              lineitems: Zoi.string(coerce: true) |> Zoi.optional(),
-              lineitem: Zoi.string(coerce: true) |> Zoi.optional()
+              scope: Zoi.list(Zoi.string()) |> ClaimHelpers.optional(),
+              lineitems: Zoi.string() |> ClaimHelpers.optional(),
+              lineitem: Zoi.string() |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -36,7 +39,7 @@ defmodule Ltix.LaunchClaims.AgsEndpoint do
       {:ok, %Ltix.LaunchClaims.AgsEndpoint{scope: nil, lineitems: nil, lineitem: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "ags_endpoint", "AGS §3.1")
   end
 end

@@ -3,7 +3,7 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
   How the platform expects the tool to be presented.
 
   All fields are optional. `document_target` indicates the browser context
-  for the launch — typically `"frame"`, `"iframe"`, or `"window"`, but
+  for the launch, typically `"frame"`, `"iframe"`, or `"window"`, but
   unknown values are accepted.
 
   ## Examples
@@ -19,15 +19,18 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
             __MODULE__,
             %{
               document_target:
-                Zoi.union([Zoi.enum(~w(frame iframe window)), Zoi.string(coerce: true)])
-                |> Zoi.optional(),
-              height: Zoi.number(coerce: true) |> Zoi.optional(),
-              width: Zoi.number(coerce: true) |> Zoi.optional(),
-              return_url: Zoi.string(coerce: true) |> Zoi.optional(),
-              locale: Zoi.string(coerce: true) |> Zoi.optional()
+                Zoi.union([Zoi.enum(~w(frame iframe window)), Zoi.string()])
+                |> ClaimHelpers.optional(),
+              height: Zoi.number(coerce: true) |> ClaimHelpers.optional(),
+              width: Zoi.number(coerce: true) |> ClaimHelpers.optional(),
+              return_url: Zoi.string() |> ClaimHelpers.optional(),
+              locale: Zoi.string() |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -42,7 +45,7 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
       {:ok, %Ltix.LaunchClaims.LaunchPresentation{document_target: nil, height: nil, width: nil, return_url: nil, locale: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "launch_presentation", "Core §5.4.4")
   end
 end

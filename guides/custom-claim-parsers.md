@@ -1,8 +1,10 @@
 # Custom Claim Parsers
 
 Ltix parses standard OIDC and LTI claims from the launch JWT
-automatically. Any unrecognized claims land in the `extensions` map as
-raw values:
+automatically. Unusable optional metadata becomes `nil`, while valid
+fields remain available. Identity and required launch fields remain
+validated. Any unrecognized claims are put in the `extensions` map as raw
+values:
 
 ```elixir
 context.claims.extensions
@@ -75,6 +77,9 @@ Ltix.LaunchClaims.from_json(claims,
 
 Per-call parsers merge with application config, with per-call taking
 priority for overlapping keys.
+
+To replace a standard parser, register its claim key. The parsed value
+appears in the corresponding `LaunchClaims` field.
 
 ## Accessing parsed claims
 

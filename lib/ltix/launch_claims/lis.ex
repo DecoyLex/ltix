@@ -16,12 +16,15 @@ defmodule Ltix.LaunchClaims.Lis do
   @schema Zoi.struct(
             __MODULE__,
             %{
-              person_sourcedid: Zoi.string(coerce: true) |> Zoi.optional(),
-              course_offering_sourcedid: Zoi.string(coerce: true) |> Zoi.optional(),
-              course_section_sourcedid: Zoi.string(coerce: true) |> Zoi.optional()
+              person_sourcedid: Zoi.string() |> ClaimHelpers.optional(),
+              course_offering_sourcedid: Zoi.string() |> ClaimHelpers.optional(),
+              course_section_sourcedid: Zoi.string() |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -36,7 +39,7 @@ defmodule Ltix.LaunchClaims.Lis do
       {:ok, %Ltix.LaunchClaims.Lis{person_sourcedid: nil, course_offering_sourcedid: nil, course_section_sourcedid: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "lis", "Core §5.4.5")
   end
 end

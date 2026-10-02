@@ -16,12 +16,15 @@ defmodule Ltix.LaunchClaims.ResourceLink do
   @schema Zoi.struct(
             __MODULE__,
             %{
-              id: Zoi.string(coerce: true),
-              title: Zoi.string(coerce: true) |> Zoi.optional(),
-              description: Zoi.string(coerce: true) |> Zoi.optional()
+              id: Zoi.string(),
+              title: Zoi.string() |> ClaimHelpers.optional(),
+              description: Zoi.string() |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -36,7 +39,7 @@ defmodule Ltix.LaunchClaims.ResourceLink do
       {:ok, %Ltix.LaunchClaims.ResourceLink{id: "rl-1", title: nil, description: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "resource_link", "Core §5.3.5")
   end
 end

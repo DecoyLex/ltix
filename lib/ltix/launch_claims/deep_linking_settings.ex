@@ -35,16 +35,19 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettings do
               deep_link_return_url: Zoi.string(),
               accept_types: Zoi.list(Zoi.string()),
               accept_presentation_document_targets: Zoi.list(Zoi.string()),
-              accept_media_types: Zoi.string() |> Zoi.optional(),
-              accept_multiple: Zoi.boolean() |> Zoi.optional(),
-              accept_lineitem: Zoi.boolean() |> Zoi.optional(),
-              auto_create: Zoi.boolean() |> Zoi.optional(),
-              title: Zoi.string() |> Zoi.optional(),
-              text: Zoi.string() |> Zoi.optional(),
-              data: Zoi.string() |> Zoi.optional()
+              accept_media_types: Zoi.string() |> ClaimHelpers.optional(),
+              accept_multiple: Zoi.boolean() |> ClaimHelpers.optional(),
+              accept_lineitem: Zoi.boolean() |> ClaimHelpers.optional(),
+              auto_create: Zoi.boolean() |> ClaimHelpers.optional(),
+              title: Zoi.string() |> ClaimHelpers.optional(),
+              text: Zoi.string() |> ClaimHelpers.optional(),
+              data: Zoi.any() |> Zoi.nullish()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -68,7 +71,7 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettings do
   """
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "deep_linking_settings", "DL §4.4.1")
   end
 end

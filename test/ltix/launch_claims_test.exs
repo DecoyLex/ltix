@@ -238,18 +238,6 @@ defmodule Ltix.LaunchClaimsTest do
       assert claims.lis == nil
     end
 
-    # Present but invalid nested claims propagate errors
-    test "invalid context propagates error" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/context" => %{
-          "label" => "No ID"
-        }
-      }
-
-      assert {:error, error} = LaunchClaims.from_json(json)
-      assert Exception.message(error) =~ "context.id"
-    end
-
     test "invalid resource_link propagates error" do
       json = %{
         "https://purl.imsglobal.org/spec/lti/claim/resource_link" => %{

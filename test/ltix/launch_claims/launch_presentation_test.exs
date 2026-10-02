@@ -57,25 +57,10 @@ defmodule Ltix.LaunchClaims.LaunchPresentationTest do
     end
 
     test "coerces string height and width to numbers" do
-      json = %{"height" => "600", "width" => "800"}
+      json = %{"height" => "600", "width" => "800", "document_target" => "iframe"}
 
-      assert {:ok, %LaunchPresentation{height: 600, width: 800}} =
+      assert {:ok, %LaunchPresentation{height: 600, width: 800, document_target: "iframe"}} =
                LaunchPresentation.from_json(json)
-    end
-
-    test "returns error for non-numeric height" do
-      assert {:error, error} =
-               LaunchPresentation.from_json(%{"height" => "tall"})
-
-      assert Exception.message(error) =~ "launch_presentation.height"
-    end
-
-    test "accumulates multiple errors" do
-      json = %{"height" => "tall", "width" => "wide"}
-      assert {:error, error} = LaunchPresentation.from_json(json)
-      message = Exception.message(error)
-      assert message =~ "launch_presentation.height"
-      assert message =~ "launch_presentation.width"
     end
   end
 end

@@ -161,7 +161,7 @@ end
 ```
 
 `build_response/3` handles JWT construction and signing automatically.
-It echoes the platform's `data` value from the settings, sets the
+It echoes opaque JSON `data` values from the settings, sets the
 correct `iss`, `aud`, and `deployment_id` claims, and signs with
 your tool's private key.
 

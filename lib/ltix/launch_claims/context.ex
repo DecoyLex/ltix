@@ -16,13 +16,16 @@ defmodule Ltix.LaunchClaims.Context do
   @schema Zoi.struct(
             __MODULE__,
             %{
-              id: Zoi.string(coerce: true),
-              label: Zoi.string(coerce: true) |> Zoi.optional(),
-              title: Zoi.string(coerce: true) |> Zoi.optional(),
-              type: Zoi.list(Zoi.string(coerce: true)) |> Zoi.optional()
+              id: Zoi.string(),
+              label: Zoi.string() |> ClaimHelpers.optional(),
+              title: Zoi.string() |> ClaimHelpers.optional(),
+              type: Zoi.list(Zoi.string()) |> ClaimHelpers.optional()
             },
             coerce: true
           )
+
+  @doc false
+  def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
@@ -37,7 +40,7 @@ defmodule Ltix.LaunchClaims.Context do
       {:ok, %Ltix.LaunchClaims.Context{id: "ctx-1", label: nil, title: nil, type: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
+  def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "context", "Core §5.4.1")
   end
 end
