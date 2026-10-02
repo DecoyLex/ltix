@@ -93,22 +93,21 @@ defmodule Ltix.Pagination do
 
   defp validate_next_url!(nil, _base_uri), do: nil
 
+  # The application limits pagination to the initial endpoint origin.
+  # [RFC 6454 §4 and §5](https://www.rfc-editor.org/rfc/rfc6454#section-4)
   defp validate_next_url!(url, base_uri) do
-    next_uri = URI.parse(url)
-
-    cond do
-      next_uri.scheme != "https" ->
-        raise TransportError,
-          url: url,
-          body: "next page URL must use HTTPS, got #{next_uri.scheme}"
-
-      next_uri.host != base_uri.host ->
-        raise TransportError,
-          url: url,
-          body: "next page URL host mismatch: expected #{base_uri.host}, got #{next_uri.host}"
-
-      true ->
+    case Ltix.HTTP.validate_url(url) do
+      {:ok, next_uri}
+      when next_uri.scheme == base_uri.scheme and next_uri.host == base_uri.host and
+             next_uri.port == base_uri.port ->
         url
+
+      {:ok, _next_uri} ->
+        raise TransportError,
+          body: "Next page URL origin mismatch. Pagination must stay on the initial HTTPS origin"
+
+      {:error, error} ->
+        raise error
     end
   end
 
