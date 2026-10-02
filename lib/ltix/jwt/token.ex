@@ -103,13 +103,18 @@ defmodule Ltix.JWT.Token do
 
   defp extract_kid(%{"kid" => kid}) when is_binary(kid), do: {:ok, kid}
 
+  # [RFC 7515 §4.1.4](https://www.rfc-editor.org/rfc/rfc7515#section-4.1.4)
+  defp extract_kid(_header) do
+    {:error, SignatureInvalid.exception(spec_ref: "RFC 7515 §4.1.4")}
+  end
+
   # [Sec §5.1.3 step 1] Verify the signature using the platform's public key.
   defp verify_signature(token_string, jwk) do
     case JOSE.JWT.verify_strict(jwk, ["RS256"], token_string) do
-      {true, %JOSE.JWT{fields: claims}, _jws} ->
+      {true, %JOSE.JWT{fields: claims}, _jws} when is_map(claims) ->
         {:ok, claims}
 
-      {false, _jwt, _jws} ->
+      _invalid ->
         {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")}
     end
   end
