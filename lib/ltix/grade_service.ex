@@ -42,6 +42,7 @@ defmodule Ltix.GradeService do
 
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
@@ -667,12 +668,20 @@ defmodule Ltix.GradeService do
   defp maybe_put_param(params, _key, nil), do: params
   defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
 
-  defp collect_line_items(pages), do: collect_items(pages, &LineItem.from_json/1)
+  # [line-item-service-media-types-and-schemas]:
+  # https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas
+  #
+  # [AGS §3.2.1][line-item-service-media-types-and-schemas]
+  defp collect_line_items(pages), do: collect_items(pages, &LineItem.from_json/1, "AGS §3.2.1")
 
-  defp collect_results(pages), do: collect_items(pages, &Result.from_json/1)
+  # [media-type-and-schema-0]:
+  # https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema-0
+  #
+  # [AGS §3.3.4][media-type-and-schema-0]
+  defp collect_results(pages), do: collect_items(pages, &Result.from_json/1, "AGS §3.3.4")
 
-  defp collect_items(pages, parser) do
-    result = Enum.reduce_while(pages, {:ok, []}, &collect_page(&1, &2, parser))
+  defp collect_items(pages, parser, spec_ref) do
+    result = Enum.reduce_while(pages, {:ok, []}, &collect_page(&1, &2, parser, spec_ref))
 
     case result do
       {:ok, items} -> {:ok, Enum.reverse(items)}
@@ -680,12 +689,12 @@ defmodule Ltix.GradeService do
     end
   end
 
-  defp collect_page({:error, _} = error, _accumulator, _parser), do: {:halt, error}
+  defp collect_page({:error, _} = error, _accumulator, _parser, _spec_ref), do: {:halt, error}
 
-  defp collect_page({:ok, body}, accumulator, parser) do
+  defp collect_page({:ok, body}, accumulator, parser, spec_ref) when is_list(body) do
     result =
       Enum.reduce_while(body, accumulator, fn json, {:ok, items} ->
-        case parser.(json) do
+        case parse_collection_item(json, parser, spec_ref) do
           {:ok, item} -> {:cont, {:ok, [item | items]}}
           {:error, _} = error -> {:halt, error}
         end
@@ -695,6 +704,27 @@ defmodule Ltix.GradeService do
       {:ok, _} = collected -> {:cont, collected}
       {:error, _} = error -> {:halt, error}
     end
+  end
+
+  defp collect_page({:ok, _body}, _accumulator, _parser, spec_ref) do
+    {:halt,
+     {:error,
+      MalformedResponse.exception(
+        service: __MODULE__,
+        reason: "expected JSON array",
+        spec_ref: spec_ref
+      )}}
+  end
+
+  defp parse_collection_item(json, parser, _spec_ref) when is_map(json), do: parser.(json)
+
+  defp parse_collection_item(_json, _parser, spec_ref) do
+    {:error,
+     MalformedResponse.exception(
+       service: __MODULE__,
+       reason: "expected JSON object in collection",
+       spec_ref: spec_ref
+     )}
   end
 
   @doc false

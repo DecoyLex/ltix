@@ -382,9 +382,11 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  defp parse_members(body) when is_map(body) do
-    members = body["members"] || []
-
+  # [membership-container-media-type]:
+  # https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type
+  #
+  # [NRPS §2.1][membership-container-media-type]
+  defp parse_members(%{"members" => members}) when is_list(members) do
     result =
       Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
         case Member.from_json(member_json) do
@@ -399,12 +401,21 @@ defmodule Ltix.MembershipsService do
     end
   end
 
+  defp parse_members(body) when is_map(body) do
+    {:error,
+     MalformedResponse.exception(
+       service: __MODULE__,
+       reason: "expected members to be a JSON array",
+       spec_ref: "NRPS §2.1"
+     )}
+  end
+
   defp parse_members(_body) do
     {:error,
      MalformedResponse.exception(
        service: __MODULE__,
        reason: "expected JSON object",
-       spec_ref: "NRPS §2.4"
+       spec_ref: "NRPS §2.1"
      )}
   end
 

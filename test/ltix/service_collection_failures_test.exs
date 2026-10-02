@@ -1,12 +1,18 @@
 defmodule Ltix.ServiceCollectionFailuresTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
   alias Ltix.LaunchClaims.AgsEndpoint
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Member
+  alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.Client
 
   setup do
@@ -86,6 +92,235 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     refute_received {:requested_page, 3}
   end
 
+  for collection <- [:line_items, :results], page <- [1, 2, 3] do
+    test "#{collection} rejects malformed successful containers on page #{page}", context do
+      collection = unquote(collection)
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      for body <- [%{}, %{"unexpected" => []}, nil, false, 42, "invalid"] do
+        stub_pages(collection, page, &Req.Test.json(&1, body))
+
+        assert {:error, %MalformedResponse{service: GradeService, reason: "expected JSON array"}} =
+                 fetch_collection(collection, client)
+      end
+    end
+
+    test "#{collection} rejects nonobject entries without a partial list on page #{page}",
+         context do
+      collection = unquote(collection)
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      for entry <- [nil, false, 42, "invalid", []] do
+        body = [hd(page_body(collection, page)), entry]
+        stub_pages(collection, page, &Req.Test.json(&1, body))
+
+        assert {:error,
+                %MalformedResponse{
+                  service: GradeService,
+                  reason: "expected JSON object in collection"
+                }} = fetch_collection(collection, client)
+      end
+    end
+  end
+
+  for page <- [1, 2, 3] do
+    test "members reject nonobject containers on page #{page}", context do
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      for body <- [[], [%{"user_id" => "user-1", "roles" => []}], nil, false, 42, "invalid"] do
+        stub_pages(:members, page, &Req.Test.json(&1, body))
+
+        assert {:error,
+                %MalformedResponse{service: MembershipsService, reason: "expected JSON object"}} =
+                 MembershipsService.get_members(client)
+      end
+    end
+
+    test "members require an array rather than an absent or malformed members property on page #{page}",
+         context do
+      page = unquote(page)
+      client = build_client(context.registration)
+      container = Map.delete(page_body(:members, page), "members")
+
+      bodies = [
+        container | Enum.map([nil, false, 42, "invalid", %{}], &Map.put(container, "members", &1))
+      ]
+
+      for body <- bodies do
+        stub_pages(:members, page, &Req.Test.json(&1, body))
+
+        assert {:error,
+                %MalformedResponse{
+                  service: MembershipsService,
+                  reason: "expected members to be a JSON array"
+                }} = MembershipsService.get_members(client)
+      end
+    end
+
+    test "lazy members reject malformed containers when page #{page} is consumed", context do
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      for body <- [[], false, Map.put(page_body(:members, page), "members", %{}), %{}] do
+        stub_pages(:members, page, &Req.Test.json(&1, body))
+        assert {:ok, stream} = MembershipsService.stream_members(client)
+        assert_raise MalformedResponse, fn -> Enum.to_list(stream) end
+      end
+    end
+
+    test "member parsing errors remain classified without a partial roster on page #{page}",
+         context do
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      body =
+        Map.put(page_body(:members, page), "members", [
+          %{"user_id" => "valid", "roles" => []},
+          nil
+        ])
+
+      stub_pages(:members, page, &Req.Test.json(&1, body))
+
+      assert {:error, %MissingClaim{claim: "member.user_id and member.roles"}} =
+               MembershipsService.get_members(client)
+
+      assert {:ok, stream} = MembershipsService.stream_members(client)
+      assert_raise MissingClaim, fn -> Enum.to_list(stream) end
+    end
+  end
+
+  test "collections accept empty collections and follow empty pages", context do
+    client = build_client(context.registration)
+
+    for collection <- [:line_items, :results, :members] do
+      empty =
+        if collection == :members, do: Map.put(page_body(:members, 1), "members", []), else: []
+
+      stub_pages(collection, 1, &Req.Test.json(&1, empty))
+
+      assert {:ok, values} = fetch_collection(collection, client)
+      assert Enum.to_list(values) == []
+
+      Req.Test.stub(
+        if(collection == :members, do: MembershipsService, else: GradeService),
+        fn conn ->
+          if conn.query_string == "page=2" do
+            Req.Test.json(conn, page_body(collection, 2))
+          else
+            conn
+            |> Plug.Conn.put_resp_header("link", "<#{page_url(collection, 2)}>; rel=\"next\"")
+            |> Req.Test.json(empty)
+          end
+        end
+      )
+
+      assert {:ok, values} = fetch_collection(collection, client)
+      assert Enum.map(values, &collection_identifier(collection, &1)) == ["user-2"]
+    end
+  end
+
+  test "grade collections retain unknown properties", context do
+    client = build_client(context.registration)
+    extension = %{"vendor" => %{"flag" => true}}
+
+    stub_pages(
+      :line_items,
+      1,
+      &Req.Test.json(&1, [%{"id" => "item-1", "vendor" => extension["vendor"]}])
+    )
+
+    assert {:ok, [%LineItem{id: "item-1", extensions: ^extension}]} =
+             GradeService.list_line_items(client)
+
+    stub_pages(
+      :results,
+      1,
+      &Req.Test.json(&1, [%{"userId" => "user-1", "vendor" => extension["vendor"]}])
+    )
+
+    assert {:ok, [%Result{user_id: "user-1", extensions: ^extension}]} =
+             GradeService.get_results(client)
+  end
+
+  test "members retain parsed custom messages and accept unknown properties", context do
+    client = build_client(context.registration)
+
+    body = %{
+      "context" => %{"id" => "course-1", "unknown" => "accepted"},
+      "unknown" => true,
+      "members" => [
+        %{
+          "user_id" => "user-1",
+          "roles" => ["Instructor", "https://vendor.example.com/role"],
+          "unknown" => true,
+          "message" => [
+            %{
+              "https://purl.imsglobal.org/spec/lti/claim/message_type" =>
+                "LtiResourceLinkRequest",
+              "https://purl.imsglobal.org/spec/lti/claim/custom" => %{"country" => "Canada"},
+              "https://vendor.example.com/claim" => "extension"
+            }
+          ]
+        }
+      ]
+    }
+
+    stub_pages(:members, 1, &Req.Test.json(&1, body))
+
+    assert {:ok, %MembershipContainer{context: %{id: "course-1"}, members: [member]}} =
+             MembershipsService.get_members(client)
+
+    assert %Member{
+             user_id: "user-1",
+             status: :active,
+             roles: [%{name: :instructor}],
+             unrecognized_roles: ["https://vendor.example.com/role"],
+             message: [
+               %{
+                 custom: %{"country" => "Canada"},
+                 extensions: %{"https://vendor.example.com/claim" => "extension"}
+               }
+             ]
+           } = member
+
+    assert {:ok, stream} = MembershipsService.stream_members(client)
+
+    assert [
+             %Member{
+               user_id: "user-1",
+               status: :active,
+               roles: [%{name: :instructor}],
+               message: [%{custom: %{"country" => "Canada"}}]
+             }
+           ] = Enum.to_list(stream)
+  end
+
+  test "a malformed page stops eager traversal before any later request", context do
+    client = build_client(context.registration)
+
+    Req.Test.stub(GradeService, fn conn ->
+      case conn.query_string do
+        "" ->
+          conn
+          |> Plug.Conn.put_resp_header("link", "<#{page_url(:results, 2)}>; rel=\"next\"")
+          |> Req.Test.json(page_body(:results, 1))
+
+        "page=2" ->
+          conn
+          |> Plug.Conn.put_resp_header("link", "<#{page_url(:results, 3)}>; rel=\"next\"")
+          |> Req.Test.json(%{})
+
+        _ ->
+          flunk("fetched another page after a malformed collection")
+      end
+    end)
+
+    assert {:error, %MalformedResponse{}} = GradeService.get_results(client)
+  end
+
   defp request_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
 
   defp build_client(registration) do
@@ -161,4 +396,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
   defp fetch_collection(:line_items, client, opts), do: GradeService.list_line_items(client, opts)
   defp fetch_collection(:results, client, opts), do: GradeService.get_results(client, opts)
   defp fetch_collection(:members, client, opts), do: MembershipsService.get_members(client, opts)
+
+  defp collection_identifier(:line_items, item), do: item.id
+  defp collection_identifier(_collection, item), do: item.user_id
 end
