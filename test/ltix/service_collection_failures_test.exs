@@ -321,6 +321,24 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     assert {:error, %MalformedResponse{}} = GradeService.get_results(client)
   end
 
+  for collection <- [:line_items, :results, :members], page <- [1, 2, 3] do
+    test "#{collection} returns rejected next links as error tuples on page #{page}", context do
+      collection = unquote(collection)
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      for invalid_url <- ["http://platform.example.com/next", "https://evil.example.com/next"] do
+        stub_pages(collection, page, fn conn ->
+          conn
+          |> Plug.Conn.put_resp_header("link", "<#{invalid_url}>; rel=\"next\"")
+          |> Req.Test.json(page_body(collection, page))
+        end)
+
+        assert {:error, %TransportError{}} = fetch_collection(collection, client)
+      end
+    end
+  end
+
   defp request_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
 
   defp build_client(registration) do

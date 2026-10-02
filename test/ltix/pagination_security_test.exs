@@ -4,10 +4,6 @@ defmodule Ltix.PaginationSecurityTest do
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.Pagination
 
-  defp req_options do
-    [plug: {Req.Test, __MODULE__}, retry: false]
-  end
-
   test "rejects a next page at a different effective port before requesting it" do
     owner = self()
 
@@ -19,11 +15,12 @@ defmodule Ltix.PaginationSecurityTest do
       |> Req.Test.json(%{"page" => 1})
     end)
 
-    assert_raise TransportError, ~r/origin mismatch/, fn ->
-      Pagination.stream("https://platform.example.com/p1", [{"authorization", "Bearer token"}],
-        req_options: req_options()
-      )
-    end
+    assert {:error, %TransportError{}} =
+             Pagination.stream(
+               "https://platform.example.com/p1",
+               [{"authorization", "Bearer token"}],
+               req_options: req_options()
+             )
 
     assert_receive {:requested, "/p1", 443}
     refute_receive {:requested, "/p2", _}
@@ -82,14 +79,12 @@ defmodule Ltix.PaginationSecurityTest do
         |> Req.Test.json(%{"page" => 1})
       end)
 
-      error =
-        assert_raise TransportError, fn ->
-          Pagination.stream(
-            "https://platform.example.com/p1",
-            [{"authorization", "Bearer token"}],
-            req_options: req_options()
-          )
-        end
+      assert {:error, %TransportError{} = error} =
+               Pagination.stream(
+                 "https://platform.example.com/p1",
+                 [{"authorization", "Bearer token"}],
+                 req_options: req_options()
+               )
 
       refute Exception.message(error) =~ "secret"
       assert_receive {:requested, "/p1"}
@@ -97,47 +92,69 @@ defmodule Ltix.PaginationSecurityTest do
     end
   end
 
-  describe "SSRF via Link header" do
-    # An evil platform returns a Link header pointing to an internal service.
-    # The library should refuse to follow non-HTTPS URLs.
-    test "rejects non-HTTPS URL in Link header" do
-      Req.Test.stub(__MODULE__, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header(
-          "link",
-          "<http://169.254.169.254/latest/meta-data/>; rel=\"next\""
-        )
-        |> Req.Test.json(%{"members" => [%{"user_id" => "1"}]})
-      end)
+  @endpoint "https://platform.example.com/members"
+  @headers [{"authorization", "Bearer pagination-token"}]
 
-      assert_raise TransportError, ~r/HTTPS/, fn ->
-        Pagination.stream(
-          "https://platform.example.com/members",
-          [{"accept", "application/json"}],
-          req_options: req_options()
-        )
-      end
-    end
+  test "stream returns a first-page error tuple for a cross-origin next link" do
+    invalid_url = "https://evil.com/steal?token=yes"
+    stub_pages(1, invalid_url)
 
-    # An evil platform returns a Link header pointing to a different host.
-    # The library should refuse to follow cross-origin URLs.
-    test "rejects cross-origin URL in Link header" do
-      Req.Test.stub(__MODULE__, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header(
-          "link",
-          "<https://evil.com/steal?token=yes>; rel=\"next\""
-        )
-        |> Req.Test.json(%{"members" => [%{"user_id" => "1"}]})
-      end)
+    assert {:error, %TransportError{}} =
+             Pagination.stream(@endpoint, @headers, req_options: req_options())
 
-      assert_raise TransportError, ~r/origin mismatch/, fn ->
-        Pagination.stream(
-          "https://platform.example.com/members",
-          [{"accept", "application/json"}],
-          req_options: req_options()
-        )
-      end
-    end
+    assert_receive {:requested_page, 1}
+    refute_received {:requested_page, 2}
+  end
+
+  test "stream returns a first-page error tuple for a plain HTTP next link" do
+    stub_pages(1, "http://platform.example.com/members?page=2")
+
+    assert {:error, %TransportError{body: body}} =
+             Pagination.stream(@endpoint, @headers, req_options: req_options())
+
+    assert body =~ "must be an absolute HTTPS URL"
+    assert_receive {:requested_page, 1}
+    refute_received {:requested_page, 2}
+  end
+
+  test "result stream emits one error for a cross-origin next link" do
+    rejected_page = 2
+    invalid_url = "https://evil.com/steal?token=yes"
+    stub_pages(rejected_page, invalid_url)
+
+    assert {:ok, pages} =
+             Pagination.stream_results(@endpoint, @headers, req_options: req_options())
+
+    assert_receive {:requested_page, 1}
+    refute_received {:requested_page, ^rejected_page}
+
+    results = Enum.to_list(pages)
+
+    assert [{:error, %TransportError{}}] =
+             Enum.drop(results, rejected_page - 1)
+
+    assert Enum.take(results, rejected_page - 1) ==
+             Enum.map(1..(rejected_page - 1), &{:ok, [&1]})
+
+    assert_receive {:requested_page, ^rejected_page}
+  end
+
+  defp req_options, do: [plug: {Req.Test, __MODULE__}, retry: false]
+
+  defp stub_pages(rejected_page, invalid_url) do
+    owner = self()
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      page = String.to_integer(Plug.Conn.fetch_query_params(conn).query_params["page"] || "1")
+      assert conn.host == "platform.example.com"
+      assert page <= rejected_page
+      assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer pagination-token"]
+      send(owner, {:requested_page, page})
+      next_url = if page == rejected_page, do: invalid_url, else: "#{@endpoint}?page=#{page + 1}"
+
+      conn
+      |> Plug.Conn.put_resp_header("link", "<#{next_url}>; rel=\"next\"")
+      |> Req.Test.json([page])
+    end)
   end
 end

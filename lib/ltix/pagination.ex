@@ -110,42 +110,40 @@ defmodule Ltix.Pagination do
       |> Keyword.put(:url, request_url)
       |> Keyword.put(:headers, headers)
 
-    case Ltix.HTTP.request(Keyword.put(req_opts, :method, :get)) do
-      {:ok, %Req.Response{status: 200, body: body, headers: resp_headers} = response} ->
-        response_url = Req.Response.get_private(response, :ltix_response_url, request_url)
-
-        next_url =
-          resp_headers
-          |> parse_next_link(response_url)
-          |> validate_next_url!(base_uri)
-
-        {:ok, body, next_url}
-
+    with {:ok, %Req.Response{status: 200, body: body, headers: resp_headers} = response} <-
+           Ltix.HTTP.request(Keyword.put(req_opts, :method, :get)),
+         response_url = Req.Response.get_private(response, :ltix_response_url, request_url),
+         {:ok, next_url} <-
+           validate_next_url(parse_next_link(resp_headers, response_url), base_uri) do
+      {:ok, body, next_url}
+    else
       {:ok, %Req.Response{status: status, body: body}} ->
         {:error, TransportError.exception(status: status, body: body, url: request_url)}
 
-      {:error, exception} ->
-        {:error, exception}
+      {:error, _} = error ->
+        error
     end
   end
 
-  defp validate_next_url!(nil, _base_uri), do: nil
+  defp validate_next_url(nil, _base_uri), do: {:ok, nil}
 
   # The application limits pagination to the initial endpoint origin.
   # [RFC 6454 §4 and §5](https://www.rfc-editor.org/rfc/rfc6454#section-4)
-  defp validate_next_url!(url, base_uri) do
+  defp validate_next_url(url, base_uri) do
     case Ltix.HTTP.validate_url(url) do
       {:ok, next_uri}
       when next_uri.scheme == base_uri.scheme and next_uri.host == base_uri.host and
              next_uri.port == base_uri.port ->
-        url
+        {:ok, url}
 
       {:ok, _next_uri} ->
-        raise TransportError,
-          body: "Next page URL origin mismatch. Pagination must stay on the initial HTTPS origin"
+        {:error,
+         TransportError.exception(
+           body: "Next page URL origin mismatch. Pagination must stay on the initial HTTPS origin"
+         )}
 
-      {:error, error} ->
-        raise error
+      {:error, _} = error ->
+        error
     end
   end
 
