@@ -15,6 +15,9 @@ defmodule Ltix.Test do
   simulation: RSA keys, a JWKS endpoint stub, and registration/deployment
   data your adapter can look up.
 
+  Add the optional `:plug` dependency to your test environment to use
+  `setup_platform!/1` and HTTP stubs.
+
   ## Connecting to your storage adapter
 
   Pass a `:registration` function to create records in your own persistence
@@ -125,6 +128,13 @@ defmodule Ltix.Test do
   memberships service testing.
   """
 
+  @compile {:no_warn_undefined,
+            [
+              {Plug.Conn, :put_resp_header, 3},
+              {Plug.Conn, :put_status, 2},
+              {Plug.Conn, :send_resp, 3}
+            ]}
+
   alias Ltix.Deployable
   alias Ltix.Deployment
   alias Ltix.GradeService.LineItem
@@ -171,6 +181,8 @@ defmodule Ltix.Test do
   """
   @spec setup_platform!(keyword()) :: Platform.t()
   def setup_platform!(opts \\ []) do
+    require_plug!()
+
     validate_setup_opts!(opts)
 
     {private_key, public_key, kid} = generate_rsa_key_pair()
@@ -376,6 +388,8 @@ defmodule Ltix.Test do
   """
   @spec stub_token_response(keyword()) :: :ok
   def stub_token_response(opts \\ []) do
+    require_plug!()
+
     scopes = Keyword.get(opts, :scopes, [])
 
     Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
@@ -403,6 +417,8 @@ defmodule Ltix.Test do
   """
   @spec stub_list_line_items([LineItem.t()]) :: :ok
   def stub_list_line_items(line_items) when is_list(line_items) do
+    require_plug!()
+
     json = Enum.map(line_items, &LineItem.to_map/1)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -419,6 +435,8 @@ defmodule Ltix.Test do
   """
   @spec stub_get_line_item(LineItem.t()) :: :ok
   def stub_get_line_item(%LineItem{} = item) do
+    require_plug!()
+
     json = LineItem.to_map(item)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -438,6 +456,8 @@ defmodule Ltix.Test do
   """
   @spec stub_create_line_item(LineItem.t()) :: :ok
   def stub_create_line_item(%LineItem{} = item) do
+    require_plug!()
+
     json = LineItem.to_map(item)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -456,6 +476,8 @@ defmodule Ltix.Test do
   """
   @spec stub_update_line_item(LineItem.t()) :: :ok
   def stub_update_line_item(%LineItem{} = item) do
+    require_plug!()
+
     json = LineItem.to_map(item)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -470,6 +492,8 @@ defmodule Ltix.Test do
   """
   @spec stub_delete_line_item() :: :ok
   def stub_delete_line_item do
+    require_plug!()
+
     Req.Test.stub(Ltix.GradeService, fn conn ->
       Plug.Conn.send_resp(conn, 204, "")
     end)
@@ -482,6 +506,8 @@ defmodule Ltix.Test do
   """
   @spec stub_post_score() :: :ok
   def stub_post_score do
+    require_plug!()
+
     Req.Test.stub(Ltix.GradeService, fn conn ->
       Plug.Conn.send_resp(conn, 200, "")
     end)
@@ -497,6 +523,8 @@ defmodule Ltix.Test do
   """
   @spec stub_get_results([Result.t()]) :: :ok
   def stub_get_results(results) when is_list(results) do
+    require_plug!()
+
     json = Enum.map(results, &result_to_json/1)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -521,6 +549,8 @@ defmodule Ltix.Test do
   """
   @spec stub_get_members([Member.t()], keyword()) :: :ok
   def stub_get_members(members, opts \\ []) when is_list(members) do
+    require_plug!()
+
     context = Keyword.get(opts, :context, %Context{id: "context-001"})
     container_id = Keyword.get(opts, :id)
 
@@ -943,6 +973,12 @@ defmodule Ltix.Test do
   defp merge_overrides(claims, overrides), do: Map.merge(claims, overrides)
 
   # --- Setup Helpers ---
+
+  defp require_plug! do
+    unless Code.ensure_loaded?(Plug.Conn) do
+      raise "Ltix HTTP test helpers require Plug. Add the optional :plug dependency to your test environment."
+    end
+  end
 
   defp validate_setup_opts!(opts) do
     registration = Keyword.get(opts, :registration)
