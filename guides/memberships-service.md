@@ -127,8 +127,9 @@ Retrieve only members with access to a specific resource link:
 
 Only `user_id` and `roles` are guaranteed on every member. Fields
 like `name`, `email`, and `picture` depend on the platform's privacy
-settings. A Canvas admin must explicitly enable "include name" and
-"include email" in the tool configuration.
+settings. Malformed optional profile fields become `nil` without losing
+other member data. A Canvas admin must explicitly enable "include name"
+and "include email" in the tool configuration.
 
 Always handle `nil`:
 
