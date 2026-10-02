@@ -271,9 +271,8 @@ defmodule Ltix.MixProject do
   end
 
   defp usage_rules do
-    # Example for those using claude.
     [
-      file: "CLAUDE.md",
+      file: "AGENTS.md",
       usage_rules: ["usage_rules:all"],
       skills: [
         location: ".claude/skills",
