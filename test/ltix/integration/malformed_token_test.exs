@@ -1,6 +1,7 @@
 defmodule Ltix.Integration.MalformedTokenTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
@@ -90,6 +91,14 @@ defmodule Ltix.Integration.MalformedTokenTest do
 
       assert {:error, %MissingParameter{parameter: "id_token"}} = callback(token, context)
     end
+  end
+
+  test "public verifier rejects a signed token without an issuer", context do
+    claims = Map.delete(context.claims, "iss")
+    token = sign(claims, header(context), context)
+
+    assert {:error, %MissingClaim{claim: "iss", class: :invalid}} =
+             Token.verify(token, context.platform.registration, verifier_options())
   end
 
   defp header(context), do: %{"alg" => "RS256", "kid" => context.platform.kid}

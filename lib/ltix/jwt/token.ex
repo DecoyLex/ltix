@@ -32,6 +32,7 @@ defmodule Ltix.JWT.Token do
     * `:cache` — cache module passed through to `Ltix.JWT.KeySet`
   """
 
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security.AlgorithmNotAllowed
   alias Ltix.Errors.Security.AudienceMismatch
   alias Ltix.Errors.Security.IssuerMismatch
@@ -139,6 +140,11 @@ defmodule Ltix.JWT.Token do
        actual: iss,
        spec_ref: "Sec §5.1.3 step 2"
      )}
+  end
+
+  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
+  defp validate_issuer(_claims, _registration) do
+    {:error, MissingClaim.exception(claim: "iss", spec_ref: "Sec §5.1.2")}
   end
 
   # [Sec §5.1.3 step 3] aud MUST contain client_id. The tool MUST reject
