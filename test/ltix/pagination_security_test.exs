@@ -69,7 +69,8 @@ defmodule Ltix.PaginationSecurityTest do
     for next_url <- [
           "https://secret@platform.example.com/p2",
           "https:///p2",
-          "https://platform.example.com:invalid/p2"
+          "https://platform.example.com:invalid/p2",
+          "//platform.example.com:invalid/p2"
         ] do
       Req.Test.stub(__MODULE__, fn conn ->
         send(owner, {:requested, conn.request_path})

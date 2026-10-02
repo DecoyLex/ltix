@@ -193,7 +193,13 @@ defmodule Ltix.Pagination do
         nil
 
       target ->
-        if URI.parse(target).scheme, do: target, else: to_string(URI.merge(response_url, target))
+        with {:ok, %URI{scheme: nil} = target_uri} <- URI.new(target),
+             {:ok, %URI{scheme: scheme} = response_uri} when not is_nil(scheme) <-
+               URI.new(response_url) do
+          to_string(URI.merge(response_uri, target_uri))
+        else
+          _ -> target
+        end
     end
   end
 
