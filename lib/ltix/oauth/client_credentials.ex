@@ -49,33 +49,51 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:headers, [{"content-type", "application/x-www-form-urlencoded"}])
       |> Keyword.put(:body, body)
       |> Keyword.put(:retry, false)
+      |> Keyword.put(:decode_body, false)
 
-    # [RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1)
     case Req.post(req_opts) do
-      {:ok, %Req.Response{status: 200, body: body}} ->
-        AccessToken.from_response(body, requested_scopes: scopes)
-
-      {:ok, %Req.Response{status: status, body: body}} when is_map(body) ->
-        {:error,
-         TokenRequestFailed.exception(
-           error: body["error"],
-           error_description: body["error_description"],
-           status: status,
-           body: body,
-           spec_ref: "Sec §4.1"
-         )}
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error,
-         TokenRequestFailed.exception(
-           status: status,
-           body: body,
-           spec_ref: "Sec §4.1"
-         )}
-
-      {:error, exception} ->
-        {:error, exception}
+      {:ok, response} -> parse_response(decode_response(response), scopes)
+      {:error, exception} -> {:error, exception}
     end
+  end
+
+  defp decode_response(%Req.Response{body: body} = response) when is_binary(body) do
+    with [content_type] <- Req.Response.get_header(response, "content-type"),
+         [media_type | _parameters] <- String.split(content_type, ";", parts: 2),
+         "application/json" <- String.downcase(String.trim(media_type)),
+         {:ok, decoded_body} <- Ltix.AppConfig.json_library!().decode(body) do
+      %{response | body: decoded_body}
+    else
+      _ -> response
+    end
+  end
+
+  defp decode_response(response), do: response
+
+  # [RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1)
+  defp parse_response(%Req.Response{status: 200, body: body}, scopes) do
+    AccessToken.from_response(body, requested_scopes: scopes)
+  end
+
+  # [RFC 6749 §5.2](https://www.rfc-editor.org/rfc/rfc6749#section-5.2)
+  defp parse_response(%Req.Response{status: status, body: body}, _scopes) when is_map(body) do
+    {:error,
+     TokenRequestFailed.exception(
+       error: body["error"],
+       error_description: body["error_description"],
+       status: status,
+       body: body,
+       spec_ref: "Sec §4.1"
+     )}
+  end
+
+  defp parse_response(%Req.Response{status: status, body: body}, _scopes) do
+    {:error,
+     TokenRequestFailed.exception(
+       status: status,
+       body: body,
+       spec_ref: "Sec §4.1"
+     )}
   end
 
   # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)

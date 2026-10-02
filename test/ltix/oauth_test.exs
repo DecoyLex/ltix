@@ -147,6 +147,184 @@ defmodule Ltix.OAuthTest do
       refute MapSet.member?(client.scopes, @other_scope)
     end
 
+    test "accepts mixed-case bearer with optional fields absent and ignores extensions", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        Req.Test.json(conn, %{
+          "access_token" => "extension-token",
+          "token_type" => "bEaReR",
+          "platform_extension" => %{"arbitrary" => [1, nil, false]}
+        })
+      end)
+
+      before_request = DateTime.utc_now()
+
+      assert {:ok, %Client{access_token: "extension-token"} = client} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+
+      after_request = DateTime.utc_now()
+      assert client.scopes == MapSet.new([@test_scope])
+      assert DateTime.compare(client.expires_at, DateTime.add(before_request, 3600)) != :lt
+      assert DateTime.compare(client.expires_at, DateTime.add(after_request, 3600)) != :gt
+    end
+
+    test "accepts a compliant response and honors zero lifetime", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        Req.Test.json(conn, %{
+          "access_token" => "expired-token",
+          "token_type" => "BEARER",
+          "expires_in" => 0,
+          "scope" => @test_scope
+        })
+      end)
+
+      before_request = System.system_time(:microsecond)
+
+      assert {:ok, %Client{access_token: "expired-token"} = client} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+
+      after_request = System.system_time(:microsecond)
+      expires_at = DateTime.to_unix(client.expires_at, :microsecond)
+      assert expires_at >= before_request
+      assert expires_at <= after_request
+      assert Client.expired?(client)
+      assert client.scopes == MapSet.new([@test_scope])
+    end
+
+    for {field, value} <- [
+          {"access_token", 123},
+          {"access_token", "token\r\nInjected"},
+          {"token_type", 123},
+          {"token_type", "MAC"},
+          {"expires_in", nil},
+          {"expires_in", -1},
+          {"expires_in", 999_999_999_999_999_999_999},
+          {"scope", nil},
+          {"scope", ""},
+          {"scope", "scope.read\tscope.write"},
+          {"scope", " scope.read"},
+          {"scope", "scope.\"read"},
+          {"scope", "scope.é"}
+        ] do
+      test "returns MalformedResponse for #{field} value #{inspect(value)}", ctx do
+        body =
+          Map.put(
+            %{
+              "access_token" => "test-token",
+              "token_type" => "Bearer",
+              "expires_in" => 3600,
+              "scope" => @test_scope
+            },
+            unquote(field),
+            unquote(Macro.escape(value))
+          )
+
+        Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+          Req.Test.json(conn, body)
+        end)
+
+        assert {:error, %MalformedResponse{service: :oauth}} =
+                 OAuth.authenticate(ctx.registration,
+                   endpoints: %{TestService => :valid_endpoint},
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    for field <- ["access_token", "token_type"] do
+      test "returns MalformedResponse when #{field} is missing", ctx do
+        body =
+          Map.delete(%{"access_token" => "test-token", "token_type" => "Bearer"}, unquote(field))
+
+        Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+          Req.Test.json(conn, body)
+        end)
+
+        assert {:error, %MalformedResponse{service: :oauth}} =
+                 OAuth.authenticate(ctx.registration,
+                   endpoints: %{TestService => :valid_endpoint},
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    test "returns MalformedResponse for JSON body []", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        Req.Test.json(conn, [])
+      end)
+
+      assert {:error, %MalformedResponse{service: :oauth}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+    end
+
+    test "returns MalformedResponse for invalid JSON", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(200, "{not-json}")
+      end)
+
+      assert {:error, %MalformedResponse{service: :oauth}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+    end
+
+    test "preserves HTTP 400 and body when the advertised JSON is invalid", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(400, "{not-json}")
+      end)
+
+      assert {:error, %TokenRequestFailed{status: 400, body: "{not-json}"}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+    end
+
+    test "accepts bearer credential punctuation and OAuth scope punctuation", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        Req.Test.json(conn, %{
+          "access_token" => "aZ09-._~+/==",
+          "token_type" => "Bearer",
+          "scope" => "!#[scope]~ other.scope"
+        })
+      end)
+
+      assert {:ok, %Client{access_token: "aZ09-._~+/=="} = client} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+
+      assert client.scopes == MapSet.new(["!#[scope]~", "other.scope"])
+    end
+
+    test "accepts JSON media type parameters and whitespace", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "application/json ; charset=utf-8")
+        |> Plug.Conn.send_resp(200, ~s({"access_token":"media-type-token","token_type":"Bearer"}))
+      end)
+
+      assert {:ok, %Client{access_token: "media-type-token"}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+    end
+
     test "invalid endpoint returns error before any HTTP call", ctx do
       assert {:error, %InvalidEndpoint{}} =
                OAuth.authenticate(ctx.registration,
@@ -162,8 +340,8 @@ defmodule Ltix.OAuthTest do
 
         Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
           conn
-          |> Plug.Conn.put_resp_content_type("application/json")
-          |> Plug.Conn.send_resp(status, Jason.encode!(body))
+          |> Plug.Conn.put_status(status)
+          |> Req.Test.json(body)
         end)
 
         assert {:error, %TokenRequestFailed{status: ^status, body: ^body}} =
@@ -174,29 +352,26 @@ defmodule Ltix.OAuthTest do
       end
     end
 
-    for status <- [400, 401] do
-      test "preserves OAuth error details and HTTP #{status}", ctx do
-        status = unquote(status)
-        body = %{"error" => "invalid_client", "error_description" => "Unknown client"}
+    test "preserves OAuth error details and HTTP 400", ctx do
+      body = %{"error" => "invalid_client", "error_description" => "Unknown client"}
 
-        Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-          conn
-          |> Plug.Conn.put_resp_content_type("application/json")
-          |> Plug.Conn.send_resp(status, Jason.encode!(body))
-        end)
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        conn
+        |> Plug.Conn.put_status(400)
+        |> Req.Test.json(body)
+      end)
 
-        assert {:error,
-                %TokenRequestFailed{
-                  status: ^status,
-                  error: "invalid_client",
-                  error_description: "Unknown client",
-                  body: ^body
-                }} =
-                 OAuth.authenticate(ctx.registration,
-                   endpoints: %{TestService => :valid_endpoint},
-                   req_options: req_options()
-                 )
-      end
+      assert {:error,
+              %TokenRequestFailed{
+                status: 400,
+                error: "invalid_client",
+                error_description: "Unknown client",
+                body: ^body
+              }} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
     end
 
     test "preserves a non-JSON error response", ctx do
@@ -226,8 +401,8 @@ defmodule Ltix.OAuthTest do
     test "token request failure propagated", ctx do
       Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         conn
-        |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(400, Jason.encode!(%{"error" => "invalid_grant"}))
+        |> Plug.Conn.put_status(400)
+        |> Req.Test.json(%{"error" => "invalid_grant"})
       end)
 
       assert {:error, %TokenRequestFailed{}} =
