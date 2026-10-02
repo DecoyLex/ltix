@@ -8,6 +8,7 @@ defmodule Ltix.Pagination do
   """
 
   alias Ltix.Errors.Unknown.TransportError
+  alias Req.Steps, as: RequestSteps
 
   @stream_schema Zoi.keyword(
                    params:
@@ -16,7 +17,9 @@ defmodule Ltix.Pagination do
                      )
                      |> Zoi.default(%{}),
                    req_options:
-                     Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.get/1`.")
+                     Zoi.keyword(Zoi.any(),
+                       description: "Additional HTTP request options."
+                     )
                      |> Zoi.default([])
                  )
 
@@ -59,32 +62,40 @@ defmodule Ltix.Pagination do
   end
 
   defp next_page(url, headers, req_options, base_uri) do
-    case fetch_page(url, headers, %{}, req_options, base_uri) do
+    case fetch_page(url, headers, %{}, Keyword.delete(req_options, :params), base_uri) do
       {:ok, body, next_url} -> {[body], next_url}
       {:error, reason} -> raise reason
     end
   end
 
   defp fetch_page(url, headers, params, req_options, base_uri) do
+    params = if params == %{}, do: Keyword.get(req_options, :params, []), else: params
+
+    request_url =
+      [url: url, params: params]
+      |> Req.new()
+      |> RequestSteps.put_params()
+      |> then(&URI.to_string(&1.url))
+
     req_opts =
       req_options
-      |> Keyword.put(:url, url)
+      |> Keyword.delete(:params)
+      |> Keyword.put(:url, request_url)
       |> Keyword.put(:headers, headers)
-      |> then(fn opts ->
-        if params == %{}, do: opts, else: Keyword.put(opts, :params, params)
-      end)
 
     case Ltix.HTTP.request(Keyword.put(req_opts, :method, :get)) do
-      {:ok, %Req.Response{status: 200, body: body, headers: resp_headers}} ->
+      {:ok, %Req.Response{status: 200, body: body, headers: resp_headers} = response} ->
+        response_url = Req.Response.get_private(response, :ltix_response_url, request_url)
+
         next_url =
           resp_headers
-          |> parse_next_link(url)
+          |> parse_next_link(response_url)
           |> validate_next_url!(base_uri)
 
         {:ok, body, next_url}
 
       {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, TransportError.exception(status: status, body: body, url: url)}
+        {:error, TransportError.exception(status: status, body: body, url: request_url)}
 
       {:error, exception} ->
         {:error, exception}

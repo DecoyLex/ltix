@@ -138,6 +138,80 @@ defmodule Ltix.PaginationLinkTest do
     Req.Test.verify!(__MODULE__)
   end
 
+  test "empty and fragment targets retain the fully parameterized first response URL" do
+    Enum.each(["<>; rel=next", "<#page-two>; rel=next"], fn link ->
+      Req.Test.expect(__MODULE__, fn conn ->
+        assert conn.query_string == "source=a%2Fb&tag=new+quiz"
+
+        conn
+        |> Plug.Conn.put_resp_header("link", link)
+        |> Req.Test.json(%{"page" => 1})
+      end)
+
+      Req.Test.expect(__MODULE__, fn conn ->
+        assert conn.request_path == "/items"
+        assert conn.query_string == "source=a%2Fb&tag=new+quiz"
+        Req.Test.json(conn, %{"page" => 2})
+      end)
+
+      assert {:ok, stream} =
+               Pagination.stream("https://example.com/items?source=a%2Fb&tag=old", [],
+                 params: %{"tag" => "new quiz"},
+                 req_options: req_options()
+               )
+
+      assert Enum.to_list(stream) == [%{"page" => 1}, %{"page" => 2}]
+      Req.Test.verify!(__MODULE__)
+    end)
+  end
+
+  test "request option parameters become part of the first response URL only" do
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.query_string == "source=launch&tag=quiz"
+
+      conn
+      |> Plug.Conn.put_resp_header("link", "<#page-two>; rel=next")
+      |> Req.Test.json(%{"page" => 1})
+    end)
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.query_string == "source=launch&tag=quiz"
+
+      conn
+      |> Plug.Conn.put_resp_header("link", "<?cursor=three>; rel=next")
+      |> Req.Test.json(%{"page" => 2})
+    end)
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.query_string == "cursor=three"
+      Req.Test.json(conn, %{"page" => 3})
+    end)
+
+    assert {:ok, stream} =
+             Pagination.stream("https://example.com/items?source=launch", [],
+               req_options: Keyword.put(req_options(), :params, tag: "quiz")
+             )
+
+    assert Enum.to_list(stream) == [%{"page" => 1}, %{"page" => 2}, %{"page" => 3}]
+    Req.Test.verify!(__MODULE__)
+  end
+
+  test "explicit pagination parameters override request option parameters" do
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.query_string == "tag=quiz"
+      Req.Test.json(conn, %{"page" => 1})
+    end)
+
+    assert {:ok, stream} =
+             Pagination.stream("https://example.com/items?tag=old", [],
+               params: %{"tag" => "quiz"},
+               req_options: Keyword.put(req_options(), :params, tag: "ignored", limit: 10)
+             )
+
+    assert Enum.to_list(stream) == [%{"page" => 1}]
+    Req.Test.verify!(__MODULE__)
+  end
+
   test "resolves every relative target against the current page URL" do
     pages = [
       {"/start/items", "", "</moved/pages/two?cursor=2>"},
