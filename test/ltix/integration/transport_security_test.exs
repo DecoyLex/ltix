@@ -893,6 +893,117 @@ defmodule Ltix.Integration.TransportSecurityTest do
     assert {:error, :timeout} = :gen_tcp.accept(listener, 100)
   end
 
+  test "rejects explicitly disabled certificate verification before sending credentials", %{
+    client: client,
+    score: score,
+    registration: registration
+  } do
+    owner = self()
+
+    for service <- [GradeService, ClientCredentials] do
+      Req.Test.stub(service, fn conn ->
+        send(owner, {:reached, service})
+        Plug.Conn.send_resp(conn, 204, "")
+      end)
+    end
+
+    for tls_options <- [
+          [connect_options: [transport_opts: [verify: :verify_none]]],
+          [finch: [conn_opts: [transport_opts: [verify: :verify_none]]]]
+        ] do
+      request_options = Keyword.merge(client.req_options, tls_options)
+      client = %{client | req_options: request_options}
+      assert {:error, %TransportError{} = error} = GradeService.post_score(client, score)
+      assert Exception.message(error) =~ "certificate verification"
+
+      assert {:error, %TransportError{}} =
+               ClientCredentials.request_token(registration, [], req_options: request_options)
+
+      refute_receive {:reached, _}, 0
+    end
+  end
+
+  test "custom certificate authorities remain usable with strict verification", %{
+    client: client,
+    score: score
+  } do
+    configuration = certificate_configuration()
+
+    certificate_file =
+      Path.join(
+        System.tmp_dir!(),
+        "ltix-certificates-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}.pem"
+      )
+
+    certificates = Enum.map(configuration[:cacerts], &{:Certificate, &1, :not_encrypted})
+    File.write!(certificate_file, :public_key.pem_encode(certificates))
+    on_exit(fn -> File.rm!(certificate_file) end)
+
+    for tls_options <- [
+          [connect_options: [transport_opts: [cacerts: configuration[:cacerts]]]],
+          [
+            finch: [
+              conn_opts: [transport_opts: [verify: :verify_peer, cacertfile: certificate_file]]
+            ]
+          ]
+        ] do
+      {url, server} = start_https_endpoint(configuration)
+      client = %{client | req_options: Keyword.put(tls_options, :retry, false)}
+      assert :ok = GradeService.post_score(client, score, line_item: url)
+      assert {:ok, request} = Task.await(server)
+      assert request =~ "POST /lineitems/1/scores HTTP/1.1"
+      assert request =~ "authorization: Bearer secret-bearer-token"
+    end
+  end
+
+  test "default HTTP configuration rejects an untrusted server before sending credentials", %{
+    client: client,
+    score: score
+  } do
+    {url, server} = start_https_endpoint(certificate_configuration())
+    client = %{client | req_options: [retry: false]}
+    assert {:error, error} = GradeService.post_score(client, score, line_item: url)
+    assert Exception.message(error) =~ "Unknown CA"
+    assert {:error, _handshake_error} = Task.await(server)
+  end
+
+  defp certificate_configuration do
+    :public_key.pkix_test_data(%{
+      root: [key: {:rsa, 2048, 65_537}, digest: :sha256],
+      intermediates: [],
+      peer: [
+        key: {:rsa, 2048, 65_537},
+        digest: :sha256,
+        extensions: [{:Extension, {2, 5, 29, 17}, false, [{:iPAddress, <<127, 0, 0, 1>>}]}]
+      ]
+    })
+  end
+
+  defp start_https_endpoint(configuration) do
+    opts = Keyword.merge(configuration, ip: {127, 0, 0, 1}, active: false, mode: :binary)
+    {:ok, listener} = :ssl.listen(0, opts)
+    on_exit(fn -> :ssl.close(listener) end)
+    {:ok, {_address, port}} = :ssl.sockname(listener)
+
+    server =
+      Task.async(fn ->
+        with {:ok, socket} <- :ssl.transport_accept(listener, 5000),
+             {:ok, socket} <- :ssl.handshake(socket, 5000),
+             {:ok, request} <- :ssl.recv(socket, 0, 5000) do
+          :ok =
+            :ssl.send(
+              socket,
+              "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+
+          :ssl.close(socket)
+          {:ok, request}
+        end
+      end)
+
+    {"https://127.0.0.1:#{port}/lineitems/1", server}
+  end
+
   test "caller URL and base URL options cannot replace the service destination", %{
     client: client,
     score: score

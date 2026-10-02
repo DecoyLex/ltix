@@ -28,7 +28,8 @@ defmodule Ltix.HTTP do
   """
   @spec request(keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
   def request(opts) do
-    with {:ok, uri} <- validate_url(Keyword.get(opts, :url)) do
+    with {:ok, uri} <- validate_url(Keyword.get(opts, :url)),
+         :ok <- validate_certificate_verification(opts) do
       opts
       |> Keyword.merge(
         url: uri,
@@ -60,6 +61,26 @@ defmodule Ltix.HTTP do
   end
 
   def validate_url(_url), do: invalid_url()
+
+  # [RFC 6750 §5.3](https://www.rfc-editor.org/rfc/rfc6750#section-5.3)
+  defp validate_certificate_verification(opts) do
+    finch_options =
+      case Keyword.get(opts, :finch) do
+        opts when is_list(opts) -> opts
+        _ -> []
+      end
+
+    if get_in(opts, [:connect_options, :transport_opts, :verify]) == :verify_none or
+         get_in(finch_options, [:conn_opts, :transport_opts, :verify]) == :verify_none do
+      {:error,
+       TransportError.exception(
+         body: "Platform requests require TLS certificate verification",
+         spec_ref: "RFC 6750 §5.3"
+       )}
+    else
+      :ok
+    end
+  end
 
   # [RFC 6750 §5.3](https://www.rfc-editor.org/rfc/rfc6750#section-5.3)
   defp guard_redirect(
