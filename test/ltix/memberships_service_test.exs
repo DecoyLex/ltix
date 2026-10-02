@@ -518,48 +518,35 @@ defmodule Ltix.MembershipsServiceTest do
       assert hd(result).user_id == "user-1"
     end
 
-    test "lazily follows pagination", ctx do
-      counter = :counters.new(1, [:atomics])
+    test "lazily follows relative membership links", ctx do
       fetch_count = :counters.new(1, [:atomics])
 
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
+      Req.Test.expect(Ltix.MembershipsService, fn conn ->
         :counters.add(fetch_count, 1, 1)
-        page = :counters.get(counter, 1)
-        :counters.add(counter, 1, 1)
 
-        {body, next_url} =
-          case page do
-            0 ->
-              {build_membership_response([build_member("user-1", [@learner_uri])]),
-               "https://platform.example.com/memberships?p=2"}
+        conn
+        |> Plug.Conn.put_resp_content_type(@nrps_media_type)
+        |> Plug.Conn.put_resp_header("link", "</memberships?p=2>; rel=NEXT")
+        |> Req.Test.json(build_membership_response([build_member("user-1", [@learner_uri])]))
+      end)
 
-            _ ->
-              {build_membership_response([build_member("user-2", [@instructor_uri])]), nil}
-          end
+      Req.Test.expect(Ltix.MembershipsService, fn conn ->
+        :counters.add(fetch_count, 1, 1)
+        assert conn.request_path == "/memberships"
+        assert conn.query_string == "p=2"
 
-        conn = Plug.Conn.put_resp_content_type(conn, @nrps_media_type)
-
-        conn =
-          if next_url do
-            Plug.Conn.put_resp_header(conn, "link", "<#{next_url}>; rel=\"next\"")
-          else
-            conn
-          end
-
-        Req.Test.json(conn, body)
+        conn
+        |> Plug.Conn.put_resp_content_type(@nrps_media_type)
+        |> Req.Test.json(build_membership_response([build_member("user-2", [@instructor_uri])]))
       end)
 
       client = build_client(ctx.platform)
 
       assert {:ok, stream} = MembershipsService.stream_members(client)
-
-      # First page fetched eagerly
       assert :counters.get(fetch_count, 1) == 1
-
-      # Consuming stream fetches second page
-      all = Enum.to_list(stream)
-      assert length(all) == 2
+      assert Enum.map(stream, & &1.user_id) == ["user-1", "user-2"]
       assert :counters.get(fetch_count, 1) == 2
+      Req.Test.verify!(Ltix.MembershipsService)
     end
 
     test "returns error on first page failure", ctx do

@@ -78,7 +78,7 @@ defmodule Ltix.Pagination do
       {:ok, %Req.Response{status: 200, body: body, headers: resp_headers}} ->
         next_url =
           resp_headers
-          |> parse_next_link()
+          |> parse_next_link(url)
           |> validate_next_url!(base_uri)
 
         {:ok, body, next_url}
@@ -112,38 +112,122 @@ defmodule Ltix.Pagination do
   end
 
   @doc """
-  Extract the `rel="next"` URL from response headers.
+  Extract the `rel="next"` target from response headers.
 
   Parses [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288) `Link` headers
-  and returns the URL with `rel="next"`, or `nil` if not present.
+  and returns the target as supplied, or `nil` if not present. Ignores links
+  with an `anchor` parameter. Use `parse_next_link/2` to resolve relative
+  targets.
 
       iex> Ltix.Pagination.parse_next_link(%{"link" => ["<https://example.com/p2>; rel=\\"next\\""]})
       "https://example.com/p2"
+
+      iex> Ltix.Pagination.parse_next_link(%{"link" => ["<?page=2>; rel=next"]})
+      "?page=2"
 
       iex> Ltix.Pagination.parse_next_link(%{})
       nil
   """
   @spec parse_next_link(%{String.t() => [String.t()]}) :: String.t() | nil
   def parse_next_link(headers) do
-    headers
-    |> Map.get("link", [])
-    |> Enum.find_value(&extract_next_url/1)
-  end
-
-  defp extract_next_url(header_value) do
-    header_value
-    |> String.split(",")
-    |> Enum.find_value(fn part ->
-      part = String.trim(part)
-
-      with [_, url] <- Regex.run(~r/^<([^>]+)>/, part),
-           true <- String.match?(part, ~r/rel\s*=\s*"next"/) do
-        url
-      else
-        _ -> nil
+    Enum.find_value(headers, fn {name, values} ->
+      if String.downcase(name, :ascii) == "link" do
+        Enum.find_value(values, &extract_next_url/1)
       end
     end)
   end
+
+  @doc """
+  Extract the `rel="next"` URL, resolving relative targets against
+  `response_url`.
+
+  Pass the URL of the response carrying the headers. Returns `nil` if no
+  next link is present. Ignores links with an `anchor` parameter.
+
+      iex> Ltix.Pagination.parse_next_link(
+      ...>   %{"link" => ["<../three>; rel=next"]},
+      ...>   "https://example.com/pages/two"
+      ...> )
+      "https://example.com/three"
+  """
+  @spec parse_next_link(%{String.t() => [String.t()]}, String.t()) :: String.t() | nil
+  def parse_next_link(headers, response_url) do
+    case parse_next_link(headers) do
+      nil ->
+        nil
+
+      target ->
+        if URI.parse(target).scheme, do: target, else: to_string(URI.merge(response_url, target))
+    end
+  end
+
+  defp extract_next_url(header_value) do
+    # [RFC 7230 §7](https://www.rfc-editor.org/rfc/rfc7230#section-7)
+    with "<" <> rest <- trim_whitespace(header_value),
+         [target, rest] <- String.split(rest, ">", parts: 2),
+         {:ok, parameters, rest} <- parse_parameters(rest, %{}) do
+      relations = String.split(Map.get(parameters, "rel", ""), " ", trim: true)
+
+      if not Map.has_key?(parameters, "anchor") and
+           Enum.any?(relations, &(String.downcase(&1, :ascii) == "next")) do
+        target
+      else
+        extract_next_url(rest)
+      end
+    else
+      "," <> rest -> extract_next_url(rest)
+      _ -> nil
+    end
+  end
+
+  defp parse_parameters(input, parameters) do
+    case trim_whitespace(input) do
+      ";" <> rest -> parse_parameter(rest, parameters)
+      "," <> rest -> {:ok, parameters, rest}
+      "" -> {:ok, parameters, ""}
+      _ -> :error
+    end
+  end
+
+  defp parse_parameter(input, parameters) do
+    with {:ok, name, rest} <- take_token(trim_whitespace(input)),
+         {:ok, value, rest} <- parse_parameter_value(trim_whitespace(rest)) do
+      parse_parameters(rest, Map.put_new(parameters, String.downcase(name, :ascii), value))
+    end
+  end
+
+  defp parse_parameter_value("=" <> rest), do: take_value(trim_whitespace(rest))
+  defp parse_parameter_value(rest), do: {:ok, "", rest}
+
+  defp take_value("\"" <> rest), do: take_quoted_value(rest, [])
+  defp take_value(input), do: take_token(input)
+
+  defp take_quoted_value("\\" <> <<character, rest::binary>>, characters),
+    do: take_quoted_value(rest, [character | characters])
+
+  defp take_quoted_value("\"" <> rest, characters),
+    do: {:ok, :erlang.list_to_binary(Enum.reverse(characters)), rest}
+
+  defp take_quoted_value(<<character, rest::binary>>, characters),
+    do: take_quoted_value(rest, [character | characters])
+
+  defp take_quoted_value("", _characters), do: :error
+
+  defp take_token(input) do
+    case Regex.run(~r/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+/, input) do
+      [token] ->
+        size = byte_size(token)
+        {:ok, token, binary_part(input, size, byte_size(input) - size)}
+
+      nil ->
+        :error
+    end
+  end
+
+  defp trim_whitespace(<<character, rest::binary>>) when character in [32, 9],
+    do: trim_whitespace(rest)
+
+  defp trim_whitespace(input), do: input
 
   defp req_options(opts) do
     Keyword.get(opts, :req_options, [])

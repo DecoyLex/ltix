@@ -263,39 +263,31 @@ defmodule Ltix.GradeServiceTest do
                )
     end
 
-    test "follows rel=next pagination", ctx do
-      counter = :counters.new(1, [:atomics])
+    test "follows relative next links without reapplying line item filters", ctx do
+      Req.Test.expect(Ltix.GradeService, fn conn ->
+        assert Plug.Conn.fetch_query_params(conn).query_params == %{"tag" => "quiz"}
 
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        page = :counters.get(counter, 1)
-        :counters.add(counter, 1, 1)
+        conn
+        |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
+        |> Plug.Conn.put_resp_header("link", "<?cursor=2>; rel=next")
+        |> Req.Test.json([build_line_item_json(id: "#{@lineitems_url}/1", label: "Quiz 1")])
+      end)
 
-        {body, next_url} =
-          case page do
-            0 ->
-              {[build_line_item_json(id: "#{@lineitems_url}/1", label: "Quiz 1")],
-               "#{@lineitems_url}?p=2"}
+      Req.Test.expect(Ltix.GradeService, fn conn ->
+        assert conn.request_path == "/context/2923/lineitems"
+        assert conn.query_string == "cursor=2"
 
-            _ ->
-              {[build_line_item_json(id: "#{@lineitems_url}/2", label: "Quiz 2")], nil}
-          end
-
-        conn = Plug.Conn.put_resp_content_type(conn, @lineitem_container_media_type)
-
-        conn =
-          if next_url do
-            Plug.Conn.put_resp_header(conn, "link", "<#{next_url}>; rel=\"next\"")
-          else
-            conn
-          end
-
-        Req.Test.json(conn, body)
+        conn
+        |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
+        |> Req.Test.json([build_line_item_json(id: "#{@lineitems_url}/2", label: "Quiz 2")])
       end)
 
       client = build_client(ctx.platform)
 
-      assert {:ok, items} = GradeService.list_line_items(client)
-      assert length(items) == 2
+      assert {:ok, [%LineItem{label: "Quiz 1"}, %LineItem{label: "Quiz 2"}]} =
+               GradeService.list_line_items(client, tag: "quiz")
+
+      Req.Test.verify!(Ltix.GradeService)
     end
 
     test "returns error when lineitems URL not available", ctx do
@@ -754,38 +746,29 @@ defmodule Ltix.GradeServiceTest do
                GradeService.get_results(client, user_id: "user-123")
     end
 
-    test "follows rel=next pagination", ctx do
-      counter = :counters.new(1, [:atomics])
+    test "follows relative result links with multiple relation types", ctx do
+      Req.Test.expect(Ltix.GradeService, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type(@result_container_media_type)
+        |> Plug.Conn.put_resp_header("link", "<results?cursor=2>; rel=\"prev NEXT\"")
+        |> Req.Test.json([build_result_json("user-1", result_score: 0.8)])
+      end)
 
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        page = :counters.get(counter, 1)
-        :counters.add(counter, 1, 1)
+      Req.Test.expect(Ltix.GradeService, fn conn ->
+        assert conn.request_path == "/context/2923/lineitems/1/lineitem/results"
+        assert conn.query_string == "cursor=2"
 
-        {body, next_url} =
-          case page do
-            0 ->
-              {[build_result_json("user-1", result_score: 0.8)], "#{@lineitem_url}/results?p=2"}
-
-            _ ->
-              {[build_result_json("user-2", result_score: 0.9)], nil}
-          end
-
-        conn = Plug.Conn.put_resp_content_type(conn, @result_container_media_type)
-
-        conn =
-          if next_url do
-            Plug.Conn.put_resp_header(conn, "link", "<#{next_url}>; rel=\"next\"")
-          else
-            conn
-          end
-
-        Req.Test.json(conn, body)
+        conn
+        |> Plug.Conn.put_resp_content_type(@result_container_media_type)
+        |> Req.Test.json([build_result_json("user-2", result_score: 0.9)])
       end)
 
       client = build_client(ctx.platform)
 
-      assert {:ok, results} = GradeService.get_results(client)
-      assert length(results) == 2
+      assert {:ok, [%Result{user_id: "user-1"}, %Result{user_id: "user-2"}]} =
+               GradeService.get_results(client)
+
+      Req.Test.verify!(Ltix.GradeService)
     end
 
     test "sends correct Accept header", ctx do
