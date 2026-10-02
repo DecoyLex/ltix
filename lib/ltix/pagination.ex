@@ -38,9 +38,9 @@ defmodule Ltix.Pagination do
     opts = Zoi.parse!(@stream_schema, opts)
     params = Keyword.fetch!(opts, :params)
     req_options = req_options(opts)
-    base_uri = URI.parse(url)
 
-    with {:ok, first_body, next_url} <- fetch_page(url, headers, params, req_options, base_uri) do
+    with {:ok, base_uri} <- Ltix.HTTP.validate_url(url),
+         {:ok, first_body, next_url} <- fetch_page(url, headers, params, req_options, base_uri) do
       {:ok,
        Stream.resource(
          fn -> {:first, first_body, next_url} end,
@@ -74,7 +74,7 @@ defmodule Ltix.Pagination do
         if params == %{}, do: opts, else: Keyword.put(opts, :params, params)
       end)
 
-    case Req.get(req_opts) do
+    case Ltix.HTTP.request(Keyword.put(req_opts, :method, :get)) do
       {:ok, %Req.Response{status: 200, body: body, headers: resp_headers}} ->
         next_url =
           resp_headers

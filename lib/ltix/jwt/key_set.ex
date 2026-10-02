@@ -124,7 +124,12 @@ defmodule Ltix.JWT.KeySet do
   defp fetch_jwks(jwks_uri, opts) do
     req_opts = Keyword.put(req_options(opts), :url, jwks_uri)
 
-    case Req.get(req_opts) do
+    result =
+      req_opts
+      |> Keyword.put(:method, :get)
+      |> Ltix.HTTP.request()
+
+    case result do
       {:ok, %Req.Response{status: 200, body: body, headers: headers}} ->
         max_age = parse_max_age(headers)
         keys = parse_jwks(body)

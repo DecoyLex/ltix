@@ -442,7 +442,8 @@ defmodule Ltix.GradeService do
              :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_score),
              {:ok, base_url} <- resolve_line_item_url(client, opts),
-             url = derive_url(base_url, "scores"),
+             {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
+             url = derive_url(uri, "scores"),
              headers = auth_headers(client, nil),
              req_opts =
                build_request(
@@ -493,7 +494,8 @@ defmodule Ltix.GradeService do
              :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_result_readonly),
              {:ok, base_url} <- resolve_line_item_url(client, opts),
-             url = derive_url(base_url, "results"),
+             {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
+             url = derive_url(uri, "results"),
              params = get_results_params(opts),
              headers = auth_headers(client, @result_container_media_type),
              {:ok, pages} <-
@@ -578,9 +580,8 @@ defmodule Ltix.GradeService do
   end
 
   # [AGS §3.3.1, §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
-  defp derive_url(line_item_url, suffix) do
-    uri = URI.parse(line_item_url)
-    path = String.trim_trailing(uri.path, "/") <> "/" <> suffix
+  defp derive_url(uri, suffix) do
+    path = String.trim_trailing(uri.path || "", "/") <> "/" <> suffix
     URI.to_string(%{uri | path: path})
   end
 
@@ -702,7 +703,7 @@ defmodule Ltix.GradeService do
   end
 
   defp request(req_opts) do
-    case Req.request(req_opts) do
+    case Ltix.HTTP.request(req_opts) do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
         {:ok, body}
 

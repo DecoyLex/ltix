@@ -51,7 +51,7 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:retry, false)
       |> Keyword.put(:decode_body, false)
 
-    case Req.post(req_opts) do
+    case Ltix.HTTP.request(Keyword.put(req_opts, :method, :post)) do
       {:ok, response} -> parse_response(decode_response(response), scopes)
       {:error, exception} -> {:error, exception}
     end
