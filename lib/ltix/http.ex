@@ -1,6 +1,7 @@
 defmodule Ltix.HTTP do
   @moduledoc false
 
+  alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
 
   @doc """
@@ -27,9 +28,18 @@ defmodule Ltix.HTTP do
   """
   @spec request(keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
   def request(opts) do
-    case validate_url(Keyword.get(opts, :url)) do
-      {:ok, uri} -> Req.request(Keyword.put(opts, :url, uri))
-      {:error, error} -> {:error, error}
+    with {:ok, uri} <- validate_url(Keyword.get(opts, :url)) do
+      opts
+      |> Keyword.merge(
+        url: uri,
+        redirect: true,
+        redirect_log_level: false,
+        max_redirects: max_redirects(opts)
+      )
+      |> Keyword.delete(:follow_redirects)
+      |> Req.new()
+      |> Req.Request.prepend_response_steps(ltix_redirect: &guard_redirect(&1, uri))
+      |> Req.request()
     end
   end
 
@@ -50,6 +60,79 @@ defmodule Ltix.HTTP do
   end
 
   def validate_url(_url), do: invalid_url()
+
+  # [RFC 6750 §5.3](https://www.rfc-editor.org/rfc/rfc6750#section-5.3)
+  defp guard_redirect(
+         {request, %Req.Response{status: status, body: %Req.Response.Async{}} = response},
+         origin
+       )
+       when status in 300..399 do
+    Req.cancel_async_response(response)
+    guard_redirect({request, %{response | body: ""}}, origin)
+  end
+
+  defp guard_redirect({request, %Req.Response{status: status} = response}, origin)
+       when status in 300..399 do
+    with true <- status in [301, 302, 303, 307, 308],
+         [location | _] when location != "" <- Req.Response.get_header(response, "location"),
+         {:ok, target} <- URI.new(location),
+         {:ok, target} <- validate_url(URI.to_string(URI.merge(request.url, target))),
+         true <-
+           {target.scheme, target.host, target.port} ==
+             {origin.scheme, origin.host, origin.port} do
+      # Req handles redirect processing and the redirect limit.
+      # Normalize the target so equivalent origins retain credentials.
+      {normalize_redirect_request(request, status),
+       Req.Response.put_header(response, "location", URI.to_string(target))}
+    else
+      _ -> reject_redirect(request, response)
+    end
+  end
+
+  defp guard_redirect({request, response}, _origin) do
+    {request, Req.Response.put_private(response, :ltix_response_url, URI.to_string(request.url))}
+  end
+
+  # Req converts only POST for 303. Other mutations require retrieval too.
+  # [RFC 9110 §15.4.4](https://www.rfc-editor.org/rfc/rfc9110#section-15.4.4)
+  defp normalize_redirect_request(request, 303) when request.method not in [:get, :head, :post] do
+    request
+    |> Map.merge(%{method: :get, body: nil})
+    |> Req.Request.drop_options([:json, :form, :form_multipart])
+    |> Req.Request.delete_header("content-type")
+    |> Req.Request.delete_header("content-length")
+  end
+
+  defp normalize_redirect_request(request, _status), do: request
+
+  defp reject_redirect(request, response) do
+    error =
+      RedirectNotAllowed.exception(
+        status: response.status,
+        url: URI.to_string(%{request.url | userinfo: nil, query: nil, fragment: nil}),
+        location: redirect_location(response),
+        spec_ref: "Sec §3, RFC 6750 §5.3"
+      )
+
+    Req.Request.halt(request, error)
+  end
+
+  defp max_redirects(opts) do
+    case Keyword.get(opts, :max_redirects, 10) do
+      count when is_integer(count) and count >= 0 -> count
+      _ -> 10
+    end
+  end
+
+  defp redirect_location(response) do
+    with [location | _] <- Req.Response.get_header(response, "location"),
+         {:ok, uri} <- URI.new(location) do
+      location = URI.to_string(%{uri | userinfo: nil, query: nil, fragment: nil})
+      if location == "", do: nil, else: location
+    else
+      _ -> nil
+    end
+  end
 
   defp invalid_url do
     {:error,

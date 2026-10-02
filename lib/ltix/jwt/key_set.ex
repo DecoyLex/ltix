@@ -42,6 +42,7 @@ defmodule Ltix.JWT.KeySet do
 
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Unknown
+  alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.JWT.KeySet.EtsCache
   alias Ltix.Registration
 
@@ -94,6 +95,9 @@ defmodule Ltix.JWT.KeySet do
            kid: kid,
            spec_ref: "Sec §6.3"
          )}
+
+      {:error, %RedirectNotAllowed{} = error} ->
+        {:error, error}
 
       {:error, reason} ->
         {:error, Unknown.Unknown.exception(error: reason)}
