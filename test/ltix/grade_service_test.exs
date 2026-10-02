@@ -646,6 +646,43 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
+    test "posts validated submission timestamps unchanged with time zones and fractions", ctx do
+      client = build_client(ctx.platform)
+
+      for {submission, expected} <- [
+            {%{started_at: "2024-01-15T09:00:00.1+05:30"},
+             %{"startedAt" => "2024-01-15T09:00:00.1+05:30"}},
+            {%{submitted_at: "2024-01-15T10:00:00.123456789-04:00"},
+             %{"submittedAt" => "2024-01-15T10:00:00.123456789-04:00"}},
+            {%{
+               started_at: "2024-01-15T09:00:00.123+02:00",
+               submitted_at: "2024-01-15T07:00:00.123000Z"
+             },
+             %{
+               "startedAt" => "2024-01-15T09:00:00.123+02:00",
+               "submittedAt" => "2024-01-15T07:00:00.123000Z"
+             }}
+          ] do
+        Req.Test.stub(Ltix.GradeService, fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          json = Ltix.AppConfig.json_library!().decode!(body)
+
+          assert json["submission"] == expected
+          Plug.Conn.send_resp(conn, 204, "")
+        end)
+
+        assert {:ok, score} =
+                 Score.new(
+                   user_id: "user-123",
+                   activity_progress: :completed,
+                   grading_progress: :fully_graded,
+                   submission: submission
+                 )
+
+        assert :ok = GradeService.post_score(client, score)
+      end
+    end
+
     test "returns :ok on HTTP 204", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         Plug.Conn.send_resp(conn, 204, "")

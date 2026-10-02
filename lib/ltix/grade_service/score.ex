@@ -2,7 +2,7 @@ defmodule Ltix.GradeService.Score do
   @moduledoc """
   A score to post to the platform's gradebook.
 
-  Scores are write-only — the tool constructs them and POSTs to the
+  Scores are write-only. The tool constructs them and POSTs to the
   platform. Use `new/1` to build a validated score, then pass it to
   `Ltix.GradeService.post_score/3`.
 
@@ -87,7 +87,9 @@ defmodule Ltix.GradeService.Score do
               submission:
                 Zoi.map(Zoi.atom(), Zoi.string(),
                   description:
-                    "Submission metadata with `:started_at` and `:submitted_at` ISO 8601 timestamps."
+                    "Optional `:started_at` and `:submitted_at` timestamps " <>
+                      "in ISO 8601 with fractional seconds and a time zone. " <>
+                      "`submitted_at` must not precede `started_at`."
                 )
                 |> Zoi.optional(),
               extensions:
@@ -147,7 +149,8 @@ defmodule Ltix.GradeService.Score do
       {:ok, %__MODULE__{} = score} ->
         score = %{score | timestamp: score.timestamp || DateTime.utc_now()}
 
-        with :ok <- validate_score_pair(score.score_given, score.score_maximum) do
+        with :ok <- validate_score_pair(score.score_given, score.score_maximum),
+             :ok <- validate_submission(score.submission) do
           {:ok, score}
         end
 
@@ -197,6 +200,56 @@ defmodule Ltix.GradeService.Score do
   end
 
   defp validate_score_pair(_, _), do: :ok
+
+  defp validate_submission(nil), do: :ok
+
+  defp validate_submission(submission) do
+    with {:ok, started_at} <-
+           parse_submission_timestamp(Map.get(submission, :started_at), :started_at),
+         {:ok, submitted_at} <-
+           parse_submission_timestamp(Map.get(submission, :submitted_at), :submitted_at) do
+      validate_submission_order(started_at, submitted_at)
+    end
+  end
+
+  # [startedat-optional]:
+  # https://www.imsglobal.org/spec/lti-ags/v2p0/#startedat-optional
+  # [submittedat-optional]:
+  # https://www.imsglobal.org/spec/lti-ags/v2p0/#submittedat-optional
+  #
+  # [AGS §3.4.10.1][startedat-optional] and [AGS §3.4.10.2][submittedat-optional]
+  defp parse_submission_timestamp(nil, _field), do: {:ok, nil}
+
+  defp parse_submission_timestamp(timestamp, field) do
+    with [_, fraction] <-
+           Regex.run(~r/[.,](\d+)(?:Z|[+-]\d{2}(?::?\d{2})?)\z/, timestamp),
+         {:ok, datetime, _offset} <- parse_iso8601(timestamp) do
+      {:ok, {DateTime.to_unix(datetime), String.trim_trailing(fraction, "0")}}
+    else
+      _ ->
+        {:error,
+         ArgumentError.exception(
+           "#{field} must use ISO 8601 with fractional seconds and a time zone designator"
+         )}
+    end
+  end
+
+  defp parse_iso8601(timestamp) do
+    case DateTime.from_iso8601(timestamp) do
+      {:ok, _, _} = result -> result
+      {:error, _} -> DateTime.from_iso8601(timestamp, :basic)
+    end
+  end
+
+  defp validate_submission_order(nil, _submitted_at), do: :ok
+  defp validate_submission_order(_started_at, nil), do: :ok
+
+  defp validate_submission_order(started_at, submitted_at) when submitted_at >= started_at,
+    do: :ok
+
+  defp validate_submission_order(_started_at, _submitted_at) do
+    {:error, ArgumentError.exception("submitted_at must be equal to or later than started_at")}
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

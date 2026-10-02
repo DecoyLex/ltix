@@ -70,6 +70,84 @@ defmodule Ltix.GradeService.ScoreTest do
       assert {:ok, %Score{timestamp: ^ts}} = Score.new(attrs)
     end
 
+    test "rejects malformed submission timestamps, missing fractions, and missing time zones" do
+      for field <- [:started_at, :submitted_at],
+          value <- [
+            "not a timestamp",
+            "",
+            "2024-01-15T09:00:00Z",
+            "2024-01-15T09:00:00+05:30",
+            "2024-01-15T09:00:00.123",
+            "2024-02-30T09:00:00.123Z",
+            "2024-01-15T25:00:00.123Z",
+            "2024-01-15T09:00:00.123+24:00",
+            "2024-01-15T09:00:00.Z",
+            ~N[2024-01-15 09:00:00.123],
+            123,
+            nil
+          ] do
+        assert {:error, error} = Score.new(@valid_attrs ++ [submission: %{field => value}])
+        assert Exception.message(error) =~ Atom.to_string(field)
+      end
+    end
+
+    test "accepts each submission timestamp independently without changing its value" do
+      for field <- [:started_at, :submitted_at],
+          value <- [
+            "2024-01-15T09:00:00.0Z",
+            "2024-01-15T09:00:00.12+00",
+            "2024-01-15T09:00:00.123+05:30",
+            "2024-01-15T09:00:00.1234-04:00",
+            "2024-01-15T09:00:00.12345+0530",
+            "2024-01-15T09:00:00.123456Z",
+            "2024-01-15T09:00:00.123456789Z",
+            "2024-01-15T09:00:00,123Z",
+            "20240115T090000.123Z"
+          ] do
+        submission = %{field => value}
+
+        assert {:ok, %Score{submission: ^submission}} =
+                 Score.new(@valid_attrs ++ [submission: submission])
+      end
+
+      assert {:ok, %Score{submission: submission}} = Score.new(@valid_attrs ++ [submission: %{}])
+      assert submission == %{}
+    end
+
+    test "rejects submission completion before its start by instant" do
+      for {started_at, submitted_at} <- [
+            {"2024-01-15T09:00:00.000Z", "2024-01-15T08:59:59.999Z"},
+            {"2024-01-15T09:00:00.000Z", "2024-01-15T10:00:00.000+02:00"},
+            {"2024-01-15T09:00:00.123456789Z", "2024-01-15T09:00:00.123456788Z"}
+          ] do
+        assert {:error, error} =
+                 Score.new(
+                   @valid_attrs ++
+                     [
+                       submission: %{started_at: started_at, submitted_at: submitted_at}
+                     ]
+                 )
+
+        assert Exception.message(error) =~
+                 "submitted_at must be equal to or later than started_at"
+      end
+    end
+
+    test "accepts equal and later submission instants across offsets and precisions" do
+      for {started_at, submitted_at} <- [
+            {"2024-01-15T09:00:00.0Z", "2024-01-15T09:00:00.000Z"},
+            {"2024-01-15T09:00:00.123+02:00", "2024-01-15T07:00:00.123000Z"},
+            {"2024-01-15T09:00:00.000+02:00", "2024-01-15T08:00:00.000Z"},
+            {"2024-01-15T09:00:00.123456788Z", "2024-01-15T09:00:00.123456789Z"},
+            {"2024-01-15T09:00:00.123456789Z", "2024-01-15T09:00:00.1234567890Z"}
+          ] do
+        submission = %{started_at: started_at, submitted_at: submitted_at}
+
+        assert {:ok, %Score{submission: ^submission}} =
+                 Score.new(@valid_attrs ++ [submission: submission])
+      end
+    end
+
     test "returns error without user_id" do
       attrs = Keyword.delete(@valid_attrs, :user_id)
 
