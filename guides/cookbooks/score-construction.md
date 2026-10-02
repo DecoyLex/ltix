@@ -102,4 +102,4 @@ Add a plain-text comment visible to both student and instructor:
 > #### Timestamps {: .info}
 >
 > `Score.new/1` auto-generates a timestamp if you don't provide one.
-> You can pass an explicit `:timestamp` for testing or replays.
+> You can pass an explicit `DateTime` as `:timestamp` for testing or replays.

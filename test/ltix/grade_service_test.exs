@@ -599,6 +599,53 @@ defmodule Ltix.GradeServiceTest do
       assert :ok = GradeService.post_score(client, ctx.score)
     end
 
+    test "posts timestamps at every caller precision without losing the instant", ctx do
+      client = build_client(ctx.platform)
+
+      for {microsecond, precision, fraction} <- [
+            {0, 0, "000000"},
+            {100_000, 1, "100000"},
+            {120_000, 2, "120000"},
+            {123_000, 3, "123000"},
+            {123_400, 4, "123400"},
+            {123_450, 5, "123450"},
+            {123_456, 6, "123456"}
+          ],
+          {utc_offset, standard_offset, suffix} <- [
+            {0, 0, "Z"},
+            {19_800, 0, "+05:30"},
+            {-18_000, 3600, "-04:00"}
+          ] do
+        timestamp = %{
+          ~U[2024-01-15 10:30:00Z]
+          | microsecond: {microsecond, precision},
+            utc_offset: utc_offset,
+            std_offset: standard_offset
+        }
+
+        Req.Test.stub(Ltix.GradeService, fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          json = Ltix.AppConfig.json_library!().decode!(body)
+
+          assert json["timestamp"] == "2024-01-15T10:30:00.#{fraction}#{suffix}"
+          {:ok, posted_timestamp, _offset} = DateTime.from_iso8601(json["timestamp"])
+          assert DateTime.compare(posted_timestamp, timestamp) == :eq
+
+          Plug.Conn.send_resp(conn, 204, "")
+        end)
+
+        assert {:ok, score} =
+                 Score.new(
+                   user_id: "user-123",
+                   activity_progress: :completed,
+                   grading_progress: :fully_graded,
+                   timestamp: timestamp
+                 )
+
+        assert :ok = GradeService.post_score(client, score)
+      end
+    end
+
     test "returns :ok on HTTP 204", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         Plug.Conn.send_resp(conn, 204, "")

@@ -168,11 +168,15 @@ defmodule Ltix.GradeService.Score do
   """
   @spec to_map(t()) :: map()
   def to_map(%__MODULE__{} = score) do
+    # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
+    {microsecond, _precision} = score.timestamp.microsecond
+    timestamp = %{score.timestamp | microsecond: {microsecond, 6}}
+
     json = %{
       "userId" => score.user_id,
       "activityProgress" => Map.fetch!(@activity_progress_to_json, score.activity_progress),
       "gradingProgress" => Map.fetch!(@grading_progress_to_json, score.grading_progress),
-      "timestamp" => DateTime.to_iso8601(score.timestamp)
+      "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
     json
