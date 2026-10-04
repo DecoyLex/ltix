@@ -153,7 +153,7 @@ defmodule Ltix.OAuth do
 
     %{
       scopes_requested: scopes_requested,
-      scopes_granted: token.granted_scopes,
+      scopes_granted: MapSet.to_list(token.granted_scopes),
       expires_in: expires_in
     }
   end

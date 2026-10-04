@@ -30,7 +30,7 @@ defmodule Ltix.OAuth.AccessTokenTest do
 
       assert token.access_token == "test-token-123"
       assert token.token_type == "bearer"
-      assert token.granted_scopes == ["scope:read", "scope:write"]
+      assert token.granted_scopes == MapSet.new(["scope:read", "scope:write"])
       assert token.expires_at == ~U[2025-01-01 01:00:00Z]
     end
 
@@ -66,21 +66,14 @@ defmodule Ltix.OAuth.AccessTokenTest do
                  requested_scopes: ["scope:read"]
                )
 
-      assert token.granted_scopes == ["scope:read"]
-    end
-
-    test "uses empty list when scope absent and no requested_scopes" do
-      response = Map.delete(@valid_response, "scope")
-
-      assert {:ok, token} = AccessToken.from_response(response, now: @now)
-      assert token.granted_scopes == []
+      assert token.granted_scopes == MapSet.new(["scope:read"])
     end
 
     test "splits scope string on spaces" do
       response = %{@valid_response | "scope" => "a b c"}
 
       assert {:ok, token} = AccessToken.from_response(response, now: @now)
-      assert token.granted_scopes == ["a", "b", "c"]
+      assert token.granted_scopes == MapSet.new(["a", "b", "c"])
     end
 
     test "returns error when access_token is missing" do

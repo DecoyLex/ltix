@@ -203,7 +203,7 @@ defmodule Ltix.OAuth.Client do
            client
            | access_token: token.access_token,
              expires_at: token.expires_at,
-             scopes: MapSet.new(token.granted_scopes)
+             scopes: token.granted_scopes
          }}
 
       {:error, _} = error ->
@@ -301,7 +301,7 @@ defmodule Ltix.OAuth.Client do
     %__MODULE__{
       access_token: token.access_token,
       expires_at: token.expires_at,
-      scopes: MapSet.new(token.granted_scopes),
+      scopes: token.granted_scopes,
       registration: registration,
       req_options: req_options,
       endpoints: endpoints

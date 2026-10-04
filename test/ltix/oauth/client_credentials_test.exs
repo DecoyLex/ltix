@@ -55,7 +55,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
 
       assert token.access_token == "test-token"
       assert token.token_type == "bearer"
-      assert token.granted_scopes == @scopes
+      assert token.granted_scopes == MapSet.new(@scopes)
     end
 
     test "JWT assertion contains all MUST claims", ctx do
@@ -178,7 +178,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
                  req_options: req_options()
                )
 
-      assert token.granted_scopes == ["scope:read", "scope:write"]
+      assert token.granted_scopes == MapSet.new(["scope:read", "scope:write"])
     end
 
     test "jti is unique across calls", ctx do
@@ -267,7 +267,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
                  req_options: req_options()
                )
 
-      assert token.granted_scopes == @scopes
+      assert token.granted_scopes == MapSet.new(@scopes)
     end
   end
 end

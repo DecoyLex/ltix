@@ -22,7 +22,7 @@ defmodule Ltix.OAuth.AccessToken do
       iex> token.token_type
       "bearer"
       iex> token.granted_scopes
-      ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
+      MapSet.new(["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"])
       iex> token.expires_at
       ~U[2025-01-01 01:00:00Z]
   """
@@ -43,7 +43,7 @@ defmodule Ltix.OAuth.AccessToken do
   @type t :: %__MODULE__{
           access_token: String.t(),
           token_type: String.t(),
-          granted_scopes: [String.t()],
+          granted_scopes: MapSet.t(String.t()),
           expires_at: DateTime.t()
         }
 
@@ -121,11 +121,11 @@ defmodule Ltix.OAuth.AccessToken do
   end
 
   # [RFC 6749 §3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3)
-  defp parse_scopes(:error, requested_scopes), do: {:ok, requested_scopes}
+  defp parse_scopes(:error, requested_scopes), do: {:ok, MapSet.new(requested_scopes)}
 
   defp parse_scopes({:ok, scope}, _requested_scopes) when is_binary(scope) do
     case Regex.match?(~r/\A[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*\z/, scope) do
-      true -> {:ok, String.split(scope, " ")}
+      true -> {:ok, MapSet.new(String.split(scope, " "))}
       false -> malformed_response("scope must contain space-separated OAuth scope tokens")
     end
   end

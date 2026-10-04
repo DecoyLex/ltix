@@ -134,7 +134,7 @@ defmodule MyApp.LTI.TokenCache do
     token = %AccessToken{
       access_token: client.access_token,
       token_type: "bearer",
-      granted_scopes: MapSet.to_list(client.scopes),
+      granted_scopes: client.scopes,
       expires_at: client.expires_at
     }
 
