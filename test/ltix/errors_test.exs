@@ -187,8 +187,11 @@ defmodule Ltix.ErrorsTest do
           spec_ref: "Sec §4.1"
         )
 
-      assert Exception.message(error) =~ "invalid_grant"
-      assert Exception.message(error) =~ "Sec §4.1"
+      assert Exception.message(error) ==
+               "OAuth token request failed: invalid_grant. bad grant [Sec §4.1]"
+
+      assert Exception.message(%{error | error_description: nil}) ==
+               "OAuth token request failed: invalid_grant [Sec §4.1]"
     end
 
     test "TokenRequestFailed with HTTP status includes status code [Sec §4.1]" do
@@ -199,7 +202,7 @@ defmodule Ltix.ErrorsTest do
           spec_ref: "Sec §4.1"
         )
 
-      assert Exception.message(error) =~ "500"
+      assert Exception.message(error) == "OAuth token request failed (HTTP 500) [Sec §4.1]"
     end
 
     test "MalformedResponse includes service and reason" do
@@ -276,15 +279,17 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "https://evil.example.com"
     end
 
-    test "AudienceMismatch includes expected client_id and actual audience" do
+    test "AudienceMismatch names the claim, the expected client_id, and the actual audience" do
       error =
         AudienceMismatch.exception(
+          claim: "aud",
           expected: "my-client-id",
           actual: ["other-client"],
           spec_ref: "Sec §5.1.3 step 3"
         )
 
-      assert Exception.message(error) =~ "my-client-id"
+      assert Exception.message(error) ==
+               ~s(Audience mismatch: expected my-client-id in aud ["other-client"] [Sec §5.1.3 step 3])
     end
 
     test "AlgorithmNotAllowed includes algorithm" do
@@ -435,8 +440,8 @@ defmodule Ltix.ErrorsTest do
           spec_ref: "Sec §5.1.1.5"
         )
 
-      assert Exception.message(error) =~ "access_denied"
-      assert Exception.message(error) =~ "User cancelled"
+      assert Exception.message(error) ==
+               "Platform authentication failed: access_denied — User cancelled [Sec §5.1.1.5]"
     end
 
     test "AuthenticationFailed without description" do
@@ -448,9 +453,13 @@ defmodule Ltix.ErrorsTest do
           spec_ref: "Sec §5.1.1.5"
         )
 
-      msg = Exception.message(error)
-      assert msg =~ "access_denied"
-      refute msg =~ " — "
+      assert Exception.message(error) ==
+               "Platform authentication failed: access_denied [Sec §5.1.1.5]"
+
+      blank = %{error | error_description: ""}
+
+      assert Exception.message(blank) ==
+               "Platform authentication failed: access_denied [Sec §5.1.1.5]"
     end
   end
 

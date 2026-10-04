@@ -106,6 +106,7 @@ failed.
 
 ```elixir
 {:error, %Ltix.Errors.Security.AudienceMismatch{
+  claim: "aud",
   expected: "my-client-id",
   actual: ["wrong-client-id"],
   spec_ref: "Sec §5.1.3 step 3"

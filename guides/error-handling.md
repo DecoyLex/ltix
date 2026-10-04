@@ -162,7 +162,7 @@ These indicate the launch failed a security check:
 | `SignatureInvalid` | `spec_ref` | JWT signature doesn't verify against the platform's public key |
 | `TokenExpired` | `spec_ref` | JWT `exp` claim is in the past |
 | `IssuerMismatch` | `expected`, `actual`, `spec_ref` | JWT `iss` doesn't match the registration |
-| `AudienceMismatch` | `expected`, `actual`, `spec_ref` | JWT `aud` is not the registration's client_id or a list holding only it, or `azp` is not the client_id |
+| `AudienceMismatch` | `claim`, `expected`, `actual`, `spec_ref` | JWT `aud` is not the registration's client_id or a list containing only it, or `azp` is not the client_id |
 | `AlgorithmNotAllowed` | `algorithm`, `spec_ref` | JWT uses something other than RS256 |
 | `StateMismatch` | `spec_ref` | OIDC state from callback doesn't match the session |
 | `NonceMissing` | `spec_ref` | JWT has no `nonce` claim |

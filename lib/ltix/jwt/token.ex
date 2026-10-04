@@ -194,6 +194,7 @@ defmodule Ltix.JWT.Token do
       true ->
         {:error,
          AudienceMismatch.exception(
+           claim: "aud",
            expected: client_id,
            actual: aud,
            spec_ref: "Sec §5.1.3 step 3"
@@ -208,6 +209,7 @@ defmodule Ltix.JWT.Token do
   defp validate_azp(azp, client_id) do
     {:error,
      AudienceMismatch.exception(
+       claim: "azp",
        expected: client_id,
        actual: azp,
        spec_ref: "Sec §5.1.3 step 5"

@@ -167,7 +167,7 @@ defmodule Ltix.JWT.TokenTest do
       claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => "wrong-client-id"})
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:error, %AudienceMismatch{expected: "tool-client-id"}} =
+      assert {:error, %AudienceMismatch{claim: "aud", expected: "tool-client-id"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
@@ -176,7 +176,7 @@ defmodule Ltix.JWT.TokenTest do
       claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => ["wrong-1", "wrong-2"]})
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:error, %AudienceMismatch{expected: "tool-client-id"}} =
+      assert {:error, %AudienceMismatch{claim: "aud", expected: "tool-client-id"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
@@ -190,7 +190,7 @@ defmodule Ltix.JWT.TokenTest do
 
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:error, %AudienceMismatch{}} =
+      assert {:error, %AudienceMismatch{claim: "azp", actual: "other-client"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
@@ -204,7 +204,7 @@ defmodule Ltix.JWT.TokenTest do
 
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:error, %AudienceMismatch{}} =
+      assert {:error, %AudienceMismatch{claim: "aud", actual: ["tool-client-id", "other-client"]}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
@@ -289,7 +289,7 @@ defmodule Ltix.JWT.TokenTest do
 
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:error, %AudienceMismatch{}} =
+      assert {:error, %AudienceMismatch{claim: "aud", actual: ["tool-client-id", "evil-client"]}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
   end
