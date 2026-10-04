@@ -125,14 +125,20 @@ defmodule Ltix.MembershipsService.Member do
   required fields are missing or invalid.
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
+  def from_json(json), do: from_json(json, Role.parsers([]))
+
+  # Same as `from_json/1`, with role parsers from `Ltix.LaunchClaims.Role.parsers/1`,
+  # so a page of members resolves them once.
+  @doc false
+  @spec from_json(map(), list()) :: {:ok, t()} | {:error, Exception.t()}
   # [sharing-of-personal-data]:
   # https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data
   #
   # [NRPS §2.2][sharing-of-personal-data]
-  def from_json(%{"user_id" => user_id, "roles" => roles} = json) do
+  def from_json(%{"user_id" => user_id, "roles" => roles} = json, role_parsers) do
     with :ok <- validate_user_id(user_id),
          {:ok, profile} <- ClaimHelpers.from_json(@profile_schema, json, "member", "NRPS §2.2"),
-         {:ok, {parsed_roles, unrecognized}} <- parse_roles(roles),
+         {:ok, {parsed_roles, unrecognized}} <- parse_roles(roles, role_parsers),
          {:ok, status} <- parse_status(json["status"]),
          {:ok, message} <- parse_message(json["message"]) do
       {:ok,
@@ -148,15 +154,15 @@ defmodule Ltix.MembershipsService.Member do
     end
   end
 
-  def from_json(%{"user_id" => _}) do
+  def from_json(%{"user_id" => _}, _role_parsers) do
     {:error, MissingClaim.exception(claim: "member.roles", spec_ref: "NRPS §2.2")}
   end
 
-  def from_json(%{"roles" => _}) do
+  def from_json(%{"roles" => _}, _role_parsers) do
     {:error, MissingClaim.exception(claim: "member.user_id", spec_ref: "NRPS §2.2")}
   end
 
-  def from_json(_) do
+  def from_json(_json, _role_parsers) do
     {:error,
      MissingClaim.exception(claim: "member.user_id and member.roles", spec_ref: "NRPS §2.2")}
   end
@@ -208,9 +214,9 @@ defmodule Ltix.MembershipsService.Member do
   defp validate_user_id(user_id),
     do: invalid_field("user_id", user_id, "must be a string", "NRPS §2.2")
 
-  defp parse_roles(roles) do
+  defp parse_roles(roles, role_parsers) do
     if string_list?(roles) do
-      {:ok, Role.parse_all(roles)}
+      {:ok, Role.parse_all_with(roles, role_parsers)}
     else
       invalid_field("roles", roles, "must be an array of strings", "NRPS §2.2")
     end
