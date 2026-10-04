@@ -1,8 +1,10 @@
 defmodule Ltix.Integration.MalformedTokenTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Security.AudienceMismatch
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.SignatureInvalid
@@ -115,6 +117,28 @@ defmodule Ltix.Integration.MalformedTokenTest do
 
     assert {:error, %MissingClaim{claim: "iss", class: :invalid}} =
              Token.verify(token, context.platform.registration, verifier_options())
+  end
+
+  test "callback looks up the registration by issuer alone when the first audience is not a string",
+       context do
+    token = sign(Map.put(context.claims, "aud", [123]), header(context), context)
+
+    assert {:error, %AudienceMismatch{claim: "aud", actual: [123]}} =
+             callback(token, context)
+  end
+
+  test "callback rejects a token without an issuer before looking up its registration",
+       context do
+    token = sign(Map.delete(context.claims, "iss"), header(context), context)
+    assert {:error, %MissingClaim{claim: "iss", class: :invalid}} = callback(token, context)
+  end
+
+  test "callback rejects nonstring issuer", context do
+    issuer = 123
+    token = sign(Map.put(context.claims, "iss", issuer), header(context), context)
+
+    assert {:error, %InvalidClaim{claim: "iss", value: ^issuer, class: :invalid}} =
+             callback(token, context)
   end
 
   test "callback rejects a signed token without an issue time", context do

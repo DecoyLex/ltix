@@ -106,13 +106,29 @@ defmodule Ltix.OIDC.Callback do
   # Safe because Token.verify/3 validates iss and aud against the registration
   # after signature verification.
   defp peek_issuer_and_audience(id_token) do
-    with {:ok, claims} <- Token.peek_claims(id_token) do
-      {:ok, claims["iss"], audience(claims["aud"])}
+    with {:ok, claims} <- Token.peek_claims(id_token),
+         {:ok, issuer} <- issuer(claims) do
+      {:ok, issuer, audience(claims["aud"])}
     end
   end
 
+  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
+  defp issuer(%{"iss" => issuer}) when is_binary(issuer), do: {:ok, issuer}
+
+  defp issuer(%{"iss" => issuer}) when not is_nil(issuer) do
+    {:error,
+     InvalidClaim.exception(
+       claim: "iss",
+       value: issuer,
+       message: "must be a string",
+       spec_ref: "Sec §5.1.2"
+     )}
+  end
+
+  defp issuer(_claims), do: {:error, MissingClaim.exception(claim: "iss", spec_ref: "Sec §5.1.2")}
+
   defp audience(client_id) when is_binary(client_id), do: client_id
-  defp audience([client_id | _]), do: client_id
+  defp audience([client_id | _]) when is_binary(client_id), do: client_id
   defp audience(_audience), do: nil
 
   # [nonce-validation]:
