@@ -386,6 +386,57 @@ defmodule Ltix.OAuth.ClientTest do
     end
   end
 
+  describe "refresh telemetry" do
+    setup do
+      stub_token_response()
+      events = for suffix <- [:start, :stop], do: [:ltix, :oauth, :refresh, suffix]
+      ref = :telemetry_test.attach_event_handlers(self(), events)
+      on_exit(fn -> :telemetry.detach(ref) end)
+
+      client =
+        build_client(%{
+          registration: build_registration(),
+          expires_at: DateTime.add(DateTime.utc_now(), -1),
+          req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
+        })
+
+      %{client: client}
+    end
+
+    test "refresh, force_refresh, and their bangs emit a refresh span", %{client: client} do
+      for refresh <- [&Client.refresh/1, &Client.force_refresh/1] do
+        assert {:ok, _} = refresh.(client)
+        assert_refresh_span()
+      end
+
+      for refresh <- [&Client.refresh!/1, &Client.force_refresh!/1] do
+        assert %Client{} = refresh.(client)
+        assert_refresh_span()
+      end
+    end
+
+    test "a client that has not expired emits nothing from refresh", %{client: client} do
+      assert {:ok, _} =
+               Client.refresh(%{client | expires_at: DateTime.add(DateTime.utc_now(), 3600)})
+
+      refute_received {[:ltix, :oauth, :refresh, :start], _, _, _}
+    end
+
+    defp assert_refresh_span do
+      assert_received {[:ltix, :oauth, :refresh, :start], _, _,
+                       %{scopes_requested: [@test_scope]}}
+
+      assert_received {[:ltix, :oauth, :refresh, :stop], _, %{duration: _},
+                       %{
+                         scopes_requested: [@test_scope],
+                         scopes_granted: [@test_scope],
+                         expires_in: expires_in
+                       }}
+
+      assert expires_in in 3590..3600
+    end
+  end
+
   describe "force_refresh/1" do
     test "re-acquires token regardless of expiry" do
       stub_token_response()

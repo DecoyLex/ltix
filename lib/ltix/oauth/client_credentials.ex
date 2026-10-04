@@ -57,6 +57,28 @@ defmodule Ltix.OAuth.ClientCredentials do
     end
   end
 
+  # Requests a token inside a `[:ltix, :oauth, action]` telemetry span.
+  @doc false
+  @spec request_token_span(atom(), Registration.t(), [String.t()], keyword()) ::
+          {:ok, AccessToken.t()} | {:error, Exception.t()}
+  def request_token_span(action, registration, scopes, req_options) do
+    metadata = %{scopes_requested: scopes}
+
+    :telemetry.span([:ltix, :oauth, action], metadata, fn ->
+      result = request_token(registration, scopes, req_options: req_options)
+      {result, Map.merge(metadata, stop_metadata(result))}
+    end)
+  end
+
+  defp stop_metadata({:ok, %AccessToken{} = token}) do
+    %{
+      scopes_granted: MapSet.to_list(token.granted_scopes),
+      expires_in: DateTime.diff(token.expires_at, DateTime.utc_now())
+    }
+  end
+
+  defp stop_metadata({:error, _}), do: %{scopes_granted: nil, expires_in: nil}
+
   defp decode_response(%Req.Response{body: body} = response) when is_binary(body) do
     with [content_type] <- Req.Response.get_header(response, "content-type"),
          [media_type | _parameters] <- String.split(content_type, ";", parts: 2),

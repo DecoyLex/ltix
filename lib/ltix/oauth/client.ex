@@ -189,8 +189,11 @@ defmodule Ltix.OAuth.Client do
   def force_refresh(%__MODULE__{} = client) do
     scopes = collect_scopes(client.endpoints)
 
-    case ClientCredentials.request_token(client.registration, scopes,
-           req_options: client.req_options
+    case ClientCredentials.request_token_span(
+           :refresh,
+           client.registration,
+           scopes,
+           client.req_options
          ) do
       {:ok, token} ->
         {:ok,
@@ -321,10 +324,7 @@ defmodule Ltix.OAuth.Client do
     end
   end
 
-  # Builds a client holding the token's grant.
-  @doc false
-  @spec new(AccessToken.t(), Registration.t(), %{module() => term()}, keyword()) :: t()
-  def new(%AccessToken{} = token, registration, endpoints, req_options) do
+  defp new(%AccessToken{} = token, registration, endpoints, req_options) do
     %__MODULE__{
       access_token: token.access_token,
       expires_at: token.expires_at,
@@ -356,11 +356,9 @@ defmodule Ltix.OAuth.Client do
 
   # With `require_all_scopes`, every scope the endpoints need must be granted.
   # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
-  @doc false
-  @spec check_granted_scopes(t(), boolean()) :: {:ok, t()} | {:error, Exception.t()}
-  def check_granted_scopes(%__MODULE__{} = client, false), do: {:ok, client}
+  defp check_granted_scopes(%__MODULE__{} = client, false), do: {:ok, client}
 
-  def check_granted_scopes(%__MODULE__{} = client, true) do
+  defp check_granted_scopes(%__MODULE__{} = client, true) do
     case Enum.reject(collect_scopes(client.endpoints), &has_scope?(client, &1)) do
       [] -> {:ok, client}
       missing -> {:error, Ltix.Errors.combine(Enum.map(missing, &scope_mismatch(client, [&1])))}

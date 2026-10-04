@@ -177,7 +177,7 @@ Key event prefixes:
 - `[:ltix, :grade_service, <action>, ...]` — grade service operations
 - `[:ltix, :memberships_service, <action>, ...]` — memberships service operations
 - `[:ltix, :deep_linking, :build_response, ...]` — deep linking response building
-- `[:ltix, :oauth, :authenticate, ...]` — OAuth token acquisition
+- `[:ltix, :oauth, :authenticate, ...]` and `[:ltix, :oauth, :refresh, ...]` — OAuth token acquisition
 - `[:ltix, :jwks, :cache_hit]` and `[:ltix, :jwks, :cache_miss]` — single events (not spans)
 
 See the [telemetry guide](https://hexdocs.pm/ltix/telemetry.md) for full metadata details.

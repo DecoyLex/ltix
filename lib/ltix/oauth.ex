@@ -1,7 +1,6 @@
 defmodule Ltix.OAuth do
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.LaunchContext
-  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
@@ -105,15 +104,16 @@ defmodule Ltix.OAuth do
   end
 
   defp request_client(registerable, endpoints, opts) do
-    req_options = Keyword.fetch!(opts, :req_options)
-
     with {:ok, registration} <- Registerable.to_registration(registerable),
          :ok <- Client.validate_endpoints(endpoints),
-         scopes = Client.collect_scopes(endpoints),
-         {:ok, token} <- do_request_token(registration, scopes, req_options) do
-      token
-      |> Client.new(registration, endpoints, req_options)
-      |> Client.check_granted_scopes(Keyword.fetch!(opts, :require_all_scopes))
+         {:ok, token} <-
+           ClientCredentials.request_token_span(
+             :authenticate,
+             registration,
+             Client.collect_scopes(endpoints),
+             Keyword.fetch!(opts, :req_options)
+           ) do
+      Client.from_access_token(token, [registration: registration, endpoints: endpoints] ++ opts)
     end
   end
 
@@ -137,28 +137,5 @@ defmodule Ltix.OAuth do
 
         {:error, Ltix.Errors.combine(errors)}
     end
-  end
-
-  defp do_request_token(registration, scopes, req_options) do
-    metadata = %{scopes_requested: scopes}
-
-    :telemetry.span([:ltix, :oauth, :authenticate], metadata, fn ->
-      result = ClientCredentials.request_token(registration, scopes, req_options: req_options)
-      {result, Map.merge(metadata, stop_metadata(scopes, result))}
-    end)
-  end
-
-  defp stop_metadata(scopes_requested, {:ok, %AccessToken{} = token}) do
-    expires_in = DateTime.diff(token.expires_at, DateTime.utc_now())
-
-    %{
-      scopes_requested: scopes_requested,
-      scopes_granted: MapSet.to_list(token.granted_scopes),
-      expires_in: expires_in
-    }
-  end
-
-  defp stop_metadata(scopes_requested, {:error, _}) do
-    %{scopes_requested: scopes_requested, scopes_granted: nil, expires_in: nil}
   end
 end
