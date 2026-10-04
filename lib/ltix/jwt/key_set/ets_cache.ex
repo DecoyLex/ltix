@@ -22,6 +22,8 @@ defmodule Ltix.JWT.KeySet.ETSCache do
 
   use Ltix.JWT.KeySet.Cache
 
+  alias Ltix.Errors.Unknown.KeySetCacheNotStarted
+
   @table :ltix_jwks_cache
 
   def start_link(_opts) do
@@ -62,8 +64,7 @@ defmodule Ltix.JWT.KeySet.ETSCache do
   defp ensure_table do
     # Raise if the table doesn't exist, which should only happen if the GenServer isn't running
     if :ets.whereis(@table) == :undefined do
-      raise Ltix.Errors.Unknown,
-            "JWKS cache table not found. Ensure #{inspect(__MODULE__)} GenServer is running."
+      raise KeySetCacheNotStarted, cache: __MODULE__, child_spec: __MODULE__
     end
   end
 

@@ -8,7 +8,8 @@ defmodule Ltix.JWT.KeySet.Cache do
 
   ## Custom Implementations
 
-  Implement this behaviour to use your own cache backend:
+  Implement this behaviour to use your own cache backend. Raise
+  `Ltix.Errors.Unknown.KeySetCacheFailed` when the backend fails.
 
       defmodule MyApp.JWKSCache do
         use Ltix.JWT.KeySet.Cache

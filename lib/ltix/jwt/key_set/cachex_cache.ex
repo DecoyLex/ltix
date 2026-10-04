@@ -21,24 +21,37 @@ if Code.ensure_loaded?(Cachex) do
 
     @behaviour Ltix.JWT.KeySet.Cache
 
+    alias Ltix.Errors.Unknown.KeySetCacheFailed
+    alias Ltix.Errors.Unknown.KeySetCacheNotStarted
+
     @impl Ltix.JWT.KeySet.Cache
     def get(jwks_uri) do
-      case Cachex.get(cache_name(), jwks_uri) do
-        {:ok, nil} -> :miss
-        {:ok, keys} -> {:ok, keys}
+      case succeeded!(:get, Cachex.get(cache_name(), jwks_uri)) do
+        nil -> :miss
+        keys -> {:ok, keys}
       end
     end
 
     @impl Ltix.JWT.KeySet.Cache
     def put(jwks_uri, keys, max_age) do
-      Cachex.put(cache_name(), jwks_uri, keys, expire: :timer.seconds(max_age))
+      succeeded!(:put, Cachex.put(cache_name(), jwks_uri, keys, expire: :timer.seconds(max_age)))
       :ok
     end
 
     @impl Ltix.JWT.KeySet.Cache
     def delete(jwks_uri) do
-      Cachex.del(cache_name(), jwks_uri)
+      succeeded!(:delete, Cachex.del(cache_name(), jwks_uri))
       :ok
+    end
+
+    defp succeeded!(_operation, {:ok, value}), do: value
+
+    defp succeeded!(_operation, {:error, :no_cache}) do
+      raise KeySetCacheNotStarted, cache: __MODULE__, child_spec: {Cachex, name: cache_name()}
+    end
+
+    defp succeeded!(operation, {:error, reason}) do
+      raise KeySetCacheFailed, cache: __MODULE__, operation: operation, reason: reason
     end
 
     defp cache_name do

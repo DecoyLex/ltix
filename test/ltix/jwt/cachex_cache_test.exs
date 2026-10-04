@@ -4,13 +4,25 @@ defmodule Ltix.JWT.KeySet.CachexCacheTest do
   - get/1 maps Cachex {:ok, nil} → :miss and {:ok, value} → {:ok, value}
   - put/3 returns :ok and makes data retrievable
   - delete/1 returns :ok and invalidates cached data
+  - every callback raises KeySetCacheFailed when Cachex returns an error
   - cache_name/0 reads from application config
   """
   use ExUnit.Case, async: false
 
+  alias Ltix.Errors.Unknown.KeySetCacheFailed
   alias Ltix.JWT.KeySet.CachexCache
 
+  # Routes every key to a node that doesn't exist, so every Cachex call fails.
+  defmodule UnreachableRouter do
+    @moduledoc false
+    use Cachex.Router
+
+    def nodes(_state), do: [:unreachable@nowhere]
+    def route(_state, _key), do: :unreachable@nowhere
+  end
+
   @test_cache :ltix_cachex_cache_test
+  @unreachable_cache :ltix_cachex_cache_unreachable_test
   @jwks_uri "https://platform.example.com/.well-known/jwks.json"
 
   # Start the cache once for the whole module — not per-test — so it isn't
@@ -72,6 +84,31 @@ defmodule Ltix.JWT.KeySet.CachexCacheTest do
 
       assert :ok = CachexCache.delete(@jwks_uri)
       assert :miss = CachexCache.get(@jwks_uri)
+    end
+  end
+
+  describe "when Cachex fails" do
+    setup do
+      pid =
+        case Cachex.start(@unreachable_cache, router: UnreachableRouter) do
+          {:ok, pid} -> pid
+          {:error, {:already_started, pid}} -> pid
+        end
+
+      on_exit(fn -> Process.exit(pid, :normal) end)
+      Application.put_env(:ltix, :cachex_cache_name, @unreachable_cache)
+    end
+
+    test "get/1, put/3, and delete/1 raise KeySetCacheFailed" do
+      for {operation, call} <- [
+            get: fn -> CachexCache.get(@jwks_uri) end,
+            put: fn -> CachexCache.put(@jwks_uri, %{}, 300) end,
+            delete: fn -> CachexCache.delete(@jwks_uri) end
+          ] do
+        assert_raise KeySetCacheFailed,
+                     "Key set cache Ltix.JWT.KeySet.CachexCache failed to #{operation} keys, :nodedown",
+                     call
+      end
     end
   end
 end
