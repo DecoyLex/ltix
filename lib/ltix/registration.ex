@@ -34,6 +34,7 @@ defmodule Ltix.Registration do
 
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.HTTP
   alias Ltix.JWK
 
   @fields [:issuer, :client_id, :auth_endpoint, :jwks_uri, :token_endpoint, :tool_jwk]
@@ -47,7 +48,7 @@ defmodule Ltix.Registration do
           auth_endpoint: String.t(),
           jwks_uri: String.t(),
           token_endpoint: String.t() | nil,
-          tool_jwk: Ltix.JWK.t()
+          tool_jwk: JWK.t()
         }
 
   @doc """
@@ -62,6 +63,8 @@ defmodule Ltix.Registration do
   - `jwks_uri` — HTTPS URL
   - `token_endpoint` — HTTPS URL (when present)
   - `tool_jwk` — `Ltix.JWK.t()` (the tool's private signing key for this registration)
+
+  HTTPS URLs must be absolute and must not include a userinfo component (RFC 3986 §3.2.1).
 
   ## Examples
 
@@ -124,10 +127,12 @@ defmodule Ltix.Registration do
   # "The `iss` value is a case-sensitive URL using the HTTPS scheme that contains:
   # scheme, host; and, optionally, port number, and path components; and, no query
   # or fragment components."
+  defp validate_issuer(nil), do: required(:issuer)
+
   defp validate_issuer(issuer) do
-    case validate_https_url(:issuer, issuer) do
-      nil -> validate_issuer_components(issuer, URI.parse(issuer))
-      error -> error
+    case HTTP.validate_url(issuer) do
+      {:ok, uri} -> validate_issuer_components(issuer, uri)
+      {:error, _error} -> not_https_url(:issuer, issuer)
     end
   end
 
@@ -163,20 +168,17 @@ defmodule Ltix.Registration do
   defp validate_https_url(field, nil), do: required(field)
 
   defp validate_https_url(field, url) do
-    if https_url?(url),
-      do: nil,
-      else: invalid(field, url, "must be an HTTPS URL", "Sec §3 (HTTPS required)")
+    case HTTP.validate_url(url) do
+      {:ok, _uri} -> nil
+      {:error, _error} -> not_https_url(field, url)
+    end
   end
+
+  defp not_https_url(field, url),
+    do: invalid(field, url, "must be an absolute HTTPS URL", "Sec §3")
 
   defp validate_optional_https_url(_field, nil), do: nil
   defp validate_optional_https_url(field, url), do: validate_https_url(field, url)
-
-  defp https_url?(url) when is_binary(url) do
-    uri = URI.parse(url)
-    uri.scheme == "https" and is_binary(uri.host) and uri.host != ""
-  end
-
-  defp https_url?(_url), do: false
 
   # [Sec §7.2](https://www.imsglobal.org/spec/security/v1p0/#h_key-management):
   # "A system SHOULD NOT use a single key pair to secure message signing for more

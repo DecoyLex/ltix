@@ -64,19 +64,25 @@ defmodule Ltix.RegistrationTest do
     # [Sec §7.2](https://www.imsglobal.org/spec/security/v1p0/#h_key-management)
     test "reports an invalid field with its value" do
       for {field, value, reason} <- [
-            {:issuer, "http://platform.example.com", "must be an HTTPS URL"},
+            {:issuer, "http://platform.example.com", "must be an absolute HTTPS URL"},
             {:issuer, "https://platform.example.com?foo=bar",
              "must not include a query component"},
             {:issuer, "https://platform.example.com#section",
              "must not include a fragment component"},
-            {:issuer, 123, "must be an HTTPS URL"},
+            {:issuer, 123, "must be an absolute HTTPS URL"},
             {:client_id, "", "must be a non-empty string"},
             {:client_id, 123, "must be a non-empty string"},
-            {:auth_endpoint, "http://platform.example.com/auth", "must be an HTTPS URL"},
+            {:auth_endpoint, "http://platform.example.com/auth", "must be an absolute HTTPS URL"},
             {:jwks_uri, "http://platform.example.com/.well-known/jwks.json",
-             "must be an HTTPS URL"},
-            {:jwks_uri, :jwks, "must be an HTTPS URL"},
-            {:token_endpoint, "http://platform.example.com/token", "must be an HTTPS URL"},
+             "must be an absolute HTTPS URL"},
+            {:jwks_uri, :jwks, "must be an absolute HTTPS URL"},
+            {:token_endpoint, "http://platform.example.com/token",
+             "must be an absolute HTTPS URL"},
+            {:auth_endpoint, "https://user:secret@platform.example.com/auth",
+             "must be an absolute HTTPS URL"},
+            {:jwks_uri, "https://platform.example.com:0/jwks", "must be an absolute HTTPS URL"},
+            {:token_endpoint, "https://platform.example.com/a token",
+             "must be an absolute HTTPS URL"},
             {:tool_jwk, "not-a-jwk", "must be an %Ltix.JWK{} struct"}
           ] do
         assert {:error,
