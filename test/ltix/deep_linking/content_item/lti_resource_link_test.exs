@@ -8,11 +8,11 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
 
   describe "new/1" do
     test "returns error when custom contains non-string values" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} =
-               LTIResourceLink.new(custom: %{"key" => 123})
-
-      assert Exception.message(error) =~ "lti_resource_link.custom"
-      assert Exception.message(error) =~ "invalid type: expected string"
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{
+                field: [:custom, "key"],
+                value: 123
+              }} = LTIResourceLink.new(custom: %{"key" => 123})
     end
 
     test "returns every invalid field together" do
@@ -20,14 +20,14 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
                LTIResourceLink.new(custom: %{"key" => 123}, line_item: %{score_maximum: 0})
 
       assert Enum.sort(Enum.map(errors, & &1.field)) ==
-               ["lti_resource_link.custom.key", "lti_resource_link.line_item.score_maximum"]
+               [[:custom, "key"], [:line_item, :score_maximum]]
     end
 
     test "returns error when line_item missing score_maximum" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} =
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{} = error} =
                LTIResourceLink.new(line_item: %{label: "Quiz"})
 
-      assert Exception.message(error) =~ "lti_resource_link.line_item.score_maximum"
+      assert Exception.message(error) =~ "[:line_item, :score_maximum]"
       assert Exception.message(error) =~ "is required"
     end
   end

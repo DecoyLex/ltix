@@ -50,11 +50,11 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
       "<p>Hello</p>"
 
       iex> {:error, error} = Ltix.DeepLinking.ContentItem.HTMLFragment.new([])
-      iex> error.field
-      "html_fragment.html"
+      iex> Exception.message(error)
+      "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required [DL §3.4]"
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, :html_fragment, "DL §3.4")
+  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.4")
 
   defimpl ContentItem do
     def item_type(_item), do: "html"

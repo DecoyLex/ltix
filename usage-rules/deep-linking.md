@@ -18,7 +18,7 @@ end
 
 ## Content Item Types
 
-Build items with `ContentItem.*.new/1`:
+Build items with `ContentItem.*.new/1`. Unknown or invalid fields return `Ltix.Errors.Invalid.InvalidField` naming the item struct.
 
 - `Ltix.DeepLinking.ContentItem.LTIResourceLink` — activity that launches back into your tool
 - `Ltix.DeepLinking.ContentItem.Link` — external URL (article, docs page)

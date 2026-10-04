@@ -13,9 +13,9 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
     end
 
     test "returns error without url field" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} = Image.new([])
-      assert Exception.message(error) =~ "image.url"
-      assert Exception.message(error) =~ "is required"
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{struct: Image, field: :url, reason: :required}} =
+               Image.new([])
     end
 
     test "succeeds with all fields" do

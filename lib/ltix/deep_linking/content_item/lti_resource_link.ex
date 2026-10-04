@@ -115,7 +115,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       "https://tool.example.com"
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, :lti_resource_link, "DL §3.2")
+  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.2")
 
   defimpl ContentItem do
     def item_type(_item), do: "ltiResourceLink"

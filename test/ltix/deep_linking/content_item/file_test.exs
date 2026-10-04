@@ -13,9 +13,13 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
     end
 
     test "returns error without url field" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} = ContentFile.new([])
-      assert Exception.message(error) =~ "file.url"
-      assert Exception.message(error) =~ "is required"
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{
+                struct: ContentFile,
+                field: :url,
+                reason: :required
+              }} =
+               ContentFile.new([])
     end
 
     test "succeeds with all fields" do

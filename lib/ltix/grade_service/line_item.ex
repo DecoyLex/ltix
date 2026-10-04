@@ -22,7 +22,7 @@ defmodule Ltix.GradeService.LineItem do
       #=> 60
   """
 
-  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidField
 
   defstruct [
     :id,
@@ -49,6 +49,26 @@ defmodule Ltix.GradeService.LineItem do
           grades_released: boolean() | nil,
           extensions: %{optional(String.t()) => term()}
         }
+
+  # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)
+  @label_schema Zoi.string(description: "Label for the gradebook column.")
+                |> Zoi.refine({__MODULE__, :validate_label, []})
+
+  # [AGS §3.2.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoremaximum)
+  @score_maximum_schema Zoi.number(description: "Maximum score, greater than 0.")
+                        |> Zoi.positive()
+
+  @validation_schema Zoi.map(%{
+                       label: @label_schema,
+                       score_maximum: @score_maximum_schema
+                     })
+
+  @spec_refs %{
+    label: "AGS §3.2.7",
+    score_maximum: "AGS §3.2.8"
+  }
+
+  @validated_fields Map.keys(@spec_refs)
 
   # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
   @known_keys %{
@@ -96,13 +116,32 @@ defmodule Ltix.GradeService.LineItem do
       :ok
 
       iex> item = %Ltix.GradeService.LineItem{label: nil, score_maximum: 100}
-      iex> {:error, _} = Ltix.GradeService.LineItem.validate(item)
+      iex> {:error, error} = Ltix.GradeService.LineItem.validate(item)
+      iex> Exception.message(error)
+      "Ltix.GradeService.LineItem field :label is required [AGS §3.2.7]"
   """
   @spec validate(t()) :: :ok | {:error, Exception.t()}
   def validate(%__MODULE__{} = item) do
-    with :ok <- validate_label(item.label) do
-      validate_score_maximum(item.score_maximum)
-    end
+    fields =
+      item
+      |> Map.take(@validated_fields)
+      |> Map.reject(fn {_field, value} -> is_nil(value) end)
+
+    with {:ok, _fields} <-
+           InvalidField.parse(__MODULE__, @validation_schema, fields, &Map.fetch!(@spec_refs, &1)),
+         do: :ok
+  end
+
+  @doc false
+  def label_schema, do: @label_schema
+
+  @doc false
+  def score_maximum_schema, do: @score_maximum_schema
+
+  @doc false
+  @spec validate_label(String.t(), keyword()) :: :ok | {:error, String.t()}
+  def validate_label(label, _opts) do
+    if String.trim(label) == "", do: {:error, "must not be blank"}, else: :ok
   end
 
   @doc """
@@ -129,54 +168,6 @@ defmodule Ltix.GradeService.LineItem do
 
   defp classify_keys(json) do
     Ltix.GradeService.classify_keys(json, @known_keys)
-  end
-
-  # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)
-  defp validate_label(nil) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "label",
-       value: nil,
-       message: "must be present and non-blank",
-       spec_ref: "AGS §3.2.7"
-     )}
-  end
-
-  defp validate_label(label) when is_binary(label) do
-    if String.trim(label) == "" do
-      {:error,
-       InvalidClaim.exception(
-         claim: "label",
-         value: label,
-         message: "must be present and non-blank",
-         spec_ref: "AGS §3.2.7"
-       )}
-    else
-      :ok
-    end
-  end
-
-  # [AGS §3.2.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoremaximum)
-  defp validate_score_maximum(nil) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "scoreMaximum",
-       value: nil,
-       message: "must be a positive number",
-       spec_ref: "AGS §3.2.8"
-     )}
-  end
-
-  defp validate_score_maximum(value) when is_number(value) and value > 0, do: :ok
-
-  defp validate_score_maximum(value) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "scoreMaximum",
-       value: value,
-       message: "must be a positive number",
-       spec_ref: "AGS §3.2.8"
-     )}
   end
 end
 

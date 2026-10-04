@@ -63,11 +63,11 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
       "https://example.com/photo.png"
 
       iex> {:error, error} = Ltix.DeepLinking.ContentItem.Image.new([])
-      iex> error.field
-      "image.url"
+      iex> Exception.message(error)
+      "Ltix.DeepLinking.ContentItem.Image field :url is required [DL §3.5]"
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, :image, "DL §3.5")
+  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.5")
 
   defimpl ContentItem do
     def item_type(_item), do: "image"

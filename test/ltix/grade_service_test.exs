@@ -3,6 +3,7 @@ defmodule Ltix.GradeServiceTest do
 
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
@@ -446,6 +447,26 @@ defmodule Ltix.GradeServiceTest do
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
     end
 
+    test "returns InvalidField without sending an invalid line item field", ctx do
+      Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid line item") end)
+      client = build_client(ctx.platform)
+
+      assert {:error, %InvalidField{struct: LineItem, field: :label}} =
+               GradeService.create_line_item(client, label: " ", score_maximum: 100)
+
+      assert {:error, %InvalidField{struct: LineItem, field: :score_maximum}} =
+               GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 0)
+    end
+
+    test "raises when score_maximum is not a number", ctx do
+      assert_raise InvalidOption, ~r/Option :score_maximum is invalid/, fn ->
+        GradeService.create_line_item(build_client(ctx.platform),
+          label: "Quiz 1",
+          score_maximum: "100"
+        )
+      end
+    end
+
     test "raises when label is missing", ctx do
       client = build_client(ctx.platform)
 
@@ -497,6 +518,14 @@ defmodule Ltix.GradeServiceTest do
       item = %LineItem{label: "Quiz 1", score_maximum: 100}
 
       assert {:error, _} = GradeService.update_line_item(client, item)
+    end
+
+    test "returns InvalidField without sending an invalid line item", ctx do
+      Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid line item") end)
+      item = %LineItem{id: @line_item_url, label: " ", score_maximum: 100}
+
+      assert {:error, %InvalidField{field: :label}} =
+               GradeService.update_line_item(build_client(ctx.platform), item)
     end
 
     test "returns ScopeMismatch without lineitem scope", ctx do

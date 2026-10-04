@@ -13,9 +13,9 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
     end
 
     test "returns error without url field" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} = Link.new([])
-      assert Exception.message(error) =~ "link.url"
-      assert Exception.message(error) =~ "is required"
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{struct: Link, field: :url, reason: :required}} =
+               Link.new([])
     end
 
     test "succeeds with all sub-structures" do
@@ -59,10 +59,10 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
     end
 
     test "validates keyword list sub-structures (missing required field)" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} =
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{} = error} =
                Link.new(url: "https://example.com", icon: [width: 16])
 
-      assert Exception.message(error) =~ "link.icon.url"
+      assert Exception.message(error) =~ "[:icon, :url]"
       assert Exception.message(error) =~ "is required"
     end
   end

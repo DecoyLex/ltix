@@ -1,7 +1,7 @@
 defmodule Ltix.DeepLinking.ContentItemHelpers do
   @moduledoc false
 
-  alias Ltix.Errors.Invalid.InvalidContentItem
+  alias Ltix.Errors.Invalid.InvalidField
 
   @doc """
   Zoi schema for an icon or thumbnail sub-structure.
@@ -42,16 +42,16 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   Validates against the item's schema. A single invalid field returns its
   error, and several are grouped in `Ltix.Errors.Invalid`.
   """
-  @spec new(Zoi.schema(), keyword(), atom(), String.t()) ::
+  @spec new(Zoi.schema(), keyword(), String.t()) ::
           {:ok, struct()} | {:error, Exception.t()}
-  def new(schema, opts, item_name, spec_ref) do
+  def new(schema, opts, spec_ref) do
     schema =
       schema
       |> Zoi.Schema.traverse(&make_maps_accept_keywords/1)
 
     case Zoi.parse(schema, Map.new(opts), coerce: true) do
       {:ok, _} = ok -> ok
-      {:error, errors} -> {:error, to_error(errors, item_name, spec_ref)}
+      {:error, errors} -> {:error, to_error(errors, schema.module, opts, spec_ref)}
     end
   end
 
@@ -92,17 +92,19 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   defp camelize(atom) when is_atom(atom), do: Recase.to_camel(Atom.to_string(atom))
   defp camelize(binary) when is_binary(binary), do: Recase.to_camel(binary)
 
-  defp to_error(errors, item_name, spec_ref) do
-    errors
-    |> Enum.map(fn %{path: path, message: message} ->
-      InvalidContentItem.exception(
-        field: Enum.join([item_name | path], "."),
-        message: message,
-        spec_ref: spec_ref
-      )
-    end)
+  defp to_error(errors, module, opts, spec_ref) do
+    input = Map.new(opts, fn {key, value} -> {key, keyword_to_map(value)} end)
+
+    module
+    |> InvalidField.from_zoi(errors, input, fn _field -> spec_ref end)
     |> Ltix.Errors.combine()
   end
+
+  defp keyword_to_map([{key, _} | _] = list) when is_atom(key) do
+    if Keyword.keyword?(list), do: Map.new(list), else: list
+  end
+
+  defp keyword_to_map(value), do: value
 
   # HERE BE DRAGONS
   #

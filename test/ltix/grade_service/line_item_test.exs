@@ -1,7 +1,10 @@
 defmodule Ltix.GradeService.LineItemTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.GradeService.LineItem
+
+  doctest LineItem
 
   describe "from_json/1" do
     test "parses line item with all fields" do
@@ -108,36 +111,47 @@ defmodule Ltix.GradeService.LineItemTest do
     test "validates label is present" do
       item = %LineItem{label: nil, score_maximum: 100}
 
-      assert {:error, error} = LineItem.validate(item)
-      assert Exception.message(error) =~ "label"
+      assert {:error, %InvalidField{struct: LineItem, field: :label, reason: :required}} =
+               LineItem.validate(item)
     end
 
     test "validates label is non-blank" do
       item = %LineItem{label: "   ", score_maximum: 100}
 
-      assert {:error, error} = LineItem.validate(item)
-      assert Exception.message(error) =~ "label"
+      assert {:error, %InvalidField{struct: LineItem, field: :label, reason: "must not be blank"}} =
+               LineItem.validate(item)
     end
 
     test "validates score_maximum is present" do
       item = %LineItem{label: "Quiz 1", score_maximum: nil}
 
-      assert {:error, error} = LineItem.validate(item)
-      assert Exception.message(error) =~ "scoreMaximum"
+      assert {:error, %InvalidField{field: :score_maximum, reason: :required}} =
+               LineItem.validate(item)
     end
 
     test "validates score_maximum is greater than 0" do
       item = %LineItem{label: "Quiz 1", score_maximum: 0}
 
-      assert {:error, error} = LineItem.validate(item)
-      assert Exception.message(error) =~ "scoreMaximum"
+      assert {:error, %InvalidField{field: :score_maximum, reason: reason}} =
+               LineItem.validate(item)
+
+      assert is_binary(reason)
     end
 
     test "validates score_maximum rejects negative" do
       item = %LineItem{label: "Quiz 1", score_maximum: -5}
 
-      assert {:error, error} = LineItem.validate(item)
-      assert Exception.message(error) =~ "scoreMaximum"
+      assert {:error, %InvalidField{field: :score_maximum, reason: reason}} =
+               LineItem.validate(item)
+
+      assert is_binary(reason)
+    end
+
+    test "returns every invalid field at once" do
+      item = %LineItem{label: nil, score_maximum: 0}
+
+      assert {:error, %Ltix.Errors.Invalid{errors: errors}} = LineItem.validate(item)
+      assert Enum.sort(Enum.map(errors, & &1.field)) == [:label, :score_maximum]
     end
   end
 

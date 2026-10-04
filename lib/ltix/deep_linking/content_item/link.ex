@@ -83,11 +83,11 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
       "https://example.com"
 
       iex> {:error, error} = Ltix.DeepLinking.ContentItem.Link.new([])
-      iex> error.field
-      "link.url"
+      iex> Exception.message(error)
+      "Ltix.DeepLinking.ContentItem.Link field :url is required [DL §3.1]"
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, :link, "DL §3.1")
+  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.1")
 
   defimpl ContentItem do
     def item_type(_item), do: "link"

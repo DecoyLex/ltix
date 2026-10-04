@@ -283,7 +283,6 @@ defmodule Ltix.GradeService do
                                  |> Zoi.required(),
                                score_maximum:
                                  Zoi.number(description: "Maximum score (must be > 0).")
-                                 |> Zoi.positive()
                                  |> Zoi.required(),
                                resource_link_id:
                                  Zoi.string(description: "Bind to a resource link."),
