@@ -87,7 +87,17 @@ config :ltix, Ltix.LaunchClaims,
   }
 ```
 
-**Via `LaunchClaims.from_json/2`** (for per-call control):
+**Via `handle_callback/3`** (for per-call control):
+
+```elixir
+Ltix.handle_callback(params, state,
+  role_parsers: %{
+    "https://myplatform.example.com/roles/" => MyApp.Lti.PlatformRoleParser
+  }
+)
+```
+
+**Via `LaunchClaims.from_json/2`** (for direct parsing):
 
 ```elixir
 Ltix.LaunchClaims.from_json(claims,
@@ -101,7 +111,7 @@ Ltix.LaunchClaims.from_json(claims,
 
 ```elixir
 Role.parse(uri,
-  parsers: %{
+  role_parsers: %{
     "https://myplatform.example.com/roles/" => MyApp.Lti.PlatformRoleParser
   }
 )

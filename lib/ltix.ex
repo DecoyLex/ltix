@@ -20,8 +20,9 @@ defmodule Ltix do
       config :ltix,
         storage_adapter: MyApp.LtiStorage
 
-  Pass `:storage_adapter`, `:allow_anonymous`, or `:req_options` as an option
-  to override the setting for a single call. Unknown or invalid options raise
+  `handle_login/3` takes `:storage_adapter`, and `handle_callback/3` takes
+  `:storage_adapter`, `:allow_anonymous`, `:req_options`, and `:jwks_cache`, to
+  override the setting for a single call. Unknown or invalid options raise
   `Ltix.Errors.Invalid.InvalidOption`.
 
   ### Required
@@ -164,6 +165,8 @@ defmodule Ltix do
                        allow_anonymous: Zoi.boolean(),
                        req_options: Zoi.keyword(Zoi.any()),
                        claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
+                       role_parsers: Zoi.map(Zoi.string(), Zoi.any()),
+                       jwks_cache: Zoi.module(),
                        clock_skew: Zoi.integer() |> Zoi.non_negative()
                      ],
                      unrecognized_keys: :error
@@ -218,7 +221,11 @@ defmodule Ltix do
     * `:allow_anonymous` — allow launches without a `sub` claim
       (defaults to application config, then `false`)
     * `:req_options` — options passed to the HTTP client for JWKS fetching
-    * `:claim_parsers` — custom claim parser modules (see `Ltix.LaunchClaims.from_json/2`)
+    * `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` for caching
+      platform public keys (defaults to application config, then
+      `Ltix.JWT.KeySet.ETSCache`)
+    * `:claim_parsers` — custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
+    * `:role_parsers` — custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
     * `:clock_skew` — seconds of tolerance for token expiration (default: `5`)
   """
   # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)

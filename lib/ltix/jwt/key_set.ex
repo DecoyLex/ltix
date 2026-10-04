@@ -25,9 +25,9 @@ defmodule Ltix.JWT.KeySet do
 
       config :ltix, :jwks_cache, MyApp.JWKSCache
 
-  Or per-call:
+  Or per-call, including through `Ltix.handle_callback/3`:
 
-      Ltix.JWT.KeySet.get_key(registration, kid, cache: MyApp.JWKSCache)
+      Ltix.JWT.KeySet.get_key(registration, kid, jwks_cache: MyApp.JWKSCache)
 
   A `Ltix.JWT.KeySet.CachexCache` adapter is provided for projects that
   already use Cachex.
@@ -49,7 +49,7 @@ defmodule Ltix.JWT.KeySet do
 
   @default_max_age 300
 
-  @options_schema Zoi.keyword([cache: Zoi.module(), req_options: Zoi.keyword(Zoi.any())],
+  @options_schema Zoi.keyword([jwks_cache: Zoi.module(), req_options: Zoi.keyword(Zoi.any())],
                     unrecognized_keys: :error
                   )
 
@@ -62,8 +62,9 @@ defmodule Ltix.JWT.KeySet do
 
   ## Options
 
-    * `:cache` — cache module implementing `Ltix.JWT.KeySet.Cache`
-      (default: `Ltix.JWT.KeySet.ETSCache`)
+    * `:jwks_cache` — cache module implementing `Ltix.JWT.KeySet.Cache`
+      (default: the application configuration, then
+      `Ltix.JWT.KeySet.ETSCache`)
     * `:req_options` — extra options passed to `Req.get/2`
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
@@ -186,7 +187,7 @@ defmodule Ltix.JWT.KeySet do
   end
 
   defp resolve_cache(opts) do
-    Keyword.get_lazy(opts, :cache, fn ->
+    Keyword.get_lazy(opts, :jwks_cache, fn ->
       Application.get_env(:ltix, :jwks_cache, ETSCache)
     end)
   end

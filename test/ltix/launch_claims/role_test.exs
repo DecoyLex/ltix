@@ -17,13 +17,13 @@ defmodule Ltix.LaunchClaims.RoleTest do
         Role.parse(uri, parser: %{})
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :parsers is invalid/, fn ->
-        Role.parse_all([uri], parsers: [Ltix.LaunchClaims.Role.LIS])
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :role_parsers is invalid/, fn ->
+        Role.parse_all([uri], role_parsers: [Ltix.LaunchClaims.Role.LIS])
       end
 
       assert_raise Ltix.Errors.Invalid.InvalidOption,
-                   ~r/Option :parsers is invalid, role parsers must be modules/,
-                   fn -> Role.parse(uri, parsers: %{"https://example.com/" => "parser"}) end
+                   ~r/Option :role_parsers is invalid, role parsers must be modules/,
+                   fn -> Role.parse(uri, role_parsers: %{"https://example.com/" => "parser"}) end
     end
   end
 
@@ -314,32 +314,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
 
       assert {:ok, %Role{type: :custom, name: :custom_role}} =
                Role.parse("http://example.com/custom/role#CustomRole",
-                 parsers: %{
-                   "http://example.com" => custom_parser
-                 }
-               )
-    end
-
-    test "parse_all/2 passes parsers option to parse/2 for each role" do
-      custom_parser = fn
-        "http://example.com/custom/role#CustomRole" = uri ->
-          {:ok, %Role{type: :custom, name: :custom_role, uri: uri}}
-
-        _ ->
-          :error
-      end
-
-      uris = [
-        "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-        "http://example.com/custom/role#CustomRole"
-      ]
-
-      assert {[
-                %Role{type: :context, name: :instructor},
-                %Role{type: :custom, name: :custom_role}
-              ], []} =
-               Role.parse_all(uris,
-                 parsers: %{
+                 role_parsers: %{
                    "http://example.com" => custom_parser
                  }
                )
@@ -353,7 +328,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
       # URI with non-matching prefix should not call custom parser
       assert {:ok, %Role{type: :context, name: :instructor}} =
                Role.parse("http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-                 parsers: %{
+                 role_parsers: %{
                    "http://example.com" => custom_parser
                  }
                )

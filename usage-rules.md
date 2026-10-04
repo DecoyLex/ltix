@@ -18,7 +18,7 @@ The entire OIDC launch flow is two functions:
 
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use
   the two public functions.
-- `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:claim_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:jwks_cache`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 ## Required Configuration
 
@@ -154,8 +154,11 @@ end
 - `:req_options` — default HTTP options for all outgoing requests
 - `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` (default:
   `Ltix.JWT.KeySet.ETSCache`). The default ETS cache is a GenServer that must be started
-  in your supervision tree: `children = [Ltix.JWT.KeySet.ETSCache]`
-- Custom claim/role parsers under the `Ltix.LaunchClaims` config key
+  in your supervision tree: `children = [Ltix.JWT.KeySet.ETSCache]`. Pass `jwks_cache:` to
+  `handle_callback/3` to override it per call.
+- Custom claim/role parsers under the `Ltix.LaunchClaims` config key as `:claim_parsers`
+  and `:role_parsers`. Pass the same options to `handle_callback/3` to override them for
+  one call.
 
 ## Telemetry
 

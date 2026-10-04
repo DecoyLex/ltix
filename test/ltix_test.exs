@@ -30,6 +30,26 @@ defmodule LtixTest do
     defdelegate validate_nonce(nonce, registration), to: StorageAdapter
   end
 
+  defmodule RecordingCache do
+    @moduledoc false
+    @behaviour Ltix.JWT.KeySet.Cache
+
+    @impl Ltix.JWT.KeySet.Cache
+    def get(jwks_uri) do
+      send(self(), {:jwks_cache, :get, jwks_uri})
+      :miss
+    end
+
+    @impl Ltix.JWT.KeySet.Cache
+    def put(jwks_uri, _keys, _max_age) do
+      send(self(), {:jwks_cache, :put, jwks_uri})
+      :ok
+    end
+
+    @impl Ltix.JWT.KeySet.Cache
+    def delete(_jwks_uri), do: :ok
+  end
+
   setup do
     previous_configuration =
       Map.new([:allow_anonymous, :storage_adapter], fn key ->
@@ -206,6 +226,20 @@ defmodule LtixTest do
       assert launch.registration == ctx.registration
       assert launch.deployment == ctx.deployment
       assert launch.claims.message_type == "LtiResourceLinkRequest"
+    end
+
+    test "uses the jwks_cache option for platform keys", ctx do
+      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
+      jwks_uri = ctx.registration.jwks_uri
+
+      assert {:ok, %LaunchContext{}} =
+               Ltix.handle_callback(params, ctx.state,
+                 jwks_cache: RecordingCache,
+                 req_options: req_options()
+               )
+
+      assert_received {:jwks_cache, :get, ^jwks_uri}
+      assert_received {:jwks_cache, :put, ^jwks_uri}
     end
 
     test "reads storage_adapter from application config", ctx do

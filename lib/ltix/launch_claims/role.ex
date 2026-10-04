@@ -83,7 +83,7 @@ defmodule Ltix.LaunchClaims.Role do
     "Officer" => :officer
   }
 
-  @options_schema Zoi.keyword([parsers: Zoi.map(Zoi.string(), Zoi.any())],
+  @options_schema Zoi.keyword([role_parsers: Zoi.map(Zoi.string(), Zoi.any())],
                     unrecognized_keys: :error
                   )
 
@@ -99,7 +99,7 @@ defmodule Ltix.LaunchClaims.Role do
 
   ## Options
 
-    * `:parsers` — map of URI prefix to parser module or function
+    * `:role_parsers` — map of URI prefix to parser module or function
       (defaults to application config, with LIS as a fallback)
 
   ## Examples
@@ -127,7 +127,7 @@ defmodule Ltix.LaunchClaims.Role do
 
     parsers =
       opts
-      |> Keyword.get(:parsers, %{})
+      |> Keyword.get(:role_parsers, %{})
       |> Map.put_new("http://purl.imsglobal.org/vocab/", LIS)
 
     application_parsers = AppConfig.role_parsers!()
@@ -143,7 +143,7 @@ defmodule Ltix.LaunchClaims.Role do
 
       {_prefix, parser} ->
         raise InvalidOption,
-          key: :parsers,
+          key: :role_parsers,
           value: parser,
           reason: "role parsers must be modules or 1-arity functions"
     end)
@@ -160,7 +160,7 @@ defmodule Ltix.LaunchClaims.Role do
 
   ## Options
 
-    * `:parsers` — map of URI prefix to parser module or function
+    * `:role_parsers` — map of URI prefix to parser module or function
       (defaults to application config, with LIS as a fallback)
 
   ## Examples

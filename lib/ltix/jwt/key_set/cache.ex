@@ -29,7 +29,7 @@ defmodule Ltix.JWT.KeySet.Cache do
 
   Or pass per-call:
 
-      Ltix.JWT.KeySet.get_key(registration, kid, cache: MyApp.JWKSCache)
+      Ltix.JWT.KeySet.get_key(registration, kid, jwks_cache: MyApp.JWKSCache)
   """
 
   @doc """

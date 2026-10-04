@@ -338,7 +338,9 @@ defmodule Ltix.LaunchClaimsTest do
       parser = fn value -> {:ok, Map.put(value, "parsed", true)} end
 
       assert {:ok, %LaunchClaims{extensions: extensions}} =
-               LaunchClaims.from_json(json, parsers: %{"https://example.com/custom" => parser})
+               LaunchClaims.from_json(json,
+                 claim_parsers: %{"https://example.com/custom" => parser}
+               )
 
       assert extensions["https://example.com/custom"] == %{"raw" => "data", "parsed" => true}
     end
@@ -351,7 +353,7 @@ defmodule Ltix.LaunchClaimsTest do
       parser = fn _value -> {:error, RuntimeError.exception("parse failed")} end
 
       assert {:error, error} =
-               LaunchClaims.from_json(json, parsers: %{"https://example.com/bad" => parser})
+               LaunchClaims.from_json(json, claim_parsers: %{"https://example.com/bad" => parser})
 
       assert Exception.message(error) =~ "parse failed"
     end

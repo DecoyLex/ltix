@@ -68,7 +68,7 @@ Ltix.handle_callback(params, state,
 
 ```elixir
 Ltix.LaunchClaims.from_json(claims,
-  parsers: %{
+  claim_parsers: %{
     "https://myplatform.example.com/claim/analytics" =>
       &MyApp.Lti.AnalyticsClaim.parse/1
   }

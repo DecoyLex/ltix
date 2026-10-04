@@ -34,7 +34,7 @@ defmodule Ltix.JWT.Token do
     * `:clock_skew` — seconds of tolerance for `exp` validation (default: `5`)
     * `:now` — override current time in unix seconds (useful for testing)
     * `:req_options` — extra options passed through to `Ltix.JWT.KeySet`
-    * `:cache` — cache module passed through to `Ltix.JWT.KeySet`
+    * `:jwks_cache` — cache module passed through to `Ltix.JWT.KeySet`
   """
 
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -57,7 +57,7 @@ defmodule Ltix.JWT.Token do
                       clock_skew: Zoi.integer() |> Zoi.non_negative(),
                       now: Zoi.integer(),
                       req_options: Zoi.keyword(Zoi.any()),
-                      cache: Zoi.module()
+                      jwks_cache: Zoi.module()
                     ],
                     unrecognized_keys: :error
                   )
@@ -82,7 +82,7 @@ defmodule Ltix.JWT.Token do
          :ok <- validate_critical_headers(header),
          {:ok, kid} <- extract_kid(header),
          {:ok, jwk} <-
-           KeySet.get_key(registration, kid, Keyword.take(opts, [:req_options, :cache])),
+           KeySet.get_key(registration, kid, Keyword.take(opts, [:req_options, :jwks_cache])),
          {:ok, claims} <- verify_signature(token_string, jwk),
          :ok <- validate_claims(claims, registration, opts) do
       {:ok, claims}

@@ -37,7 +37,7 @@ defmodule Ltix.LaunchClaimsConfigTest do
 
     assert {:ok, %LaunchClaims{extensions: extensions}} =
              LaunchClaims.from_json(json,
-               parsers: %{claim_key => call_parser, call_key => call_parser}
+               claim_parsers: %{claim_key => call_parser, call_key => call_parser}
              )
 
     assert extensions[claim_key] == {:from_call, "raw"}

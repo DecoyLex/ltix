@@ -31,8 +31,8 @@ defmodule Ltix.JWT.KeySetTest do
         KeySet.get_key(ctx.registration, ctx.kid, request_options: [])
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :cache is invalid/, fn ->
-        KeySet.get_key(ctx.registration, ctx.kid, cache: "cache")
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :jwks_cache is invalid/, fn ->
+        KeySet.get_key(ctx.registration, ctx.kid, jwks_cache: "cache")
       end
     end
 

@@ -72,7 +72,7 @@ defmodule Ltix.LaunchClaims do
   ### Extensions
 
     * `:extensions` — map of unrecognized claim keys to their raw values.
-      Register custom parsers via the `:parsers` option in `from_json/2`
+      Register custom parsers via the `:claim_parsers` option in `from_json/2`
       or application config (`:ltix, Ltix.LaunchClaims, :claim_parsers`).
 
   ## Examples
@@ -259,7 +259,7 @@ defmodule Ltix.LaunchClaims do
 
   @options_schema Zoi.keyword(
                     [
-                      parsers: Zoi.map(Zoi.string(), Zoi.any()),
+                      claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
                       role_parsers: Zoi.map(Zoi.string(), Zoi.any())
                     ],
                     unrecognized_keys: :error
@@ -286,10 +286,10 @@ defmodule Ltix.LaunchClaims do
 
   ## Options
 
-  - `:parsers` - Map of claim keys to parser functions. Standard claim keys
-    replace built-in parsers. Each parser receives the raw value and must
-    return `{:ok, parsed}` or `{:error, reason}`. Per-call parsers override
-    application config.
+  - `:claim_parsers` - Map of claim keys to parser functions. Standard
+    claim keys replace built-in parsers. Each parser receives the raw value
+    and must return `{:ok, parsed}` or `{:error, reason}`. Per-call parsers
+    override application config.
   - `:role_parsers` — Map of role URI prefixes to parser functions for
     parsing the `roles` claim. Each parser receives a role URI and must
     return a `{:ok, t:Ltix.LaunchClaims.Role.t/0}` struct or `:error`. Per-call
@@ -418,7 +418,7 @@ defmodule Ltix.LaunchClaims do
 
       role_uris when is_list(role_uris) ->
         if Enum.all?(role_uris, &is_binary/1) do
-          {parsed, unrecognized} = Role.parse_all(role_uris, parsers: role_parsers)
+          {parsed, unrecognized} = Role.parse_all(role_uris, role_parsers: role_parsers)
 
           {:ok,
            fields
@@ -457,6 +457,6 @@ defmodule Ltix.LaunchClaims do
   defp resolve_claim_parsers(opts) do
     config_parsers = AppConfig.claims_parsers!()
 
-    Map.merge(config_parsers, Keyword.get(opts, :parsers, %{}))
+    Map.merge(config_parsers, Keyword.get(opts, :claim_parsers, %{}))
   end
 end
