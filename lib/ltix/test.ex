@@ -1029,7 +1029,7 @@ defmodule Ltix.Test do
   defp build_default_registration(opts) do
     issuer = Keyword.get(opts, :issuer, @default_issuer)
     client_id = Keyword.get(opts, :client_id, @default_client_id)
-    tool_jwk = Ltix.JWK.generate()
+    tool_jwk = Ltix.JWK.generate(key_size: 2048)
     suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
 
     Registration.new!(%{
