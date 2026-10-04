@@ -48,7 +48,7 @@ authenticate directly with a registration and a stored endpoint URL:
 ```elixir
 alias Ltix.LaunchClaims.MembershipsEndpoint
 
-endpoint = MembershipsEndpoint.new(stored_memberships_url)
+endpoint = MembershipsEndpoint.new!(stored_memberships_url)
 
 {:ok, client} = Ltix.MembershipsService.authenticate(registration,
   endpoint: endpoint
@@ -69,7 +69,7 @@ MyApp.Courses.store_memberships_url(course_id, url)
 def perform(%{args: %{"course_id" => course_id}}) do
   url = MyApp.Courses.get_memberships_url(course_id)
   registration = MyApp.Courses.get_registration(course_id)
-  endpoint = MembershipsEndpoint.new(url)
+  endpoint = MembershipsEndpoint.new!(url)
 
   {:ok, client} = Ltix.MembershipsService.authenticate(registration,
     endpoint: endpoint

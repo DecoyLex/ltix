@@ -601,7 +601,7 @@ defmodule Ltix.TestTest do
       registration: platform.registration,
       req_options: [plug: {Req.Test, Ltix.MembershipsService}, retry: false],
       endpoints: %{
-        Ltix.MembershipsService => MembershipsEndpoint.new("https://lms.example.com/memberships")
+        Ltix.MembershipsService => MembershipsEndpoint.new!("https://lms.example.com/memberships")
       }
     }
   end

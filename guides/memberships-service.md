@@ -65,7 +65,7 @@ def perform(%{args: %{"course_id" => course_id}}) do
   url = MyApp.Courses.get_memberships_url(course_id)
 
   {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-    endpoint: MembershipsEndpoint.new(url)
+    endpoint: MembershipsEndpoint.new!(url)
   )
 
   {:ok, roster} = Ltix.MembershipsService.list_members(client)

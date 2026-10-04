@@ -168,6 +168,6 @@ url = context.claims.memberships_endpoint.context_memberships_url
 MyApp.Courses.store_memberships_url(course_id, url)
 
 # In background job
-endpoint = Ltix.LaunchClaims.MembershipsEndpoint.new(stored_url)
+endpoint = Ltix.LaunchClaims.MembershipsEndpoint.new!(stored_url)
 {:ok, client} = Ltix.MembershipsService.authenticate(registration, endpoint: endpoint)
 ```

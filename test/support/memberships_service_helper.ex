@@ -17,7 +17,7 @@ defmodule Ltix.Test.MembershipsServiceHelper do
         MapSet.new(["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]),
       req_options: [plug: {Req.Test, MembershipsService}, retry: false],
       endpoints: %{
-        MembershipsService => MembershipsEndpoint.new("https://platform.example.com/members")
+        MembershipsService => MembershipsEndpoint.new!("https://platform.example.com/members")
       }
     }
 

@@ -20,7 +20,7 @@ defmodule Ltix.MembershipsService do
       alias Ltix.LaunchClaims.MembershipsEndpoint
 
       {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-        endpoint: MembershipsEndpoint.new("https://lms.example.com/memberships")
+        endpoint: MembershipsEndpoint.new!("https://lms.example.com/memberships")
       )
 
       {:ok, roster} = Ltix.MembershipsService.list_members(client, role: :learner)
@@ -72,7 +72,11 @@ defmodule Ltix.MembershipsService do
   end
 
   @impl Ltix.AdvantageService
-  def validate_endpoint(%MembershipsEndpoint{}), do: :ok
+  def validate_endpoint(%MembershipsEndpoint{} = endpoint) do
+    with :ok <- MembershipsEndpoint.validate_url(endpoint) do
+      validate_service_version(endpoint)
+    end
+  end
 
   def validate_endpoint(_),
     do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "NRPS §3.6.1")}
@@ -124,7 +128,7 @@ defmodule Ltix.MembershipsService do
   ## From a registration
 
       {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-        endpoint: MembershipsEndpoint.new("https://lms.example.com/memberships")
+        endpoint: MembershipsEndpoint.new!("https://lms.example.com/memberships")
       )
 
   ## Options (launch context)
@@ -143,8 +147,7 @@ defmodule Ltix.MembershipsService do
     opts = Options.parse!(opts, @context_auth_schema)
 
     with {:ok, registration} <- Registerable.to_registration(context.registration),
-         {:ok, endpoint} <- fetch_endpoint(context.claims),
-         :ok <- validate_service_version(endpoint) do
+         {:ok, endpoint} <- fetch_endpoint(context.claims) do
       OAuth.authenticate(registration,
         endpoints: %{__MODULE__ => endpoint},
         req_options: Keyword.get(opts, :req_options, [])
@@ -230,7 +233,8 @@ defmodule Ltix.MembershipsService do
 
     :telemetry.span([:ltix, :memberships_service, :list_members], metadata, fn ->
       result =
-        with :ok <- check_expiry(client),
+        with :ok <- validate_override(opts),
+             :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @nrps_scope),
              {:ok, pages} <- fetch_pages(client, query_opts) do
           collect_roster(pages, max)
@@ -275,7 +279,8 @@ defmodule Ltix.MembershipsService do
 
     :telemetry.span([:ltix, :memberships_service, :stream_members], metadata, fn ->
       result =
-        with :ok <- check_expiry(client),
+        with :ok <- validate_override(opts),
+             :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @nrps_scope),
              {:ok, pages} <- fetch_pages(client, opts) do
           {:ok,
@@ -322,6 +327,13 @@ defmodule Ltix.MembershipsService do
 
   defp get_endpoint(%Client{endpoints: endpoints}) do
     Map.fetch!(endpoints, __MODULE__)
+  end
+
+  defp validate_override(opts) do
+    case Keyword.fetch(opts, :endpoint) do
+      {:ok, endpoint} -> validate_endpoint(endpoint)
+      :error -> :ok
+    end
   end
 
   defp check_expiry(%Client{} = client) do

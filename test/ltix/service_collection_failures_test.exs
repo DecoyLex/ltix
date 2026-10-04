@@ -397,7 +397,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
           line_item: "https://platform.example.com/lineitems/1",
           scopes: scopes
         },
-        MembershipsService => MembershipsEndpoint.new(page_url(:members, 1))
+        MembershipsService => MembershipsEndpoint.new!(page_url(:members, 1))
       }
     }
   end

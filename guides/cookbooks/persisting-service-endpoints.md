@@ -1,7 +1,7 @@
 # Persisting Service Endpoints
 
 Service calls that happen outside an LTI launch need endpoint URLs that
-were stored during one. Consider a mobile attendance app: the LTI launch
+were stored during one. Consider a mobile attendance app. The LTI launch
 sets up the course, but grade posting happens later when students check
 in on their phones. This cookbook shows what to persist and where, using
 that app as a running example.
@@ -120,14 +120,14 @@ end
 
 ### Using stored endpoints
 
-Sync the roster periodically to pair mobile accounts with LMS users:
+Sync the roster periodically to pair mobile accounts with LMS users.
 
 ```elixir
 alias Ltix.LaunchClaims.MembershipsEndpoint
 
 def sync_roster(course) do
   registration = get_registration(course)
-  endpoint = MembershipsEndpoint.new(course.memberships_url)
+  endpoint = MembershipsEndpoint.new!(course.memberships_url)
 
   {:ok, client} = Ltix.MembershipsService.authenticate(registration,
     endpoint: endpoint
@@ -138,7 +138,7 @@ def sync_roster(course) do
 end
 ```
 
-Post a score to the line item the tool created earlier:
+Post a score to the line item the tool created earlier.
 
 ```elixir
 alias Ltix.LaunchClaims.AGSEndpoint
@@ -169,11 +169,11 @@ end
 
 ## Coupled line items
 
-Instead of creating line items programmatically, the instructor creates
-one tool placement per class session: "Week 1", "Week 2", etc. The
-platform pre-creates a grade column for each placement. The lineitem URL
-for that column and its scopes are resource-link-scoped (different per
-session), so store them in a separate schema.
+With coupled line items, the instructor creates one tool placement per
+class session, such as "Week 1" and "Week 2". The platform pre-creates a
+grade column for each placement. The lineitem URL for that column and
+its scopes are resource-link-scoped (different per session), so store
+them in a separate schema.
 
 ### Migration
 
@@ -247,7 +247,7 @@ end
 ### Using stored endpoints
 
 When a student checks in for a specific session, post the score directly
-to that session's grade column:
+to that session's grade column.
 
 ```elixir
 alias Ltix.LaunchClaims.AGSEndpoint
