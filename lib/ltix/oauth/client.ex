@@ -125,7 +125,7 @@ defmodule Ltix.OAuth.Client do
     else
       {:error,
        ScopeMismatch.exception(
-         scope: scope,
+         scopes: [scope],
          granted_scopes: MapSet.to_list(client.scopes),
          spec_ref: "Sec §4.1"
        )}
@@ -144,7 +144,7 @@ defmodule Ltix.OAuth.Client do
     else
       {:error,
        ScopeMismatch.exception(
-         scope: Enum.join(scopes, " or "),
+         scopes: scopes,
          granted_scopes: MapSet.to_list(client.scopes),
          spec_ref: "Sec §4.1"
        )}
@@ -312,7 +312,7 @@ defmodule Ltix.OAuth.Client do
       missing ->
         {:error,
          ScopeMismatch.exception(
-           scope: missing,
+           scopes: [missing],
            granted_scopes: granted_scopes,
            spec_ref: "Sec §4.1"
          )}

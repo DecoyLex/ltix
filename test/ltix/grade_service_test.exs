@@ -383,7 +383,8 @@ defmodule Ltix.GradeServiceTest do
     test "returns ScopeMismatch when client lacks lineitem scope", ctx do
       client = build_client(ctx.platform, scopes: [@scope_score])
 
-      assert {:error, %ScopeMismatch{}} = GradeService.list_line_items(client)
+      assert {:error, %ScopeMismatch{scopes: [@scope_lineitem, @scope_lineitem_readonly]}} =
+               GradeService.list_line_items(client)
     end
 
     test "returns AccessTokenExpired when token is expired", ctx do
@@ -828,7 +829,8 @@ defmodule Ltix.GradeServiceTest do
     test "returns ScopeMismatch without score scope", ctx do
       client = build_client(ctx.platform, scopes: [@scope_lineitem])
 
-      assert {:error, %ScopeMismatch{}} = GradeService.post_score(client, ctx.score)
+      assert {:error, %ScopeMismatch{scopes: [@scope_score]}} =
+               GradeService.post_score(client, ctx.score)
     end
 
     test "returns error when no line item URL available", ctx do
@@ -1260,7 +1262,10 @@ defmodule Ltix.GradeServiceTest do
       assert {:error, %ScopeMismatch{}} = GradeService.get_line_item(client)
       assert {:error, %ScopeMismatch{}} = GradeService.update_line_item(client, item)
       assert {:error, %ScopeMismatch{}} = GradeService.delete_line_item(client)
-      assert {:error, %ScopeMismatch{}} = GradeService.post_score(client, ctx.score)
+
+      assert {:error, %ScopeMismatch{scopes: [@scope_score]}} =
+               GradeService.post_score(client, ctx.score)
+
       assert {:error, %ScopeMismatch{}} = GradeService.list_results(client)
 
       assert_received {:telemetry, :list_line_items, :stop, %{endpoint: nil}}

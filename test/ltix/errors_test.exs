@@ -231,10 +231,10 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "higher limit"
     end
 
-    test "ScopeMismatch includes scope [Sec §4.1]" do
+    test "ScopeMismatch includes scopes [Sec §4.1]" do
       error =
         ScopeMismatch.exception(
-          scope: "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly",
+          scopes: ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"],
           granted_scopes: [],
           spec_ref: "Sec §4.1"
         )

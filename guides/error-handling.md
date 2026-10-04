@@ -210,7 +210,7 @@ etc.) and OAuth authentication.
 | `TokenRequestFailed` | `error`, `error_description`, `status`, `body`, `spec_ref` | OAuth token request failed |
 | `MalformedResponse` | `service`, `reason`, `spec_ref` | Platform returned an unparseable response |
 | `CollectionTooLarge` | `service`, `option`, `count`, `max`, `spec_ref` | An eager fetch such as `list_results/2` exceeded its limit option, such as `max_results` |
-| `ScopeMismatch` | `scope`, `granted_scopes`, `spec_ref` | Client lacks the required OAuth scope |
+| `ScopeMismatch` | `scopes`, `granted_scopes`, `spec_ref` | Client lacks every scope in `scopes` that would authorize the request |
 | `InvalidEndpoint` | `service`, `spec_ref` | Wrong endpoint struct passed to a service |
 | `MissingLineItemId` | `line_item`, `spec_ref` | A grade operation received a line item without an `id` |
 

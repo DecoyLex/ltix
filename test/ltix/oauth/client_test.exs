@@ -106,7 +106,7 @@ defmodule Ltix.OAuth.ClientTest do
     test "returns error for ungranted scope" do
       client = build_client()
 
-      assert {:error, %ScopeMismatch{scope: "other"}} =
+      assert {:error, %ScopeMismatch{scopes: ["other"]}} =
                Client.require_scope(client, "other")
     end
   end
@@ -120,7 +120,7 @@ defmodule Ltix.OAuth.ClientTest do
     test "returns error when no scopes match" do
       client = build_client()
 
-      assert {:error, %ScopeMismatch{}} =
+      assert {:error, %ScopeMismatch{scopes: ["other1", "other2"]}} =
                Client.require_any_scope(client, ["other1", "other2"])
     end
   end
