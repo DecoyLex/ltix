@@ -59,6 +59,8 @@ defmodule Ltix.GradeService do
   @result_container_media_type "application/vnd.ims.lis.v2.resultcontainer+json"
   @score_media_type "application/vnd.ims.lis.v1.score+json"
 
+  @no_endpoint "The client has no grade service endpoint. Authenticate with one or pass the endpoint option"
+
   @endpoint_option Zoi.struct(AGSEndpoint,
                      description: "Override the endpoint stored on the client."
                    )
@@ -162,21 +164,12 @@ defmodule Ltix.GradeService do
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Options.parse!(opts, @context_auth_schema)
 
-    with {:ok, registration} <- Registerable.to_registration(context.registration) do
-      case endpoint_from_claims(context.claims) do
-        {:ok, endpoint} ->
-          OAuth.authenticate(registration,
-            endpoints: %{__MODULE__ => endpoint},
-            req_options: Keyword.get(opts, :req_options, [])
-          )
-
-        :error ->
-          {:error,
-           ServiceNotAvailable.exception(
-             service: __MODULE__,
-             spec_ref: "AGS §3.1"
-           )}
-      end
+    with {:ok, registration} <- Registerable.to_registration(context.registration),
+         {:ok, endpoint} <- fetch_claim_endpoint(context.claims) do
+      OAuth.authenticate(registration,
+        endpoints: %{__MODULE__ => endpoint},
+        req_options: Keyword.get(opts, :req_options, [])
+      )
     end
   end
 
@@ -188,6 +181,13 @@ defmodule Ltix.GradeService do
       endpoints: %{__MODULE__ => endpoint},
       req_options: Keyword.get(opts, :req_options, [])
     )
+  end
+
+  defp fetch_claim_endpoint(claims) do
+    case endpoint_from_claims(claims) do
+      {:ok, _endpoint} = ok -> ok
+      :error -> not_available("The launch has no grade service endpoint claim")
+    end
   end
 
   @doc """
@@ -650,9 +650,8 @@ defmodule Ltix.GradeService do
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   defp line_items_url(%AGSEndpoint{line_items: url}) when is_binary(url), do: {:ok, url}
 
-  defp line_items_url(_endpoint) do
-    {:error, ServiceNotAvailable.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
-  end
+  defp line_items_url(%AGSEndpoint{}), do: not_available("The endpoint has no line items URL")
+  defp line_items_url(nil), do: not_available(@no_endpoint)
 
   defp resolve_line_item_url(endpoint, opts) do
     line_item_url(Keyword.get(opts, :line_item), endpoint)
@@ -661,9 +660,11 @@ defmodule Ltix.GradeService do
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   defp line_item_url(nil, %AGSEndpoint{line_item: url}) when is_binary(url), do: {:ok, url}
 
-  defp line_item_url(nil, _endpoint) do
-    {:error, ServiceNotAvailable.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
+  defp line_item_url(nil, %AGSEndpoint{}) do
+    not_available("The endpoint has no coupled line item URL. Pass the line_item option")
   end
+
+  defp line_item_url(nil, nil), do: not_available(@no_endpoint)
 
   # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
   defp line_item_url(%LineItem{id: nil} = item, _endpoint) do
@@ -672,6 +673,11 @@ defmodule Ltix.GradeService do
 
   defp line_item_url(%LineItem{id: id}, _endpoint), do: {:ok, id}
   defp line_item_url(url, _endpoint) when is_binary(url), do: {:ok, url}
+
+  defp not_available(reason) do
+    {:error,
+     ServiceNotAvailable.exception(service: __MODULE__, reason: reason, spec_ref: "AGS §3.1")}
+  end
 
   # [AGS §3.3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service-endpoint)
   # [AGS §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#service-endpoint)

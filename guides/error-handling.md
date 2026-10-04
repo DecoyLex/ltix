@@ -206,7 +206,7 @@ etc.) and OAuth authentication.
 
 | Error | Fields | When |
 |---|---|---|
-| `ServiceNotAvailable` | `service`, `spec_ref` | Service not included in launch claims |
+| `ServiceNotAvailable` | `service`, `reason`, `spec_ref` | The launch has no claim for the service, or an endpoint URL the operation needs is missing |
 | `TokenRequestFailed` | `error`, `error_description`, `status`, `body`, `spec_ref` | OAuth token request failed |
 | `MalformedResponse` | `service`, `reason`, `spec_ref` | Platform returned an unparseable response |
 | `CollectionTooLarge` | `service`, `option`, `count`, `max`, `spec_ref` | An eager fetch such as `list_results/2` exceeded its limit option, such as `max_results` |

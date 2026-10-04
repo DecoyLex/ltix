@@ -214,8 +214,10 @@ defmodule Ltix.GradeServiceTest do
     test "errors when no AGS claim in launch", ctx do
       context = Ltix.Test.build_launch_context(ctx.platform)
 
-      assert {:error, %ServiceNotAvailable{}} =
+      assert {:error, %ServiceNotAvailable{} = error} =
                GradeService.authenticate(context)
+
+      assert Exception.message(error) =~ "launch has no grade service endpoint claim"
     end
   end
 
@@ -374,7 +376,8 @@ defmodule Ltix.GradeServiceTest do
       endpoint = %AGSEndpoint{line_items: nil, line_item: @line_item_url, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
+      assert {:error, %ServiceNotAvailable{} = error} = GradeService.list_line_items(client)
+      assert Exception.message(error) =~ "has no line items URL"
     end
 
     test "returns ScopeMismatch when client lacks lineitem scope", ctx do
@@ -424,7 +427,8 @@ defmodule Ltix.GradeServiceTest do
       endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert {:error, %ServiceNotAvailable{}} = GradeService.get_line_item(client)
+      assert {:error, %ServiceNotAvailable{} = error} = GradeService.get_line_item(client)
+      assert Exception.message(error) =~ "has no coupled line item URL"
     end
 
     test "returns ScopeMismatch without lineitem scope", ctx do
@@ -480,8 +484,10 @@ defmodule Ltix.GradeServiceTest do
       endpoint = %AGSEndpoint{line_items: nil, line_item: @line_item_url, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert {:error, %ServiceNotAvailable{}} =
+      assert {:error, %ServiceNotAvailable{} = error} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
+
+      assert Exception.message(error) =~ "has no line items URL"
     end
 
     test "returns ScopeMismatch with only lineitem.readonly", ctx do
@@ -829,7 +835,8 @@ defmodule Ltix.GradeServiceTest do
       endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert {:error, %ServiceNotAvailable{}} = GradeService.post_score(client, ctx.score)
+      assert {:error, %ServiceNotAvailable{} = error} = GradeService.post_score(client, ctx.score)
+      assert Exception.message(error) =~ "has no coupled line item URL"
     end
   end
 
@@ -912,7 +919,8 @@ defmodule Ltix.GradeServiceTest do
       endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert {:error, %ServiceNotAvailable{}} = GradeService.list_results(client)
+      assert {:error, %ServiceNotAvailable{} = error} = GradeService.list_results(client)
+      assert Exception.message(error) =~ "has no coupled line item URL"
     end
   end
 
@@ -1141,7 +1149,8 @@ defmodule Ltix.GradeServiceTest do
       client = %{ctx.client | endpoints: %{}}
 
       assert {:ok, []} = GradeService.list_line_items(client, endpoint: ctx.endpoint)
-      assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
+      assert {:error, %ServiceNotAvailable{} = error} = GradeService.list_line_items(client)
+      assert Exception.message(error) =~ "has no grade service endpoint"
     end
   end
 
