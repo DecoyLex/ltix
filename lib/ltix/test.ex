@@ -289,10 +289,11 @@ defmodule Ltix.Test do
 
     registration = build_or_use_registration(opts)
     deployment = build_or_use_deployment(opts, registration)
+    platform = %Platform{registration: registration, deployment: deployment, jwk: jwk}
 
     # Eagerly validate protocol implementations
-    {:ok, _} = Registerable.to_registration(registration)
-    {:ok, _} = Deployable.to_deployment(deployment)
+    resolved_registration(platform)
+    resolved_deployment(platform)
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
@@ -300,7 +301,7 @@ defmodule Ltix.Test do
       |> Req.Test.json(jwks)
     end)
 
-    %Platform{registration: registration, deployment: deployment, jwk: jwk}
+    platform
   end
 
   # --- Request Builders ---
@@ -1039,43 +1040,32 @@ defmodule Ltix.Test do
     tool_jwk = Ltix.JWK.generate()
     suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
 
-    {:ok, registration} =
-      Registration.new(%{
-        issuer: issuer,
-        client_id: client_id,
-        auth_endpoint: "#{issuer}/auth",
-        jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
-        token_endpoint: "#{issuer}/token",
-        tool_jwk: tool_jwk
-      })
-
-    registration
+    Registration.new!(%{
+      issuer: issuer,
+      client_id: client_id,
+      auth_endpoint: "#{issuer}/auth",
+      jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
+      token_endpoint: "#{issuer}/token",
+      tool_jwk: tool_jwk
+    })
   end
 
   defp build_or_use_deployment(opts, registration) do
+    default = fn -> Deployment.new!(Keyword.get(opts, :deployment_id, "deployment-001")) end
+
     case Keyword.get(opts, :deployment) do
-      nil ->
-        deployment_id = Keyword.get(opts, :deployment_id, "deployment-001")
-        {:ok, deployment} = Deployment.new(deployment_id)
-        deployment
-
-      fun when is_function(fun, 2) ->
-        deployment_id = Keyword.get(opts, :deployment_id, "deployment-001")
-        {:ok, default} = Deployment.new(deployment_id)
-        fun.(default, registration)
-
-      deployment ->
-        deployment
+      nil -> default.()
+      fun when is_function(fun, 2) -> fun.(default.(), registration)
+      deployment -> deployment
     end
   end
 
-  defp resolved_registration(%Platform{} = platform) do
-    {:ok, reg} = Registerable.to_registration(platform.registration)
-    reg
-  end
+  defp resolved_registration(%Platform{} = platform),
+    do: ok!(Registerable.to_registration(platform.registration))
 
-  defp resolved_deployment(%Platform{} = platform) do
-    {:ok, dep} = Deployable.to_deployment(platform.deployment)
-    dep
-  end
+  defp resolved_deployment(%Platform{} = platform),
+    do: ok!(Deployable.to_deployment(platform.deployment))
+
+  defp ok!({:ok, value}), do: value
+  defp ok!({:error, error}), do: raise(error)
 end

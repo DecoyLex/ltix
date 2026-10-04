@@ -1,6 +1,7 @@
 defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
@@ -253,6 +254,26 @@ defmodule Ltix.TestTest do
       assert platform.registration.issuer == "https://custom.lms.edu"
       assert platform.registration.client_id == "my-tool"
       assert platform.deployment.deployment_id == "dep-99"
+    end
+  end
+
+  describe "setup_platform!/1 validation" do
+    test "raises the validation errors for an invalid issuer or deployment_id" do
+      assert_raise Ltix.Errors.Invalid, ~r/issuer/, fn ->
+        Ltix.Test.setup_platform!(issuer: "http://insecure.example.com")
+      end
+
+      assert_raise InvalidField, ~r/deployment_id/, fn ->
+        Ltix.Test.setup_platform!(deployment_id: "")
+      end
+    end
+
+    test "raises the validation error for an invalid registration struct" do
+      registration = %{Ltix.Test.setup_platform!().registration | issuer: "not a url"}
+
+      assert_raise InvalidField, ~r/issuer/, fn ->
+        Ltix.Test.setup_platform!(registration: registration)
+      end
     end
   end
 
