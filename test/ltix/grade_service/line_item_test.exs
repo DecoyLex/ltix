@@ -2,6 +2,7 @@ defmodule Ltix.GradeService.LineItemTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.GradeService.LineItem
 
   doctest LineItem
@@ -27,8 +28,8 @@ defmodule Ltix.GradeService.LineItemTest do
       assert item.resource_link_id == "resource-link-123"
       assert item.resource_id == "quiz-231"
       assert item.tag == "grade"
-      assert item.start_date_time == "2018-03-06T20:05:02Z"
-      assert item.end_date_time == "2018-04-06T22:05:03Z"
+      assert item.start_date_time == ~U[2018-03-06 20:05:02Z]
+      assert item.end_date_time == ~U[2018-04-06 22:05:03Z]
       assert item.grades_released == true
       assert item.extensions == %{}
     end
@@ -95,15 +96,29 @@ defmodule Ltix.GradeService.LineItemTest do
       assert item.extensions == %{"customPlatformField" => "some-value"}
     end
 
-    test "datetime fields are kept as strings" do
+    test "parses date times into UTC DateTime structs" do
       json = %{
         "startDateTime" => "2018-03-06T20:05:02+05:30",
-        "endDateTime" => "2018-04-06T22:05:03Z"
+        "endDateTime" => "2018-04-06T22:05:03.250Z"
       }
 
       assert {:ok, %LineItem{} = item} = LineItem.from_json(json)
-      assert item.start_date_time == "2018-03-06T20:05:02+05:30"
-      assert item.end_date_time == "2018-04-06T22:05:03Z"
+      assert item.start_date_time == ~U[2018-03-06 14:35:02Z]
+      assert item.end_date_time == ~U[2018-04-06 22:05:03.250Z]
+    end
+
+    test "treats blank date times as absent" do
+      assert {:ok, %LineItem{start_date_time: nil, end_date_time: nil}} =
+               LineItem.from_json(%{"startDateTime" => "", "endDateTime" => nil})
+    end
+
+    test "rejects date times without a time zone" do
+      for value <- ["2018-03-06T20:05:02", "next week", 42] do
+        assert {:error, %MalformedResponse{reason: reason}} =
+                 LineItem.from_json(%{"startDateTime" => value})
+
+        assert reason =~ "startDateTime"
+      end
     end
   end
 
@@ -147,6 +162,12 @@ defmodule Ltix.GradeService.LineItemTest do
       assert is_binary(reason)
     end
 
+    test "validates date times are DateTime structs" do
+      item = %LineItem{label: "Quiz 1", score_maximum: 100, end_date_time: "2018-04-06T22:05:03Z"}
+
+      assert {:error, %InvalidField{field: :end_date_time}} = LineItem.validate(item)
+    end
+
     test "returns every invalid field at once" do
       item = %LineItem{label: nil, score_maximum: 0}
 
@@ -164,8 +185,8 @@ defmodule Ltix.GradeService.LineItemTest do
         resource_link_id: "resource-link-123",
         resource_id: "quiz-231",
         tag: "grade",
-        start_date_time: "2018-03-06T20:05:02Z",
-        end_date_time: "2018-04-06T22:05:03Z",
+        start_date_time: ~U[2018-03-06 20:05:02Z],
+        end_date_time: ~U[2018-04-06 22:05:03Z],
         grades_released: true
       }
 
@@ -183,6 +204,19 @@ defmodule Ltix.GradeService.LineItemTest do
       assert json["startDateTime"] == "2018-03-06T20:05:02Z"
       assert json["endDateTime"] == "2018-04-06T22:05:03Z"
       assert json["gradesReleased"] == true
+    end
+
+    test "serializes date times as UTC ISO 8601" do
+      start = %{
+        ~U[2018-03-06 20:05:02Z]
+        | utc_offset: 19_800,
+          time_zone: "Asia/Kolkata",
+          zone_abbr: "IST"
+      }
+
+      json = LineItem.to_map(%LineItem{label: "Quiz", score_maximum: 1, start_date_time: start})
+
+      assert {:ok, ~U[2018-03-06 14:35:02Z], 0} = DateTime.from_iso8601(json["startDateTime"])
     end
 
     test "excludes nil optional fields" do

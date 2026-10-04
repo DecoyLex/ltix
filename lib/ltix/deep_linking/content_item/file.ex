@@ -20,7 +20,7 @@ defmodule Ltix.DeepLinking.ContentItem.File do
                 Zoi.string(description: "MIME type of the file (e.g. `\"application/pdf\"`).")
                 |> Zoi.optional(),
               expires_at:
-                Zoi.string(description: "ISO 8601 timestamp when the download URL expires.")
+                Zoi.datetime(description: "When the download URL expires.")
                 |> Zoi.optional(),
               extensions: extensions_schema()
             },

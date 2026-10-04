@@ -66,6 +66,15 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
       assert Exception.message(error) =~ "[:line_item, :score_maximum]"
       assert Exception.message(error) =~ "is required"
     end
+
+    test "rejects time windows given as strings" do
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{
+                field: [:submission, :end_date_time],
+                value: "2026-06-15T23:59:59Z"
+              }} =
+               LTIResourceLink.new(submission: [end_date_time: "2026-06-15T23:59:59Z"])
+    end
   end
 
   describe "to_map/1" do
@@ -96,10 +105,10 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
       {:ok, link} =
         LTIResourceLink.new(
           available: %{
-            start_date_time: "2026-01-01T00:00:00Z",
-            end_date_time: "2026-06-30T23:59:59Z"
+            start_date_time: ~U[2026-01-01 00:00:00Z],
+            end_date_time: ~U[2026-06-30 23:59:59Z]
           },
-          submission: %{end_date_time: "2026-06-15T23:59:59Z"}
+          submission: %{end_date_time: ~U[2026-06-15 23:59:59Z]}
         )
 
       json = ContentItem.to_map(link)

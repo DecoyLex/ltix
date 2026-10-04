@@ -72,11 +72,11 @@ Control when the link is accessible and when submissions are accepted:
   url: "https://tool.example.com/exams/final",
   title: "Final Exam",
   available: [
-    start_date_time: "2025-05-01T08:00:00Z",
-    end_date_time: "2025-05-01T12:00:00Z"
+    start_date_time: ~U[2025-05-01 08:00:00Z],
+    end_date_time: ~U[2025-05-01 12:00:00Z]
   ],
   submission: [
-    end_date_time: "2025-05-01T11:30:00Z"
+    end_date_time: ~U[2025-05-01 11:30:00Z]
   ]
 )
 ```
@@ -127,7 +127,7 @@ platform when the URL stops working:
   url: "https://tool.example.com/exports/report-abc123.pdf",
   title: "Lab Report Template",
   media_type: "application/pdf",
-  expires_at: "2025-03-15T12:00:00Z"
+  expires_at: ~U[2025-03-15 12:00:00Z]
 )
 ```
 

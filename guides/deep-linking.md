@@ -117,18 +117,18 @@ grade service, so you can post scores to that column later:
 )
 ```
 
-Set availability and submission windows with ISO 8601 timestamps:
+Set availability and submission windows with `DateTime` values:
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/assignments/5",
   title: "Homework 5",
   available: [
-    start_date_time: "2025-03-01T00:00:00Z",
-    end_date_time: "2025-03-31T23:59:59Z"
+    start_date_time: ~U[2025-03-01 00:00:00Z],
+    end_date_time: ~U[2025-03-31 23:59:59Z]
   ],
   submission: [
-    end_date_time: "2025-03-15T23:59:59Z"
+    end_date_time: ~U[2025-03-15 23:59:59Z]
   ]
 )
 ```

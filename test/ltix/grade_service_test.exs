@@ -447,6 +447,37 @@ defmodule Ltix.GradeServiceTest do
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
     end
 
+    test "sends date times as ISO 8601 and parses them back", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        json = Ltix.AppConfig.json_library!().decode!(body)
+        assert json["startDateTime"] == "2024-01-15T10:30:00Z"
+        assert json["endDateTime"] == "2024-02-15T10:30:00Z"
+
+        conn
+        |> Plug.Conn.put_status(201)
+        |> Req.Test.json(Map.put(json, "id", "#{@line_items_url}/new"))
+      end)
+
+      assert {:ok, %LineItem{start_date_time: ~U[2024-01-15 10:30:00Z]}} =
+               GradeService.create_line_item(build_client(ctx.platform),
+                 label: "Quiz",
+                 score_maximum: 10,
+                 start_date_time: ~U[2024-01-15 10:30:00Z],
+                 end_date_time: ~U[2024-02-15 10:30:00Z]
+               )
+    end
+
+    test "raises when a date time is not a DateTime", ctx do
+      assert_raise InvalidOption, ~r/Option :start_date_time is invalid/, fn ->
+        GradeService.create_line_item(build_client(ctx.platform),
+          label: "Quiz",
+          score_maximum: 10,
+          start_date_time: "2024-01-15T10:30:00Z"
+        )
+      end
+    end
+
     test "returns InvalidField without sending an invalid line item field", ctx do
       Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid line item") end)
       client = build_client(ctx.platform)

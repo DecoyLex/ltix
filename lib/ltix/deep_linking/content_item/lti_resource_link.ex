@@ -46,9 +46,9 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
 
   @time_window_schema object(%{
                         start_date_time:
-                          Zoi.string(description: "ISO 8601 start timestamp.") |> Zoi.optional(),
+                          Zoi.datetime(description: "Start of the window.") |> Zoi.optional(),
                         end_date_time:
-                          Zoi.string(description: "ISO 8601 end timestamp.") |> Zoi.optional()
+                          Zoi.datetime(description: "End of the window.") |> Zoi.optional()
                       })
 
   @schema Zoi.struct(

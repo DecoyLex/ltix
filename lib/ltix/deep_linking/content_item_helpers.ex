@@ -117,6 +117,7 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
     Map.merge(extensions, standard)
   end
 
+  defp to_json(%DateTime{} = date_time), do: DateTime.to_iso8601(date_time)
   defp to_json(map) when is_map(map), do: Map.new(map, fn {k, v} -> {json_key(k), to_json(v)} end)
   defp to_json(value), do: value
 

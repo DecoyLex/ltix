@@ -26,6 +26,8 @@ Build items with `ContentItem.*.new/1`, which takes a keyword list or map. Unkno
 - `Ltix.DeepLinking.ContentItem.HTMLFragment` — inline HTML the platform embeds
 - `Ltix.DeepLinking.ContentItem.Image` — image for direct rendering
 
+Date and time fields, such as `File`'s `expires_at` and a resource link's `available` and `submission` windows, take `DateTime` structs.
+
 ## Platform Constraints
 
 Before building items, check what the platform accepts:

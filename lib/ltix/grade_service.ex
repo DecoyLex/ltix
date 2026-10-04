@@ -290,8 +290,13 @@ defmodule Ltix.GradeService do
                                  Zoi.string(description: "Tool's resource identifier."),
                                tag: Zoi.string(description: "Qualifier tag."),
                                start_date_time:
-                                 Zoi.string(description: "ISO 8601 with timezone."),
-                               end_date_time: Zoi.string(description: "ISO 8601 with timezone."),
+                                 Zoi.struct(DateTime,
+                                   description: "When the line item starts accepting submissions."
+                                 ),
+                               end_date_time:
+                                 Zoi.struct(DateTime,
+                                   description: "When the line item stops accepting submissions."
+                                 ),
                                grades_released:
                                  Zoi.boolean(description: "Hint about releasing grades."),
                                extensions:

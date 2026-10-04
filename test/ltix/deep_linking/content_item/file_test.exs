@@ -22,6 +22,14 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
                ContentFile.new([])
     end
 
+    test "rejects expires_at given as a string" do
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :expires_at}} =
+               ContentFile.new(
+                 url: "https://example.com/doc.pdf",
+                 expires_at: "2026-12-31T23:59:59Z"
+               )
+    end
+
     test "succeeds with all fields" do
       assert {:ok, file} =
                ContentFile.new(
@@ -31,11 +39,11 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
                  icon: %{url: "https://example.com/icon.png"},
                  thumbnail: %{url: "https://example.com/thumb.png"},
                  media_type: "application/pdf",
-                 expires_at: "2026-12-31T23:59:59Z"
+                 expires_at: ~U[2026-12-31 23:59:59Z]
                )
 
       assert file.media_type == "application/pdf"
-      assert file.expires_at == "2026-12-31T23:59:59Z"
+      assert file.expires_at == ~U[2026-12-31 23:59:59Z]
     end
   end
 
@@ -53,7 +61,7 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
         ContentFile.new(
           url: "https://example.com/doc.pdf",
           media_type: "application/pdf",
-          expires_at: "2026-12-31T23:59:59Z"
+          expires_at: ~U[2026-12-31 23:59:59Z]
         )
 
       json = ContentItem.to_map(file)
