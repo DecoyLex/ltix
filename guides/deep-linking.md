@@ -219,8 +219,6 @@ defmodule MyApp.ProctoredExam do
   defstruct [:url, :title, :duration_minutes]
 
   defimpl Ltix.DeepLinking.ContentItem do
-    def item_type(_item), do: "https://myapp.example.com/proctored_exam"
-
     def to_map(item) do
       %{
         "type" => "https://myapp.example.com/proctored_exam",

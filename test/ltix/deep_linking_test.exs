@@ -241,6 +241,31 @@ defmodule Ltix.DeepLinkingTest do
                DeepLinking.build_response(context, [raw])
     end
 
+    test "checks a custom item by the type it serializes", %{platform: p} do
+      poll = %CustomContentItem{question: "Ready?"}
+
+      accepting =
+        Ltix.Test.build_launch_context(p,
+          message_type: :deep_linking,
+          deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]}
+        )
+
+      rejecting =
+        Ltix.Test.build_launch_context(p,
+          message_type: :deep_linking,
+          deep_linking_settings: %{accept_types: ["link"]}
+        )
+
+      assert {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(accepting, [poll])
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
+
+      assert [%{"type" => "https://vendor.example.com/poll", "question" => "Ready?"}] =
+               claims[@dl <> "content_items"]
+
+      assert {:error, %ContentItemTypeNotAccepted{type: "https://vendor.example.com/poll"}} =
+               DeepLinking.build_response(rejecting, [poll])
+    end
+
     test "accepts item type in accept_types", %{platform: p} do
       context =
         Ltix.Test.build_launch_context(p,

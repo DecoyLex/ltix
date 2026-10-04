@@ -140,8 +140,6 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   end
 
   defimpl ContentItem do
-    def item_type(_item), do: "ltiResourceLink"
-
     def to_map(item), do: ContentItemHelpers.to_map(item, "ltiResourceLink")
   end
 end

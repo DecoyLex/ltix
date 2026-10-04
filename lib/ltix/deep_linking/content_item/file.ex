@@ -74,8 +74,6 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.3")
 
   defimpl ContentItem do
-    def item_type(_item), do: "file"
-
     def to_map(item), do: ContentItemHelpers.to_map(item, "file")
   end
 end

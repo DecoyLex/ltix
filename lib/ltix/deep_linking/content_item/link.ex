@@ -97,8 +97,6 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.1")
 
   defimpl ContentItem do
-    def item_type(_item), do: "link"
-
     def to_map(item), do: ContentItemHelpers.to_map(item, "link")
   end
 end

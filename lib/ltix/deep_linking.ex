@@ -21,7 +21,6 @@ defmodule Ltix.DeepLinking do
   """
 
   alias Ltix.DeepLinking.ContentItem
-  alias Ltix.DeepLinking.ContentItem.LTIResourceLink
   alias Ltix.DeepLinking.Response
 
   alias Ltix.Deployable
@@ -100,12 +99,11 @@ defmodule Ltix.DeepLinking do
          items,
          opts
        ) do
+    items_json = Enum.map(items, &ContentItem.to_map/1)
+
     metadata = %{
-      item_count: length(items),
-      item_types:
-        items
-        |> Enum.map(&ContentItem.item_type/1)
-        |> Enum.uniq()
+      item_count: length(items_json),
+      item_types: Enum.uniq(Enum.map(items_json, & &1["type"]))
     }
 
     :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
@@ -114,10 +112,9 @@ defmodule Ltix.DeepLinking do
       result =
         with {:ok, registration} <- Registerable.to_registration(context.registration),
              {:ok, deployment} <- Deployable.to_deployment(context.deployment),
-             :ok <- validate_item_types(items, settings.accept_types),
-             :ok <- validate_multiplicity(items, settings.accept_multiple),
-             :ok <- validate_line_items(items, settings.accept_line_item) do
-          items_json = Enum.map(items, &ContentItem.to_map/1)
+             :ok <- validate_item_types(items_json, settings.accept_types),
+             :ok <- validate_multiplicity(items_json, settings.accept_multiple),
+             :ok <- validate_line_items(items_json, settings.accept_line_item) do
           claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
           jwt = sign_jwt(claims, registration.tool_jwk)
           {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
@@ -135,7 +132,7 @@ defmodule Ltix.DeepLinking do
 
   defp validate_item_types(items, accept_types) do
     Enum.reduce_while(items, :ok, fn item, :ok ->
-      type = ContentItem.item_type(item)
+      type = item["type"]
 
       if type in accept_types do
         {:cont, :ok}
@@ -166,7 +163,7 @@ defmodule Ltix.DeepLinking do
   defp validate_line_items(items, accept_line_item) when accept_line_item == false do
     has_line_item? =
       Enum.any?(items, fn
-        %LTIResourceLink{line_item: li} when not is_nil(li) -> true
+        %{"type" => "ltiResourceLink", "lineItem" => _} -> true
         _ -> false
       end)
 

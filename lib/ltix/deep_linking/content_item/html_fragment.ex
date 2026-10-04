@@ -57,8 +57,6 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.4")
 
   defimpl ContentItem do
-    def item_type(_item), do: "html"
-
     def to_map(item), do: ContentItemHelpers.to_map(item, "html")
   end
 end

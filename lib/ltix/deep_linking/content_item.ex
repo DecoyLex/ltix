@@ -3,16 +3,14 @@ defprotocol Ltix.DeepLinking.ContentItem do
   Protocol for serializing content items in Deep Linking responses.
 
   Ltix implements this protocol for the five standard content item types
-  and for plain maps (as an escape hatch for one-off custom types).
+  and for plain maps (for one-off custom types).
   Implement this protocol on your own struct when you need a reusable
-  custom content item type:
+  custom content item type.
 
       defmodule MyApp.ProctoredExam do
         defstruct [:url, :title, :duration_minutes]
 
         defimpl Ltix.DeepLinking.ContentItem do
-          def item_type(_item), do: "https://myapp.example.com/proctored_exam"
-
           def to_map(item) do
             %{
               "type" => "https://myapp.example.com/proctored_exam",
@@ -24,12 +22,9 @@ defprotocol Ltix.DeepLinking.ContentItem do
         end
       end
 
-  The platform's `accept_types` must include your custom type string.
+  The platform's `accept_types` must include the `"type"` your `to_map/1`
+  returns.
   """
-
-  @doc "Return the content item type string (e.g., `\"ltiResourceLink\"`)."
-  @spec item_type(t) :: String.t()
-  def item_type(content_item)
 
   @doc """
   Serialize the content item to a JSON-compatible map.
@@ -46,8 +41,5 @@ defprotocol Ltix.DeepLinking.ContentItem do
 end
 
 defimpl Ltix.DeepLinking.ContentItem, for: Map do
-  def item_type(%{"type" => type}), do: type
-  def item_type(_), do: raise(ArgumentError, "Invalid content item map: missing 'type' field")
-
   def to_map(map), do: map
 end
