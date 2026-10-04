@@ -15,6 +15,16 @@ defmodule Ltix.OAuth.AccessTokenTest do
   }
 
   describe "from_response/2" do
+    test "raises on unknown and invalid options" do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :scopes is unknown", fn ->
+        AccessToken.from_response(@valid_response, scopes: [])
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :now is invalid/, fn ->
+        AccessToken.from_response(@valid_response, now: "2025-01-01T00:00:00Z")
+      end
+    end
+
     test "parses all fields from a complete response" do
       assert {:ok, token} = AccessToken.from_response(@valid_response, now: @now)
 

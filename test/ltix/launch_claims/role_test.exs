@@ -9,6 +9,24 @@ defmodule Ltix.LaunchClaims.RoleTest do
 
   @context_base "http://purl.imsglobal.org/vocab/lis/v2/membership#"
 
+  describe "parse/2 and parse_all/2 options" do
+    test "raise on unknown and invalid options" do
+      uri = "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :parser is unknown", fn ->
+        Role.parse(uri, parser: %{})
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :parsers is invalid/, fn ->
+        Role.parse_all([uri], parsers: [Ltix.LaunchClaims.Role.LIS])
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption,
+                   ~r/Option :parsers is invalid, role parsers must be modules/,
+                   fn -> Role.parse(uri, parsers: %{"https://example.com/" => "parser"}) end
+    end
+  end
+
   describe "parse/1 context roles [Core §A.2.3]" do
     for role_name <-
           ~w(Administrator ContentDeveloper Instructor Learner Mentor Manager Member Officer) do

@@ -126,6 +126,33 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   describe "from_access_token/2" do
+    test "raises on missing, unknown, and invalid options" do
+      {:ok, token} =
+        AccessToken.from_response(%{"access_token" => "cached-token", "token_type" => "Bearer"})
+
+      registration = build_registration()
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :registration is required", fn ->
+        Client.from_access_token(token, endpoints: %{TestService => :valid_endpoint})
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :scopes is unknown", fn ->
+        Client.from_access_token(token,
+          registration: registration,
+          endpoints: %{TestService => :valid_endpoint},
+          scopes: []
+        )
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :req_options is invalid/, fn ->
+        Client.from_access_token(token,
+          registration: registration,
+          endpoints: %{TestService => :valid_endpoint},
+          req_options: %{}
+        )
+      end
+    end
+
     test "builds client from cached token with valid endpoints" do
       registration = build_registration()
 

@@ -28,6 +28,15 @@ defmodule Ltix.OAuth.AccessToken do
   """
 
   alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Options
+
+  @options_schema Zoi.keyword(
+                    [
+                      requested_scopes: Zoi.list(Zoi.string()) |> Zoi.default([]),
+                      now: Zoi.struct(DateTime)
+                    ],
+                    unrecognized_keys: :error
+                  )
 
   defstruct [:access_token, :token_type, :granted_scopes, :expires_at]
 
@@ -52,16 +61,18 @@ defmodule Ltix.OAuth.AccessToken do
   # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
   # [RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1)
   @spec from_response(term(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_response(body, opts \\ [])
+  def from_response(body, opts \\ []) do
+    parse_response(body, Options.parse!(opts, @options_schema))
+  end
 
-  def from_response(
-        %{"access_token" => access_token, "token_type" => token_type} = body,
-        opts
-      )
-      when is_binary(access_token) and byte_size(access_token) > 0 and
-             is_binary(token_type) and byte_size(token_type) > 0 do
-    now = Keyword.get(opts, :now, DateTime.utc_now())
-    requested_scopes = Keyword.get(opts, :requested_scopes, [])
+  defp parse_response(
+         %{"access_token" => access_token, "token_type" => token_type} = body,
+         opts
+       )
+       when is_binary(access_token) and byte_size(access_token) > 0 and
+              is_binary(token_type) and byte_size(token_type) > 0 do
+    now = Keyword.get_lazy(opts, :now, &DateTime.utc_now/0)
+    requested_scopes = Keyword.fetch!(opts, :requested_scopes)
 
     with :ok <- validate_token(access_token, token_type),
          {:ok, expires_at} <- parse_expiry(Map.fetch(body, "expires_in"), now),
@@ -76,7 +87,7 @@ defmodule Ltix.OAuth.AccessToken do
     end
   end
 
-  def from_response(_body, _opts) do
+  defp parse_response(_body, _opts) do
     malformed_response("missing access_token or token_type, or invalid value in token response")
   end
 

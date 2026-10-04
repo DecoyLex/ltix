@@ -182,6 +182,26 @@ defmodule Ltix.DeepLinkingTest do
       assert claims[@dl <> "errorlog"] == "stack trace"
     end
 
+    test "raises on unknown and invalid options", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      resource_link_context = Ltix.Test.build_launch_context(p)
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :msg is unknown", fn ->
+        DeepLinking.build_response(context, [], msg: "Done")
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :msg is unknown", fn ->
+        DeepLinking.build_response(resource_link_context, [], msg: "Done")
+      end
+
+      error =
+        assert_raise Ltix.Errors.Invalid.InvalidOption, fn ->
+          DeepLinking.build_response(context, [], log: 123)
+        end
+
+      assert %{key: :log, value: 123} = error
+    end
+
     test "omits absent message options from JWT", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)

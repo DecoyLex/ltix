@@ -26,6 +26,16 @@ defmodule Ltix.JWT.KeySetTest do
   end
 
   describe "get_key/3" do
+    test "raises on unknown and invalid options", ctx do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :request_options is unknown", fn ->
+        KeySet.get_key(ctx.registration, ctx.kid, request_options: [])
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :cache is invalid/, fn ->
+        KeySet.get_key(ctx.registration, ctx.kid, cache: "cache")
+      end
+    end
+
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
     test "fetches and selects key by kid", ctx do
       stub_jwks(ctx.jwks)

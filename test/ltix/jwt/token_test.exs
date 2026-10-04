@@ -40,6 +40,18 @@ defmodule Ltix.JWT.TokenTest do
   end
 
   describe "verify/3" do
+    test "raises on unknown and invalid options", ctx do
+      token = mint_valid_token(ctx)
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :skew is unknown", fn ->
+        Token.verify(token, ctx.registration, skew: 10)
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :now is invalid/, fn ->
+        Token.verify(token, ctx.registration, now: DateTime.utc_now())
+      end
+    end
+
     # Happy path
     test "valid JWT passes all checks", ctx do
       token = mint_valid_token(ctx)

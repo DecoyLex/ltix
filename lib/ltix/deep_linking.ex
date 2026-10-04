@@ -26,6 +26,7 @@ defmodule Ltix.DeepLinking do
 
   alias Ltix.Deployable
   alias Ltix.LaunchContext
+  alias Ltix.Options
   alias Ltix.Registerable
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
@@ -36,12 +37,15 @@ defmodule Ltix.DeepLinking do
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
 
-  @opts_schema Zoi.keyword(
-                 message: Zoi.string() |> Zoi.optional(),
-                 log: Zoi.string() |> Zoi.optional(),
-                 error_message: Zoi.string() |> Zoi.optional(),
-                 error_log: Zoi.string() |> Zoi.optional()
-               )
+  @options_schema Zoi.keyword(
+                    [
+                      message: Zoi.string(),
+                      log: Zoi.string(),
+                      error_message: Zoi.string(),
+                      error_log: Zoi.string()
+                    ],
+                    unrecognized_keys: :error
+                  )
 
   @doc """
   Build a signed Deep Linking response JWT.
@@ -68,6 +72,8 @@ defmodule Ltix.DeepLinking do
     * `Ltix.Errors.Invalid.LineItemNotAccepted` — line item present
       when `accept_line_item` is `false`
 
+  Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+
   ## Examples
 
       {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -85,13 +91,15 @@ defmodule Ltix.DeepLinking do
   """
   @spec build_response(LaunchContext.t(), list(), keyword()) ::
           {:ok, Response.t()} | {:error, Exception.t()}
-  def build_response(context, items \\ [], opts \\ [])
+  def build_response(context, items \\ [], opts \\ []) do
+    build(context, items, Options.parse!(opts, @options_schema))
+  end
 
-  def build_response(
-        %LaunchContext{claims: %{message_type: "LtiDeepLinkingRequest"}} = context,
-        items,
-        opts
-      ) do
+  defp build(
+         %LaunchContext{claims: %{message_type: "LtiDeepLinkingRequest"}} = context,
+         items,
+         opts
+       ) do
     metadata = %{
       item_count: length(items),
       item_types:
@@ -104,8 +112,7 @@ defmodule Ltix.DeepLinking do
       settings = context.claims.deep_linking_settings
 
       result =
-        with {:ok, opts} <- validate_opts(opts),
-             {:ok, registration} <- Registerable.to_registration(context.registration),
+        with {:ok, registration} <- Registerable.to_registration(context.registration),
              {:ok, deployment} <- Deployable.to_deployment(context.deployment),
              :ok <- validate_item_types(items, settings.accept_types),
              :ok <- validate_multiplicity(items, settings.accept_multiple),
@@ -120,13 +127,11 @@ defmodule Ltix.DeepLinking do
     end)
   end
 
-  def build_response(%LaunchContext{claims: %{message_type: mt}}, _items, _opts) do
+  defp build(%LaunchContext{claims: %{message_type: mt}}, _items, _opts) do
     {:error, InvalidMessageType.exception(message_type: mt, spec_ref: "DL §4.5")}
   end
 
   # --- Validation ---
-
-  defp validate_opts(opts), do: Zoi.parse(@opts_schema, opts)
 
   defp validate_item_types(items, accept_types) do
     Enum.reduce_while(items, :ok, fn item, :ok ->

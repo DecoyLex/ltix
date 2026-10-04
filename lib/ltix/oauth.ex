@@ -1,15 +1,18 @@
 defmodule Ltix.OAuth do
   @authenticate_schema Zoi.keyword(
-                         endpoints:
-                           Zoi.map(Zoi.atom(), Zoi.any(),
-                             description: "Map of service modules to endpoint structs."
-                           )
-                           |> Zoi.required(),
-                         req_options:
-                           Zoi.keyword(Zoi.any(),
-                             description: "Options passed through to `Req.request/2`."
-                           )
-                           |> Zoi.default([])
+                         [
+                           endpoints:
+                             Zoi.map(Zoi.atom(), Zoi.any(),
+                               description: "Map of service modules to endpoint structs."
+                             )
+                             |> Zoi.required(),
+                           req_options:
+                             Zoi.keyword(Zoi.any(),
+                               description: "Options passed through to `Req.request/2`."
+                             )
+                             |> Zoi.default([])
+                         ],
+                         unrecognized_keys: :error
                        )
 
   @moduledoc """
@@ -43,6 +46,7 @@ defmodule Ltix.OAuth do
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
+  alias Ltix.Options
   alias Ltix.Registerable
 
   @doc """
@@ -57,7 +61,7 @@ defmodule Ltix.OAuth do
   @spec authenticate(Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
   def authenticate(registerable, opts \\ []) do
-    opts = Zoi.parse!(@authenticate_schema, opts)
+    opts = Options.parse!(opts, @authenticate_schema)
     endpoints = Keyword.fetch!(opts, :endpoints)
     req_options = Keyword.fetch!(opts, :req_options)
 

@@ -111,6 +111,15 @@ end
 
 The message of a grouped error lists the message of each error it contains.
 
+## Invalid options
+
+Ltix raises `Ltix.Errors.Invalid.InvalidOption` when a function gets an unknown option, a missing required option, or an option with a value of the wrong type.
+
+```elixir
+Ltix.JWK.generate(key_sise: 4096)
+** (Ltix.Errors.Invalid.InvalidOption) Option :key_sise is unknown
+```
+
 ## Error messages and spec references
 
 Every error produces a human-readable message via `Exception.message/1`
@@ -131,13 +140,14 @@ validation step failed.
 
 ## Invalid errors
 
-These indicate problems with the incoming data:
+These indicate problems with the incoming data or the calling code:
 
 | Error | Fields | When |
 |---|---|---|
 | `MissingParameter` | `parameter`, `spec_ref` | OIDC login request missing a required param |
 | `MissingClaim` | `claim`, `spec_ref` | JWT missing a required claim |
 | `InvalidClaim` | `claim`, `value`, `spec_ref` | JWT claim has an invalid value |
+| `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
 | `InvalidJSON` | `spec_ref` | JWT body isn't valid JSON |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |
 | `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment_id |

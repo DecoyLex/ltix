@@ -20,7 +20,9 @@ defmodule Ltix do
       config :ltix,
         storage_adapter: MyApp.LtiStorage
 
-  All configuration can also be passed (or overridden) per-call via opts.
+  Pass `:storage_adapter`, `:allow_anonymous`, or `:req_options` as an option
+  to override the setting for a single call. Unknown or invalid options raise
+  `Ltix.Errors.Invalid.InvalidOption`.
 
   ### Required
 
@@ -147,6 +149,22 @@ defmodule Ltix do
   alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
   alias Ltix.OIDC.LoginInitiation
+  alias Ltix.Options
+
+  @login_schema Zoi.keyword([storage_adapter: Zoi.module()],
+                  unrecognized_keys: :error
+                )
+
+  @callback_schema Zoi.keyword(
+                     [
+                       storage_adapter: Zoi.module(),
+                       allow_anonymous: Zoi.boolean(),
+                       req_options: Zoi.keyword(Zoi.any()),
+                       claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
+                       clock_skew: Zoi.integer() |> Zoi.non_negative()
+                     ],
+                     unrecognized_keys: :error
+                   )
 
   @doc """
   Handle a platform's login initiation and build an authorization redirect.
@@ -170,7 +188,8 @@ defmodule Ltix do
   @spec handle_login(params :: map(), redirect_uri :: String.t(), opts :: keyword()) ::
           {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Exception.t()}
   def handle_login(params, redirect_uri, opts \\ []) do
-    {storage_adapter, _opts} = AppConfig.pop_required!(opts, :storage_adapter)
+    opts = Options.parse!(opts, @login_schema)
+    storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
 
     meta = span_metadata(:handle_login_start, params)
 
@@ -204,7 +223,8 @@ defmodule Ltix do
   @spec handle_callback(params :: map(), state :: String.t(), opts :: keyword()) ::
           {:ok, LaunchContext.t()} | {:error, Exception.t()}
   def handle_callback(params, state, opts \\ []) do
-    {storage_adapter, opts} = AppConfig.pop_required!(opts, :storage_adapter)
+    opts = Options.parse!(opts, @callback_schema)
+    storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
     opts = Keyword.put_new(opts, :allow_anonymous, AppConfig.allow_anonymous_launches?())
 
     :telemetry.span([:ltix, :callback], %{}, fn ->

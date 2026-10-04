@@ -123,7 +123,7 @@ end
 
 ## Claim Customization
 
-`launch_params/2` and `build_launch_context/2` share most options:
+`launch_params/2` and `build_launch_context/2` share most options. Unknown options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 - `:roles` — list of atoms (`:instructor`, `:learner`, `:teaching_assistant`, etc.),
   `%Role{}` structs, or URI strings
@@ -133,6 +133,10 @@ end
 - `:resource_link` — map with `:id`, `:title` keys
 - `:message_type` — `:deep_linking` for deep linking requests
 - `:deep_linking_settings` — map of settings (for deep linking)
+- `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
+
+`launch_params/2` also accepts:
+
 - `:claims` — raw claim map merged last (for advanced overrides)
 
 `build_launch_context/2` also accepts:

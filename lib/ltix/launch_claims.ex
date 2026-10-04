@@ -84,6 +84,7 @@ defmodule Ltix.LaunchClaims do
 
   alias Ltix.AppConfig
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Options
 
   alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.ClaimHelpers
@@ -256,6 +257,14 @@ defmodule Ltix.LaunchClaims do
     "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => :deep_linking_settings
   }
 
+  @options_schema Zoi.keyword(
+                    [
+                      parsers: Zoi.map(Zoi.string(), Zoi.any()),
+                      role_parsers: Zoi.map(Zoi.string(), Zoi.any())
+                    ],
+                    unrecognized_keys: :error
+                  )
+
   @nested_claims %{
     context: {ClaimHelpers.optional(Context.schema()), "context", "Core §5.4.1"},
     resource_link: {ResourceLink.schema(), "resource_link", "Core §5.3.5"},
@@ -297,6 +306,7 @@ defmodule Ltix.LaunchClaims do
   """
   @spec from_json(map(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json, opts \\ []) when is_map(json) do
+    opts = Options.parse!(opts, @options_schema)
     claim_parsers = resolve_claim_parsers(opts)
     role_parsers = Keyword.get(opts, :role_parsers, %{})
     {configured_claims, builtin_claims} = Map.split(json, Map.keys(claim_parsers))
@@ -447,11 +457,6 @@ defmodule Ltix.LaunchClaims do
   defp resolve_claim_parsers(opts) do
     config_parsers = AppConfig.claims_parsers!()
 
-    call_parsers =
-      opts
-      |> Keyword.get(:parsers, %{})
-      |> Map.new()
-
-    Map.merge(config_parsers, call_parsers)
+    Map.merge(config_parsers, Keyword.get(opts, :parsers, %{}))
   end
 end

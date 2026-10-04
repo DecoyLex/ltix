@@ -3,6 +3,7 @@ defmodule LtixTest do
 
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.LaunchContext
@@ -140,6 +141,26 @@ defmodule LtixTest do
       assert query["redirect_uri"] == @redirect_uri
     end
 
+    test "raises when no storage adapter is passed or configured" do
+      Application.delete_env(:ltix, :storage_adapter)
+
+      assert_raise InvalidOption,
+                   ~r/Option :storage_adapter is required. Pass it or set it/,
+                   fn ->
+                     Ltix.handle_login(login_params(), @redirect_uri)
+                   end
+    end
+
+    test "raises on unknown and invalid options" do
+      assert_raise InvalidOption, "Option :storage is unknown", fn ->
+        Ltix.handle_login(login_params(), @redirect_uri, storage: StorageAdapter)
+      end
+
+      assert_raise InvalidOption, ~r/Option :storage_adapter is invalid/, fn ->
+        Ltix.handle_login(login_params(), @redirect_uri, storage_adapter: "StorageAdapter")
+      end
+    end
+
     test "delegates errors from underlying modules" do
       params = Map.delete(login_params(), "iss")
 
@@ -149,6 +170,29 @@ defmodule LtixTest do
   end
 
   describe "handle_callback/3" do
+    test "raises on unknown and invalid options", ctx do
+      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
+
+      assert_raise InvalidOption, "Option :allow_anonymous_launches is unknown", fn ->
+        Ltix.handle_callback(params, ctx.state, allow_anonymous_launches: true)
+      end
+
+      assert_raise InvalidOption, ~r/Option :clock_skew is invalid/, fn ->
+        Ltix.handle_callback(params, ctx.state, clock_skew: -1)
+      end
+    end
+
+    test "raises when no storage adapter is passed or configured", ctx do
+      Application.delete_env(:ltix, :storage_adapter)
+      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
+
+      assert_raise InvalidOption,
+                   ~r/Option :storage_adapter is required. Pass it or set it/,
+                   fn ->
+                     Ltix.handle_callback(params, ctx.state)
+                   end
+    end
+
     # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)
     test "returns LaunchContext", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}

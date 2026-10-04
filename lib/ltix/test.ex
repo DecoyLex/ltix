@@ -137,6 +137,7 @@ defmodule Ltix.Test do
 
   alias Ltix.Deployable
   alias Ltix.Deployment
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.LaunchClaims
@@ -148,9 +149,85 @@ defmodule Ltix.Test do
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
   alias Ltix.MembershipsService.Member
+  alias Ltix.Options
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Test.Platform
+
+  @setup_platform_schema Zoi.keyword(
+                           [
+                             issuer: Zoi.string(),
+                             client_id: Zoi.string(),
+                             deployment_id: Zoi.string(),
+                             registration: Zoi.any(),
+                             deployment: Zoi.any()
+                           ],
+                           unrecognized_keys: :error
+                         )
+
+  @login_params_schema Zoi.keyword([login_hint: Zoi.string(), target_link_uri: Zoi.string()],
+                         unrecognized_keys: :error
+                       )
+
+  @claim_option_fields [
+    message_type: Zoi.union([Zoi.atom(), Zoi.string()]),
+    roles: Zoi.list(Zoi.union([Zoi.atom(), Zoi.string(), Zoi.struct(Role)])),
+    subject: Zoi.string(),
+    name: Zoi.string(),
+    email: Zoi.string(),
+    given_name: Zoi.string(),
+    family_name: Zoi.string(),
+    target_link_uri: Zoi.string(),
+    context: Zoi.map(Zoi.atom(), Zoi.any()),
+    resource_link: Zoi.map(Zoi.atom(), Zoi.any()),
+    deep_linking_settings:
+      Zoi.union([Zoi.struct(DeepLinkingSettings), Zoi.map(Zoi.atom(), Zoi.any())])
+  ]
+
+  @launch_params_schema Zoi.keyword(
+                          @claim_option_fields ++
+                            [
+                              nonce: Zoi.string() |> Zoi.required(),
+                              state: Zoi.string() |> Zoi.required(),
+                              claims: Zoi.map(Zoi.string(), Zoi.any())
+                            ],
+                          unrecognized_keys: :error
+                        )
+
+  @build_launch_context_schema Zoi.keyword(
+                                 @claim_option_fields ++
+                                   [
+                                     ags_endpoint:
+                                       Zoi.union([
+                                         Zoi.struct(AGSEndpoint),
+                                         Zoi.map(Zoi.atom(), Zoi.any())
+                                       ]),
+                                     memberships_endpoint:
+                                       Zoi.union([
+                                         Zoi.struct(MembershipsEndpoint),
+                                         Zoi.string(),
+                                         Zoi.map(Zoi.atom(), Zoi.any())
+                                       ])
+                                   ],
+                                 unrecognized_keys: :error
+                               )
+
+  @stub_token_response_schema Zoi.keyword(
+                                [
+                                  scopes: Zoi.list(Zoi.string()),
+                                  access_token: Zoi.string(),
+                                  expires_in: Zoi.integer()
+                                ],
+                                unrecognized_keys: :error
+                              )
+
+  @stub_get_members_schema Zoi.keyword([context: Zoi.struct(Context), id: Zoi.string()],
+                             unrecognized_keys: :error
+                           )
+
+  @mint_id_token_schema Zoi.keyword([kid: Zoi.string(), alg: Zoi.string()],
+                          unrecognized_keys: :error
+                        )
 
   # --- Platform Setup ---
 
@@ -183,6 +260,7 @@ defmodule Ltix.Test do
   def setup_platform!(opts \\ []) do
     require_plug!()
 
+    opts = Options.parse!(opts, @setup_platform_schema)
     validate_setup_opts!(opts)
 
     {private_key, public_key, kid} = generate_rsa_key_pair()
@@ -223,6 +301,8 @@ defmodule Ltix.Test do
   """
   @spec login_params(Platform.t(), keyword()) :: map()
   def login_params(%Platform{} = platform, opts \\ []) do
+    opts = Options.parse!(opts, @login_params_schema)
+
     %{
       "iss" => resolved_registration(platform).issuer,
       "login_hint" => Keyword.get(opts, :login_hint, "user-hint"),
@@ -253,10 +333,12 @@ defmodule Ltix.Test do
     * `:resource_link` — map with `:id`, `:title` keys
     * `:deep_linking_settings` — map of DL settings (used when
       `message_type: :deep_linking`)
+    * `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
     * `:claims` — raw claim map merged last (for advanced overrides)
   """
   @spec launch_params(Platform.t(), keyword()) :: map()
   def launch_params(%Platform{} = platform, opts) do
+    opts = Options.parse!(opts, @launch_params_schema)
     nonce = Keyword.fetch!(opts, :nonce)
     state = Keyword.fetch!(opts, :state)
 
@@ -287,8 +369,13 @@ defmodule Ltix.Test do
   Build a `%LaunchContext{}` directly for unit testing.
 
   Constructs the context without going through the OIDC flow.
-  Accepts the same claim options as `launch_params/2` (except `:nonce`
-  and `:state`, which are not needed).
+  Accepts the claim options of `launch_params/2` except `:nonce`, `:state`,
+  and `:claims`, plus these service endpoint options:
+
+    * `:ags_endpoint` — `%Ltix.LaunchClaims.AGSEndpoint{}` or a map with
+      `:line_items`, `:line_item`, and `:scopes` keys
+    * `:memberships_endpoint` — `%Ltix.LaunchClaims.MembershipsEndpoint{}`,
+      a URL string, or a map with `:url` and `:service_versions` keys
 
       context = Ltix.Test.build_launch_context(platform,
         roles: [:instructor, :teaching_assistant],
@@ -305,7 +392,7 @@ defmodule Ltix.Test do
   """
   @spec build_launch_context(Platform.t(), keyword()) :: LaunchContext.t()
   def build_launch_context(%Platform{} = platform, opts \\ []) do
-    claims = build_launch_claims(platform, opts)
+    claims = build_launch_claims(platform, Options.parse!(opts, @build_launch_context_schema))
 
     %LaunchContext{
       claims: claims,
@@ -391,6 +478,7 @@ defmodule Ltix.Test do
   def stub_token_response(opts \\ []) do
     require_plug!()
 
+    opts = Options.parse!(opts, @stub_token_response_schema)
     scopes = Keyword.get(opts, :scopes, [])
 
     response = %{
@@ -556,6 +644,7 @@ defmodule Ltix.Test do
   def stub_get_members(members, opts \\ []) when is_list(members) do
     require_plug!()
 
+    opts = Options.parse!(opts, @stub_get_members_schema)
     context = Keyword.get(opts, :context, %Context{id: "context-001"})
     container_id = Keyword.get(opts, :id)
 
@@ -694,6 +783,7 @@ defmodule Ltix.Test do
   """
   @spec mint_id_token(map(), JOSE.JWK.t(), keyword()) :: String.t()
   def mint_id_token(claims, private_jwk, opts \\ []) do
+    opts = Options.parse!(opts, @mint_id_token_schema)
     kid = Keyword.get(opts, :kid)
     alg = Keyword.get(opts, :alg, "RS256")
 
@@ -993,22 +1083,21 @@ defmodule Ltix.Test do
     # Function registrations are not — the function receives a registration
     # built from those values.
     if not is_nil(registration) and not is_function(registration) do
-      if Keyword.has_key?(opts, :issuer) do
-        raise ArgumentError,
-              ":registration and :issuer are mutually exclusive in setup_platform!/1"
-      end
-
-      if Keyword.has_key?(opts, :client_id) do
-        raise ArgumentError,
-              ":registration and :client_id are mutually exclusive in setup_platform!/1"
-      end
+      reject_combined_option!(opts, :issuer, :registration)
+      reject_combined_option!(opts, :client_id, :registration)
     end
 
     if not is_nil(deployment) and not is_function(deployment) do
-      if Keyword.has_key?(opts, :deployment_id) do
-        raise ArgumentError,
-              ":deployment and :deployment_id are mutually exclusive in setup_platform!/1"
-      end
+      reject_combined_option!(opts, :deployment_id, :deployment)
+    end
+  end
+
+  defp reject_combined_option!(opts, key, struct_key) do
+    if Keyword.has_key?(opts, key) do
+      raise InvalidOption,
+        key: key,
+        value: Keyword.fetch!(opts, key),
+        reason: "cannot be combined with a #{inspect(struct_key)} struct"
     end
   end
 

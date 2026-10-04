@@ -47,9 +47,20 @@ defmodule Ltix.JWT.Token do
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.Errors.Security.TokenExpired
   alias Ltix.JWT.KeySet
+  alias Ltix.Options
   alias Ltix.Registration
 
   @default_clock_skew 5
+
+  @options_schema Zoi.keyword(
+                    [
+                      clock_skew: Zoi.integer() |> Zoi.non_negative(),
+                      now: Zoi.integer(),
+                      req_options: Zoi.keyword(Zoi.any()),
+                      cache: Zoi.module()
+                    ],
+                    unrecognized_keys: :error
+                  )
 
   @doc """
   Verify and decode an LTI ID Token.
@@ -64,11 +75,14 @@ defmodule Ltix.JWT.Token do
   @spec verify(String.t(), Registration.t(), keyword()) ::
           {:ok, claims :: map()} | {:error, Exception.t()}
   def verify(token_string, %Registration{} = registration, opts \\ []) do
+    opts = Options.parse!(opts, @options_schema)
+
     with {:ok, header} <- peek_header(token_string),
          :ok <- validate_algorithm(header),
          :ok <- validate_critical_headers(header),
          {:ok, kid} <- extract_kid(header),
-         {:ok, jwk} <- KeySet.get_key(registration, kid, opts),
+         {:ok, jwk} <-
+           KeySet.get_key(registration, kid, Keyword.take(opts, [:req_options, :cache])),
          {:ok, claims} <- verify_signature(token_string, jwk),
          :ok <- validate_claims(claims, registration, opts) do
       {:ok, claims}

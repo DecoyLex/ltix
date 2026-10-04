@@ -377,6 +377,16 @@ defmodule Ltix.LaunchClaimsTest do
   # --- Errors ---
 
   describe "from_json/2 errors" do
+    test "raises on unknown and invalid options" do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :claim_parser is unknown", fn ->
+        LaunchClaims.from_json(%{}, claim_parser: %{})
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :role_parsers is invalid/, fn ->
+        LaunchClaims.from_json(%{}, role_parsers: [:instructor])
+      end
+    end
+
     test "a single invalid claim is returned on its own" do
       assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "launch.issuer", value: 1}} =
                LaunchClaims.from_json(%{"iss" => 1})

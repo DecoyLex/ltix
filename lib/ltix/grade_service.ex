@@ -37,6 +37,7 @@ defmodule Ltix.GradeService do
 
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
+  alias Ltix.Options
   alias Ltix.Pagination
   alias Ltix.Registerable
 
@@ -74,22 +75,28 @@ defmodule Ltix.GradeService do
   def scopes(%AGSEndpoint{scopes: nil}), do: []
 
   @context_auth_schema Zoi.keyword(
-                         req_options:
-                           Zoi.keyword(Zoi.any(),
-                             description: "Options passed through to `Req.request/2`."
-                           )
-                           |> Zoi.default([])
+                         [
+                           req_options:
+                             Zoi.keyword(Zoi.any(),
+                               description: "Options passed through to `Req.request/2`."
+                             )
+                             |> Zoi.default([])
+                         ],
+                         unrecognized_keys: :error
                        )
 
   @registration_auth_schema Zoi.keyword(
-                              endpoint:
-                                Zoi.struct(AGSEndpoint, description: "AGS endpoint struct.")
-                                |> Zoi.required(),
-                              req_options:
-                                Zoi.keyword(Zoi.any(),
-                                  description: "Options passed through to `Req.request/2`."
-                                )
-                                |> Zoi.default([])
+                              [
+                                endpoint:
+                                  Zoi.struct(AGSEndpoint, description: "AGS endpoint struct.")
+                                  |> Zoi.required(),
+                                req_options:
+                                  Zoi.keyword(Zoi.any(),
+                                    description: "Options passed through to `Req.request/2`."
+                                  )
+                                  |> Zoi.default([])
+                              ],
+                              unrecognized_keys: :error
                             )
 
   @doc """
@@ -126,7 +133,7 @@ defmodule Ltix.GradeService do
   def authenticate(context_or_registerable, opts \\ [])
 
   def authenticate(%LaunchContext{} = context, opts) do
-    opts = Zoi.parse!(@context_auth_schema, opts)
+    opts = Options.parse!(opts, @context_auth_schema)
 
     with {:ok, registration} <- Registerable.to_registration(context.registration) do
       case endpoint_from_claims(context.claims) do
@@ -147,7 +154,7 @@ defmodule Ltix.GradeService do
   end
 
   def authenticate(registerable, opts) do
-    opts = Zoi.parse!(@registration_auth_schema, opts)
+    opts = Options.parse!(opts, @registration_auth_schema)
     endpoint = Keyword.fetch!(opts, :endpoint)
 
     OAuth.authenticate(registerable,
@@ -168,15 +175,20 @@ defmodule Ltix.GradeService do
   end
 
   @list_line_items_schema Zoi.keyword(
-                            resource_link_id:
-                              Zoi.string(
-                                description: "Filter to line items bound to this resource link."
-                              ),
-                            resource_id:
-                              Zoi.string(description: "Filter by the tool's resource identifier."),
-                            tag: Zoi.string(description: "Filter by tag."),
-                            per_page:
-                              Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+                            [
+                              resource_link_id:
+                                Zoi.string(
+                                  description: "Filter to line items bound to this resource link."
+                                ),
+                              resource_id:
+                                Zoi.string(
+                                  description: "Filter by the tool's resource identifier."
+                                ),
+                              tag: Zoi.string(description: "Filter by tag."),
+                              per_page:
+                                Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+                            ],
+                            unrecognized_keys: :error
                           )
 
   @doc """
@@ -193,12 +205,12 @@ defmodule Ltix.GradeService do
   @spec list_line_items(Client.t(), keyword()) ::
           {:ok, [LineItem.t()]} | {:error, Exception.t()}
   def list_line_items(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @list_line_items_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :list_line_items], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@list_line_items_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <-
                Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
              {:ok, url} <- require_line_items_url(client),
@@ -217,11 +229,14 @@ defmodule Ltix.GradeService do
   end
 
   @get_line_item_schema Zoi.keyword(
-                          line_item:
-                            Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                              description:
-                                "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                            )
+                          [
+                            line_item:
+                              Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                                description:
+                                  "Line item URL or struct. Defaults to the endpoint's `line_item`."
+                              )
+                          ],
+                          unrecognized_keys: :error
                         )
 
   @doc """
@@ -234,12 +249,12 @@ defmodule Ltix.GradeService do
   @spec get_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def get_line_item(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @get_line_item_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :get_line_item], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@get_line_item_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <-
                Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
              {:ok, url} <- resolve_line_item_url(client, opts),
@@ -262,26 +277,32 @@ defmodule Ltix.GradeService do
   end
 
   @create_line_item_schema Zoi.keyword(
-                             label:
-                               Zoi.string(description: "Human-readable label.") |> Zoi.required(),
-                             score_maximum:
-                               Zoi.number(description: "Maximum score (must be > 0).")
-                               |> Zoi.positive()
-                               |> Zoi.required(),
-                             resource_link_id:
-                               Zoi.string(description: "Bind to a resource link."),
-                             resource_id: Zoi.string(description: "Tool's resource identifier."),
-                             tag: Zoi.string(description: "Qualifier tag."),
-                             start_date_time: Zoi.string(description: "ISO 8601 with timezone."),
-                             end_date_time: Zoi.string(description: "ISO 8601 with timezone."),
-                             grades_released:
-                               Zoi.boolean(description: "Hint about releasing grades."),
-                             extensions:
-                               Zoi.map(Zoi.string(), Zoi.any(),
-                                 description:
-                                   "Extension properties keyed by fully qualified URLs."
-                               )
-                               |> Zoi.default(%{})
+                             [
+                               label:
+                                 Zoi.string(description: "Human-readable label.")
+                                 |> Zoi.required(),
+                               score_maximum:
+                                 Zoi.number(description: "Maximum score (must be > 0).")
+                                 |> Zoi.positive()
+                                 |> Zoi.required(),
+                               resource_link_id:
+                                 Zoi.string(description: "Bind to a resource link."),
+                               resource_id:
+                                 Zoi.string(description: "Tool's resource identifier."),
+                               tag: Zoi.string(description: "Qualifier tag."),
+                               start_date_time:
+                                 Zoi.string(description: "ISO 8601 with timezone."),
+                               end_date_time: Zoi.string(description: "ISO 8601 with timezone."),
+                               grades_released:
+                                 Zoi.boolean(description: "Hint about releasing grades."),
+                               extensions:
+                                 Zoi.map(Zoi.string(), Zoi.any(),
+                                   description:
+                                     "Extension properties keyed by fully qualified URLs."
+                                 )
+                                 |> Zoi.default(%{})
+                             ],
+                             unrecognized_keys: :error
                            )
 
   @doc """
@@ -295,12 +316,12 @@ defmodule Ltix.GradeService do
   @spec create_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def create_line_item(%Client{} = client, opts) do
+    opts = Options.parse!(opts, @create_line_item_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :create_line_item], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@create_line_item_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_lineitem),
              {:ok, url} <- require_line_items_url(client),
              item = struct!(LineItem, Enum.into(opts, %{})),
@@ -368,12 +389,15 @@ defmodule Ltix.GradeService do
   end
 
   @delete_line_item_schema Zoi.keyword(
-                             force:
-                               Zoi.boolean(
-                                 description:
-                                   "Delete even if this is the coupled line item from the launch claim."
-                               )
-                               |> Zoi.default(false)
+                             [
+                               force:
+                                 Zoi.boolean(
+                                   description:
+                                     "Delete even if this is the coupled line item from the launch claim."
+                                 )
+                                 |> Zoi.default(false)
+                             ],
+                             unrecognized_keys: :error
                            )
 
   @doc """
@@ -393,16 +417,16 @@ defmodule Ltix.GradeService do
   @spec delete_line_item(Client.t(), LineItem.t() | String.t(), keyword()) ::
           :ok | {:error, Exception.t()}
   def delete_line_item(%Client{} = client, line_item_or_url, opts \\ []) do
+    opts = Options.parse!(opts, @delete_line_item_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :delete_line_item], metadata, fn ->
       url = extract_line_item_url(line_item_or_url)
 
       result =
-        with {:ok, opts} <- parse_opts(@delete_line_item_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_lineitem),
-             :ok <- check_coupled_guard(client, url, Keyword.get(opts, :force, false)),
+             :ok <- check_coupled_guard(client, url, Keyword.fetch!(opts, :force)),
              headers = auth_headers(client, nil),
              req_opts = build_request(:delete, merged_req_options(client), url, headers),
              {:ok, _body} <- request(req_opts) do
@@ -414,11 +438,14 @@ defmodule Ltix.GradeService do
   end
 
   @post_score_schema Zoi.keyword(
-                       line_item:
-                         Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                           description:
-                             "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                         )
+                       [
+                         line_item:
+                           Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                             description:
+                               "Line item URL or struct. Defaults to the endpoint's `line_item`."
+                           )
+                       ],
+                       unrecognized_keys: :error
                      )
 
   @doc """
@@ -435,12 +462,12 @@ defmodule Ltix.GradeService do
   @spec post_score(Client.t(), Score.t(), keyword()) ::
           :ok | {:error, Exception.t()}
   def post_score(%Client{} = client, %Score{} = score, opts \\ []) do
+    opts = Options.parse!(opts, @post_score_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :post_score], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@post_score_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_score),
              {:ok, base_url} <- resolve_line_item_url(client, opts),
              {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
@@ -464,13 +491,16 @@ defmodule Ltix.GradeService do
   end
 
   @get_results_schema Zoi.keyword(
-                        line_item:
-                          Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                            description:
-                              "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                          ),
-                        user_id: Zoi.string(description: "Filter results to a single user."),
-                        per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+                        [
+                          line_item:
+                            Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                              description:
+                                "Line item URL or struct. Defaults to the endpoint's `line_item`."
+                            ),
+                          user_id: Zoi.string(description: "Filter results to a single user."),
+                          per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+                        ],
+                        unrecognized_keys: :error
                       )
 
   @doc """
@@ -487,12 +517,12 @@ defmodule Ltix.GradeService do
   @spec get_results(Client.t(), keyword()) ::
           {:ok, [Result.t()]} | {:error, Exception.t()}
   def get_results(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @get_results_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :get_results], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@get_results_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_result_readonly),
              {:ok, base_url} <- resolve_line_item_url(client, opts),
              {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
@@ -509,13 +539,6 @@ defmodule Ltix.GradeService do
 
       {result, metadata}
     end)
-  end
-
-  defp parse_opts(schema, opts) do
-    case Zoi.parse(schema, opts) do
-      {:ok, validated} -> {:ok, validated}
-      {:error, errors} -> {:error, Zoi.ParseError.exception(errors: errors)}
-    end
   end
 
   defp check_expiry(%Client{} = client) do

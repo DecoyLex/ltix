@@ -44,9 +44,14 @@ defmodule Ltix.JWT.KeySet do
   alias Ltix.Errors.Unknown
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.JWT.KeySet.ETSCache
+  alias Ltix.Options
   alias Ltix.Registration
 
   @default_max_age 300
+
+  @options_schema Zoi.keyword([cache: Zoi.module(), req_options: Zoi.keyword(Zoi.any())],
+                    unrecognized_keys: :error
+                  )
 
   @doc """
   Fetch the platform's public key matching `kid`.
@@ -65,6 +70,7 @@ defmodule Ltix.JWT.KeySet do
   @spec get_key(Registration.t(), String.t(), keyword()) ::
           {:ok, JOSE.JWK.t()} | {:error, Exception.t()}
   def get_key(%Registration{} = registration, kid, opts \\ []) do
+    opts = Options.parse!(opts, @options_schema)
     cache = resolve_cache(opts)
     do_get_key(registration, kid, cache, opts, _refetched? = false)
   end

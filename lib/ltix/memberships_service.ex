@@ -47,11 +47,13 @@ defmodule Ltix.MembershipsService do
 
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
+  alias Ltix.Options
   alias Ltix.Pagination
   alias Ltix.Registerable
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Invalid.ServiceNotAvailable
@@ -80,25 +82,31 @@ defmodule Ltix.MembershipsService do
   def scopes(%MembershipsEndpoint{}), do: [@nrps_scope]
 
   @context_auth_schema Zoi.keyword(
-                         req_options:
-                           Zoi.keyword(Zoi.any(),
-                             description: "Options passed through to `Req.request/2`."
-                           )
-                           |> Zoi.default([])
+                         [
+                           req_options:
+                             Zoi.keyword(Zoi.any(),
+                               description: "Options passed through to `Req.request/2`."
+                             )
+                             |> Zoi.default([])
+                         ],
+                         unrecognized_keys: :error
                        )
 
   @registration_auth_schema Zoi.keyword(
-                              endpoint:
-                                Zoi.struct(MembershipsEndpoint,
-                                  description:
-                                    "MembershipsEndpoint struct for the service endpoint."
-                                )
-                                |> Zoi.required(),
-                              req_options:
-                                Zoi.keyword(Zoi.any(),
-                                  description: "Options passed through to `Req.request/2`."
-                                )
-                                |> Zoi.default([])
+                              [
+                                endpoint:
+                                  Zoi.struct(MembershipsEndpoint,
+                                    description:
+                                      "MembershipsEndpoint struct for the service endpoint."
+                                  )
+                                  |> Zoi.required(),
+                                req_options:
+                                  Zoi.keyword(Zoi.any(),
+                                    description: "Options passed through to `Req.request/2`."
+                                  )
+                                  |> Zoi.default([])
+                              ],
+                              unrecognized_keys: :error
                             )
 
   @doc """
@@ -132,7 +140,7 @@ defmodule Ltix.MembershipsService do
   def authenticate(context_or_registerable, opts \\ [])
 
   def authenticate(%LaunchContext{} = context, opts) do
-    opts = Zoi.parse!(@context_auth_schema, opts)
+    opts = Options.parse!(opts, @context_auth_schema)
 
     with {:ok, registration} <- Registerable.to_registration(context.registration),
          {:ok, endpoint} <- fetch_endpoint(context.claims),
@@ -145,7 +153,7 @@ defmodule Ltix.MembershipsService do
   end
 
   def authenticate(registerable, opts) do
-    opts = Zoi.parse!(@registration_auth_schema, opts)
+    opts = Options.parse!(opts, @registration_auth_schema)
     endpoint = Keyword.fetch!(opts, :endpoint)
 
     OAuth.authenticate(registerable,
@@ -195,10 +203,11 @@ defmodule Ltix.MembershipsService do
                                     "if exceeded. Set to `:infinity` to disable."
                               )
                               |> Zoi.default(10_000)
-                          ]
+                          ],
+                        unrecognized_keys: :error
                       )
 
-  @stream_members_schema Zoi.keyword(@query_fields)
+  @stream_members_schema Zoi.keyword(@query_fields, unrecognized_keys: :error)
 
   @doc """
   Fetch all members from the memberships endpoint.
@@ -215,14 +224,13 @@ defmodule Ltix.MembershipsService do
   @spec get_members(Client.t(), keyword()) ::
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
   def get_members(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @get_members_schema)
+    {max, query_opts} = Keyword.pop(opts, :max_members)
     metadata = span_metadata(client, opts)
 
     :telemetry.span([:ltix, :memberships_service, :get_members], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@get_members_schema, opts),
-             max = Keyword.get(opts, :max_members),
-             query_opts = Keyword.drop(opts, [:max_members]),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @nrps_scope),
              {:ok, pages} <- fetch_pages(client, query_opts) do
           collect_roster(pages, max)
@@ -251,6 +259,9 @@ defmodule Ltix.MembershipsService do
   want to process members incrementally or stop early.
   Later page failures and member parsing errors raise during enumeration.
 
+  Streams take no `:max_members` limit because they fetch one page at a
+  time. Use `Stream.take/2` to stop after a number of members.
+
   ## Options
 
   #{Zoi.describe(@stream_members_schema)}
@@ -259,12 +270,12 @@ defmodule Ltix.MembershipsService do
   @spec stream_members(Client.t(), keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_members(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @stream_members_schema)
     metadata = span_metadata(client, opts)
 
     :telemetry.span([:ltix, :memberships_service, :stream_members], metadata, fn ->
       result =
-        with {:ok, opts} <- parse_opts(@stream_members_schema, opts),
-             :ok <- check_expiry(client),
+        with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @nrps_scope),
              {:ok, pages} <- fetch_pages(client, opts) do
           {:ok,
@@ -311,13 +322,6 @@ defmodule Ltix.MembershipsService do
 
   defp get_endpoint(%Client{endpoints: endpoints}) do
     Map.fetch!(endpoints, __MODULE__)
-  end
-
-  defp parse_opts(schema, opts) do
-    case Zoi.parse(schema, opts) do
-      {:ok, validated} -> {:ok, validated}
-      {:error, errors} -> {:error, Zoi.ParseError.exception(errors: errors)}
-    end
   end
 
   defp check_expiry(%Client{} = client) do
@@ -476,14 +480,18 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  defp resolve_role(atom) when is_atom(atom), do: Role.from_atom(atom).uri
+  defp resolve_role(atom) when is_atom(atom) do
+    Role.from_atom(atom).uri
+  rescue
+    ArgumentError -> raise_invalid_role(atom)
+  end
 
   defp resolve_role(%Role{uri: uri}) when is_binary(uri), do: uri
 
   defp resolve_role(%Role{} = role) do
     case Role.to_uri(role) do
       {:ok, uri} -> uri
-      :error -> raise ArgumentError, "could not resolve role to URI: #{inspect(role)}"
+      :error -> raise_invalid_role(role)
     end
   end
 
@@ -498,6 +506,10 @@ defmodule Ltix.MembershipsService do
        service: __MODULE__,
        spec_ref: "NRPS §3.6.1.1"
      )}
+  end
+
+  defp raise_invalid_role(role) do
+    raise InvalidOption, key: :role, value: role, reason: "it is not a known role"
   end
 
   defp span_metadata(%Client{} = client, opts) do

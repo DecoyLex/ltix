@@ -20,9 +20,15 @@ defmodule Ltix.Test.StorageAdapter do
   @behaviour Ltix.StorageAdapter
 
   alias Ltix.Deployable
+  alias Ltix.Options
   alias Ltix.Registerable
 
   use Agent
+
+  @start_link_schema Zoi.keyword(
+                       [registrations: Zoi.list(Zoi.any()), deployments: Zoi.list(Zoi.any())],
+                       unrecognized_keys: :error
+                     )
 
   @doc """
   Start the storage adapter agent.
@@ -33,6 +39,7 @@ defmodule Ltix.Test.StorageAdapter do
     * `:deployments` — list of structs implementing `Ltix.Deployable` (default: `[]`)
   """
   def start_link(opts \\ []) do
+    opts = Options.parse!(opts, @start_link_schema)
     registrations = Keyword.get(opts, :registrations, [])
     deployments = Keyword.get(opts, :deployments, [])
 

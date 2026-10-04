@@ -8,19 +8,23 @@ defmodule Ltix.Pagination do
   """
 
   alias Ltix.Errors.Unknown.TransportError
+  alias Ltix.Options
   alias Req.Steps, as: RequestSteps
 
   @stream_schema Zoi.keyword(
-                   params:
-                     Zoi.map(Zoi.string(), Zoi.string(),
-                       description: "Query parameters for the first page only."
-                     )
-                     |> Zoi.default(%{}),
-                   req_options:
-                     Zoi.keyword(Zoi.any(),
-                       description: "Additional HTTP request options."
-                     )
-                     |> Zoi.default([])
+                   [
+                     params:
+                       Zoi.map(Zoi.string(), Zoi.string(),
+                         description: "Query parameters for the first page only."
+                       )
+                       |> Zoi.default(%{}),
+                     req_options:
+                       Zoi.keyword(Zoi.any(),
+                         description: "Additional HTTP request options."
+                       )
+                       |> Zoi.default([])
+                   ],
+                   unrecognized_keys: :error
                  )
 
   @doc """
@@ -65,7 +69,7 @@ defmodule Ltix.Pagination do
   @spec stream_results(String.t(), [{String.t(), String.t()}], keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_results(url, headers, opts \\ []) do
-    opts = Zoi.parse!(@stream_schema, opts)
+    opts = Options.parse!(opts, @stream_schema)
     params = Keyword.fetch!(opts, :params)
     req_options = req_options(opts)
 

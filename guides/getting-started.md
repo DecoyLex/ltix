@@ -408,8 +408,7 @@ config :ltix,
   storage_adapter: MyApp.Lti.Storage
 ```
 
-All configuration can also be passed or overridden per-call via opts.
-See `Ltix` for the full list of options.
+To override settings for a single call, pass options to the call. `Ltix.handle_login/3` takes `:storage_adapter`. `Ltix.handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:jwks_cache`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. See `Ltix.handle_login/3` and `Ltix.handle_callback/3` for what each option does.
 
 ## Registering a platform
 

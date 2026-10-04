@@ -28,6 +28,14 @@ defmodule Ltix.PaginationTest do
     end)
   end
 
+  describe "options" do
+    test "stream/3 raises on unknown options" do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :query is unknown", fn ->
+        Pagination.stream("https://example.com/api", [], query: %{})
+      end
+    end
+  end
+
   describe "stream/3" do
     test "single page with no next link" do
       stub_pages([{%{"items" => [1, 2, 3]}, nil}])

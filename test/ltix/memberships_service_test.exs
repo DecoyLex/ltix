@@ -1,6 +1,7 @@
 defmodule Ltix.MembershipsServiceTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Invalid.ScopeMismatch
@@ -109,6 +110,49 @@ defmodule Ltix.MembershipsServiceTest do
 
   # --- authenticate/2 ---
 
+  describe "options" do
+    test "every operation raises on unknown options", ctx do
+      client = build_client(ctx.platform)
+      context = Ltix.Test.build_launch_context(ctx.platform)
+      endpoint = MembershipsEndpoint.new(@memberships_url)
+
+      for call <- [
+            fn -> MembershipsService.authenticate(context, unknown: true) end,
+            fn -> MembershipsService.authenticate!(context, unknown: true) end,
+            fn ->
+              MembershipsService.authenticate(ctx.platform.registration,
+                endpoint: endpoint,
+                unknown: true
+              )
+            end,
+            fn -> MembershipsService.get_members(client, unknown: true) end,
+            fn -> MembershipsService.get_members!(client, unknown: true) end,
+            fn -> MembershipsService.stream_members(client, unknown: true) end,
+            fn -> MembershipsService.stream_members!(client, unknown: true) end
+          ] do
+        assert_raise InvalidOption, "Option :unknown is unknown", call
+      end
+    end
+
+    test "operations raise on invalid values and options they do not accept", ctx do
+      client = build_client(ctx.platform)
+
+      assert_raise InvalidOption, ~r/Option :max_members is invalid/, fn ->
+        MembershipsService.get_members(client, max_members: 0)
+      end
+
+      assert_raise InvalidOption, "Option :max_members is unknown", fn ->
+        MembershipsService.stream_members(client, max_members: 10)
+      end
+
+      for role <- [:not_a_role, %Role{type: :context, name: :not_a_role}] do
+        assert_raise InvalidOption, ~r/Option :role is invalid/, fn ->
+          MembershipsService.get_members(client, role: role)
+        end
+      end
+    end
+  end
+
   describe "authenticate/2 from LaunchContext" do
     test "acquires token with correct scope", ctx do
       stub_token_response()
@@ -182,8 +226,8 @@ defmodule Ltix.MembershipsServiceTest do
       assert MapSet.member?(client.scopes, @nrps_scope)
     end
 
-    test "errors without endpoint option", ctx do
-      assert_raise Zoi.ParseError, fn ->
+    test "raises without endpoint option", ctx do
+      assert_raise InvalidOption, "Option :endpoint is required", fn ->
         MembershipsService.authenticate(ctx.platform.registration, [])
       end
     end

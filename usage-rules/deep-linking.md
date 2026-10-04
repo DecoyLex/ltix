@@ -68,7 +68,7 @@ settings.accept_line_item      # true or false
 ```
 
 - Pass a list of items (or `[]` for cancellation).
-- Options: `:message`, `:log`, `:error_message`, `:error_log`.
+- Options: `:message`, `:log`, `:error_message`, `:error_log`. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 - Returns `%Response{jwt: signed_jwt, return_url: platform_url}`.
 
 ## Delivering the Response

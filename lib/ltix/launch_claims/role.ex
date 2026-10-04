@@ -50,7 +50,9 @@ defmodule Ltix.LaunchClaims.Role do
   require Logger
 
   alias Ltix.AppConfig
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.LaunchClaims.Role.LIS
+  alias Ltix.Options
 
   defstruct [:type, :name, :sub_role, :uri]
 
@@ -81,6 +83,10 @@ defmodule Ltix.LaunchClaims.Role do
     "Officer" => :officer
   }
 
+  @options_schema Zoi.keyword([parsers: Zoi.map(Zoi.string(), Zoi.any())],
+                    unrecognized_keys: :error
+                  )
+
   # --- Public API ---
 
   @doc """
@@ -106,6 +112,19 @@ defmodule Ltix.LaunchClaims.Role do
   """
   @spec parse(String.t(), keyword()) :: {:ok, t()} | :error
   def parse(uri, opts \\ []) when is_binary(uri) do
+    parse_with(uri, resolve_parsers(opts))
+  end
+
+  defp parse_with(uri, parsers) do
+    case try_parsers(uri, parsers) do
+      :error -> parse_short_name(uri)
+      parsed -> parsed
+    end
+  end
+
+  defp resolve_parsers(opts) do
+    opts = Options.parse!(opts, @options_schema)
+
     parsers =
       opts
       |> Keyword.get(:parsers, %{})
@@ -113,27 +132,25 @@ defmodule Ltix.LaunchClaims.Role do
 
     application_parsers = AppConfig.role_parsers!()
 
-    parsers =
-      application_parsers
-      |> Map.merge(parsers)
-      |> Map.filter(fn
-        {_prefix, parser} when is_atom(parser) ->
-          Code.ensure_loaded?(parser) and function_exported?(parser, :parse, 1)
+    application_parsers
+    |> Map.merge(parsers)
+    |> Map.filter(fn
+      {_prefix, parser} when is_atom(parser) ->
+        Code.ensure_loaded?(parser) and function_exported?(parser, :parse, 1)
 
-        {_prefix, parser} when is_function(parser, 1) ->
-          true
+      {_prefix, parser} when is_function(parser, 1) ->
+        true
 
-        {_prefix, parser} ->
-          raise ArgumentError, "invalid role parser: #{inspect(parser)}"
-      end)
-      |> Map.new(fn
-        {prefix, parser} when is_atom(parser) -> {prefix, &parser.parse/1}
-        {prefix, parser} when is_function(parser, 1) -> {prefix, parser}
-      end)
-
-    with :error <- try_parsers(uri, parsers) do
-      parse_short_name(uri)
-    end
+      {_prefix, parser} ->
+        raise InvalidOption,
+          key: :parsers,
+          value: parser,
+          reason: "role parsers must be modules or 1-arity functions"
+    end)
+    |> Map.new(fn
+      {prefix, parser} when is_atom(parser) -> {prefix, &parser.parse/1}
+      {prefix, parser} when is_function(parser, 1) -> {prefix, parser}
+    end)
   end
 
   @doc """
@@ -153,15 +170,17 @@ defmodule Ltix.LaunchClaims.Role do
   """
   @spec parse_all([String.t()], keyword()) :: {[t()], [String.t()]}
   def parse_all(uris, opts \\ []) when is_list(uris) do
-    then(
+    parsers = resolve_parsers(opts)
+
+    {parsed, unrecognized} =
       Enum.reduce(uris, {[], []}, fn uri, {parsed, unrecognized} ->
-        case parse(uri, opts) do
+        case parse_with(uri, parsers) do
           {:ok, role} -> {[role | parsed], unrecognized}
           :error -> {parsed, [uri | unrecognized]}
         end
-      end),
-      fn {p, u} -> {Enum.reverse(p), Enum.reverse(u)} end
-    )
+      end)
+
+    {Enum.reverse(parsed), Enum.reverse(unrecognized)}
   end
 
   @doc """

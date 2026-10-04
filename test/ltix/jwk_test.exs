@@ -35,8 +35,14 @@ defmodule Ltix.JWKTest do
     end
 
     test "rejects key size below 2048" do
-      assert_raise Zoi.ParseError, ~r/must be at least 2048/, fn ->
-        JWK.generate(key_size: 1024)
+      assert_raise Ltix.Errors.Invalid.InvalidOption,
+                   ~r/Option :key_size is invalid.*at least 2048/,
+                   fn -> JWK.generate(key_size: 1024) end
+    end
+
+    test "rejects unknown options" do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :size is unknown", fn ->
+        JWK.generate(size: 4096)
       end
     end
 

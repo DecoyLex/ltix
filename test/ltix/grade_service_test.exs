@@ -3,6 +3,7 @@ defmodule Ltix.GradeServiceTest do
 
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
@@ -82,6 +83,51 @@ defmodule Ltix.GradeServiceTest do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  describe "options" do
+    test "every operation raises on unknown options", ctx do
+      client = build_client(ctx.platform)
+      context = Ltix.Test.build_launch_context(ctx.platform)
+
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      for call <- [
+            fn -> GradeService.authenticate(context, unknown: true) end,
+            fn -> GradeService.authenticate!(context, unknown: true) end,
+            fn ->
+              GradeService.authenticate(ctx.platform.registration,
+                endpoint: %AGSEndpoint{},
+                unknown: true
+              )
+            end,
+            fn -> GradeService.list_line_items(client, unknown: true) end,
+            fn -> GradeService.get_line_item(client, unknown: true) end,
+            fn ->
+              GradeService.create_line_item(client,
+                label: "Quiz",
+                score_maximum: 1,
+                unknown: true
+              )
+            end,
+            fn ->
+              GradeService.delete_line_item(client, @line_items_url <> "/9", unknown: true)
+            end,
+            fn -> GradeService.post_score(client, score, unknown: true) end,
+            fn -> GradeService.get_results(client, unknown: true) end
+          ] do
+        assert_raise InvalidOption, "Option :unknown is unknown", call
+      end
+    end
+
+    test "operations raise on invalid option values", ctx do
+      client = build_client(ctx.platform)
+
+      assert_raise InvalidOption, ~r/Option :line_item is invalid/, fn ->
+        GradeService.get_results(client, line_item: 1)
+      end
+    end
+  end
 
   # --- AdvantageService callbacks ---
 
@@ -171,8 +217,8 @@ defmodule Ltix.GradeServiceTest do
       assert %AGSEndpoint{} = client.endpoints[GradeService]
     end
 
-    test "errors without endpoint option", ctx do
-      assert_raise Zoi.ParseError, fn ->
+    test "raises without endpoint option", ctx do
+      assert_raise InvalidOption, "Option :endpoint is required", fn ->
         GradeService.authenticate(ctx.platform.registration, [])
       end
     end
@@ -400,16 +446,20 @@ defmodule Ltix.GradeServiceTest do
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
     end
 
-    test "returns validation error when label missing", ctx do
+    test "raises when label is missing", ctx do
       client = build_client(ctx.platform)
 
-      assert {:error, _} = GradeService.create_line_item(client, score_maximum: 100)
+      assert_raise InvalidOption, "Option :label is required", fn ->
+        GradeService.create_line_item(client, score_maximum: 100)
+      end
     end
 
-    test "returns validation error when score_maximum missing", ctx do
+    test "raises when score_maximum is missing", ctx do
       client = build_client(ctx.platform)
 
-      assert {:error, _} = GradeService.create_line_item(client, label: "Quiz 1")
+      assert_raise InvalidOption, "Option :score_maximum is required", fn ->
+        GradeService.create_line_item(client, label: "Quiz 1")
+      end
     end
   end
 

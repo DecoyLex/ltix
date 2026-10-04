@@ -443,9 +443,20 @@ defmodule Ltix.OAuthTest do
                )
     end
 
-    test "rejects missing endpoints option", ctx do
-      assert_raise Zoi.ParseError, fn ->
+    test "raises on missing, unknown, and invalid options", ctx do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :endpoints is required", fn ->
         OAuth.authenticate(ctx.registration, [])
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :endpoint is unknown", fn ->
+        OAuth.authenticate(ctx.registration,
+          endpoints: %{TestService => :valid_endpoint},
+          endpoint: :valid_endpoint
+        )
+      end
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :endpoints is invalid/, fn ->
+        OAuth.authenticate(ctx.registration, endpoints: [TestService])
       end
     end
 

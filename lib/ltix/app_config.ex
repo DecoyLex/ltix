@@ -43,15 +43,4 @@ defmodule Ltix.AppConfig do
   def default_key_size do
     Application.get_env(:ltix, :default_key_size, 4096)
   end
-
-  def pop_required!(opts, key) do
-    with {nil, _opts} <- Keyword.pop(opts, key),
-         nil <- Application.get_env(:ltix, key) do
-      raise ArgumentError,
-            "missing :#{key} configuration — set it in config.exs or pass it in opts"
-    else
-      {value, opts} -> {value, opts}
-      value -> {value, opts}
-    end
-  end
 end

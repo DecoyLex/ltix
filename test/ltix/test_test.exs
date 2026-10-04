@@ -1,6 +1,7 @@
 defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.GradeService.Score
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
@@ -21,6 +22,42 @@ defmodule Ltix.TestTest do
     StorageAdapter.set_pid(pid)
 
     %{platform: platform}
+  end
+
+  describe "options" do
+    test "every helper raises on unknown options", %{platform: platform} do
+      for call <- [
+            fn -> Ltix.Test.setup_platform!(unknown: true) end,
+            fn -> Ltix.Test.login_params(platform, unknown: true) end,
+            fn -> Ltix.Test.launch_params(platform, nonce: "n", state: "s", unknown: true) end,
+            fn -> Ltix.Test.build_launch_context(platform, unknown: true) end,
+            fn -> Ltix.Test.stub_token_response(unknown: true) end,
+            fn -> Ltix.Test.stub_get_members([], unknown: true) end,
+            fn -> Ltix.Test.mint_id_token(%{}, platform.private_key, unknown: true) end,
+            fn -> StorageAdapter.start_link(unknown: true) end
+          ] do
+        assert_raise InvalidOption, "Option :unknown is unknown", call
+      end
+    end
+
+    test "helpers raise on missing and invalid options", %{platform: platform} do
+      assert_raise InvalidOption, "Option :nonce is required", fn ->
+        Ltix.Test.launch_params(platform, state: "s")
+      end
+
+      assert_raise InvalidOption, ~r/Option :scopes is invalid/, fn ->
+        Ltix.Test.stub_token_response(
+          scopes: "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        )
+      end
+    end
+
+    test "build_launch_context/2 rejects the raw claims option of launch_params/2",
+         %{platform: platform} do
+      assert_raise InvalidOption, "Option :claims is unknown", fn ->
+        Ltix.Test.build_launch_context(platform, claims: %{"sub" => "user"})
+      end
+    end
   end
 
   describe "full OIDC flow via test helpers" do
@@ -273,23 +310,32 @@ defmodule Ltix.TestTest do
 
     test "raises when :registration and :issuer are both set",
          %{custom_registration: reg} do
-      assert_raise ArgumentError, fn ->
-        Ltix.Test.setup_platform!(registration: reg, issuer: "https://other.example.com")
-      end
+      assert_raise InvalidOption,
+                   "Option :issuer is invalid, cannot be combined with a :registration struct",
+                   fn ->
+                     Ltix.Test.setup_platform!(
+                       registration: reg,
+                       issuer: "https://other.example.com"
+                     )
+                   end
     end
 
     test "raises when :registration and :client_id are both set",
          %{custom_registration: reg} do
-      assert_raise ArgumentError, fn ->
-        Ltix.Test.setup_platform!(registration: reg, client_id: "other-client")
-      end
+      assert_raise InvalidOption,
+                   "Option :client_id is invalid, cannot be combined with a :registration struct",
+                   fn ->
+                     Ltix.Test.setup_platform!(registration: reg, client_id: "other-client")
+                   end
     end
 
     test "raises when :deployment and :deployment_id are both set",
          %{custom_deployment: dep} do
-      assert_raise ArgumentError, fn ->
-        Ltix.Test.setup_platform!(deployment: dep, deployment_id: "other-dep")
-      end
+      assert_raise InvalidOption,
+                   "Option :deployment_id is invalid, cannot be combined with a :deployment struct",
+                   fn ->
+                     Ltix.Test.setup_platform!(deployment: dep, deployment_id: "other-dep")
+                   end
     end
 
     test "build_launch_context carries custom structs through",

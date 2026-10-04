@@ -27,19 +27,22 @@ defmodule Ltix.JWK do
   """
 
   alias Ltix.AppConfig
-
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Options
 
   @generate_schema Zoi.keyword(
-                     key_size:
-                       Zoi.integer(
-                         description: """
-                         RSA key size in bits (minimum 2048). The default can be overridden
-                         by setting `config :ltix, :default_key_size`.
-                         """
-                       )
-                       |> Zoi.min(2048)
-                       |> Zoi.default(AppConfig.default_key_size())
+                     [
+                       key_size:
+                         Zoi.integer(
+                           description: """
+                           RSA key size in bits (minimum 2048). The default can be overridden
+                           by setting `config :ltix, :default_key_size`.
+                           """
+                         )
+                         |> Zoi.min(2048)
+                         |> Zoi.default(AppConfig.default_key_size())
+                     ],
+                     unrecognized_keys: :error
                    )
 
   @enforce_keys [:private_key_pem, :kid]
@@ -72,7 +75,7 @@ defmodule Ltix.JWK do
   # Each key identified by kid
   @spec generate(keyword()) :: t()
   def generate(opts \\ []) do
-    opts = Zoi.parse!(@generate_schema, opts)
+    opts = Options.parse!(opts, @generate_schema)
 
     jose_jwk = JOSE.JWK.generate_key({:rsa, opts[:key_size]})
     kid = JOSE.JWK.thumbprint(jose_jwk)

@@ -18,7 +18,7 @@ The entire OIDC launch flow is two functions:
 
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use
   the two public functions.
-- All configuration can be set in `config.exs` or passed per-call via opts.
+- `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:claim_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 ## Required Configuration
 
@@ -37,7 +37,7 @@ preferred structure before creating modules.
 
 ## Registrations & Deployments
 
-- Construct with `Registration.new/1` and `Deployment.new/1` (Zoi-validated). **Never**
+- Construct with `Registration.new/1` and `Deployment.new/1` (validated). **Never**
   build `%Registration{}` or `%Deployment{}` structs directly — always go through `new/1`.
 - Storage adapters return structs implementing `Ltix.Registerable` and `Ltix.Deployable`
   protocols. These can be your own Ecto schemas — the library extracts the `Registration`

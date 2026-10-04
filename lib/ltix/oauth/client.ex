@@ -30,6 +30,7 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
+  alias Ltix.Options
   alias Ltix.Registerable
   alias Ltix.Registration
 
@@ -45,6 +46,27 @@ defmodule Ltix.OAuth.Client do
         }
 
   @expiry_buffer_seconds 60
+
+  @from_access_token_schema Zoi.keyword(
+                              [
+                                registration:
+                                  Zoi.any(
+                                    description: "Any struct implementing `Ltix.Registerable`."
+                                  )
+                                  |> Zoi.required(),
+                                endpoints:
+                                  Zoi.map(Zoi.atom(), Zoi.any(),
+                                    description: "Map of service modules to endpoint structs."
+                                  )
+                                  |> Zoi.required(),
+                                req_options:
+                                  Zoi.keyword(Zoi.any(),
+                                    description: "Options passed through to `Req.request/2`."
+                                  )
+                                  |> Zoi.default([])
+                              ],
+                              unrecognized_keys: :error
+                            )
 
   @doc """
   Check whether the client's token has expired.
@@ -203,15 +225,14 @@ defmodule Ltix.OAuth.Client do
 
   ## Options
 
-    * `:registration` (required) - any struct implementing `Ltix.Registerable`
-    * `:endpoints` (required) - map of service modules to endpoint structs
-    * `:req_options` - options passed through to `Req.request/2` (default: `[]`)
+  #{Zoi.describe(@from_access_token_schema)}
   """
   @spec from_access_token(AccessToken.t(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def from_access_token(%AccessToken{} = token, opts) do
+    opts = Options.parse!(opts, @from_access_token_schema)
     registerable = Keyword.fetch!(opts, :registration)
     endpoints = Keyword.fetch!(opts, :endpoints)
-    req_options = Keyword.get(opts, :req_options, [])
+    req_options = Keyword.fetch!(opts, :req_options)
 
     with {:ok, registration} <- Registerable.to_registration(registerable),
          :ok <- validate_endpoints(endpoints),
