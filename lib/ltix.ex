@@ -197,7 +197,7 @@ defmodule Ltix do
     opts = Options.parse!(opts, @login_schema)
     storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
 
-    meta = login_metadata(params)
+    meta = %{issuer: params["iss"], client_id: params["client_id"], redirect_uri: redirect_uri}
 
     :telemetry.span([:ltix, :login], meta, fn ->
       result = LoginInitiation.call(params, storage_adapter, redirect_uri)
@@ -279,14 +279,6 @@ defmodule Ltix do
       {:ok, context} -> context
       {:error, error} -> raise error
     end
-  end
-
-  defp login_metadata(params) do
-    %{
-      issuer: params["iss"],
-      client_id: params["client_id"],
-      redirect_uri: params["redirect_uri"]
-    }
   end
 
   defp callback_metadata(%LaunchContext{claims: claims}, registration) do

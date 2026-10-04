@@ -222,6 +222,20 @@ defmodule LtixTest do
       end
     end
 
+    test "reports the redirect_uri it was given in login telemetry" do
+      ref = :telemetry_test.attach_event_handlers(self(), [[:ltix, :login, :stop]])
+
+      assert {:ok, _result} =
+               Ltix.handle_login(login_params(), @redirect_uri, storage_adapter: StorageAdapter)
+
+      assert_received {[:ltix, :login, :stop], ^ref, _measurements,
+                       %{
+                         issuer: "https://platform.example.com",
+                         client_id: nil,
+                         redirect_uri: @redirect_uri
+                       }}
+    end
+
     test "delegates errors from underlying modules" do
       params = Map.delete(login_params(), "iss")
 
