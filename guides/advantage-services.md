@@ -156,6 +156,14 @@ token by passing multiple endpoints:
 :ok = Ltix.GradeService.post_score(client, score)
 ```
 
+From a launch, list the services, and Ltix reads each endpoint from the launch claims.
+
+```elixir
+{:ok, client} = Ltix.OAuth.authenticate(context,
+  services: [Ltix.MembershipsService, Ltix.GradeService]
+)
+```
+
 > #### Scope negotiation {: .warning}
 >
 > Platforms may grant fewer scopes than requested. Authentication still succeeds, and each service function returns a `ScopeMismatch` error if its scope was not granted. Pass `require_all_scopes: true` to `Ltix.OAuth.authenticate/2`, `Ltix.GradeService.authenticate/2`, `Ltix.MembershipsService.authenticate/2`, `Ltix.OAuth.Client.with_endpoints/3`, or `Ltix.OAuth.Client.from_access_token/2` to get that error up front instead.

@@ -103,19 +103,15 @@ With the behaviour in place, authenticate through `Ltix.OAuth`.
 **From a launch context:**
 
 ```elixir
-alias MyApp.Lti.{AttendanceEndpoint, AttendanceService}
+alias MyApp.Lti.AttendanceService
 
 def handle_launch(context) do
-  claim_key = AttendanceEndpoint.claim_key()
-  endpoint = context.claims.extensions[claim_key]
-
-  {:ok, client} = Ltix.OAuth.authenticate(context.registration,
-    endpoints: %{AttendanceService => endpoint}
-  )
-
+  {:ok, client} = Ltix.OAuth.authenticate(context, services: [AttendanceService])
   {:ok, records} = AttendanceService.get_records(client)
 end
 ```
+
+`Ltix.OAuth` reads the endpoint with your `endpoint_from_claims/1`. If the launch has no attendance claim, `authenticate/2` returns a `Ltix.Errors.Invalid.ServiceNotAvailable` error.
 
 **From a stored endpoint** (background job, no launch context):
 
@@ -276,9 +272,7 @@ test "authenticate from launch context", %{platform: platform} do
   )}
   context = %{context | claims: claims}
 
-  {:ok, client} = Ltix.OAuth.authenticate(context.registration,
-    endpoints: %{AttendanceService => endpoint}
-  )
+  {:ok, client} = Ltix.OAuth.authenticate(context, services: [AttendanceService])
 
   assert client.access_token == "test-attendance-token"
 end
@@ -299,6 +293,14 @@ Request all scopes in a single token by passing multiple endpoints:
 # One client, both services
 :ok = Ltix.GradeService.post_score(client, score)
 {:ok, records} = AttendanceService.get_records(client)
+```
+
+From a launch, list the services instead.
+
+```elixir
+{:ok, client} = Ltix.OAuth.authenticate(context,
+  services: [Ltix.GradeService, AttendanceService]
+)
 ```
 
 ## Next steps

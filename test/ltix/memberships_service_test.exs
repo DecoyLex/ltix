@@ -228,7 +228,8 @@ defmodule Ltix.MembershipsServiceTest do
       assert MapSet.member?(client.scopes, @nrps_scope)
     end
 
-    test "accepts a token without the NRPS scope unless require_all_scopes is set", ctx do
+    test "accepts a token without the NRPS scope unless require_all_scopes is set, from a registration or a launch",
+         ctx do
       Ltix.Test.stub_token_response(scopes: ["other:scope"])
       endpoint = MembershipsEndpoint.new!(@memberships_url)
       req_options = [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]

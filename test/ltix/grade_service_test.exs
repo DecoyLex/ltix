@@ -218,7 +218,7 @@ defmodule Ltix.GradeServiceTest do
       assert {:error, %ServiceNotAvailable{} = error} =
                GradeService.authenticate(context)
 
-      assert Exception.message(error) =~ "launch has no grade service endpoint claim"
+      assert Exception.message(error) =~ "The launch has no endpoint claim for this service"
     end
   end
 

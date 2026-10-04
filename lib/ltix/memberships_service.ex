@@ -64,12 +64,12 @@ defmodule Ltix.MembershipsService do
 
   @impl Ltix.AdvantageService
   # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
-  def endpoint_from_claims(claims) do
-    case fetch_endpoint(claims) do
-      {:ok, _} = ok -> ok
-      {:error, _} -> :error
-    end
-  end
+  def endpoint_from_claims(%LaunchClaims{
+        memberships_endpoint: %MembershipsEndpoint{} = endpoint
+      }),
+      do: {:ok, endpoint}
+
+  def endpoint_from_claims(_claims), do: :error
 
   @impl Ltix.AdvantageService
   def validate_endpoint(%MembershipsEndpoint{} = endpoint) do
@@ -133,11 +133,7 @@ defmodule Ltix.MembershipsService do
 
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Options.parse!(opts, @context_auth_schema)
-
-    with {:ok, registration} <- Registerable.to_registration(context.registration),
-         {:ok, endpoint} <- fetch_endpoint(context.claims) do
-      OAuth.authenticate(registration, Keyword.put(opts, :endpoints, %{__MODULE__ => endpoint}))
-    end
+    OAuth.authenticate(context, Keyword.put(opts, :services, [__MODULE__]))
   end
 
   def authenticate(registerable, opts) do
@@ -496,17 +492,6 @@ defmodule Ltix.MembershipsService do
   end
 
   defp resolve_role(string) when is_binary(string), do: string
-
-  defp fetch_endpoint(%LaunchClaims{memberships_endpoint: %MembershipsEndpoint{} = ep}),
-    do: {:ok, ep}
-
-  defp fetch_endpoint(_) do
-    {:error,
-     ServiceNotAvailable.exception(
-       service: __MODULE__,
-       spec_ref: "NRPS §3.6.1.1"
-     )}
-  end
 
   defp raise_invalid_role(role) do
     raise InvalidOption, key: :role, value: role, reason: "it is not a known role"

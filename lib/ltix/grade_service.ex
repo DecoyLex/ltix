@@ -152,23 +152,13 @@ defmodule Ltix.GradeService do
   def authenticate(%LaunchContext{} = context, opts) do
     opts = Options.parse!(opts, @context_auth_schema)
 
-    with {:ok, registration} <- Registerable.to_registration(context.registration),
-         {:ok, endpoint} <- fetch_claim_endpoint(context.claims) do
-      OAuth.authenticate(registration, Keyword.put(opts, :endpoints, %{__MODULE__ => endpoint}))
-    end
+    OAuth.authenticate(context, Keyword.put(opts, :services, [__MODULE__]))
   end
 
   def authenticate(registerable, opts) do
     opts = Options.parse!(opts, @registration_auth_schema)
     {endpoint, opts} = Keyword.pop!(opts, :endpoint)
     OAuth.authenticate(registerable, Keyword.put(opts, :endpoints, %{__MODULE__ => endpoint}))
-  end
-
-  defp fetch_claim_endpoint(claims) do
-    case endpoint_from_claims(claims) do
-      {:ok, _endpoint} = ok -> ok
-      :error -> not_available("The launch has no grade service endpoint claim")
-    end
   end
 
   @doc """

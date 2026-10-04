@@ -4,8 +4,8 @@ defmodule Ltix.AdvantageService do
 
   Each Advantage service implements this behaviour to describe its endpoint
   type and required OAuth scopes. `Ltix.OAuth` uses these callbacks to
-  validate endpoints, derive scopes, and build authenticated clients,
-  without hardcoded knowledge of any specific service.
+  read endpoints from launch claims, validate endpoints, derive scopes, and
+  build authenticated clients for any service.
 
   ## Implementing a custom service
 
@@ -27,7 +27,7 @@ defmodule Ltix.AdvantageService do
       end
   """
 
-  @doc "Extract the service's endpoint from launch claims."
+  @doc "Extract the service's endpoint from launch claims, or return `:error` when the launch has none."
   @callback endpoint_from_claims(Ltix.LaunchClaims.t()) :: {:ok, term()} | :error
 
   @doc "Validate that the given value is a valid endpoint for this service."
