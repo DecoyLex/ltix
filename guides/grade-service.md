@@ -98,9 +98,9 @@ updated = %{item | label: "Quiz 1 (Updated)", score_maximum: 120}
 Fetch the current grades the platform has recorded for a line item:
 
 ```elixir
-{:ok, results} = Ltix.GradeService.get_results(client)
+{:ok, results} = Ltix.GradeService.list_results(client)
 
-{:ok, results} = Ltix.GradeService.get_results(client,
+{:ok, results} = Ltix.GradeService.list_results(client,
   line_item: quiz_item,
   user_id: "12345"
 )

@@ -98,7 +98,7 @@ def sync_roster(course) do
     endpoint: endpoint
   )
 
-  {:ok, members} = Ltix.MembershipsService.get_members(client)
+  {:ok, members} = Ltix.MembershipsService.list_members(client)
   # Pair mobile accounts with LMS users using LIS data from members
 end
 ```

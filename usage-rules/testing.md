@@ -182,7 +182,7 @@ Per-operation stubs are available for each service call:
 
 - `stub_list_line_items/1`, `stub_get_line_item/1`, `stub_create_line_item/1`,
   `stub_update_line_item/1`, `stub_delete_line_item/0`
-- `stub_post_score/0`, `stub_get_results/1`
+- `stub_post_score/0`, `stub_list_results/1`
 - `stub_get_members/1`
 
 Each accepts the struct(s) the platform would return. For custom response

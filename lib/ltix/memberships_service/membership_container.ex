@@ -8,7 +8,7 @@ defmodule Ltix.MembershipsService.MembershipContainer do
 
   ## Examples
 
-      {:ok, roster} = Ltix.MembershipsService.get_members(client)
+      {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
       roster.context.id
       #=> "course-123"

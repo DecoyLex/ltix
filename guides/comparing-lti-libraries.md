@@ -123,7 +123,7 @@ authenticate-then-call pattern:
 
 ```elixir
 {:ok, client} = Ltix.MembershipsService.authenticate(context)
-{:ok, roster} = Ltix.MembershipsService.get_members(client)
+{:ok, roster} = Ltix.MembershipsService.list_members(client)
 ```
 
 **`lti_1p3`** provides separate modules for token acquisition and

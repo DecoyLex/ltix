@@ -96,7 +96,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
                  score_maximum: 100
                })
 
-      assert {:error, %TransportError{}} = GradeService.get_results(client, line_item: url)
+      assert {:error, %TransportError{}} = GradeService.list_results(client, line_item: url)
     end
 
     refute_receive {:reached, _}
@@ -157,7 +157,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     assert {:error, %TransportError{}} =
              GradeService.create_line_item(client, label: "Quiz", score_maximum: 100)
 
-    assert {:error, %TransportError{}} = MembershipsService.get_members(client)
+    assert {:error, %TransportError{}} = MembershipsService.list_members(client)
     assert {:error, %TransportError{}} = MembershipsService.stream_members(client)
     refute_receive {:reached, _}
   end
@@ -312,7 +312,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
 
     assert {:error, %RedirectNotAllowed{status: 307}} = GradeService.list_line_items(client)
 
-    assert {:error, %RedirectNotAllowed{status: 307}} = MembershipsService.get_members(client)
+    assert {:error, %RedirectNotAllowed{status: 307}} = MembershipsService.list_members(client)
 
     assert {:error, %RedirectNotAllowed{status: 307}} = MembershipsService.stream_members(client)
 

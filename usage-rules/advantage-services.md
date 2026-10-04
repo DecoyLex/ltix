@@ -122,10 +122,10 @@ Pass Canvas-specific properties via `:extensions`:
 
 ```elixir
 {:ok, client} = Ltix.MembershipsService.authenticate(context)
-{:ok, roster} = Ltix.MembershipsService.get_members(client)
+{:ok, roster} = Ltix.MembershipsService.list_members(client)
 ```
 
-- `get_members/2` loads the entire roster into memory (safety limit: 10,000 members).
+- `list_members/2` loads the entire roster into memory (safety limit: 10,000 members).
 - For large courses, use `stream_members/2` for lazy, paginated processing:
 
 ```elixir

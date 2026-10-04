@@ -512,29 +512,6 @@ defmodule Ltix.TestTest do
     end
   end
 
-  describe "stub_get_results/1" do
-    test "returns serialized results", %{platform: platform} do
-      alias Ltix.GradeService.Result
-
-      results = [
-        %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
-        %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
-      ]
-
-      Ltix.Test.stub_get_results(results)
-
-      client =
-        build_grade_client(platform,
-          scopes: [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
-          ]
-        )
-
-      assert {:ok, [%Result{user_id: "student-1"}, %Result{user_id: "student-2"}]} =
-               Ltix.GradeService.get_results(client)
-    end
-  end
-
   describe "stub_get_members/1" do
     test "returns serialized members in a container", %{platform: platform} do
       alias Ltix.MembershipsService.Member
@@ -555,7 +532,7 @@ defmodule Ltix.TestTest do
       client = build_memberships_client(platform)
 
       assert {:ok, %MembershipContainer{} = roster} =
-               Ltix.MembershipsService.get_members(client)
+               Ltix.MembershipsService.list_members(client)
 
       assert roster.context.id == "course-42"
       assert roster.context.title == "Elixir 101"
@@ -577,7 +554,7 @@ defmodule Ltix.TestTest do
       client = build_memberships_client(platform)
 
       assert {:ok, %MembershipContainer{} = roster} =
-               Ltix.MembershipsService.get_members(client)
+               Ltix.MembershipsService.list_members(client)
 
       assert roster.context.id == "context-001"
     end

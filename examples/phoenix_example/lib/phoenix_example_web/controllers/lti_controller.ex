@@ -49,7 +49,7 @@ defmodule PhoenixExampleWeb.LtiController do
     with context_id when is_binary(context_id) <- get_session(conn, :lti_context_id),
          {:ok, context} <- LtiStorage.get_context(context_id),
          {:ok, client} <- Ltix.MembershipsService.authenticate(context),
-         {:ok, roster} <- Ltix.MembershipsService.get_members(client) do
+         {:ok, roster} <- Ltix.MembershipsService.list_members(client) do
       render(conn, :roster, roster: roster, error: nil)
     else
       nil ->
@@ -162,7 +162,7 @@ defmodule PhoenixExampleWeb.LtiController do
   def grade_results(conn, %{"line_item" => line_item_url}) do
     with {:ok, context} <- fetch_context(conn),
          {:ok, client} <- GradeService.authenticate(context),
-         {:ok, results} <- GradeService.get_results(client, line_item: line_item_url) do
+         {:ok, results} <- GradeService.list_results(client, line_item: line_item_url) do
       render(conn, :grade_results, results: results, line_item_url: line_item_url, error: nil)
     else
       {:error, %{__struct__: _} = exception} ->

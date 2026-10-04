@@ -15,7 +15,7 @@ def launch(conn, params) do
   {:ok, context} = Ltix.handle_callback(params, state)
 
   {:ok, client} = Ltix.MembershipsService.authenticate(context)
-  {:ok, roster} = Ltix.MembershipsService.get_members(client)
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
   active_learners =
     roster
@@ -37,7 +37,7 @@ access:
 ```elixir
 case Ltix.MembershipsService.authenticate(context) do
   {:ok, client} ->
-    {:ok, roster} = Ltix.MembershipsService.get_members(client)
+    {:ok, roster} = Ltix.MembershipsService.list_members(client)
     # use roster
 
   {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} ->
@@ -68,7 +68,7 @@ def perform(%{args: %{"course_id" => course_id}}) do
     endpoint: MembershipsEndpoint.new(url)
   )
 
-  {:ok, roster} = Ltix.MembershipsService.get_members(client)
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
   Enum.each(roster, fn member ->
     MyApp.Users.upsert_from_lti(course_id, %{
@@ -104,10 +104,10 @@ matching members:
 
 ```elixir
 # Only learners
-{:ok, roster} = Ltix.MembershipsService.get_members(client, role: :learner)
+{:ok, roster} = Ltix.MembershipsService.list_members(client, role: :learner)
 
 # Only instructors
-{:ok, roster} = Ltix.MembershipsService.get_members(client, role: :instructor)
+{:ok, roster} = Ltix.MembershipsService.list_members(client, role: :instructor)
 ```
 
 See [Working with Roles](working-with-roles.md) for the full role
@@ -118,7 +118,7 @@ vocabulary and predicates.
 Retrieve only members with access to a specific resource link:
 
 ```elixir
-{:ok, roster} = Ltix.MembershipsService.get_members(client,
+{:ok, roster} = Ltix.MembershipsService.list_members(client,
   resource_link_id: context.claims.resource_link.id
 )
 ```
@@ -141,7 +141,7 @@ end
 
 ## Large courses
 
-`get_members/2` loads the entire roster into memory. For courses with
+`list_members/2` loads the entire roster into memory. For courses with
 thousands of students, use `stream_members/2` to process members
 incrementally:
 
@@ -155,7 +155,7 @@ stream
 end)
 ```
 
-`get_members/2` includes a safety limit (default: 10,000 members) and
+`list_members/2` includes a safety limit (default: 10,000 members) and
 returns a `RosterTooLarge` error if exceeded. Increase it with
 `max_members: 50_000` or disable it with `max_members: :infinity`.
 For rosters of unknown size, streaming is the safer choice.

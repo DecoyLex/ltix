@@ -109,7 +109,7 @@ defmodule Ltix do
   then call service functions:
 
       {:ok, client} = Ltix.MembershipsService.authenticate(context)
-      {:ok, roster} = Ltix.MembershipsService.get_members(client)
+      {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
       Enum.each(roster, fn member ->
         IO.puts("\#{member.name}: \#{inspect(member.roles)}")

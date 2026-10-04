@@ -79,7 +79,7 @@ def perform(%{args: %{"platform_id" => platform_id}}) do
 
     client = ensure_fresh(client)
 
-    {:ok, roster} = Ltix.MembershipsService.get_members(client)
+    {:ok, roster} = Ltix.MembershipsService.list_members(client)
     MyApp.Courses.sync_roster(course.id, roster)
 
     client
@@ -165,7 +165,7 @@ def perform(%{args: %{"course_id" => course_id}}) do
     endpoint
   )
 
-  {:ok, roster} = Ltix.MembershipsService.get_members(client)
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
   MyApp.Courses.sync_roster(course_id, roster)
 end
 ```

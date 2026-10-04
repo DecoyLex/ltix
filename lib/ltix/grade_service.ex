@@ -494,18 +494,18 @@ defmodule Ltix.GradeService do
     end)
   end
 
-  @get_results_schema Zoi.keyword(
-                        [
-                          line_item:
-                            Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                              description:
-                                "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                            ),
-                          user_id: Zoi.string(description: "Filter results to a single user."),
-                          per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
-                        ],
-                        unrecognized_keys: :error
-                      )
+  @list_results_schema Zoi.keyword(
+                         [
+                           line_item:
+                             Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                               description:
+                                 "Line item URL or struct. Defaults to the endpoint's `line_item`."
+                             ),
+                           user_id: Zoi.string(description: "Filter results to a single user."),
+                           per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+                         ],
+                         unrecognized_keys: :error
+                       )
 
   @doc """
   Fetch results for a line item.
@@ -515,23 +515,23 @@ defmodule Ltix.GradeService do
 
   ## Options
 
-  #{Zoi.describe(@get_results_schema)}
+  #{Zoi.describe(@list_results_schema)}
   """
   # [AGS §3.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
-  @spec get_results(Client.t(), keyword()) ::
+  @spec list_results(Client.t(), keyword()) ::
           {:ok, [Result.t()]} | {:error, Exception.t()}
-  def get_results(%Client{} = client, opts \\ []) do
-    opts = Options.parse!(opts, @get_results_schema)
+  def list_results(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @list_results_schema)
     metadata = span_metadata(client)
 
-    :telemetry.span([:ltix, :grade_service, :get_results], metadata, fn ->
+    :telemetry.span([:ltix, :grade_service, :list_results], metadata, fn ->
       result =
         with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_result_readonly),
              {:ok, base_url} <- resolve_line_item_url(client, opts),
              {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
              url = derive_url(uri, "results"),
-             params = get_results_params(opts),
+             params = list_results_params(opts),
              headers = auth_headers(client, @result_container_media_type),
              {:ok, pages} <-
                Pagination.stream_results(url, headers,
@@ -678,7 +678,7 @@ defmodule Ltix.GradeService do
     )
   end
 
-  defp get_results_params(opts) do
+  defp list_results_params(opts) do
     params = %{}
 
     params

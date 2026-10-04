@@ -4,7 +4,7 @@ defmodule Ltix.OAuth.Client do
 
   Holds an access token, tracks which scopes were granted, and provides
   explicit refresh. Pass this struct to service functions like
-  `Ltix.MembershipsService.get_members/2`.
+  `Ltix.MembershipsService.list_members/2`.
 
   ## Refreshing
 

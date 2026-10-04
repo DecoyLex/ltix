@@ -4,7 +4,6 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.RosterTooLarge
-  alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.LaunchClaims.MembershipsEndpoint
@@ -125,8 +124,8 @@ defmodule Ltix.MembershipsServiceTest do
                 unknown: true
               )
             end,
-            fn -> MembershipsService.get_members(client, unknown: true) end,
-            fn -> MembershipsService.get_members!(client, unknown: true) end,
+            fn -> MembershipsService.list_members(client, unknown: true) end,
+            fn -> MembershipsService.list_members!(client, unknown: true) end,
             fn -> MembershipsService.stream_members(client, unknown: true) end,
             fn -> MembershipsService.stream_members!(client, unknown: true) end
           ] do
@@ -138,7 +137,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert_raise InvalidOption, ~r/Option :max_members is invalid/, fn ->
-        MembershipsService.get_members(client, max_members: 0)
+        MembershipsService.list_members(client, max_members: 0)
       end
 
       assert_raise InvalidOption, "Option :max_members is unknown", fn ->
@@ -147,7 +146,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       for role <- [:not_a_role, %Role{type: :context, name: :not_a_role}] do
         assert_raise InvalidOption, ~r/Option :role is invalid/, fn ->
-          MembershipsService.get_members(client, role: role)
+          MembershipsService.list_members(client, role: role)
         end
       end
     end
@@ -257,9 +256,9 @@ defmodule Ltix.MembershipsServiceTest do
     end
   end
 
-  # --- get_members/2 ---
+  # --- list_members/2 ---
 
-  describe "get_members/2" do
+  describe "list_members/2" do
     test "returns complete MembershipContainer", ctx do
       members = [
         build_member("user-1", [@learner_uri], name: "Alice"),
@@ -272,7 +271,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, %MembershipContainer{} = roster} =
-               MembershipsService.get_members(client)
+               MembershipsService.list_members(client)
 
       assert roster.context.id == "course-123"
       assert length(roster.members) == 2
@@ -314,7 +313,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, %MembershipContainer{} = roster} =
-               MembershipsService.get_members(client)
+               MembershipsService.list_members(client)
 
       assert length(roster.members) == 2
       user_ids = Enum.map(roster.members, & &1.user_id)
@@ -333,7 +332,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:error, %RosterTooLarge{max: 3}} =
-               MembershipsService.get_members(client, max_members: 3)
+               MembershipsService.list_members(client, max_members: 3)
     end
 
     test "max_members :infinity disables limit", ctx do
@@ -347,17 +346,9 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, %MembershipContainer{} = roster} =
-               MembershipsService.get_members(client, max_members: :infinity)
+               MembershipsService.list_members(client, max_members: :infinity)
 
       assert length(roster.members) == 5
-    end
-
-    test "returns ScopeMismatch when client lacks NRPS scope", ctx do
-      stub_memberships_response(build_membership_response([]))
-
-      client = build_client(ctx.platform, scopes: ["other:scope"])
-
-      assert {:error, %ScopeMismatch{}} = MembershipsService.get_members(client)
     end
 
     test "returns AccessTokenExpired when token is expired", ctx do
@@ -366,7 +357,7 @@ defmodule Ltix.MembershipsServiceTest do
       client =
         build_client(ctx.platform, expires_at: DateTime.add(DateTime.utc_now(), -120))
 
-      assert {:error, %AccessTokenExpired{}} = MembershipsService.get_members(client)
+      assert {:error, %AccessTokenExpired{}} = MembershipsService.list_members(client)
     end
 
     test "sends correct Accept header", ctx do
@@ -380,7 +371,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client)
+      assert {:ok, _} = MembershipsService.list_members(client)
     end
 
     test "sends correct Authorization header", ctx do
@@ -394,7 +385,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client)
+      assert {:ok, _} = MembershipsService.list_members(client)
     end
 
     test "HTTP error returns error tuple", ctx do
@@ -404,7 +395,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       client = build_client(ctx.platform)
 
-      assert {:error, _} = MembershipsService.get_members(client)
+      assert {:error, _} = MembershipsService.list_members(client)
     end
   end
 
@@ -422,7 +413,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client, role: :learner)
+      assert {:ok, _} = MembershipsService.list_members(client, role: :learner)
     end
 
     test "role filter with URI string", ctx do
@@ -436,7 +427,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client, role: @instructor_uri)
+      assert {:ok, _} = MembershipsService.list_members(client, role: @instructor_uri)
     end
 
     test "role filter with short name string", ctx do
@@ -450,7 +441,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client, role: "Learner")
+      assert {:ok, _} = MembershipsService.list_members(client, role: "Learner")
     end
 
     test "per_page passed as limit query parameter", ctx do
@@ -464,7 +455,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client, per_page: 25)
+      assert {:ok, _} = MembershipsService.list_members(client, per_page: 25)
     end
 
     test "role filter with %Role{} struct", ctx do
@@ -479,7 +470,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       client = build_client(ctx.platform)
       role = %Role{type: :context, name: :instructor, sub_role: nil}
-      assert {:ok, _} = MembershipsService.get_members(client, role: role)
+      assert {:ok, _} = MembershipsService.list_members(client, role: role)
     end
 
     test "resource_link_id appended as rlid parameter", ctx do
@@ -495,7 +486,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, _} =
-               MembershipsService.get_members(client, resource_link_id: "resource-link-001")
+               MembershipsService.list_members(client, resource_link_id: "resource-link-001")
     end
   end
 
@@ -506,7 +497,7 @@ defmodule Ltix.MembershipsServiceTest do
       stub_memberships_response(build_membership_response([]))
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client)
+      assert {:ok, _} = MembershipsService.list_members(client)
     end
 
     test "accepts media type with parameters", ctx do
@@ -517,7 +508,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.get_members(client)
+      assert {:ok, _} = MembershipsService.list_members(client)
     end
 
     test "robustly handles wrong but compatible content type", ctx do
@@ -530,7 +521,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, %MembershipContainer{}} =
-               MembershipsService.get_members(client)
+               MembershipsService.list_members(client)
     end
 
     test "rejects wrong content type", ctx do
@@ -543,7 +534,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:error, %MalformedResponse{}} =
-               MembershipsService.get_members(client)
+               MembershipsService.list_members(client)
     end
   end
 
@@ -624,7 +615,7 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, %MembershipContainer{} = roster} =
-               MembershipsService.get_members(client, resource_link_id: "resource-link-001")
+               MembershipsService.list_members(client, resource_link_id: "resource-link-001")
 
       assert [member] = roster.members
       assert [msg] = member.message

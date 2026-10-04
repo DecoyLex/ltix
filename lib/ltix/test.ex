@@ -607,15 +607,15 @@ defmodule Ltix.Test do
   end
 
   @doc """
-  Stub `get_results/2` to return the given results.
+  Stub `list_results/2` to return the given results.
 
-      Ltix.Test.stub_get_results([
+      Ltix.Test.stub_list_results([
         %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
         %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
       ])
   """
-  @spec stub_get_results([Result.t()]) :: :ok
-  def stub_get_results(results) when is_list(results) do
+  @spec stub_list_results([Result.t()]) :: :ok
+  def stub_list_results(results) when is_list(results) do
     require_plug!()
 
     json = Enum.map(results, &result_to_json/1)
@@ -628,7 +628,7 @@ defmodule Ltix.Test do
   # --- Memberships Service Stubs ---
 
   @doc """
-  Stub `get_members/2` (and `stream_members/2`) to return the given members.
+  Stub `list_members/2` (and `stream_members/2`) to return the given members.
 
       Ltix.Test.stub_get_members([
         %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},

@@ -269,7 +269,7 @@ test "fetches roster", %{platform: platform} do
   )
 
   {:ok, client} = Ltix.MembershipsService.authenticate(context)
-  {:ok, roster} = Ltix.MembershipsService.get_members(client)
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
   assert length(roster.members) == 1
   assert hd(roster.members).name == "Alice"

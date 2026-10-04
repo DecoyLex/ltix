@@ -9,7 +9,7 @@ defmodule Ltix.MembershipsService do
   ## From a launch context
 
       {:ok, client} = Ltix.MembershipsService.authenticate(launch_context)
-      {:ok, roster} = Ltix.MembershipsService.get_members(client)
+      {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
       Enum.each(roster, fn member ->
         IO.puts("\#{member.name}: \#{inspect(member.roles)}")
@@ -23,7 +23,7 @@ defmodule Ltix.MembershipsService do
         endpoint: MembershipsEndpoint.new("https://lms.example.com/memberships")
       )
 
-      {:ok, roster} = Ltix.MembershipsService.get_members(client, role: :learner)
+      {:ok, roster} = Ltix.MembershipsService.list_members(client, role: :learner)
 
   ## Streaming large rosters
 
@@ -192,20 +192,20 @@ defmodule Ltix.MembershipsService do
       |> Zoi.positive()
   ]
 
-  @get_members_schema Zoi.keyword(
-                        @query_fields ++
-                          [
-                            max_members:
-                              Zoi.union(
-                                [Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
-                                description:
-                                  "Safety limit for eager fetch. Returns a `RosterTooLarge` error " <>
-                                    "if exceeded. Set to `:infinity` to disable."
-                              )
-                              |> Zoi.default(10_000)
-                          ],
-                        unrecognized_keys: :error
-                      )
+  @list_members_schema Zoi.keyword(
+                         @query_fields ++
+                           [
+                             max_members:
+                               Zoi.union(
+                                 [Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
+                                 description:
+                                   "Safety limit for eager fetch. Returns a `RosterTooLarge` error " <>
+                                     "if exceeded. Set to `:infinity` to disable."
+                               )
+                               |> Zoi.default(10_000)
+                           ],
+                         unrecognized_keys: :error
+                       )
 
   @stream_members_schema Zoi.keyword(@query_fields, unrecognized_keys: :error)
 
@@ -218,17 +218,17 @@ defmodule Ltix.MembershipsService do
 
   ## Options
 
-  #{Zoi.describe(@get_members_schema)}
+  #{Zoi.describe(@list_members_schema)}
   """
   # [NRPS §2.4](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
-  @spec get_members(Client.t(), keyword()) ::
+  @spec list_members(Client.t(), keyword()) ::
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
-  def get_members(%Client{} = client, opts \\ []) do
-    opts = Options.parse!(opts, @get_members_schema)
+  def list_members(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @list_members_schema)
     {max, query_opts} = Keyword.pop(opts, :max_members)
     metadata = span_metadata(client, opts)
 
-    :telemetry.span([:ltix, :memberships_service, :get_members], metadata, fn ->
+    :telemetry.span([:ltix, :memberships_service, :list_members], metadata, fn ->
       result =
         with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @nrps_scope),
@@ -241,11 +241,11 @@ defmodule Ltix.MembershipsService do
   end
 
   @doc """
-  Same as `get_members/2` but raises on error.
+  Same as `list_members/2` but raises on error.
   """
-  @spec get_members!(Client.t(), keyword()) :: MembershipContainer.t()
-  def get_members!(%Client{} = client, opts \\ []) do
-    case get_members(client, opts) do
+  @spec list_members!(Client.t(), keyword()) :: MembershipContainer.t()
+  def list_members!(%Client{} = client, opts \\ []) do
+    case list_members(client, opts) do
       {:ok, container} -> container
       {:error, error} -> raise error
     end
@@ -255,7 +255,7 @@ defmodule Ltix.MembershipsService do
   Fetch members as a lazy stream.
 
   Returns `{:ok, stream}` where each element is a `%Member{}`.
-  Use this instead of `get_members/2` for large rosters where you
+  Use this instead of `list_members/2` for large rosters where you
   want to process members incrementally or stop early.
   Later page failures and member parsing errors raise during enumeration.
 

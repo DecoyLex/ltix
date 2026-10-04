@@ -195,7 +195,7 @@ Same as `authenticate/2` but raises on error.
 ## Examples
 
     {:ok, client} = MembershipsService.authenticate(context)
-    {:ok, roster} = MembershipsService.get_members(client)
+    {:ok, roster} = MembershipsService.list_members(client)
 ```
 
 - **When NOT to use doctests**: code with side effects (IO, file writes),
@@ -316,7 +316,7 @@ Use `@doc group:` to group functions in ExDoc sidebar:
 
 ```elixir
 @doc group: "Query"
-def get_members(client, opts \\ [])
+def list_members(client, opts \\ [])
 ```
 
 ---
@@ -335,7 +335,7 @@ Still document functions with `@doc` if the module is complex enough that
 ## Writing style
 
 ### Punctuation
-- Prefer periods, commas, colons. Use em dashes and semicolons sparingly.
+- Use periods and commas. Avoid em dashes, colons, and semicolons in prose.
 - One space after periods.
 
 ### Headings

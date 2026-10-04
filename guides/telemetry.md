@@ -13,9 +13,9 @@ suffixes with `system_time` and `duration` measurements provided by
 
 ## Advantage services
 
-- `[:ltix, :grade_service, <action>, :start | :stop | :exception]` — wraps each grade service operation. Actions: `:list_line_items`, `:get_line_item`, `:create_line_item`, `:update_line_item`, `:delete_line_item`, `:post_score`, `:get_results`. Use `endpoint` metadata to break down measurements.
+- `[:ltix, :grade_service, <action>, :start | :stop | :exception]` — wraps each grade service operation. Actions: `:list_line_items`, `:get_line_item`, `:create_line_item`, `:update_line_item`, `:delete_line_item`, `:post_score`, `:list_results`. Use `endpoint` metadata to break down measurements.
 
-- `[:ltix, :memberships_service, <action>, :start | :stop | :exception]` — wraps each memberships service operation. Actions: `:get_members`, `:stream_members`. Use `endpoint` metadata to break down measurements.
+- `[:ltix, :memberships_service, <action>, :start | :stop | :exception]` — wraps each memberships service operation. Actions: `:list_members`, `:stream_members`. Use `endpoint` metadata to break down measurements.
 
 - `[:ltix, :deep_linking, :build_response, :start | :stop | :exception]` — wraps `Ltix.DeepLinking.build_response/3`. Use `item_count` and `item_types` metadata to break down measurements.
 

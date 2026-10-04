@@ -86,7 +86,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     stub_pages(:members, 3, fn conn -> Plug.Conn.send_resp(conn, 500, "unavailable") end)
 
     assert {:error, %RosterTooLarge{count: 2, max: 1}} =
-             MembershipsService.get_members(client, max_members: 1)
+             MembershipsService.list_members(client, max_members: 1)
 
     assert_receive {:requested_page, 2}
     refute_received {:requested_page, 3}
@@ -135,7 +135,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
 
         assert {:error,
                 %MalformedResponse{service: MembershipsService, reason: "expected JSON object"}} =
-                 MembershipsService.get_members(client)
+                 MembershipsService.list_members(client)
       end
     end
 
@@ -156,7 +156,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
                 %MalformedResponse{
                   service: MembershipsService,
                   reason: "expected members to be a JSON array"
-                }} = MembershipsService.get_members(client)
+                }} = MembershipsService.list_members(client)
       end
     end
 
@@ -185,7 +185,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       stub_pages(:members, page, &Req.Test.json(&1, body))
 
       assert {:error, %MissingClaim{claim: "member.user_id and member.roles"}} =
-               MembershipsService.get_members(client)
+               MembershipsService.list_members(client)
 
       assert {:ok, stream} = MembershipsService.stream_members(client)
       assert_raise MissingClaim, fn -> Enum.to_list(stream) end
@@ -242,7 +242,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     )
 
     assert {:ok, [%Result{user_id: "user-1", extensions: ^extension}]} =
-             GradeService.get_results(client)
+             GradeService.list_results(client)
   end
 
   test "members retain parsed custom messages and accept unknown properties", context do
@@ -271,7 +271,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     stub_pages(:members, 1, &Req.Test.json(&1, body))
 
     assert {:ok, %MembershipContainer{context: %{id: "course-1"}, members: [member]}} =
-             MembershipsService.get_members(client)
+             MembershipsService.list_members(client)
 
     assert %Member{
              user_id: "user-1",
@@ -318,7 +318,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       end
     end)
 
-    assert {:error, %MalformedResponse{}} = GradeService.get_results(client)
+    assert {:error, %MalformedResponse{}} = GradeService.list_results(client)
   end
 
   for collection <- [:line_items, :results, :members], page <- [1, 2, 3] do
@@ -412,8 +412,8 @@ defmodule Ltix.ServiceCollectionFailuresTest do
 
   defp fetch_collection(collection, client, opts \\ [])
   defp fetch_collection(:line_items, client, opts), do: GradeService.list_line_items(client, opts)
-  defp fetch_collection(:results, client, opts), do: GradeService.get_results(client, opts)
-  defp fetch_collection(:members, client, opts), do: MembershipsService.get_members(client, opts)
+  defp fetch_collection(:results, client, opts), do: GradeService.list_results(client, opts)
+  defp fetch_collection(:members, client, opts), do: MembershipsService.list_members(client, opts)
 
   defp collection_identifier(:line_items, item), do: item.id
   defp collection_identifier(_collection, item), do: item.user_id

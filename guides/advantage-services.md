@@ -19,7 +19,7 @@ def launch(conn, params) do
   # Authenticate to the memberships service
   case Ltix.MembershipsService.authenticate(context) do
     {:ok, client} ->
-      {:ok, roster} = Ltix.MembershipsService.get_members(client)
+      {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
       conn
       |> assign(:roster, roster)
@@ -54,7 +54,7 @@ endpoint = MembershipsEndpoint.new(stored_memberships_url)
   endpoint: endpoint
 )
 
-{:ok, roster} = Ltix.MembershipsService.get_members(client)
+{:ok, roster} = Ltix.MembershipsService.list_members(client)
 ```
 
 Store the endpoint URL when you first see it during a launch, then
@@ -75,7 +75,7 @@ def perform(%{args: %{"course_id" => course_id}}) do
     endpoint: endpoint
   )
 
-  {:ok, roster} = Ltix.MembershipsService.get_members(client)
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
   MyApp.Courses.sync_roster(course_id, roster)
 end
 ```
@@ -114,7 +114,7 @@ platform, you can reuse one token:
   Ltix.MembershipsService => course_b_endpoint
 })
 
-{:ok, roster_b} = Ltix.MembershipsService.get_members(client_b)
+{:ok, roster_b} = Ltix.MembershipsService.list_members(client_b)
 ```
 
 For caching tokens across processes and other advanced patterns, see
@@ -134,7 +134,7 @@ token by passing multiple endpoints:
 )
 
 # The same client works for both services
-{:ok, roster} = Ltix.MembershipsService.get_members(client)
+{:ok, roster} = Ltix.MembershipsService.list_members(client)
 :ok = Ltix.GradeService.post_score(client, score)
 ```
 
