@@ -138,8 +138,7 @@ more patterns.
 
 ## Sending the response
 
-Once you have your content items, call `build_response/3` to create
-the signed JWT:
+Once you have your content items, call `build_response/3` to create the signed JWT and render the response template.
 
 ```elixir
 def submit_selection(conn, %{"selected_ids" => ids}) do
@@ -150,25 +149,21 @@ def submit_selection(conn, %{"selected_ids" => ids}) do
     msg: "Selected #{length(items)} item(s)"
   )
 
-  # POST response.jwt to response.return_url as the "JWT" form parameter
-  html(conn, """
-  <form method="post" action="#{response.return_url}">
-    <input type="hidden" name="JWT" value="#{response.jwt}">
-  </form>
-  <script>document.forms[0].submit();</script>
-  """)
+  render(conn, :deep_linking_response, response: response)
 end
 ```
 
-`build_response/3` handles JWT construction and signing automatically.
-It echoes opaque JSON `data` values from the settings, sets the
-correct `iss`, `aud`, and `deployment_id` claims, and signs with
-your tool's private key.
+Then, in your template:
 
-> #### Framework delivery {: .info}
->
-> The auto-submit form POST above is shown for clarity. Your framework
-> may provide helpers that handle this delivery automatically.
+```heex
+<form id="deep-link-response" method="post" action={@response.return_url}>
+  <input type="hidden" name="JWT" value={@response.jwt} />
+  <noscript>
+    <button type="submit">Return to platform</button>
+  </noscript>
+</form>
+<script>document.getElementById("deep-link-response").submit();</script>
+```
 
 ## Respecting platform constraints
 
