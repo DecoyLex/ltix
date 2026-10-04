@@ -256,13 +256,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
       assert context.claims.deep_linking_settings.accept_multiple == true
     end
 
-    test "subject defaults to nil for DL context" do
-      platform = Ltix.Test.setup_platform!()
-      context = Ltix.Test.build_launch_context(platform, message_type: :deep_linking)
-
-      assert context.claims.subject == nil
-    end
-
     test "subject can be explicitly set for DL context" do
       platform = Ltix.Test.setup_platform!()
 

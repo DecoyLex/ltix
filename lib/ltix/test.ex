@@ -123,7 +123,7 @@ defmodule Ltix.Test do
 
       test "posts a score", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
-          ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
+          ags_endpoint: %{
             line_item: "https://platform.example.com/lineitems/1",
             scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
           }
@@ -165,6 +165,10 @@ defmodule Ltix.Test do
   alias Ltix.Registration
   alias Ltix.Test.Platform
 
+  @default_issuer "https://platform.example.com"
+  @default_client_id "tool-client-id"
+  @default_deployment_id "deployment-001"
+
   @setup_platform_schema Zoi.keyword(
                            [
                              issuer: Zoi.string(),
@@ -176,58 +180,162 @@ defmodule Ltix.Test do
                            unrecognized_keys: :error
                          )
 
-  @login_params_schema Zoi.keyword([login_hint: Zoi.string(), target_link_uri: Zoi.string()],
+  @login_params_schema Zoi.keyword(
+                         [
+                           login_hint: Zoi.string() |> Zoi.default("user-hint"),
+                           target_link_uri:
+                             Zoi.string() |> Zoi.default("https://tool.example.com/launch")
+                         ],
                          unrecognized_keys: :error
                        )
 
-  @claim_option_fields [
-    message_type: Zoi.union([Zoi.atom(), Zoi.string()]),
-    roles: Zoi.list(Zoi.union([Zoi.atom(), Zoi.string(), Zoi.struct(Role)])),
-    subject: Zoi.string(),
-    name: Zoi.string(),
-    email: Zoi.string(),
-    given_name: Zoi.string(),
-    family_name: Zoi.string(),
-    target_link_uri: Zoi.string(),
-    context: Zoi.map(Zoi.atom(), Zoi.any()),
-    resource_link: Zoi.map(Zoi.atom(), Zoi.any()),
+  @launch_option_fields [
+    message_type:
+      Zoi.enum([:resource_link, :deep_linking],
+        description: "`:deep_linking` for a Deep Linking request."
+      )
+      |> Zoi.default(:resource_link),
+    roles:
+      Zoi.list(Zoi.union([Zoi.atom(), Zoi.string(), Zoi.struct(Role)]),
+        description:
+          "Role atoms such as `:instructor`, `%Ltix.LaunchClaims.Role{}` structs, or role URIs. " <>
+            "URIs Ltix does not recognize are listed in `unrecognized_roles`."
+      )
+      |> Zoi.default([:instructor]),
+    subject:
+      Zoi.nullable(Zoi.string(),
+        description:
+          "User identifier. Defaults to `\"user-12345\"`. Pass `nil` for an anonymous launch."
+      ),
+    name: Zoi.string(description: "Full name."),
+    email: Zoi.string(description: "Email address."),
+    given_name: Zoi.string(description: "Given name."),
+    family_name: Zoi.string(description: "Family name."),
+    target_link_uri:
+      Zoi.string(description: "Launch URL.")
+      |> Zoi.default("https://tool.example.com/launch"),
+    context:
+      Zoi.union(
+        [
+          Zoi.struct(Context),
+          Zoi.map(
+            %{
+              id: Zoi.nullish(Zoi.string()),
+              label: Zoi.nullish(Zoi.string()),
+              title: Zoi.nullish(Zoi.string()),
+              type: Zoi.nullish(Zoi.list(Zoi.string()))
+            },
+            unrecognized_keys: :error
+          )
+        ],
+        description:
+          "Course or section, as a `%Ltix.LaunchClaims.Context{}` or a map of its fields. " <>
+            "The `:id` defaults to `\"context-001\"`."
+      ),
+    resource_link:
+      Zoi.union(
+        [
+          Zoi.struct(ResourceLink),
+          Zoi.map(
+            %{
+              id: Zoi.nullish(Zoi.string()),
+              title: Zoi.nullish(Zoi.string()),
+              description: Zoi.nullish(Zoi.string())
+            },
+            unrecognized_keys: :error
+          )
+        ],
+        description:
+          "Resource link of a resource link launch, as a `%Ltix.LaunchClaims.ResourceLink{}` " <>
+            "or a map of its fields. Defaults to `%{id: \"resource-link-001\", title: \"Example Assignment\"}`."
+      ),
     deep_linking_settings:
-      Zoi.union([Zoi.struct(DeepLinkingSettings), Zoi.map(Zoi.atom(), Zoi.any())])
+      Zoi.union(
+        [
+          Zoi.struct(DeepLinkingSettings),
+          Zoi.map(
+            %{
+              deep_link_return_url: Zoi.nullish(Zoi.string()),
+              accept_types: Zoi.nullish(Zoi.list(Zoi.string())),
+              accept_presentation_document_targets: Zoi.nullish(Zoi.list(Zoi.string())),
+              accept_media_types: Zoi.nullish(Zoi.string()),
+              accept_multiple: Zoi.nullish(Zoi.boolean()),
+              accept_line_item: Zoi.nullish(Zoi.boolean()),
+              auto_create: Zoi.nullish(Zoi.boolean()),
+              title: Zoi.nullish(Zoi.string()),
+              text: Zoi.nullish(Zoi.string()),
+              data: Zoi.nullish(Zoi.any())
+            },
+            unrecognized_keys: :error
+          )
+        ],
+        description:
+          "Settings of a Deep Linking request, as a `%Ltix.LaunchClaims.DeepLinkingSettings{}` " <>
+            "or a map of its fields. Fields you leave out accept every content type and " <>
+            "presentation target, and multiple items."
+      ),
+    ags_endpoint:
+      Zoi.union(
+        [
+          Zoi.struct(AGSEndpoint),
+          Zoi.map(
+            %{
+              scopes: Zoi.nullish(Zoi.list(Zoi.string())),
+              line_items: Zoi.nullish(Zoi.string()),
+              line_item: Zoi.nullish(Zoi.string())
+            },
+            unrecognized_keys: :error
+          )
+        ],
+        description:
+          "Grade service endpoint, as a `%Ltix.LaunchClaims.AGSEndpoint{}` or a map of its " <>
+            "fields. Requires `:scopes`."
+      ),
+    memberships_endpoint:
+      Zoi.union(
+        [
+          Zoi.struct(MembershipsEndpoint),
+          Zoi.string(),
+          Zoi.map(
+            %{
+              context_memberships_url: Zoi.nullish(Zoi.string()),
+              service_versions: Zoi.nullish(Zoi.list(Zoi.string()))
+            },
+            unrecognized_keys: :error
+          )
+        ],
+        description:
+          "Memberships service endpoint, as a `%Ltix.LaunchClaims.MembershipsEndpoint{}`, " <>
+            "its URL, or a map of its fields. `:service_versions` defaults to `[\"2.0\"]`."
+      ),
+    claims:
+      Zoi.map(Zoi.string(), Zoi.any(),
+        description: "Raw claims merged over the built claims, keyed by claim name."
+      )
   ]
 
   @launch_params_schema Zoi.keyword(
-                          @claim_option_fields ++
-                            [
-                              nonce: Zoi.string() |> Zoi.required(),
-                              state: Zoi.string() |> Zoi.required(),
-                              claims: Zoi.map(Zoi.string(), Zoi.any())
-                            ],
+                          [
+                            nonce:
+                              Zoi.string(
+                                description:
+                                  "Nonce from the login redirect, read with `extract_nonce/1`."
+                              )
+                              |> Zoi.required(),
+                            state:
+                              Zoi.string(description: "State from the login result.")
+                              |> Zoi.required()
+                          ] ++ @launch_option_fields,
                           unrecognized_keys: :error
                         )
 
-  @build_launch_context_schema Zoi.keyword(
-                                 @claim_option_fields ++
-                                   [
-                                     ags_endpoint:
-                                       Zoi.union([
-                                         Zoi.struct(AGSEndpoint),
-                                         Zoi.map(Zoi.atom(), Zoi.any())
-                                       ]),
-                                     memberships_endpoint:
-                                       Zoi.union([
-                                         Zoi.struct(MembershipsEndpoint),
-                                         Zoi.string(),
-                                         Zoi.map(Zoi.atom(), Zoi.any())
-                                       ])
-                                   ],
-                                 unrecognized_keys: :error
-                               )
+  @build_launch_context_schema Zoi.keyword(@launch_option_fields, unrecognized_keys: :error)
 
   @stub_token_response_schema Zoi.keyword(
                                 [
-                                  scopes: Zoi.list(Zoi.string()),
-                                  access_token: Zoi.string(),
-                                  expires_in: Zoi.integer()
+                                  scopes: Zoi.list(Zoi.string()) |> Zoi.default([]),
+                                  access_token: Zoi.string() |> Zoi.default("test-token"),
+                                  expires_in: Zoi.integer() |> Zoi.default(3600)
                                 ],
                                 unrecognized_keys: :error
                               )
@@ -320,8 +428,8 @@ defmodule Ltix.Test do
 
     %{
       "iss" => resolved_registration(platform).issuer,
-      "login_hint" => Keyword.get(opts, :login_hint, "user-hint"),
-      "target_link_uri" => Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch")
+      "login_hint" => Keyword.fetch!(opts, :login_hint),
+      "target_link_uri" => Keyword.fetch!(opts, :target_link_uri)
     }
   end
 
@@ -329,38 +437,21 @@ defmodule Ltix.Test do
   Build POST params for `Ltix.handle_callback/3`.
 
   Signs a JWT with the platform's private key and returns
-  `%{"id_token" => jwt, "state" => state}`.
+  `%{"id_token" => jwt, "state" => state}`. Takes the same launch options
+  as `build_launch_context/2`, plus the `:nonce` and `:state` of the login.
 
-  ## Required options
+  ## Options
 
-    * `:nonce` — the nonce from the login redirect (use `extract_nonce/1`)
-    * `:state` — the state from the login result
-
-  ## Optional
-
-    * `:message_type` — `:deep_linking` for Deep Linking requests
-      (default: resource link)
-    * `:roles` — list of role atoms (e.g., `[:instructor]`), `%Role{}` structs,
-      or URI strings
-    * `:subject` — user identifier (default: `"user-12345"`)
-    * `:name`, `:email`, `:given_name`, `:family_name` — user PII
-    * `:context` — map with `:id`, `:label`, `:title` keys
-    * `:resource_link` — map with `:id`, `:title` keys
-    * `:deep_linking_settings` — map of DL settings (used when
-      `message_type: :deep_linking`)
-    * `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
-    * `:claims` — raw claim map merged last (for advanced overrides)
+  #{Zoi.describe(@launch_params_schema)}
   """
   @spec launch_params(Platform.t(), keyword()) :: map()
   def launch_params(%Platform{} = platform, opts) do
     opts = Options.parse!(opts, @launch_params_schema)
-    nonce = Keyword.fetch!(opts, :nonce)
-    state = Keyword.fetch!(opts, :state)
+    {nonce, opts} = Keyword.pop!(opts, :nonce)
+    {state, opts} = Keyword.pop!(opts, :state)
+    claims = Map.put(build_claims(platform, opts), "nonce", nonce)
 
-    claims = build_claims(platform, nonce, opts)
-    id_token = sign_id_token(claims, platform.jwk)
-
-    %{"id_token" => id_token, "state" => state}
+    %{"id_token" => sign_id_token(claims, platform.jwk), "state" => state}
   end
 
   @doc """
@@ -383,14 +474,8 @@ defmodule Ltix.Test do
   @doc """
   Build a `%LaunchContext{}` directly for unit testing.
 
-  Constructs the context without going through the OIDC flow.
-  Accepts the claim options of `launch_params/2` except `:nonce`, `:state`,
-  and `:claims`, plus these service endpoint options:
-
-    * `:ags_endpoint` — `%Ltix.LaunchClaims.AGSEndpoint{}` or a map with
-      `:line_items`, `:line_item`, and `:scopes` keys
-    * `:memberships_endpoint` — `%Ltix.LaunchClaims.MembershipsEndpoint{}`,
-      a URL string, or a map with `:url` and `:service_versions` keys
+  Returns the context `Ltix.handle_callback/3` would return for a launch
+  from `launch_params/2` with the same launch options, without the OIDC flow.
 
       context = Ltix.Test.build_launch_context(platform,
         roles: [:instructor, :teaching_assistant],
@@ -404,67 +489,19 @@ defmodule Ltix.Test do
         message_type: :deep_linking,
         deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
       )
+
+  ## Options
+
+  #{Zoi.describe(@build_launch_context_schema)}
   """
   @spec build_launch_context(Platform.t(), keyword()) :: LaunchContext.t()
   def build_launch_context(%Platform{} = platform, opts \\ []) do
-    claims = build_launch_claims(platform, Options.parse!(opts, @build_launch_context_schema))
+    claims = build_claims(platform, Options.parse!(opts, @build_launch_context_schema))
 
     %LaunchContext{
-      claims: claims,
+      claims: ok!(LaunchClaims.from_json(claims)),
       registration: platform.registration,
       deployment: platform.deployment
-    }
-  end
-
-  defp build_launch_claims(platform, opts) do
-    parsed_roles =
-      opts
-      |> Keyword.get(:roles, [])
-      |> resolve_roles()
-
-    message_type =
-      opts
-      |> Keyword.get(:message_type)
-      |> normalize_message_type()
-
-    reg = resolved_registration(platform)
-    dep = resolved_deployment(platform)
-
-    base_claims = %LaunchClaims{
-      issuer: reg.issuer,
-      audience: reg.client_id,
-      version: "1.3.0",
-      deployment_id: dep.deployment_id,
-      target_link_uri: Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch"),
-      roles: parsed_roles,
-      name: Keyword.get(opts, :name),
-      email: Keyword.get(opts, :email),
-      given_name: Keyword.get(opts, :given_name),
-      family_name: Keyword.get(opts, :family_name),
-      context: build_context(Keyword.get(opts, :context)),
-      memberships_endpoint: build_memberships_endpoint(Keyword.get(opts, :memberships_endpoint)),
-      ags_endpoint: build_ags_endpoint(Keyword.get(opts, :ags_endpoint))
-    }
-
-    apply_message_type_claims(message_type, base_claims, opts)
-  end
-
-  defp apply_message_type_claims("LtiDeepLinkingRequest", claims, opts) do
-    %{
-      claims
-      | message_type: "LtiDeepLinkingRequest",
-        subject: Keyword.get(opts, :subject),
-        deep_linking_settings:
-          build_deep_linking_settings(Keyword.get(opts, :deep_linking_settings))
-    }
-  end
-
-  defp apply_message_type_claims(_type, claims, opts) do
-    %{
-      claims
-      | message_type: "LtiResourceLinkRequest",
-        subject: Keyword.get(opts, :subject, "user-12345"),
-        resource_link: build_resource_link(Keyword.get(opts, :resource_link))
     }
   end
 
@@ -494,12 +531,12 @@ defmodule Ltix.Test do
     require_plug!()
 
     opts = Options.parse!(opts, @stub_token_response_schema)
-    scopes = Keyword.get(opts, :scopes, [])
+    scopes = Keyword.fetch!(opts, :scopes)
 
     response = %{
-      "access_token" => Keyword.get(opts, :access_token, "test-token"),
+      "access_token" => Keyword.fetch!(opts, :access_token),
       "token_type" => "Bearer",
-      "expires_in" => Keyword.get(opts, :expires_in, 3600)
+      "expires_in" => Keyword.fetch!(opts, :expires_in)
     }
 
     response =
@@ -747,245 +784,135 @@ defmodule Ltix.Test do
   @spec valid_lti_claims(Platform.t(), map()) :: map()
   def valid_lti_claims(%Platform{} = platform, overrides \\ %{}) do
     nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    Map.merge(build_claims(platform, nonce, []), overrides)
+    claims = build_claims(platform, Options.parse!([], @build_launch_context_schema))
+    Map.merge(Map.put(claims, "nonce", nonce), overrides)
   end
 
   # --- Private ---
 
   @lti_claim_prefix "https://purl.imsglobal.org/spec/lti/claim/"
-  @dl_settings_claim_key "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
 
-  defp build_claims(platform, nonce, opts) do
+  # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
+  # [Core §5.4](https://www.imsglobal.org/spec/lti/v1p3/#optional-message-claims)
+  defp build_claims(platform, opts) do
+    registration = resolved_registration(platform)
     now = System.system_time(:second)
-    reg = resolved_registration(platform)
-    dep = resolved_deployment(platform)
 
-    base = %{
-      "iss" => reg.issuer,
-      "aud" => reg.client_id,
+    %{
+      "iss" => registration.issuer,
+      "aud" => registration.client_id,
       "exp" => now + 3600,
       "iat" => now,
-      "nonce" => nonce,
+      "sub" => Keyword.get(opts, :subject, "user-12345"),
+      "name" => Keyword.get(opts, :name),
+      "email" => Keyword.get(opts, :email),
+      "given_name" => Keyword.get(opts, :given_name),
+      "family_name" => Keyword.get(opts, :family_name),
       (@lti_claim_prefix <> "version") => "1.3.0",
-      (@lti_claim_prefix <> "deployment_id") => dep.deployment_id,
-      (@lti_claim_prefix <> "target_link_uri") =>
-        Keyword.get(opts, :target_link_uri, "https://tool.example.com/launch")
+      (@lti_claim_prefix <> "deployment_id") => resolved_deployment(platform).deployment_id,
+      (@lti_claim_prefix <> "target_link_uri") => Keyword.fetch!(opts, :target_link_uri),
+      (@lti_claim_prefix <> "roles") => Enum.map(Keyword.fetch!(opts, :roles), &role_uri/1),
+      (@lti_claim_prefix <> "context") => context_claim(Keyword.get(opts, :context, %{})),
+      # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+      "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" =>
+        ags_endpoint_claim(Keyword.get(opts, :ags_endpoint)),
+      # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
+      "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" =>
+        memberships_endpoint_claim(Keyword.get(opts, :memberships_endpoint))
     }
-
-    message_type =
-      opts
-      |> Keyword.get(:message_type)
-      |> normalize_message_type()
-
-    base
-    |> apply_message_type_jwt_claims(message_type, opts)
-    |> maybe_put("name", Keyword.get(opts, :name))
-    |> maybe_put("email", Keyword.get(opts, :email))
-    |> maybe_put("given_name", Keyword.get(opts, :given_name))
-    |> maybe_put("family_name", Keyword.get(opts, :family_name))
-    |> maybe_put_lti("context", build_context_claim(Keyword.get(opts, :context)))
-    |> merge_overrides(Keyword.get(opts, :claims, %{}))
+    |> Map.merge(message_type_claims(Keyword.fetch!(opts, :message_type), opts))
+    |> Map.reject(fn {_claim, value} -> is_nil(value) end)
+    |> Map.merge(Keyword.get(opts, :claims, %{}))
   end
 
-  defp apply_message_type_jwt_claims(claims, "LtiDeepLinkingRequest", opts) do
-    claims
-    |> Map.put(@lti_claim_prefix <> "message_type", "LtiDeepLinkingRequest")
-    |> Map.put(
-      @dl_settings_claim_key,
-      build_deep_linking_settings_claim(Keyword.get(opts, :deep_linking_settings))
-    )
-    |> maybe_put("sub", Keyword.get(opts, :subject))
-    |> maybe_put_lti("roles", maybe_resolve_roles(Keyword.get(opts, :roles)))
-  end
+  # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
+  defp message_type_claims(:resource_link, opts) do
+    resource_link =
+      Map.merge(
+        %{id: "resource-link-001", title: "Example Assignment"},
+        plain_map(Keyword.get(opts, :resource_link, %{}))
+      )
 
-  defp apply_message_type_jwt_claims(claims, _message_type, opts) do
-    claims
-    |> Map.put(@lti_claim_prefix <> "message_type", "LtiResourceLinkRequest")
-    |> Map.put("sub", Keyword.get(opts, :subject, "user-12345"))
-    |> Map.put(
-      @lti_claim_prefix <> "roles",
-      resolve_role_uris(Keyword.get(opts, :roles, [:instructor]))
-    )
-    |> Map.put(
-      @lti_claim_prefix <> "resource_link",
-      build_resource_link_claim(Keyword.get(opts, :resource_link))
-    )
-  end
-
-  defp resolve_roles(roles) do
-    Enum.map(roles, fn
-      %Role{} = role -> role
-      atom when is_atom(atom) -> Role.from_atom(atom)
-      uri when is_binary(uri) -> resolve_role_uri(uri)
-    end)
-  end
-
-  defp resolve_role_uri(uri) do
-    case Role.parse(uri) do
-      {:ok, role} -> role
-      :error -> raise ArgumentError, "could not resolve role URI: #{inspect(uri)}"
-    end
-  end
-
-  defp resolve_role_uris(roles) do
-    Enum.map(roles, fn
-      %Role{} = role ->
-        case Role.to_uri(role) do
-          {:ok, uri} -> uri
-          :error -> raise ArgumentError, "could not resolve role to URI: #{inspect(role)}"
-        end
-
-      atom when is_atom(atom) ->
-        Role.from_atom(atom).uri
-
-      uri when is_binary(uri) ->
-        uri
-    end)
-  end
-
-  defp build_memberships_endpoint(nil), do: nil
-
-  defp build_memberships_endpoint(%MembershipsEndpoint{} = ep), do: ep
-
-  defp build_memberships_endpoint(url) when is_binary(url) do
-    %MembershipsEndpoint{context_memberships_url: url, service_versions: ["2.0"]}
-  end
-
-  defp build_memberships_endpoint(map) when is_map(map) do
-    %MembershipsEndpoint{
-      context_memberships_url: Map.get(map, :url, "https://platform.example.com/memberships"),
-      service_versions: Map.get(map, :service_versions, ["2.0"])
-    }
-  end
-
-  defp build_ags_endpoint(nil), do: nil
-
-  defp build_ags_endpoint(%AGSEndpoint{} = ep), do: ep
-
-  defp build_ags_endpoint(map) when is_map(map) do
-    %AGSEndpoint{
-      line_items: Map.get(map, :line_items),
-      line_item: Map.get(map, :line_item),
-      scopes: Map.get(map, :scopes)
-    }
-  end
-
-  defp build_context(nil), do: %Context{id: "context-001"}
-
-  defp build_context(map) when is_map(map) do
-    %Context{
-      id: Map.get(map, :id, "context-001"),
-      label: Map.get(map, :label),
-      title: Map.get(map, :title),
-      type: Map.get(map, :type)
-    }
-  end
-
-  defp build_resource_link(nil) do
-    %ResourceLink{id: "resource-link-001", title: "Example Assignment"}
-  end
-
-  defp build_resource_link(map) when is_map(map) do
-    %ResourceLink{
-      id: Map.get(map, :id, "resource-link-001"),
-      title: Map.get(map, :title),
-      description: Map.get(map, :description)
-    }
-  end
-
-  defp build_context_claim(nil), do: %{"id" => "context-001"}
-
-  defp build_context_claim(map) when is_map(map) do
-    claim = %{"id" => Map.get(map, :id, "context-001")}
-
-    claim
-    |> maybe_put("label", Map.get(map, :label))
-    |> maybe_put("title", Map.get(map, :title))
-  end
-
-  defp build_resource_link_claim(nil) do
-    %{"id" => "resource-link-001", "title" => "Example Assignment"}
-  end
-
-  defp build_resource_link_claim(map) when is_map(map) do
-    claim = %{"id" => Map.get(map, :id, "resource-link-001")}
-
-    claim
-    |> maybe_put("title", Map.get(map, :title))
-    |> maybe_put("description", Map.get(map, :description))
-  end
-
-  defp normalize_message_type(:deep_linking), do: "LtiDeepLinkingRequest"
-  defp normalize_message_type(other), do: other
-
-  defp maybe_resolve_roles(nil), do: nil
-  defp maybe_resolve_roles(roles), do: resolve_role_uris(roles)
-
-  defp build_deep_linking_settings(nil) do
-    %DeepLinkingSettings{
-      deep_link_return_url: "https://platform.example.com/deep_links",
-      accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
-      accept_presentation_document_targets: ["iframe", "window", "embed"],
-      accept_multiple: true
-    }
-  end
-
-  defp build_deep_linking_settings(%DeepLinkingSettings{} = settings), do: settings
-
-  defp build_deep_linking_settings(map) when is_map(map) do
-    %DeepLinkingSettings{
-      deep_link_return_url:
-        Map.get(map, :deep_link_return_url, "https://platform.example.com/deep_links"),
-      accept_types:
-        Map.get(map, :accept_types, ["ltiResourceLink", "link", "file", "html", "image"]),
-      accept_presentation_document_targets:
-        Map.get(map, :accept_presentation_document_targets, ["iframe", "window", "embed"]),
-      accept_media_types: Map.get(map, :accept_media_types),
-      accept_multiple: Map.get(map, :accept_multiple, true),
-      accept_line_item: Map.get(map, :accept_line_item),
-      auto_create: Map.get(map, :auto_create),
-      title: Map.get(map, :title),
-      text: Map.get(map, :text),
-      data: Map.get(map, :data)
-    }
-  end
-
-  defp build_deep_linking_settings_claim(nil) do
     %{
-      "deep_link_return_url" => "https://platform.example.com/deep_links",
-      "accept_types" => ["ltiResourceLink", "link", "file", "html", "image"],
-      "accept_presentation_document_targets" => ["iframe", "window", "embed"],
-      "accept_multiple" => true
+      (@lti_claim_prefix <> "message_type") => "LtiResourceLinkRequest",
+      (@lti_claim_prefix <> "resource_link") => json_map(resource_link)
     }
   end
 
-  defp build_deep_linking_settings_claim(map) when is_map(map) do
-    base = %{
-      "deep_link_return_url" =>
-        Map.get(map, :deep_link_return_url, "https://platform.example.com/deep_links"),
-      "accept_types" =>
-        Map.get(map, :accept_types, ["ltiResourceLink", "link", "file", "html", "image"]),
-      "accept_presentation_document_targets" =>
-        Map.get(map, :accept_presentation_document_targets, ["iframe", "window", "embed"])
-    }
+  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  defp message_type_claims(:deep_linking, opts) do
+    settings =
+      Map.merge(
+        %{
+          deep_link_return_url: "https://platform.example.com/deep_links",
+          accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
+          accept_presentation_document_targets: ["iframe", "window", "embed"],
+          accept_multiple: true
+        },
+        plain_map(Keyword.get(opts, :deep_linking_settings, %{}))
+      )
 
-    base
-    |> maybe_put("accept_media_types", Map.get(map, :accept_media_types))
-    |> maybe_put("accept_multiple", Map.get(map, :accept_multiple))
-    |> maybe_put("accept_lineitem", Map.get(map, :accept_line_item))
-    |> maybe_put("auto_create", Map.get(map, :auto_create))
-    |> maybe_put("title", Map.get(map, :title))
-    |> maybe_put("text", Map.get(map, :text))
-    |> maybe_put("data", Map.get(map, :data))
+    {accept_line_item, settings} = Map.pop(settings, :accept_line_item)
+    settings = Map.put(settings, :accept_lineitem, accept_line_item)
+
+    %{
+      (@lti_claim_prefix <> "message_type") => "LtiDeepLinkingRequest",
+      "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => json_map(settings)
+    }
+  end
+
+  defp role_uri(uri) when is_binary(uri), do: uri
+
+  defp role_uri(role) do
+    Role.to_uri!(if is_atom(role), do: Role.from_atom(role), else: role)
+  rescue
+    ArgumentError ->
+      reraise InvalidOption,
+              [key: :roles, value: role, reason: "it is not a known role"],
+              __STACKTRACE__
+  end
+
+  defp context_claim(context), do: json_map(Map.merge(%{id: "context-001"}, plain_map(context)))
+
+  defp ags_endpoint_claim(nil), do: nil
+
+  defp ags_endpoint_claim(endpoint) do
+    endpoint = AGSEndpoint.new!(plain_map(endpoint))
+
+    json_map(%{
+      scope: endpoint.scopes,
+      lineitems: endpoint.line_items,
+      lineitem: endpoint.line_item
+    })
+  end
+
+  defp memberships_endpoint_claim(nil), do: nil
+
+  defp memberships_endpoint_claim(url) when is_binary(url),
+    do: memberships_endpoint_claim(%{context_memberships_url: url})
+
+  defp memberships_endpoint_claim(endpoint) do
+    endpoint = plain_map(endpoint)
+    url = endpoint[:context_memberships_url]
+    # Raises for an invalid URL.
+    MembershipsEndpoint.new!(url)
+
+    json_map(%{
+      context_memberships_url: url,
+      service_versions: endpoint[:service_versions] || ["2.0"]
+    })
+  end
+
+  defp plain_map(%_{} = struct), do: Map.from_struct(struct)
+  defp plain_map(map), do: map
+
+  # Claim JSON omits absent fields.
+  defp json_map(map) do
+    for {key, value} <- map, not is_nil(value), into: %{}, do: {Atom.to_string(key), value}
   end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp maybe_put_lti(map, _key, nil), do: map
-  defp maybe_put_lti(map, key, value), do: Map.put(map, @lti_claim_prefix <> key, value)
-
-  defp merge_overrides(claims, overrides), do: Map.merge(claims, overrides)
 
   # --- Setup Helpers ---
 
@@ -1035,8 +962,8 @@ defmodule Ltix.Test do
   end
 
   defp build_default_registration(opts) do
-    issuer = Keyword.get(opts, :issuer, "https://platform.example.com")
-    client_id = Keyword.get(opts, :client_id, "tool-client-id")
+    issuer = Keyword.get(opts, :issuer, @default_issuer)
+    client_id = Keyword.get(opts, :client_id, @default_client_id)
     tool_jwk = Ltix.JWK.generate()
     suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
 
@@ -1051,7 +978,7 @@ defmodule Ltix.Test do
   end
 
   defp build_or_use_deployment(opts, registration) do
-    default = fn -> Deployment.new!(Keyword.get(opts, :deployment_id, "deployment-001")) end
+    default = fn -> Deployment.new!(Keyword.get(opts, :deployment_id, @default_deployment_id)) end
 
     case Keyword.get(opts, :deployment) do
       nil -> default.()

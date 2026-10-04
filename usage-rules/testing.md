@@ -130,26 +130,23 @@ end
 
 ## Claim Customization
 
-`launch_params/2` and `build_launch_context/2` share most options. Unknown options raise `Ltix.Errors.Invalid.InvalidOption`.
+`launch_params/2` and `build_launch_context/2` take the same launch options with the same defaults. Unknown options, including unknown keys in nested maps, raise `Ltix.Errors.Invalid.InvalidOption`.
 
 - `:roles` — list of atoms (`:instructor`, `:learner`, `:teaching_assistant`, etc.),
-  `%Role{}` structs, or URI strings
-- `:subject` — user identifier (default: `"user-12345"`)
+  `%Role{}` structs, or URI strings (default: `[:instructor]`). Unrecognized URIs are listed
+  in `claims.unrecognized_roles`.
+- `:subject` — user identifier (default: `"user-12345"`), `nil` for an anonymous launch
 - `:name`, `:email`, `:given_name`, `:family_name` — user profile fields
-- `:context` — map with `:id`, `:label`, `:title` keys
-- `:resource_link` — map with `:id`, `:title` keys
-- `:message_type` — `:deep_linking` for deep linking requests
-- `:deep_linking_settings` — map of settings (for deep linking)
+- `:context` — `%Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (default id: `"context-001"`)
+- `:resource_link` — `%ResourceLink{}` or map with `:id`, `:title`, `:description` keys
+- `:message_type` — `:resource_link` (default) or `:deep_linking`
+- `:deep_linking_settings` — `%DeepLinkingSettings{}` or map of its fields (defaults accept every type and target, and multiple items)
 - `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
-
-`launch_params/2` also accepts:
-
+- `:ags_endpoint` — `%AGSEndpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
+- `:memberships_endpoint` — `%MembershipsEndpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
 - `:claims` — raw claim map merged last (for advanced overrides)
 
-`build_launch_context/2` also accepts:
-
-- `:memberships_endpoint` — URL string or map (enables memberships service in tests)
-- `:ags_endpoint` — map with `:line_items`, `:line_item`, `:scopes` (enables grade service)
+`launch_params/2` also requires `:nonce` and `:state`.
 
 ## Hand-Built Tokens
 

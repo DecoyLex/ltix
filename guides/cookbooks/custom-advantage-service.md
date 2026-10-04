@@ -253,7 +253,10 @@ and `req_options: [plug: {Req.Test, AttendanceService}]`. This routes
 your service's Req calls through `Req.Test` stubs registered under
 `AttendanceService`, without hitting the OAuth token endpoint.
 
-To test authentication itself, use `Ltix.Test.stub_token_response/1`:
+To test authentication itself, use `Ltix.Test.stub_token_response/1`.
+Pass the attendance claim to `Ltix.Test.build_launch_context/2` with
+`:claims`, and your registered claim parser turns it into the endpoint
+struct:
 
 ```elixir
 test "authenticate from launch context", %{platform: platform} do
@@ -262,15 +265,10 @@ test "authenticate from launch context", %{platform: platform} do
     access_token: "test-attendance-token"
   )
 
-  context = Ltix.Test.build_launch_context(platform)
-  # Manually inject the parsed claim into extensions
-  endpoint = %AttendanceEndpoint{attendance_url: @attendance_url}
-  claims = %{context.claims | extensions: Map.put(
-    context.claims.extensions,
-    AttendanceEndpoint.claim_key(),
-    endpoint
-  )}
-  context = %{context | claims: claims}
+  context =
+    Ltix.Test.build_launch_context(platform,
+      claims: %{AttendanceEndpoint.claim_key() => %{"attendance_url" => @attendance_url}}
+    )
 
   {:ok, client} = Ltix.OAuth.authenticate(context, services: [AttendanceService])
 

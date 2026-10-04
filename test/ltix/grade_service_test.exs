@@ -205,7 +205,11 @@ defmodule Ltix.GradeServiceTest do
     test "rejects a launch claim without scopes", ctx do
       context =
         Ltix.Test.build_launch_context(ctx.platform,
-          ags_endpoint: %AGSEndpoint{line_item: @line_item_url}
+          claims: %{
+            "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" => %{
+              "lineitem" => @line_item_url
+            }
+          }
         )
 
       assert {:error, %InvalidField{struct: AGSEndpoint, field: :scopes, reason: :required}} =

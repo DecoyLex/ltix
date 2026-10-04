@@ -175,6 +175,8 @@ end
 
 ## Customizing launches
 
+`launch_params/2` and `build_launch_context/2` take the same launch options with the same defaults, so a launch built either way has the same claims. Without options, the launch is a resource link launch by an instructor with subject `"user-12345"` in context `"context-001"`.
+
 ### Roles
 
 Pass atoms for common LIS context roles:
@@ -191,7 +193,8 @@ roles: [%Role{type: :context, name: :instructor, sub_role: :teaching_assistant}]
 ```
 
 For institution or system roles, or custom role URIs, pass the full URI
-string:
+string. URIs Ltix does not recognize are listed in
+`context.claims.unrecognized_roles`, as in a real launch:
 
 ```elixir
 roles: ["http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"]
@@ -202,15 +205,65 @@ roles: ["http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"]
 ```elixir
 Ltix.Test.build_launch_context(platform,
   roles: [:instructor],
-  context: %{id: "course-1", label: "CS101", title: "Intro to CS"},
+  context: %{
+    id: "course-1",
+    label: "CS101",
+    title: "Intro to CS",
+    type: ["http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"]
+  },
   resource_link: %{id: "assignment-1", title: "Quiz 1"}
+)
+```
+
+Both options also take the `%Ltix.LaunchClaims.Context{}` and `%Ltix.LaunchClaims.ResourceLink{}` structs.
+
+### Deep linking
+
+Pass `message_type: :deep_linking`. Settings you leave out accept every content type and presentation target, and multiple items.
+
+```elixir
+Ltix.Test.build_launch_context(platform,
+  message_type: :deep_linking,
+  deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
+)
+```
+
+### Anonymous launches
+
+Pass `subject: nil` for a launch without a user identifier.
+
+```elixir
+Ltix.Test.launch_params(platform, nonce: nonce, state: state, subject: nil)
+```
+
+`Ltix.handle_callback/3` rejects such a launch unless your app accepts anonymous launches. Pass `allow_anonymous: true` to the call, or set it for the whole app with `config :ltix, allow_anonymous: true`.
+
+```elixir
+Ltix.handle_callback(params, state, allow_anonymous: true)
+```
+
+`build_launch_context/2` builds an anonymous context without either.
+
+### Service endpoints
+
+Give the launch grade and memberships service endpoints as maps of the endpoint struct fields, or the structs themselves. The grade service endpoint needs its scopes, and the memberships endpoint can be just its URL.
+
+```elixir
+Ltix.Test.launch_params(platform,
+  nonce: nonce,
+  state: state,
+  ags_endpoint: %{
+    line_items: "https://platform.example.com/lineitems",
+    scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+  },
+  memberships_endpoint: "https://platform.example.com/memberships"
 )
 ```
 
 ### Raw claim overrides
 
 For claims not covered by the convenience options, use `:claims` to
-merge arbitrary key-value pairs into the JWT:
+merge raw claims over the built ones:
 
 ```elixir
 Ltix.Test.launch_params(platform,
@@ -254,7 +307,7 @@ test "submits a score after launch", %{platform: platform} do
   Ltix.Test.stub_post_score()
 
   context = Ltix.Test.build_launch_context(platform,
-    ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
+    ags_endpoint: %{
       line_item: "https://platform.example.com/lineitems/1",
       scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
     }
@@ -317,7 +370,7 @@ test "lists line items", %{platform: platform} do
   ])
 
   context = Ltix.Test.build_launch_context(platform,
-    ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
+    ags_endpoint: %{
       line_items: "https://lms.example.com/lineitems",
       scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
     }

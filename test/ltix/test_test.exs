@@ -53,13 +53,6 @@ defmodule Ltix.TestTest do
         )
       end
     end
-
-    test "build_launch_context/2 rejects the raw claims option of launch_params/2",
-         %{platform: platform} do
-      assert_raise InvalidOption, "Option :claims is unknown", fn ->
-        Ltix.Test.build_launch_context(platform, claims: %{"sub" => "user"})
-      end
-    end
   end
 
   describe "full OIDC flow via test helpers" do
@@ -179,15 +172,6 @@ defmodule Ltix.TestTest do
 
       assert context.claims.subject == "student-42"
     end
-
-    test "includes a default context when none is specified", %{platform: platform} do
-      {:ok, login_result} = do_login(platform)
-      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-
-      {:ok, context} = do_callback(platform, login_result, nonce, [])
-
-      assert context.claims.context.id == "context-001"
-    end
   end
 
   describe "build_launch_context/2" do
@@ -224,12 +208,6 @@ defmodule Ltix.TestTest do
       assert Role.instructor?(context.claims.roles)
     end
 
-    test "includes a default context when none is specified", %{platform: platform} do
-      context = Ltix.Test.build_launch_context(platform)
-
-      assert context.claims.context.id == "context-001"
-    end
-
     test "explicit context overrides the default", %{platform: platform} do
       context =
         Ltix.Test.build_launch_context(platform,
@@ -239,6 +217,125 @@ defmodule Ltix.TestTest do
       assert context.claims.context.id == "my-course"
       assert context.claims.context.label == "CS101"
       assert context.claims.context.title == "Intro to CS"
+    end
+  end
+
+  describe "launch options shared by launch_params/2 and build_launch_context/2" do
+    @custom_role "http://example.com/roles#Grader"
+    @course_type "http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"
+    @ags_scope "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+
+    test "both helpers build the same claims", %{platform: platform} do
+      for opts <- [
+            [],
+            [roles: [:learner, @custom_role], subject: "student-1"],
+            [context: %{id: "course-1", label: "CS101", type: [@course_type]}],
+            [context: %Ltix.LaunchClaims.Context{id: "course-2", title: "Elixir"}],
+            [resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}],
+            [message_type: :deep_linking],
+            [message_type: :deep_linking, deep_linking_settings: %{accept_line_item: true}],
+            [ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}],
+            [memberships_endpoint: "https://lms.example.com/memberships"],
+            [
+              memberships_endpoint: %{
+                context_memberships_url: "https://lms.example.com/memberships",
+                service_versions: ["2.0"]
+              }
+            ],
+            [claims: %{"https://purl.imsglobal.org/spec/lti/claim/custom" => %{"a" => "b"}}]
+          ] do
+        assert comparable(launch_context(platform, opts)) ==
+                 comparable(Ltix.Test.build_launch_context(platform, opts)),
+               "claims differ for #{inspect(opts)}"
+      end
+    end
+
+    test "default to an instructor with a subject and context", %{platform: platform} do
+      for context <- [launch_context(platform, []), Ltix.Test.build_launch_context(platform)] do
+        assert Role.instructor?(context.claims.roles)
+        assert context.claims.subject == "user-12345"
+        assert context.claims.context.id == "context-001"
+      end
+    end
+
+    test "keep custom role URIs in unrecognized_roles", %{platform: platform} do
+      context = Ltix.Test.build_launch_context(platform, roles: [:learner, @custom_role])
+
+      assert Role.learner?(context.claims.roles)
+      assert context.claims.unrecognized_roles == [@custom_role]
+    end
+
+    test "subject: nil makes an anonymous launch", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform, message_type: :deep_linking, subject: nil)
+
+      assert context.claims.subject == nil
+    end
+
+    test "claims override the built claims", %{platform: platform} do
+      context = Ltix.Test.build_launch_context(platform, claims: %{"sub" => "override"})
+
+      assert context.claims.subject == "override"
+    end
+
+    test "a launch with service endpoints authenticates both services", %{platform: platform} do
+      Ltix.Test.stub_token_response()
+
+      context =
+        launch_context(platform,
+          ags_endpoint: %{line_items: "https://lms.example.com/items", scopes: [@ags_scope]},
+          memberships_endpoint: "https://lms.example.com/memberships"
+        )
+
+      opts = [req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]]
+
+      assert {:ok, grade_client} = Ltix.GradeService.authenticate(context, opts)
+
+      assert grade_client.endpoints[Ltix.GradeService].line_items ==
+               "https://lms.example.com/items"
+
+      assert {:ok, memberships_client} = Ltix.MembershipsService.authenticate(context, opts)
+
+      assert memberships_client.endpoints[Ltix.MembershipsService].context_memberships_url ==
+               "https://lms.example.com/memberships"
+    end
+
+    test "raise for endpoints the services would reject", %{platform: platform} do
+      for {opts, message} <- [
+            {[ags_endpoint: %{line_item: "https://lms.example.com/items/1"}], ~r"scopes"},
+            {[memberships_endpoint: "http://lms.example.com/memberships"], ~r"HTTPS"}
+          ] do
+        assert_raise InvalidField, message, fn ->
+          Ltix.Test.build_launch_context(platform, opts)
+        end
+      end
+    end
+
+    test "raise for unknown keys in nested options and unknown roles", %{platform: platform} do
+      for {key, value} <- [
+            context: %{id: "c", name: "Course"},
+            resource_link: %{id: "r", url: "https://tool.example.com"},
+            deep_linking_settings: %{accept_lineitem: true},
+            ags_endpoint: %{lineitem: "https://lms.example.com/items/1", scopes: [@ags_scope]},
+            memberships_endpoint: %{url: "https://lms.example.com/memberships"}
+          ] do
+        error =
+          assert_raise InvalidOption, fn ->
+            Ltix.Test.build_launch_context(platform, [{key, value}])
+          end
+
+        assert %{key: ^key, value: ^value} = error
+      end
+
+      for {opts, message} <- [
+            {[roles: [:not_a_role]], "Option :roles is invalid, it is not a known role"},
+            {[roles: [%Role{type: :custom, name: :reviewer}]],
+             "Option :roles is invalid, it is not a known role"}
+          ] do
+        assert_raise InvalidOption, message, fn ->
+          Ltix.Test.build_launch_context(platform, opts)
+        end
+      end
     end
   end
 
@@ -702,6 +799,18 @@ defmodule Ltix.TestTest do
         Ltix.MembershipsService => MembershipsEndpoint.new!("https://lms.example.com/memberships")
       }
     }
+  end
+
+  defp launch_context(platform, opts) do
+    {:ok, login_result} = do_login(platform)
+    nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+    {:ok, context} = do_callback(platform, login_result, nonce, opts)
+    context
+  end
+
+  # Launch time fields differ between two launches.
+  defp comparable(%LaunchContext{claims: claims}) do
+    %{claims | nonce: nil, expires_at: nil, issued_at: nil}
   end
 
   defp verify_token(token, platform) do
