@@ -17,9 +17,7 @@ defmodule Ltix.Integration.LoginParameterTest do
 
     pid =
       start_supervised!(
-        {StorageAdapter,
-         registrations: [platform.registration, other_registration],
-         deployments: [platform.deployment]}
+        {StorageAdapter, platforms: [platform], registrations: [other_registration]}
       )
 
     StorageAdapter.set_pid(pid)

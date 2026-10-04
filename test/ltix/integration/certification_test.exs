@@ -34,10 +34,7 @@ defmodule Ltix.Integration.CertificationTest do
     }
 
     {:ok, pid} =
-      StorageAdapter.start_link(
-        registrations: [registration],
-        deployments: [deployment]
-      )
+      StorageAdapter.start_link(platforms: [platform])
 
     StorageAdapter.set_pid(pid)
 

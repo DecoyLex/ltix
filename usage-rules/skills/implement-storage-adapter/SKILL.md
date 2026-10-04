@@ -350,6 +350,18 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}]
 ```
 
+Start the in-memory adapter with your test platforms in each test that launches.
+
+```elixir
+setup do
+  platform = Ltix.Test.setup_platform!()
+  {:ok, pid} = Ltix.Test.StorageAdapter.start_link(platforms: [platform])
+  Ltix.Test.StorageAdapter.set_pid(pid)
+
+  %{platform: platform}
+end
+```
+
 ## Technical Constraints
 
 These are non-negotiable requirements from the LTI spec and library:

@@ -15,10 +15,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
     platform = Ltix.Test.setup_platform!(issuer: "https://platform.example.com/#{identifier}")
 
     pid =
-      start_supervised!(
-        {StorageAdapter,
-         registrations: [platform.registration], deployments: [platform.deployment]}
-      )
+      start_supervised!({StorageAdapter, platforms: [platform]})
 
     StorageAdapter.set_pid(pid)
 

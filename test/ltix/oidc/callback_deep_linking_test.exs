@@ -25,13 +25,13 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
         tool_jwk: Ltix.JWK.generate()
       })
 
-    {:ok, deployment} = Ltix.Deployment.new("deployment-001")
+    platform = %Ltix.Test.Platform{
+      registration: registration,
+      deployment: Ltix.Deployment.new!("deployment-001"),
+      jwk: platform_jwk
+    }
 
-    {:ok, pid} =
-      StorageAdapter.start_link(
-        registrations: [registration],
-        deployments: [deployment]
-      )
+    {:ok, pid} = StorageAdapter.start_link(platforms: [platform])
 
     StorageAdapter.set_pid(pid)
 

@@ -868,10 +868,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
 
   test "JWKS redirects permit a complete callback launch", %{platform: platform} do
     {:ok, pid} =
-      StorageAdapter.start_link(
-        registrations: [platform.registration],
-        deployments: [platform.deployment]
-      )
+      StorageAdapter.start_link(platforms: [platform])
 
     StorageAdapter.set_pid(pid)
     owner = self()

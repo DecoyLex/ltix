@@ -18,10 +18,7 @@ defmodule Ltix.TestTest do
     platform = Ltix.Test.setup_platform!()
 
     {:ok, pid} =
-      StorageAdapter.start_link(
-        registrations: [platform.registration],
-        deployments: [platform.deployment]
-      )
+      StorageAdapter.start_link(platforms: [platform])
 
     StorageAdapter.set_pid(pid)
 
@@ -257,25 +254,31 @@ defmodule Ltix.TestTest do
       assert platform.registration.client_id == "my-tool"
       assert platform.deployment.deployment_id == "dep-99"
     end
+  end
 
-    test "storage adapter resolves the registration", %{platform: platform} do
-      assert {:ok, reg} =
-               StorageAdapter.get_registration(
-                 platform.registration.issuer,
-                 platform.registration.client_id
-               )
+  describe "Ltix.Test.StorageAdapter" do
+    test "finds deployments only under the registration they belong to" do
+      first = Ltix.Test.setup_platform!(client_id: "first-tool", deployment_id: "first-dep")
+      second = Ltix.Test.setup_platform!(client_id: "second-tool", deployment_id: "second-dep")
+      {:ok, pid} = StorageAdapter.start_link(platforms: [first, second])
+      StorageAdapter.set_pid(pid)
 
-      assert reg == platform.registration
+      assert {:ok, _deployment} = StorageAdapter.get_deployment(second.registration, "second-dep")
+
+      assert {:error, :not_found} =
+               StorageAdapter.get_deployment(second.registration, "first-dep")
     end
 
-    test "storage adapter resolves the deployment", %{platform: platform} do
-      assert {:ok, dep} =
-               StorageAdapter.get_deployment(
-                 platform.registration,
-                 platform.deployment.deployment_id
-               )
+    test "resolves registrations given without a deployment" do
+      platform = Ltix.Test.setup_platform!(client_id: "new-tool")
+      {:ok, pid} = StorageAdapter.start_link(registrations: [platform.registration])
+      StorageAdapter.set_pid(pid)
 
-      assert dep == platform.deployment
+      assert {:ok, registration} =
+               StorageAdapter.get_registration(platform.registration.issuer, "new-tool")
+
+      assert {:error, :not_found} =
+               StorageAdapter.get_deployment(registration, platform.deployment.deployment_id)
     end
   end
 
@@ -359,10 +362,7 @@ defmodule Ltix.TestTest do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
 
       {:ok, pid} =
-        StorageAdapter.start_link(
-          registrations: [platform.registration],
-          deployments: [platform.deployment]
-        )
+        StorageAdapter.start_link(platforms: [platform])
 
       StorageAdapter.set_pid(pid)
 
@@ -386,10 +386,7 @@ defmodule Ltix.TestTest do
         )
 
       {:ok, pid} =
-        StorageAdapter.start_link(
-          registrations: [platform.registration],
-          deployments: [platform.deployment]
-        )
+        StorageAdapter.start_link(platforms: [platform])
 
       StorageAdapter.set_pid(pid)
       {:ok, login_result} = do_login(platform)

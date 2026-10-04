@@ -293,7 +293,11 @@ defmodule MyAppWeb.LtiControllerTest do
   use MyAppWeb.ConnCase
 
   setup do
-    %{platform: Ltix.Test.setup_platform!()}
+    platform = Ltix.Test.setup_platform!()
+    {:ok, pid} = Ltix.Test.StorageAdapter.start_link(platforms: [platform])
+    Ltix.Test.StorageAdapter.set_pid(pid)
+
+    %{platform: platform}
   end
 
   test "full OIDC launch flow", %{conn: conn, platform: platform} do

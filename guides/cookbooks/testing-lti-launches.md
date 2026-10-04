@@ -53,6 +53,18 @@ If your storage adapter auto-creates deployments (common pattern), you
 don't need a deployment factory. Otherwise, pass a 2-arity
 `:deployment` function that receives `(Ltix.Deployment, your_registration)`.
 
+Without a storage adapter of your own, use the in-memory `Ltix.Test.StorageAdapter`. Set it as `storage_adapter` in `config/test.exs`, then start it in your setup with your test platforms.
+
+```elixir
+setup do
+  platform = Ltix.Test.setup_platform!()
+  {:ok, pid} = Ltix.Test.StorageAdapter.start_link(platforms: [platform])
+  Ltix.Test.StorageAdapter.set_pid(pid)
+
+  %{platform: platform}
+end
+```
+
 ## Testing your controller
 
 Simulate a full platform-initiated launch against your controller

@@ -13,7 +13,8 @@ defmodule Ltix.Test do
   Your application's own storage adapter (configured in `config/test.exs`)
   handles persistence. `setup_platform!/1` provides the platform-side
   simulation: RSA keys, a JWKS endpoint stub, and registration/deployment
-  data your adapter can look up.
+  data your adapter can look up. Without an adapter of your own, start the
+  in-memory `Ltix.Test.StorageAdapter` with the platform.
 
   Add the optional `:plug` dependency to your test environment to use
   `setup_platform!/1` and HTTP stubs.

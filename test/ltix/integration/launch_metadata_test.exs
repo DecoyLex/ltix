@@ -21,10 +21,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
     platform = Ltix.Test.setup_platform!()
 
     pid =
-      start_supervised!(
-        {StorageAdapter,
-         registrations: [platform.registration], deployments: [platform.deployment]}
-      )
+      start_supervised!({StorageAdapter, platforms: [platform]})
 
     StorageAdapter.set_pid(pid)
     %{platform: platform}
@@ -245,7 +242,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
             }} = callback(login, params)
   end
 
-  test "deep linking echoes opaque JSON data from a nonconforming platform", context do
+  test "deep linking returns opaque JSON data from a nonconforming platform unchanged", context do
     for data <- [
           %{"session" => 123, "flags" => [false, nil, %{"vendor" => "value"}]},
           ["opaque", 123, false, nil],

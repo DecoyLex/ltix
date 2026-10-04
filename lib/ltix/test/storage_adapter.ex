@@ -6,27 +6,30 @@ defmodule Ltix.Test.StorageAdapter do
   test should start its own adapter via `start_link/1` and register it
   with `set_pid/1`.
 
-  `Ltix.Test.setup_platform!/1` handles this automatically.
-
   ## Manual usage
 
       {:ok, pid} = Ltix.Test.StorageAdapter.start_link(
-        registrations: [registration],
-        deployments: [deployment]
+        platforms: [platform]
       )
       Ltix.Test.StorageAdapter.set_pid(pid)
   """
 
   @behaviour Ltix.StorageAdapter
 
+  use Agent
+
   alias Ltix.Deployable
   alias Ltix.Options
   alias Ltix.Registerable
+  alias Ltix.Test.Platform
 
-  use Agent
+  @pid_key :ltix_test_storage_adapter_pid
 
   @start_link_schema Zoi.keyword(
-                       [registrations: Zoi.list(Zoi.any()), deployments: Zoi.list(Zoi.any())],
+                       [
+                         platforms: Zoi.list(Zoi.struct(Platform)),
+                         registrations: Zoi.list(Zoi.any())
+                       ],
                        unrecognized_keys: :error
                      )
 
@@ -35,17 +38,27 @@ defmodule Ltix.Test.StorageAdapter do
 
   ## Options
 
-    * `:registrations` — list of structs implementing `Ltix.Registerable` (default: `[]`)
-    * `:deployments` — list of structs implementing `Ltix.Deployable` (default: `[]`)
+    * `:platforms` — list of `Ltix.Test.Platform` structs whose registration
+      and deployment the adapter resolves (default: `[]`)
+    * `:registrations` — list of structs implementing `Ltix.Registerable`
+      that have no deployment (default: `[]`)
   """
   def start_link(opts \\ []) do
     opts = Options.parse!(opts, @start_link_schema)
-    registrations = Keyword.get(opts, :registrations, [])
-    deployments = Keyword.get(opts, :deployments, [])
+    platforms = Keyword.get(opts, :platforms, [])
+
+    registrations =
+      Enum.uniq(Enum.map(platforms, & &1.registration) ++ Keyword.get(opts, :registrations, []))
+
+    deployments =
+      Map.new(platforms, fn platform ->
+        deployment = ok!(Deployable.to_deployment(platform.deployment))
+        {{registration_key(platform.registration), deployment.deployment_id}, platform.deployment}
+      end)
 
     Agent.start_link(fn ->
       %{
-        registrations: registrations,
+        registrations: Enum.map(registrations, &{registration_key(&1), &1}),
         deployments: deployments,
         nonces: MapSet.new(),
         used_nonces: MapSet.new()
@@ -54,52 +67,50 @@ defmodule Ltix.Test.StorageAdapter do
   end
 
   @doc "Register the adapter PID in the calling process."
-  def set_pid(pid), do: Process.put(:ltix_test_storage_adapter_pid, pid)
-  defp get_pid, do: Process.get(:ltix_test_storage_adapter_pid)
+  def set_pid(pid), do: Process.put(@pid_key, pid)
 
   @impl Ltix.StorageAdapter
   def get_registration(issuer, client_id) do
-    Agent.get(get_pid(), fn state ->
-      Enum.find(state.registrations, fn reg ->
-        {:ok, resolved} = Registerable.to_registration(reg)
-        resolved.issuer == issuer and (client_id == nil or resolved.client_id == client_id)
-      end)
-      |> case do
-        nil -> {:error, :not_found}
-        reg -> {:ok, reg}
-      end
-    end)
+    registrations = Agent.get(Process.get(@pid_key), & &1.registrations)
+
+    matches =
+      for {{^issuer, registered_client_id}, registration} <- registrations,
+          client_id in [nil, registered_client_id],
+          do: registration
+
+    case matches do
+      [registration | _] -> {:ok, registration}
+      [] -> {:error, :not_found}
+    end
   end
 
   @impl Ltix.StorageAdapter
-  def get_deployment(_registration, deployment_id) do
-    Agent.get(get_pid(), fn state ->
-      Enum.find(state.deployments, fn dep ->
-        {:ok, resolved} = Deployable.to_deployment(dep)
-        resolved.deployment_id == deployment_id
-      end)
-      |> case do
-        nil -> {:error, :not_found}
-        dep -> {:ok, dep}
+  def get_deployment(registration, deployment_id) do
+    key = {registration_key(registration), deployment_id}
+
+    Agent.get(Process.get(@pid_key), fn state ->
+      case Map.fetch(state.deployments, key) do
+        {:ok, _deployment} = found -> found
+        :error -> {:error, :not_found}
       end
     end)
   end
 
   @impl Ltix.StorageAdapter
   def store_nonce(nonce, _registration) do
-    Agent.update(get_pid(), fn state ->
+    Agent.update(Process.get(@pid_key), fn state ->
       %{state | nonces: MapSet.put(state.nonces, nonce)}
     end)
   end
 
   @doc "Return the set of stored (unused) nonces."
   def stored_nonces do
-    Agent.get(get_pid(), fn state -> state.nonces end)
+    Agent.get(Process.get(@pid_key), fn state -> state.nonces end)
   end
 
   @impl Ltix.StorageAdapter
   def validate_nonce(nonce, _registration) do
-    Agent.get_and_update(get_pid(), fn state ->
+    Agent.get_and_update(Process.get(@pid_key), fn state ->
       cond do
         MapSet.member?(state.used_nonces, nonce) ->
           {{:error, :nonce_already_used}, state}
@@ -118,4 +129,12 @@ defmodule Ltix.Test.StorageAdapter do
       end
     end)
   end
+
+  defp registration_key(registration) do
+    resolved = ok!(Registerable.to_registration(registration))
+    {resolved.issuer, resolved.client_id}
+  end
+
+  defp ok!({:ok, value}), do: value
+  defp ok!({:error, error}), do: raise(error)
 end

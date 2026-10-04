@@ -55,6 +55,13 @@ and deployment, and stubs the JWKS HTTP endpoint. Pass a `:registration`
 function to create matching records in your persistence layer. Options:
 `:issuer`, `:client_id`, `:deployment_id`.
 
+Without a storage adapter of your own, configure the in-memory `Ltix.Test.StorageAdapter` and start it with your test platforms. Use it only in tests.
+
+```elixir
+{:ok, pid} = Ltix.Test.StorageAdapter.start_link(platforms: [platform])
+Ltix.Test.StorageAdapter.set_pid(pid)
+```
+
 ## Three Test Patterns
 
 ### 1. Full OIDC Flow (Controller Tests)

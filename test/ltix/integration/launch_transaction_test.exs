@@ -16,10 +16,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     }
 
     {:ok, pid} =
-      StorageAdapter.start_link(
-        registrations: [platform.registration, other_platform.registration],
-        deployments: [platform.deployment]
-      )
+      StorageAdapter.start_link(platforms: [platform, other_platform])
 
     StorageAdapter.set_pid(pid)
     %{platform: platform, other_platform: other_platform}
