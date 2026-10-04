@@ -400,6 +400,17 @@ defmodule Ltix.GradeServiceTest do
                GradeService.get_line_item(client, line_item: @line_item_url)
     end
 
+    test "sends a GET without a body", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        assert conn.method == "GET"
+        assert Plug.Conn.get_req_header(conn, "content-type") == []
+        assert {:ok, "", conn} = Plug.Conn.read_body(conn)
+        Req.Test.json(conn, build_line_item_json())
+      end)
+
+      assert {:ok, %LineItem{}} = GradeService.get_line_item(build_client(ctx.platform))
+    end
+
     test "returns error when no URL available", ctx do
       endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)

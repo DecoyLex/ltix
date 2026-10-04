@@ -264,15 +264,7 @@ defmodule Ltix.GradeService do
                Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
              {:ok, url} <- resolve_line_item_url(client, opts),
              headers = auth_headers(client, @lineitem_media_type),
-             req_opts =
-               build_request(
-                 :get,
-                 merged_req_options(client),
-                 url,
-                 headers,
-                 @lineitem_media_type,
-                 nil
-               ),
+             req_opts = build_request(:get, merged_req_options(client), url, headers),
              {:ok, body} <- request(req_opts) do
           LineItem.from_json(body)
         end
