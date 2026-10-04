@@ -66,10 +66,10 @@ defmodule Ltix.Integration.LaunchMetadataTest do
          %{document_target: "tab", height: nil, width: 640, locale: nil}},
         {@lti <> "lis", :lis,
          %{"person_sourcedid" => "person", "course_offering_sourcedid" => 123},
-         %{person_sourcedid: "person", course_offering_sourcedid: nil}},
+         %{person_source_id: "person", course_offering_source_id: nil}},
         {@ags, :ags_endpoint,
          %{"lineitems" => "https://platform.example.com/items", "scope" => [false]},
-         %{lineitems: "https://platform.example.com/items", scope: nil}},
+         %{line_items: "https://platform.example.com/items", scopes: nil}},
         {@memberships, :memberships_endpoint,
          %{
            "context_memberships_url" => "https://platform.example.com/members",
@@ -145,7 +145,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
     assert parsed.accept_presentation_document_targets == ["iframe"]
     assert parsed.data == "opaque"
     assert parsed.accept_multiple == nil
-    assert parsed.accept_lineitem == nil
+    assert parsed.accept_line_item == nil
     assert parsed.auto_create == nil
     assert parsed.accept_media_types == nil
     assert parsed.title == nil

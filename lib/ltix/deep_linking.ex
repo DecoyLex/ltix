@@ -37,7 +37,7 @@ defmodule Ltix.DeepLinking do
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
 
   @opts_schema Zoi.keyword(
-                 msg: Zoi.string() |> Zoi.optional(),
+                 message: Zoi.string() |> Zoi.optional(),
                  log: Zoi.string() |> Zoi.optional(),
                  error_message: Zoi.string() |> Zoi.optional(),
                  error_log: Zoi.string() |> Zoi.optional()
@@ -52,7 +52,7 @@ defmodule Ltix.DeepLinking do
 
   ## Options
 
-    * `:msg` — user-facing message to show on return
+    * `:message` — user-facing message to show on return
     * `:log` — log message for the platform
     * `:error_message` — user-facing error message
     * `:error_log` — error log message for the platform
@@ -66,7 +66,7 @@ defmodule Ltix.DeepLinking do
     * `Ltix.Errors.Invalid.ContentItemsExceedLimit` — multiple items
       when `accept_multiple` is `false`
     * `Ltix.Errors.Invalid.LineItemNotAccepted` — line item present
-      when `accept_lineitem` is `false`
+      when `accept_line_item` is `false`
 
   ## Examples
 
@@ -76,7 +76,7 @@ defmodule Ltix.DeepLinking do
       )
 
       {:ok, response} = Ltix.DeepLinking.build_response(context, [link],
-        msg: "Selected 1 item"
+        message: "Selected 1 item"
       )
 
       # response.jwt — signed JWT to POST to response.return_url
@@ -109,7 +109,7 @@ defmodule Ltix.DeepLinking do
              {:ok, deployment} <- Deployable.to_deployment(context.deployment),
              :ok <- validate_item_types(items, settings.accept_types),
              :ok <- validate_multiplicity(items, settings.accept_multiple),
-             :ok <- validate_line_items(items, settings.accept_lineitem) do
+             :ok <- validate_line_items(items, settings.accept_line_item) do
           items_json = Enum.map(items, &ContentItem.to_map/1)
           claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
           jwt = sign_jwt(claims, registration.tool_jwk)
@@ -158,7 +158,7 @@ defmodule Ltix.DeepLinking do
 
   defp validate_multiplicity(_items, _accept_multiple), do: :ok
 
-  defp validate_line_items(items, accept_lineitem) when accept_lineitem == false do
+  defp validate_line_items(items, accept_line_item) when accept_line_item == false do
     has_line_item? =
       Enum.any?(items, fn
         %LTIResourceLink{line_item: li} when not is_nil(li) -> true
@@ -172,7 +172,7 @@ defmodule Ltix.DeepLinking do
     end
   end
 
-  defp validate_line_items(_items, _accept_lineitem), do: :ok
+  defp validate_line_items(_items, _accept_line_item), do: :ok
 
   # --- JWT Construction ---
 
@@ -194,7 +194,7 @@ defmodule Ltix.DeepLinking do
       (@dl <> "content_items") => items_json
     }
     |> maybe_put(@dl <> "data", settings.data)
-    |> maybe_put(@dl <> "msg", Keyword.get(opts, :msg))
+    |> maybe_put(@dl <> "msg", Keyword.get(opts, :message))
     |> maybe_put(@dl <> "log", Keyword.get(opts, :log))
     |> maybe_put(@dl <> "errormsg", Keyword.get(opts, :error_message))
     |> maybe_put(@dl <> "errorlog", Keyword.get(opts, :error_log))

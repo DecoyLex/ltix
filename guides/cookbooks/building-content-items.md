@@ -216,7 +216,7 @@ Pass a list of mixed content item types to `build_response/3`:
 )
 
 {:ok, response} = Ltix.DeepLinking.build_response(context, [quiz, reading],
-  msg: "Added 2 items"
+  message: "Added 2 items"
 )
 ```
 
@@ -232,7 +232,7 @@ occurs:
 ```elixir
 # User cancelled
 {:ok, response} = Ltix.DeepLinking.build_response(context, [],
-  msg: "No items selected"
+  message: "No items selected"
 )
 
 # Something went wrong

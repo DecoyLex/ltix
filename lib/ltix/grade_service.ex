@@ -70,8 +70,8 @@ defmodule Ltix.GradeService do
 
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def scopes(%AGSEndpoint{scope: scopes}) when is_list(scopes), do: scopes
-  def scopes(%AGSEndpoint{scope: nil}), do: []
+  def scopes(%AGSEndpoint{scopes: scopes}) when is_list(scopes), do: scopes
+  def scopes(%AGSEndpoint{scopes: nil}), do: []
 
   @context_auth_schema Zoi.keyword(
                          req_options:
@@ -108,8 +108,8 @@ defmodule Ltix.GradeService do
 
       {:ok, client} = Ltix.GradeService.authenticate(registration,
         endpoint: %AGSEndpoint{
-          lineitems: "https://lms.example.com/lineitems",
-          scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+          line_items: "https://lms.example.com/lineitems",
+          scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
         }
       )
 
@@ -220,7 +220,7 @@ defmodule Ltix.GradeService do
                           line_item:
                             Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
                               description:
-                                "Line item URL or struct. Defaults to the endpoint's `lineitem`."
+                                "Line item URL or struct. Defaults to the endpoint's `line_item`."
                             )
                         )
 
@@ -383,7 +383,7 @@ defmodule Ltix.GradeService do
   success.
 
   By default, refuses to delete the platform-coupled line item
-  (the `lineitem` URL from the launch claim). Pass `force: true`
+  (the `line_item` URL from the launch claim). Pass `force: true`
   to override.
 
   ## Options
@@ -417,15 +417,15 @@ defmodule Ltix.GradeService do
                        line_item:
                          Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
                            description:
-                             "Line item URL or struct. Defaults to the endpoint's `lineitem`."
+                             "Line item URL or struct. Defaults to the endpoint's `line_item`."
                          )
                      )
 
   @doc """
   Post a score for a user.
 
-  The score is POSTed to `{lineitem}/scores`. When no `:line_item` option
-  is given, uses the endpoint's `lineitem` URL (coupled flow).
+  The score is POSTed to `{line_item}/scores`. When no `:line_item` option
+  is given, uses the endpoint's `line_item` URL (coupled flow).
 
   ## Options
 
@@ -467,7 +467,7 @@ defmodule Ltix.GradeService do
                         line_item:
                           Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
                             description:
-                              "Line item URL or struct. Defaults to the endpoint's `lineitem`."
+                              "Line item URL or struct. Defaults to the endpoint's `line_item`."
                           ),
                         user_id: Zoi.string(description: "Filter results to a single user."),
                         per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
@@ -476,7 +476,7 @@ defmodule Ltix.GradeService do
   @doc """
   Fetch results for a line item.
 
-  GETs `{lineitem}/results`. Follows all `rel="next"` pagination links
+  GETs `{line_item}/results`. Follows all `rel="next"` pagination links
   and returns a list of `%Result{}` structs.
 
   ## Options
@@ -536,13 +536,13 @@ defmodule Ltix.GradeService do
 
   defp span_metadata(%Client{} = client) do
     endpoint = get_endpoint(client)
-    %{endpoint: endpoint.lineitems || endpoint.lineitem}
+    %{endpoint: endpoint.line_items || endpoint.line_item}
   end
 
   defp require_line_items_url(%Client{} = client) do
     endpoint = get_endpoint(client)
 
-    case endpoint.lineitems do
+    case endpoint.line_items do
       nil ->
         {:error,
          ServiceNotAvailable.exception(
@@ -560,7 +560,7 @@ defmodule Ltix.GradeService do
       nil ->
         endpoint = get_endpoint(client)
 
-        case endpoint.lineitem do
+        case endpoint.line_item do
           nil ->
             {:error,
              ServiceNotAvailable.exception(
@@ -592,7 +592,7 @@ defmodule Ltix.GradeService do
   defp check_coupled_guard(%Client{} = client, url, false) do
     endpoint = get_endpoint(client)
 
-    if endpoint.lineitem != nil and endpoint.lineitem == url do
+    if endpoint.line_item != nil and endpoint.line_item == url do
       {:error,
        CoupledLineItem.exception(
          line_item_url: url,

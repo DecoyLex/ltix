@@ -32,9 +32,9 @@ Before building items, check what the platform accepts:
 
 ```elixir
 settings = context.claims.deep_linking_settings
-settings.accept_types         # ["ltiResourceLink", "link", ...]
-settings.accept_multiple      # true or false
-settings.accept_lineitem      # true or false
+settings.accept_types          # ["ltiResourceLink", "link", ...]
+settings.accept_multiple       # true or false
+settings.accept_line_item      # true or false
 ```
 
 `build_response/3` validates items against these constraints and returns errors if violated
@@ -57,18 +57,18 @@ settings.accept_lineitem      # true or false
 ```
 
 - `line_item.score_maximum` is required and must be positive.
-- Only include `line_item` if `settings.accept_lineitem` is `true`.
+- Only include `line_item` if `settings.accept_line_item` is `true`.
 
 ## Building the Response
 
 ```elixir
 {:ok, response} = Ltix.DeepLinking.build_response(context, [link],
-  msg: "Content selected successfully"
+  message: "Content selected successfully"
 )
 ```
 
 - Pass a list of items (or `[]` for cancellation).
-- Options: `:msg`, `:log`, `:error_message`, `:error_log`.
+- Options: `:message`, `:log`, `:error_message`, `:error_log`.
 - Returns `%Response{jwt: signed_jwt, return_url: platform_url}`.
 
 ## Delivering the Response
@@ -89,4 +89,4 @@ html(conn, """
 - `InvalidMessageType` — `build_response/3` called on a non-deep-linking context
 - `ContentItemTypeNotAccepted` — item type not in `settings.accept_types`
 - `ContentItemsExceedLimit` — multiple items when `settings.accept_multiple` is `false`
-- `LineItemNotAccepted` — line item on content item when `settings.accept_lineitem` is `false`
+- `LineItemNotAccepted` — line item on content item when `settings.accept_line_item` is `false`

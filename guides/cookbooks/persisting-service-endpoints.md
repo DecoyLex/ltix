@@ -70,7 +70,7 @@ def create_course!(%Ltix.LaunchContext{claims: claims, registration: registratio
     registration_id: registration.id,
     title: claims.context.title,
     memberships_url: claims.memberships_endpoint && claims.memberships_endpoint.context_memberships_url,
-    lineitems_url: claims.ags_endpoint && claims.ags_endpoint.lineitems
+    lineitems_url: claims.ags_endpoint && claims.ags_endpoint.line_items
   }
 
   %Course{}
@@ -110,7 +110,7 @@ alias Ltix.LaunchClaims.AGSEndpoint
 
 def post_attendance(course, user_id) do
   registration = get_registration(course)
-  endpoint = %AGSEndpoint{lineitems: course.lineitems_url}
+  endpoint = %AGSEndpoint{line_items: course.lineitems_url}
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint
@@ -188,7 +188,7 @@ def create_class_session!(%Ltix.LaunchContext{claims: claims}, course) do
   attrs = %{
     resource_link_id: claims.resource_link.id,
     title: claims.resource_link.title,
-    lineitem_url: claims.ags_endpoint && claims.ags_endpoint.lineitem,
+    lineitem_url: claims.ags_endpoint && claims.ags_endpoint.line_item,
     course_id: course.id
   }
 
@@ -213,7 +213,7 @@ alias Ltix.LaunchClaims.AGSEndpoint
 def post_check_in(session, user_id) do
   course = Repo.preload(session, :course).course
   registration = get_registration(course)
-  endpoint = %AGSEndpoint{lineitem: session.lineitem_url}
+  endpoint = %AGSEndpoint{line_item: session.lineitem_url}
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint

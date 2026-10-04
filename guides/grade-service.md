@@ -127,7 +127,7 @@ because platforms handle it inconsistently:
 - **Moodle and Blackboard** delete the gradebook entry entirely
 - **D2L Brightspace** severs the link but preserves existing grade data
 
-In all cases the `lineitem` URL may vanish from future launch claims,
+In all cases the `line_item` URL may vanish from future launch claims,
 leaving the tool unable to post scores through the coupled flow.
 
 ```elixir

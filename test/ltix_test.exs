@@ -284,7 +284,7 @@ defmodule LtixTest do
           if field in ["id", "guid", "deep_link_return_url"] do
             assert parsed == nil
           else
-            assert Map.fetch!(parsed, String.to_existing_atom(field)) == nil
+            assert Map.fetch!(parsed, struct_field(field)) == nil
           end
 
           assert claims.subject == "user-12345"
@@ -323,7 +323,7 @@ defmodule LtixTest do
              }},
             {"https://purl.imsglobal.org/spec/lti/claim/lis",
              %{"person_sourcedid" => nil, "course_offering_sourcedid" => "course"}, :lis,
-             %Ltix.LaunchClaims.LIS{person_sourcedid: nil, course_offering_sourcedid: "course"}},
+             %Ltix.LaunchClaims.LIS{person_source_id: nil, course_offering_source_id: "course"}},
             {"https://purl.imsglobal.org/spec/lti-ags/claim/endpoint",
              %{
                "scope" => [],
@@ -331,9 +331,9 @@ defmodule LtixTest do
                "lineitem" => "https://platform.example.com/item"
              }, :ags_endpoint,
              %Ltix.LaunchClaims.AGSEndpoint{
-               scope: [],
-               lineitems: nil,
-               lineitem: "https://platform.example.com/item"
+               scopes: [],
+               line_items: nil,
+               line_item: "https://platform.example.com/item"
              }},
             {"https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice",
              %{"context_memberships_url" => nil, "service_versions" => ["2.0"]},
@@ -357,7 +357,7 @@ defmodule LtixTest do
                accept_types: [],
                accept_presentation_document_targets: [],
                accept_multiple: true,
-               accept_lineitem: false,
+               accept_line_item: false,
                auto_create: nil,
                title: nil
              }}
@@ -454,6 +454,20 @@ defmodule LtixTest do
                  req_options: req_options()
                )
     end
+  end
+
+  # Claim names the specification spells differently from struct fields.
+  @struct_fields %{
+    "lineitems" => :line_items,
+    "lineitem" => :line_item,
+    "scope" => :scopes,
+    "person_sourcedid" => :person_source_id,
+    "course_offering_sourcedid" => :course_offering_source_id,
+    "course_section_sourcedid" => :course_section_source_id
+  }
+
+  defp struct_field(claim_name) do
+    Map.get_lazy(@struct_fields, claim_name, fn -> String.to_existing_atom(claim_name) end)
   end
 
   defp callback_with_claim(ctx, key, value, opts \\ []) do

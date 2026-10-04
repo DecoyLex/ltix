@@ -80,10 +80,17 @@ defmodule Ltix.MembershipsMemberPayloadTest do
                 middle_name: "A",
                 email: "profile@example.com",
                 picture: "https://example.com/profile.png",
-                lis_person_sourcedid: "profile-source",
-                lti11_legacy_user_id: "profile-legacy"
+                lis_person_source_id: "profile-source",
+                lti_1_1_legacy_user_id: "profile-legacy"
               },
-              String.to_existing_atom(field),
+              Map.get_lazy(
+                %{
+                  "lis_person_sourcedid" => :lis_person_source_id,
+                  "lti11_legacy_user_id" => :lti_1_1_legacy_user_id
+                },
+                field,
+                fn -> String.to_existing_atom(field) end
+              ),
               nil
             )
 

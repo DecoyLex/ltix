@@ -96,7 +96,7 @@ defmodule PhoenixExampleWeb.LtiController do
       endpoint = client.endpoints[GradeService]
 
       line_items =
-        if endpoint.lineitems do
+        if endpoint.line_items do
           case GradeService.list_line_items(client) do
             {:ok, items} -> items
             {:error, _} -> []

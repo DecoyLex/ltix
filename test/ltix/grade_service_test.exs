@@ -21,8 +21,8 @@ defmodule Ltix.GradeServiceTest do
 
   @all_scopes [@scope_lineitem, @scope_result_readonly, @scope_score]
 
-  @lineitems_url "https://platform.example.com/context/2923/lineitems"
-  @lineitem_url "https://platform.example.com/context/2923/lineitems/1/lineitem"
+  @line_items_url "https://platform.example.com/context/2923/lineitems"
+  @line_item_url "https://platform.example.com/context/2923/lineitems/1/lineitem"
 
   @lineitem_media_type "application/vnd.ims.lis.v2.lineitem+json"
   @lineitem_container_media_type "application/vnd.ims.lis.v2.lineitemcontainer+json"
@@ -46,9 +46,9 @@ defmodule Ltix.GradeServiceTest do
   defp build_client(platform, opts \\ []) do
     endpoint =
       Keyword.get(opts, :endpoint, %AGSEndpoint{
-        lineitems: @lineitems_url,
-        lineitem: @lineitem_url,
-        scope: @all_scopes
+        line_items: @line_items_url,
+        line_item: @line_item_url,
+        scopes: @all_scopes
       })
 
     scopes = Keyword.get(opts, :scopes, @all_scopes)
@@ -66,7 +66,7 @@ defmodule Ltix.GradeServiceTest do
 
   defp build_line_item_json(opts \\ []) do
     %{
-      "id" => Keyword.get(opts, :id, "#{@lineitems_url}/1/lineitem"),
+      "id" => Keyword.get(opts, :id, "#{@line_items_url}/1/lineitem"),
       "label" => Keyword.get(opts, :label, "Chapter 5 Test"),
       "scoreMaximum" => Keyword.get(opts, :score_maximum, 100)
     }
@@ -89,8 +89,8 @@ defmodule Ltix.GradeServiceTest do
     test "endpoint_from_claims extracts AGS endpoint" do
       claims = %LaunchClaims{
         ags_endpoint: %AGSEndpoint{
-          lineitems: @lineitems_url,
-          scope: @all_scopes
+          line_items: @line_items_url,
+          scopes: @all_scopes
         }
       }
 
@@ -112,12 +112,12 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "scopes returns scope array from endpoint" do
-      endpoint = %AGSEndpoint{scope: @all_scopes}
+      endpoint = %AGSEndpoint{scopes: @all_scopes}
       assert @all_scopes == GradeService.scopes(endpoint)
     end
 
     test "scopes returns empty list when scope is nil" do
-      endpoint = %AGSEndpoint{scope: nil}
+      endpoint = %AGSEndpoint{scopes: nil}
       assert [] == GradeService.scopes(endpoint)
     end
   end
@@ -131,9 +131,9 @@ defmodule Ltix.GradeServiceTest do
       context =
         Ltix.Test.build_launch_context(ctx.platform,
           ags_endpoint: %AGSEndpoint{
-            lineitems: @lineitems_url,
-            lineitem: @lineitem_url,
-            scope: @all_scopes
+            line_items: @line_items_url,
+            line_item: @line_item_url,
+            scopes: @all_scopes
           }
         )
 
@@ -158,8 +158,8 @@ defmodule Ltix.GradeServiceTest do
       stub_token_response()
 
       endpoint = %AGSEndpoint{
-        lineitems: @lineitems_url,
-        scope: @all_scopes
+        line_items: @line_items_url,
+        scopes: @all_scopes
       }
 
       assert {:ok, %Client{} = client} =
@@ -192,8 +192,8 @@ defmodule Ltix.GradeServiceTest do
       }
 
       endpoint = %AGSEndpoint{
-        lineitems: @lineitems_url,
-        scope: @all_scopes
+        line_items: @line_items_url,
+        scopes: @all_scopes
       }
 
       assert {:ok, %Client{} = client} =
@@ -212,8 +212,8 @@ defmodule Ltix.GradeServiceTest do
   describe "list_line_items/2" do
     test "fetches all line items from container", ctx do
       items = [
-        build_line_item_json(id: "#{@lineitems_url}/1", label: "Quiz 1"),
-        build_line_item_json(id: "#{@lineitems_url}/2", label: "Quiz 2")
+        build_line_item_json(id: "#{@line_items_url}/1", label: "Quiz 1"),
+        build_line_item_json(id: "#{@line_items_url}/2", label: "Quiz 2")
       ]
 
       Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -270,7 +270,7 @@ defmodule Ltix.GradeServiceTest do
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
         |> Plug.Conn.put_resp_header("link", "<?cursor=2>; rel=next")
-        |> Req.Test.json([build_line_item_json(id: "#{@lineitems_url}/1", label: "Quiz 1")])
+        |> Req.Test.json([build_line_item_json(id: "#{@line_items_url}/1", label: "Quiz 1")])
       end)
 
       Req.Test.expect(Ltix.GradeService, fn conn ->
@@ -279,7 +279,7 @@ defmodule Ltix.GradeServiceTest do
 
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
-        |> Req.Test.json([build_line_item_json(id: "#{@lineitems_url}/2", label: "Quiz 2")])
+        |> Req.Test.json([build_line_item_json(id: "#{@line_items_url}/2", label: "Quiz 2")])
       end)
 
       client = build_client(ctx.platform)
@@ -290,8 +290,8 @@ defmodule Ltix.GradeServiceTest do
       Req.Test.verify!(Ltix.GradeService)
     end
 
-    test "returns error when lineitems URL not available", ctx do
-      endpoint = %AGSEndpoint{lineitems: nil, lineitem: @lineitem_url, scope: @all_scopes}
+    test "returns error when line_items URL not available", ctx do
+      endpoint = %AGSEndpoint{line_items: nil, line_item: @line_item_url, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
@@ -326,25 +326,11 @@ defmodule Ltix.GradeServiceTest do
       client = build_client(ctx.platform)
 
       assert {:ok, %LineItem{label: "Chapter 5 Test"}} =
-               GradeService.get_line_item(client, line_item: @lineitem_url)
-    end
-
-    test "uses endpoint lineitem URL when no option given", ctx do
-      item_json = build_line_item_json()
-
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
-        |> Req.Test.json(item_json)
-      end)
-
-      client = build_client(ctx.platform)
-
-      assert {:ok, %LineItem{}} = GradeService.get_line_item(client)
+               GradeService.get_line_item(client, line_item: @line_item_url)
     end
 
     test "returns error when no URL available", ctx do
-      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.get_line_item(client)
@@ -367,7 +353,7 @@ defmodule Ltix.GradeServiceTest do
         assert json["label"] == "Quiz 1"
         assert json["scoreMaximum"] == 100
 
-        response = Map.put(json, "id", "#{@lineitems_url}/new")
+        response = Map.put(json, "id", "#{@line_items_url}/new")
 
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
@@ -379,7 +365,7 @@ defmodule Ltix.GradeServiceTest do
       assert {:ok, %LineItem{} = item} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
 
-      assert item.id == "#{@lineitems_url}/new"
+      assert item.id == "#{@line_items_url}/new"
       assert item.label == "Quiz 1"
     end
 
@@ -399,8 +385,8 @@ defmodule Ltix.GradeServiceTest do
       assert {:ok, _} = GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
     end
 
-    test "returns error when lineitems URL not available", ctx do
-      endpoint = %AGSEndpoint{lineitems: nil, lineitem: @lineitem_url, scope: @all_scopes}
+    test "returns error when line_items URL not available", ctx do
+      endpoint = %AGSEndpoint{line_items: nil, line_item: @line_item_url, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} =
@@ -437,7 +423,7 @@ defmodule Ltix.GradeServiceTest do
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         json = Ltix.AppConfig.json_library!().decode!(body)
         assert json["label"] == "Updated Quiz"
-        assert json["id"] == "#{@lineitems_url}/1/lineitem"
+        assert json["id"] == "#{@line_items_url}/1/lineitem"
 
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
@@ -447,7 +433,7 @@ defmodule Ltix.GradeServiceTest do
       client = build_client(ctx.platform)
 
       item = %LineItem{
-        id: "#{@lineitems_url}/1/lineitem",
+        id: "#{@line_items_url}/1/lineitem",
         label: "Updated Quiz",
         score_maximum: 100
       }
@@ -466,7 +452,7 @@ defmodule Ltix.GradeServiceTest do
     test "returns ScopeMismatch without lineitem scope", ctx do
       client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
 
-      item = %LineItem{id: @lineitem_url, label: "Quiz 1", score_maximum: 100}
+      item = %LineItem{id: @line_item_url, label: "Quiz 1", score_maximum: 100}
 
       assert {:error, %ScopeMismatch{}} = GradeService.update_line_item(client, item)
     end
@@ -482,7 +468,7 @@ defmodule Ltix.GradeServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      item = %LineItem{id: "#{@lineitems_url}/99/lineitem"}
+      item = %LineItem{id: "#{@line_items_url}/99/lineitem"}
 
       assert :ok = GradeService.delete_line_item(client, item)
     end
@@ -495,17 +481,17 @@ defmodule Ltix.GradeServiceTest do
 
       client = build_client(ctx.platform)
 
-      assert :ok = GradeService.delete_line_item(client, "#{@lineitems_url}/99/lineitem")
+      assert :ok = GradeService.delete_line_item(client, "#{@line_items_url}/99/lineitem")
     end
 
-    test "returns CoupledLineItem when URL matches endpoint lineitem", ctx do
+    test "returns CoupledLineItem when URL matches endpoint line_item", ctx do
       client = build_client(ctx.platform)
 
       assert {:error, %CoupledLineItem{}} =
-               GradeService.delete_line_item(client, @lineitem_url)
+               GradeService.delete_line_item(client, @line_item_url)
     end
 
-    test "succeeds with force: true when URL matches endpoint lineitem", ctx do
+    test "succeeds with force: true when URL matches endpoint line_item", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "DELETE"
         Plug.Conn.send_resp(conn, 204, "")
@@ -513,25 +499,25 @@ defmodule Ltix.GradeServiceTest do
 
       client = build_client(ctx.platform)
 
-      assert :ok = GradeService.delete_line_item(client, @lineitem_url, force: true)
+      assert :ok = GradeService.delete_line_item(client, @line_item_url, force: true)
     end
 
-    test "no guard when endpoint has no lineitem URL", ctx do
+    test "no guard when endpoint has no line_item URL", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
-      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert :ok = GradeService.delete_line_item(client, "#{@lineitems_url}/99/lineitem")
+      assert :ok = GradeService.delete_line_item(client, "#{@line_items_url}/99/lineitem")
     end
 
     test "returns ScopeMismatch without lineitem scope", ctx do
       client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
 
       assert {:error, %ScopeMismatch{}} =
-               GradeService.delete_line_item(client, "#{@lineitems_url}/99/lineitem")
+               GradeService.delete_line_item(client, "#{@line_items_url}/99/lineitem")
     end
   end
 
@@ -551,7 +537,7 @@ defmodule Ltix.GradeServiceTest do
       %{score: score}
     end
 
-    test "posts to {lineitem}/scores using endpoint lineitem", ctx do
+    test "posts to {line_item}/scores using endpoint line_item", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "POST"
         assert conn.request_path =~ "/scores"
@@ -565,7 +551,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "posts to explicit line item URL", ctx do
-      explicit_url = "#{@lineitems_url}/42/lineitem"
+      explicit_url = "#{@line_items_url}/42/lineitem"
 
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.request_path =~ "/42/lineitem/scores"
@@ -684,7 +670,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when no line item URL available", ctx do
-      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.post_score(client, ctx.score)
@@ -694,7 +680,7 @@ defmodule Ltix.GradeServiceTest do
   # --- get_results/2 ---
 
   describe "get_results/2" do
-    test "fetches results from {lineitem}/results using endpoint lineitem", ctx do
+    test "fetches results from {line_item}/results using endpoint line_item", ctx do
       results = [
         build_result_json("user-1", result_score: 0.83, result_maximum: 1),
         build_result_json("user-2", result_score: 0.95, result_maximum: 1)
@@ -714,7 +700,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "fetches results for explicit line item", ctx do
-      explicit_url = "#{@lineitems_url}/42/lineitem"
+      explicit_url = "#{@line_items_url}/42/lineitem"
 
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.request_path =~ "/42/lineitem/results"
@@ -792,7 +778,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when no line item URL available", ctx do
-      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.get_results(client)

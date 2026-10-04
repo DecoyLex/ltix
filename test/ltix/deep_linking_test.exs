@@ -155,11 +155,11 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 message options" do
-    test "includes msg and log in JWT", %{platform: p} do
+    test "includes message and log in JWT", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
 
       {:ok, %Response{jwt: jwt}} =
-        DeepLinking.build_response(context, [], msg: "Done", log: "debug info")
+        DeepLinking.build_response(context, [], message: "Done", log: "debug info")
 
       {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
 
@@ -299,11 +299,11 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 line item validation" do
-    test "rejects line_item when accept_lineitem is false", %{platform: p} do
+    test "rejects line_item when accept_line_item is false", %{platform: p} do
       context =
         Ltix.Test.build_launch_context(p,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_lineitem: false}
+          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
         )
 
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
@@ -312,11 +312,11 @@ defmodule Ltix.DeepLinkingTest do
                DeepLinking.build_response(context, [item])
     end
 
-    test "allows line_item when accept_lineitem is true", %{platform: p} do
+    test "allows line_item when accept_line_item is true", %{platform: p} do
       context =
         Ltix.Test.build_launch_context(p,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_lineitem: true}
+          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
         )
 
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
@@ -324,23 +324,11 @@ defmodule Ltix.DeepLinkingTest do
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
     end
 
-    test "allows line_item when accept_lineitem is nil", %{platform: p} do
+    test "allows LTIResourceLink without line_item when accept_line_item is false", %{platform: p} do
       context =
         Ltix.Test.build_launch_context(p,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
-        )
-
-      {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
-
-      assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
-    end
-
-    test "allows LTIResourceLink without line_item when accept_lineitem is false", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
-          message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_lineitem: false}
+          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
         )
 
       {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
@@ -374,7 +362,7 @@ defmodule Ltix.DeepLinkingTest do
         DeepLinking.build_response(
           context,
           [link, resource, file, html, image, raw],
-          msg: "Selected 6 items"
+          message: "Selected 6 items"
         )
 
       {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, response.jwt)

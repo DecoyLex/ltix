@@ -114,8 +114,8 @@ defmodule Ltix.Test do
       test "posts a score", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
           ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
-            lineitem: "https://platform.example.com/lineitems/1",
-            scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+            line_item: "https://platform.example.com/lineitems/1",
+            scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
           }
         )
 
@@ -600,8 +600,8 @@ defmodule Ltix.Test do
     |> maybe_put("family_name", member.family_name)
     |> maybe_put("middle_name", member.middle_name)
     |> maybe_put("email", member.email)
-    |> maybe_put("lis_person_sourcedid", member.lis_person_sourcedid)
-    |> maybe_put("lti11_legacy_user_id", member.lti11_legacy_user_id)
+    |> maybe_put("lis_person_sourcedid", member.lis_person_source_id)
+    |> maybe_put("lti11_legacy_user_id", member.lti_1_1_legacy_user_id)
   end
 
   defp context_to_json(%Context{} = ctx) do
@@ -854,9 +854,9 @@ defmodule Ltix.Test do
 
   defp build_ags_endpoint(map) when is_map(map) do
     %AGSEndpoint{
-      lineitems: Map.get(map, :lineitems),
-      lineitem: Map.get(map, :lineitem),
-      scope: Map.get(map, :scope)
+      line_items: Map.get(map, :line_items),
+      line_item: Map.get(map, :line_item),
+      scopes: Map.get(map, :scopes)
     }
   end
 
@@ -932,7 +932,7 @@ defmodule Ltix.Test do
         Map.get(map, :accept_presentation_document_targets, ["iframe", "window", "embed"]),
       accept_media_types: Map.get(map, :accept_media_types),
       accept_multiple: Map.get(map, :accept_multiple, true),
-      accept_lineitem: Map.get(map, :accept_lineitem),
+      accept_line_item: Map.get(map, :accept_line_item),
       auto_create: Map.get(map, :auto_create),
       title: Map.get(map, :title),
       text: Map.get(map, :text),
@@ -962,7 +962,7 @@ defmodule Ltix.Test do
     base
     |> maybe_put("accept_media_types", Map.get(map, :accept_media_types))
     |> maybe_put("accept_multiple", Map.get(map, :accept_multiple))
-    |> maybe_put("accept_lineitem", Map.get(map, :accept_lineitem))
+    |> maybe_put("accept_lineitem", Map.get(map, :accept_line_item))
     |> maybe_put("auto_create", Map.get(map, :auto_create))
     |> maybe_put("title", Map.get(map, :title))
     |> maybe_put("text", Map.get(map, :text))

@@ -138,7 +138,7 @@ end
 `build_launch_context/2` also accepts:
 
 - `:memberships_endpoint` — URL string or map (enables memberships service in tests)
-- `:ags_endpoint` — map with `:lineitems`, `:lineitem`, `:scope` (enables grade service)
+- `:ags_endpoint` — map with `:line_items`, `:line_item`, `:scopes` (enables grade service)
 
 ## Testing Advantage Services
 
@@ -155,8 +155,8 @@ test "posts a score after launch", %{platform: platform} do
 
   context = Ltix.Test.build_launch_context(platform,
     ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
-      lineitem: "https://platform.example.com/lineitems/1",
-      scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+      line_item: "https://platform.example.com/lineitems/1",
+      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
     }
   )
 

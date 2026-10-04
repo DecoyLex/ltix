@@ -32,8 +32,8 @@ defmodule Ltix.MembershipsService.MemberTest do
       assert member.family_name == "Doe"
       assert member.middle_name == "Marie"
       assert member.email == "jane@platform.example.edu"
-      assert member.lis_person_sourcedid == "59254-6782-12ab"
-      assert member.lti11_legacy_user_id == "668321221-2879"
+      assert member.lis_person_source_id == "59254-6782-12ab"
+      assert member.lti_1_1_legacy_user_id == "668321221-2879"
       assert [%Role{name: :instructor}] = member.roles
       assert member.unrecognized_roles == []
       assert member.message == nil
@@ -135,8 +135,8 @@ defmodule Ltix.MembershipsService.MemberTest do
       assert member.family_name == nil
       assert member.middle_name == nil
       assert member.email == nil
-      assert member.lis_person_sourcedid == nil
-      assert member.lti11_legacy_user_id == nil
+      assert member.lis_person_source_id == nil
+      assert member.lti_1_1_legacy_user_id == nil
     end
 
     test "parses message section for resource link queries [NRPS §3.2]" do

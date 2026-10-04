@@ -259,7 +259,7 @@ defmodule Ltix.LaunchClaimsTest do
         }
       }
 
-      assert {:ok, %LaunchClaims{ags_endpoint: %AGSEndpoint{lineitems: url}}} =
+      assert {:ok, %LaunchClaims{ags_endpoint: %AGSEndpoint{line_items: url}}} =
                LaunchClaims.from_json(json)
 
       assert url == "https://platform.example.com/lineitems"

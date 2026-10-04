@@ -44,7 +44,7 @@ settings.accept_types
 settings.accept_multiple
 # => true
 
-settings.accept_lineitem
+settings.accept_line_item
 # => true
 ```
 
@@ -146,7 +146,7 @@ def submit_selection(conn, %{"selected_ids" => ids}) do
   items = build_items_from_selection(ids)
 
   {:ok, response} = Ltix.DeepLinking.build_response(context, items,
-    msg: "Selected #{length(items)} item(s)"
+    message: "Selected #{length(items)} item(s)"
   )
 
   render(conn, :deep_linking_response, response: response)
@@ -183,7 +183,7 @@ case Ltix.DeepLinking.build_response(context, items) do
     # multiple items when accept_multiple is false
 
   {:error, %Ltix.Errors.Invalid.LineItemNotAccepted{}} ->
-    # line_item present when accept_lineitem is false
+    # line_item present when accept_line_item is false
 end
 ```
 
@@ -195,7 +195,7 @@ settings = context.claims.deep_linking_settings
 
 can_create_assignments? = "ltiResourceLink" in settings.accept_types
 can_select_multiple? = settings.accept_multiple != false
-can_attach_grades? = settings.accept_lineitem != false
+can_attach_grades? = settings.accept_line_item != false
 ```
 
 ## Custom content types

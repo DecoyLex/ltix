@@ -20,6 +20,35 @@ defmodule Ltix.LaunchClaims.ClaimHelpers do
     end
   end
 
+  # Reads claims whose specification names differ from their struct field
+  # names. Claims named like a renamed field are ignored.
+  @spec rename_claims(Zoi.schema(), %{String.t() => atom()}) :: Zoi.schema()
+  def rename_claims(schema, claim_names) do
+    renames = Map.new(claim_names, fn {claim, field} -> {claim, Atom.to_string(field)} end)
+    field_names = MapSet.new(Map.values(renames))
+
+    Zoi.any(typespec: Zoi.type_spec(schema))
+    |> Zoi.transform({__MODULE__, :parse_renamed, [schema, renames, field_names]})
+  end
+
+  @spec parse_renamed(
+          term(),
+          Zoi.schema(),
+          %{String.t() => String.t()},
+          MapSet.t(String.t()),
+          keyword()
+        ) :: {:ok, term()} | {:error, [Zoi.Error.t()]}
+  def parse_renamed(json, schema, renames, field_names, _opts) when is_map(json) do
+    renamed =
+      for {key, value} <- json, not MapSet.member?(field_names, key), into: %{} do
+        {Map.get(renames, key, key), value}
+      end
+
+    Zoi.parse(schema, renamed)
+  end
+
+  def parse_renamed(json, schema, _renames, _field_names, _opts), do: Zoi.parse(schema, json)
+
   @spec from_json(Zoi.schema(), term(), String.t(), String.t()) ::
           {:ok, term()} | {:error, Exception.t()}
   def from_json(schema, json, claim_prefix, spec_ref) do

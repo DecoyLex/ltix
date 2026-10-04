@@ -27,7 +27,7 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettingsTest do
       assert dls.accept_presentation_document_targets == ["iframe", "window"]
       assert dls.accept_media_types == "application/pdf,image/*"
       assert dls.accept_multiple == true
-      assert dls.accept_lineitem == false
+      assert dls.accept_line_item == false
       assert dls.auto_create == true
       assert dls.title == "Select Content"
       assert dls.text == "Please select content to link"

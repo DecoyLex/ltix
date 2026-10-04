@@ -356,9 +356,9 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       req_options: request_options(),
       endpoints: %{
         GradeService => %AGSEndpoint{
-          lineitems: page_url(:line_items, 1),
-          lineitem: "https://platform.example.com/lineitems/1",
-          scope: scopes
+          line_items: page_url(:line_items, 1),
+          line_item: "https://platform.example.com/lineitems/1",
+          scopes: scopes
         },
         MembershipsService => MembershipsEndpoint.new(page_url(:members, 1))
       }

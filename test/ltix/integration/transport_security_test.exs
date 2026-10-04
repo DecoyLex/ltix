@@ -35,9 +35,9 @@ defmodule Ltix.Integration.TransportSecurityTest do
       req_options: [plug: {Req.Test, :ltix}, retry: false],
       endpoints: %{
         GradeService => %AGSEndpoint{
-          lineitems: "https://grades.example.com/lineitems",
-          lineitem: "https://grades.example.com/lineitems/1",
-          scope: scopes
+          line_items: "https://grades.example.com/lineitems",
+          line_item: "https://grades.example.com/lineitems/1",
+          scopes: scopes
         },
         MembershipsService => %MembershipsEndpoint{
           context_memberships_url: "https://roster.example.com/members"
@@ -145,7 +145,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     client = %{
       client
       | endpoints: %{
-          GradeService => %AGSEndpoint{lineitems: "http://127.0.0.1/lineitems"},
+          GradeService => %AGSEndpoint{line_items: "http://127.0.0.1/lineitems"},
           MembershipsService => %MembershipsEndpoint{
             context_memberships_url: "http://127.0.0.1/members"
           }

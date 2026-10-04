@@ -40,8 +40,8 @@ defmodule Ltix.MembershipsService.Member do
     :family_name,
     :middle_name,
     :email,
-    :lis_person_sourcedid,
-    :lti11_legacy_user_id,
+    :lis_person_source_id,
+    :lti_1_1_legacy_user_id,
     :message,
     roles: [],
     unrecognized_roles: []
@@ -56,8 +56,8 @@ defmodule Ltix.MembershipsService.Member do
           family_name: String.t() | nil,
           middle_name: String.t() | nil,
           email: String.t() | nil,
-          lis_person_sourcedid: String.t() | nil,
-          lti11_legacy_user_id: String.t() | nil,
+          lis_person_source_id: String.t() | nil,
+          lti_1_1_legacy_user_id: String.t() | nil,
           message: [LaunchClaims.t()] | nil,
           roles: [Role.t()],
           unrecognized_roles: [String.t()]
@@ -73,20 +73,25 @@ defmodule Ltix.MembershipsService.Member do
   # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
   #
   # [OIDC §5.1][standard-claims]
-  @profile_schema Zoi.struct(
-                    __MODULE__,
-                    %{
-                      name: Zoi.string() |> ClaimHelpers.optional(),
-                      picture: Zoi.string() |> ClaimHelpers.optional(),
-                      given_name: Zoi.string() |> ClaimHelpers.optional(),
-                      family_name: Zoi.string() |> ClaimHelpers.optional(),
-                      middle_name: Zoi.string() |> ClaimHelpers.optional(),
-                      email: Zoi.string() |> ClaimHelpers.optional(),
-                      lis_person_sourcedid: Zoi.string() |> ClaimHelpers.optional(),
-                      lti11_legacy_user_id: Zoi.string() |> ClaimHelpers.optional()
-                    },
-                    coerce: true
-                  )
+  @profile_struct_schema Zoi.struct(
+                           __MODULE__,
+                           %{
+                             name: Zoi.string() |> ClaimHelpers.optional(),
+                             picture: Zoi.string() |> ClaimHelpers.optional(),
+                             given_name: Zoi.string() |> ClaimHelpers.optional(),
+                             family_name: Zoi.string() |> ClaimHelpers.optional(),
+                             middle_name: Zoi.string() |> ClaimHelpers.optional(),
+                             email: Zoi.string() |> ClaimHelpers.optional(),
+                             lis_person_source_id: Zoi.string() |> ClaimHelpers.optional(),
+                             lti_1_1_legacy_user_id: Zoi.string() |> ClaimHelpers.optional()
+                           },
+                           coerce: true
+                         )
+
+  @profile_schema ClaimHelpers.rename_claims(@profile_struct_schema, %{
+                    "lis_person_sourcedid" => :lis_person_source_id,
+                    "lti11_legacy_user_id" => :lti_1_1_legacy_user_id
+                  })
 
   @doc """
   Parse a member from a JSON map in a membership container response.
