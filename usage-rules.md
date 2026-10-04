@@ -37,12 +37,14 @@ preferred structure before creating modules.
 
 ## Registrations & Deployments
 
-- Construct with `Registration.new/1` and `Deployment.new/1` (validated). **Never**
+- Construct with `Registration.new/1` and `Deployment.new/1` (validated).
+  `Registration.new/1` takes a keyword list or map and returns
+  `Ltix.Errors.Invalid.InvalidField` for unknown, missing, or invalid fields. **Never**
   build `%Registration{}` or `%Deployment{}` structs directly — always go through `new/1`.
 - Storage adapters return structs implementing `Ltix.Registerable` and `Ltix.Deployable`
   protocols. These can be your own Ecto schemas — the library extracts the `Registration`
   and `Deployment` it needs internally. `%Registration{}` and `%Deployment{}` implement
-  both protocols as identity transforms, so returning them directly still works.
+  both protocols, so returning them directly still works.
 - The original struct from the storage adapter is preserved in `LaunchContext`, so you can
   access your own fields (DB IDs, tenant info) without extra queries after launch.
 - Issuer must be an HTTPS URL with no query or fragment components.

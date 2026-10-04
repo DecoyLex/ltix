@@ -20,6 +20,9 @@ jwk = Ltix.JWK.generate()
 
 Store `private_key_pem` and `kid` in your database or config. To
 reconstruct the struct later, pass them to `Ltix.JWK.new/1`.
+A missing, invalid, or unknown field returns an
+`Ltix.Errors.Invalid.InvalidField` error, and several bad fields are
+returned together in an `Ltix.Errors.Invalid` error.
 
 Use a separate key per registration so you can rotate them
 independently.

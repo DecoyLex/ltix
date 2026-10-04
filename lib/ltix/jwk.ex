@@ -27,7 +27,8 @@ defmodule Ltix.JWK do
   """
 
   alias Ltix.AppConfig
-  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Options
 
   @generate_schema Zoi.keyword(
@@ -88,21 +89,25 @@ defmodule Ltix.JWK do
   Construct a JWK from existing key material.
 
   For loading keys from storage (database, config, environment variable).
-  Both `private_key_pem` and `kid` are required.
+  Takes a keyword list or an atom-keyed map. Both `private_key_pem` and
+  `kid` are required, and unknown fields are rejected.
 
   ## Examples
 
       {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: "my-key-id")
 
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts) when is_list(opts) do
-    pem = Keyword.get(opts, :private_key_pem)
-    kid = Keyword.get(opts, :kid)
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
+  def new(attrs) when is_list(attrs), do: new(Map.new(attrs))
 
-    with :ok <- validate_kid(kid),
-         :ok <- validate_pem(pem) do
-      {:ok, %__MODULE__{private_key_pem: pem, kid: kid}}
+  def new(attrs) when is_map(attrs) do
+    errors =
+      InvalidField.unknown_fields(__MODULE__, attrs, @enforce_keys) ++
+        [validate_pem(attrs[:private_key_pem]), validate_kid(attrs[:kid])]
+
+    case Errors.collect(errors) do
+      :ok -> {:ok, struct!(__MODULE__, attrs)}
+      {:error, _error} = error -> error
     end
   end
 
@@ -172,59 +177,46 @@ defmodule Ltix.JWK do
 
   # --- Validation ---
 
-  defp validate_kid(kid) when is_binary(kid) and byte_size(kid) > 0, do: :ok
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
+  defp validate_kid(nil), do: required(:kid)
+  defp validate_kid(kid) when is_binary(kid) and kid != "", do: nil
 
-  defp validate_kid(_) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "kid",
-       value: nil,
-       message: "kid must be a non-empty string",
-       spec_ref: "Sec §6.3 (key identifier)"
-     )}
+  defp validate_kid(kid) do
+    invalid(:kid, kid, "must be a non-empty string", "Sec §6.3 (key identifier)")
   end
+
+  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  # Key material is redacted from errors.
+  defp validate_pem(nil), do: required(:private_key_pem)
 
   defp validate_pem(pem) when is_binary(pem) do
     case :public_key.pem_decode(pem) do
-      [] ->
-        {:error,
-         InvalidClaim.exception(
-           claim: "private_key_pem",
-           value: "***",
-           message: "private_key_pem is not a valid PEM",
-           spec_ref: "Sec §6.1 (RSA key)"
-         )}
-
-      entries ->
-        validate_pem_entries(entries)
+      [entry | _] -> validate_pem_entry(entry)
+      [] -> invalid(:private_key_pem, "[redacted]", "must be a PEM", "Sec §6.1 (RSA key)")
     end
   end
 
-  defp validate_pem(_) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "private_key_pem",
-       value: nil,
-       message: "private_key_pem must be a binary",
-       spec_ref: "Sec §6.1 (RSA key)"
-     )}
+  defp validate_pem(pem) do
+    invalid(:private_key_pem, pem, "must be a binary", "Sec §6.1 (RSA key)")
   end
 
-  defp validate_pem_entries(entries) do
-    entry = List.first(entries)
-
+  defp validate_pem_entry(entry) do
     case :public_key.pem_entry_decode(entry) do
       {:RSAPrivateKey, _, _, _, _, _, _, _, _, _, _} ->
-        :ok
+        nil
 
-      _ ->
-        {:error,
-         InvalidClaim.exception(
-           claim: "private_key_pem",
-           value: "***",
-           message: "expected an RSA private key",
-           spec_ref: "Sec §6.1 (RSA key)"
-         )}
+      _other ->
+        invalid(
+          :private_key_pem,
+          "[redacted]",
+          "expected an RSA private key",
+          "Sec §6.1 (RSA key)"
+        )
     end
   end
+
+  defp required(field), do: InvalidField.required(__MODULE__, field)
+
+  defp invalid(field, value, reason, spec_ref),
+    do: InvalidField.invalid(__MODULE__, field, value, reason, spec_ref)
 end

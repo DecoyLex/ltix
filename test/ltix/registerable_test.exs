@@ -21,6 +21,25 @@ defmodule Ltix.RegisterableTest do
     end
   end
 
+  describe "Ltix.Registration struct literals" do
+    test "are validated like Registration.new/1" do
+      registration = %Registration{
+        issuer: "http://platform.example.com",
+        client_id: "client-123",
+        auth_endpoint: "https://platform.example.com/auth",
+        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+        tool_jwk: @tool_jwk
+      }
+
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{
+                field: :issuer,
+                value: "http://platform.example.com"
+              }} =
+               Registerable.to_registration(registration)
+    end
+  end
+
   describe "custom struct implementation" do
     test "extracts a Registration from a custom struct" do
       custom = %CustomRegistration{

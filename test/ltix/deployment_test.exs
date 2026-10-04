@@ -2,6 +2,7 @@ defmodule Ltix.DeploymentTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Deployment
+  alias Ltix.Errors.Invalid.InvalidField
 
   doctest Ltix.Deployment
 
@@ -11,15 +12,9 @@ defmodule Ltix.DeploymentTest do
                Deployment.new("deploy-123")
     end
 
-    # [Core §5.3.3] deployment_id MUST be non-empty
-    test "rejects empty deployment_id" do
-      assert {:error, error} = Deployment.new("")
-      assert Exception.message(error) =~ "deployment_id"
-    end
-
-    test "rejects nil deployment_id" do
-      assert {:error, error} = Deployment.new(nil)
-      assert Exception.message(error) =~ "deployment_id"
+    test "requires a deployment_id" do
+      assert {:error, %InvalidField{struct: Deployment, field: :deployment_id, reason: :required}} =
+               Deployment.new(nil)
     end
 
     # [Core §5.3.3] deployment_id MUST NOT exceed 255 ASCII characters
@@ -28,16 +23,17 @@ defmodule Ltix.DeploymentTest do
       assert {:ok, %Deployment{deployment_id: ^id}} = Deployment.new(id)
     end
 
-    test "rejects deployment_id exceeding 255 characters" do
-      id = String.duplicate("a", 256)
-      assert {:error, error} = Deployment.new(id)
-      assert Exception.message(error) =~ "255"
-    end
-
-    # [Core §5.3.3] deployment_id is ASCII — non-ASCII chars should be rejected
-    test "rejects non-ASCII deployment_id" do
-      assert {:error, error} = Deployment.new("deploy-café")
-      assert Exception.message(error) =~ "ASCII"
+    # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+    test "reports an invalid deployment_id with its value" do
+      for {value, reason} <- [
+            {"", "must be a non-empty string"},
+            {123, "must be a non-empty string"},
+            {String.duplicate("a", 256), "must not exceed 255 ASCII characters"},
+            {"deploy-café", "must contain only ASCII characters"}
+          ] do
+        assert {:error, %InvalidField{field: :deployment_id, value: ^value, reason: ^reason}} =
+                 Deployment.new(value)
+      end
     end
   end
 end

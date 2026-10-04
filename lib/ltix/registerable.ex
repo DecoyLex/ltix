@@ -27,9 +27,9 @@ defprotocol Ltix.Registerable do
         end
       end
 
-  `Ltix.Registration` itself implements this protocol as an identity
-  transform, so existing code that returns `%Registration{}` from storage
-  adapter callbacks continues to work.
+  `Ltix.Registration` itself implements this protocol, so storage adapter
+  callbacks can return a `%Registration{}` directly. Login and launch return
+  the same error as `Ltix.Registration.new/1` for an invalid one.
   """
 
   @doc """

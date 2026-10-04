@@ -4,6 +4,7 @@ defmodule LtixTest do
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
@@ -603,6 +604,16 @@ defmodule LtixTest do
                    req_options: req_options()
                  )
       end
+    end
+
+    test "an invalid registration struct from the storage adapter fails the login", ctx do
+      registration = %{ctx.registration | jwks_uri: "http://platform.example.com/jwks"}
+      send(self(), {:storage_result, :get_registration, {:ok, registration}})
+
+      assert {:error, %InvalidField{struct: Registration, field: :jwks_uri}} =
+               Ltix.handle_login(login_params(), @redirect_uri,
+                 storage_adapter: ScriptedStorageAdapter
+               )
     end
 
     test "Ltix errors returned by the storage adapter are returned unchanged", ctx do

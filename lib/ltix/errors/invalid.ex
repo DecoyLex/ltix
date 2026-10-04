@@ -3,7 +3,7 @@ defmodule Ltix.Errors.Invalid do
   Error class for spec-violating input data.
 
   Covers malformed JWTs, missing/invalid claims, missing OIDC parameters,
-  and unknown registrations/deployments.
+  invalid options and fields, and unknown registrations/deployments.
   """
   use Ltix.Errors, type: :error_class, class: :invalid
 end

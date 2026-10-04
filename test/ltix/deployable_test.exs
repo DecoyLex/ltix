@@ -11,6 +11,13 @@ defmodule Ltix.DeployableTest do
     end
   end
 
+  describe "Ltix.Deployment struct literals" do
+    test "are validated like Deployment.new/1" do
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :deployment_id, value: ""}} =
+               Deployable.to_deployment(%Deployment{deployment_id: ""})
+    end
+  end
+
   describe "custom struct implementation" do
     test "extracts a Deployment from a custom struct" do
       custom = %CustomDeployment{
@@ -22,18 +29,6 @@ defmodule Ltix.DeployableTest do
 
       assert {:ok, %Deployment{} = dep} = Deployable.to_deployment(custom)
       assert dep.deployment_id == "deploy-abc"
-    end
-
-    test "surfaces validation errors from Deployment.new/1" do
-      custom = %CustomDeployment{
-        id: 1,
-        registration_id: 1,
-        platform_deployment_id: "",
-        label: "Bad"
-      }
-
-      assert {:error, error} = Deployable.to_deployment(custom)
-      assert Exception.message(error) =~ "deployment_id"
     end
   end
 end

@@ -1,6 +1,7 @@
 defmodule Ltix.JWKTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.JWK
 
   doctest Ltix.JWK
@@ -67,43 +68,65 @@ defmodule Ltix.JWKTest do
       assert jwk.kid == ctx.kid
     end
 
-    test "missing private_key_pem returns error" do
-      assert {:error, error} = JWK.new(kid: "some-kid")
-      assert Exception.message(error) =~ "private_key_pem"
+    test "rejects unknown fields", ctx do
+      for attrs <- [
+            [private_key_pem: ctx.pem, kid: ctx.kid, key_id: "x"],
+            %{private_key_pem: ctx.pem, kid: ctx.kid, key_id: "x"}
+          ] do
+        assert {:error, %InvalidField{struct: JWK, field: :key_id, value: "x", reason: :unknown}} =
+                 JWK.new(attrs)
+      end
     end
 
-    test "missing kid returns error" do
+    test "missing fields and fields given nil are required", ctx do
+      attrs = %{private_key_pem: ctx.pem, kid: ctx.kid}
+
+      for field <- [:private_key_pem, :kid],
+          attrs <- [Map.delete(attrs, field), %{attrs | field => nil}] do
+        assert {:error, %InvalidField{struct: JWK, field: ^field, reason: :required}} =
+                 JWK.new(attrs)
+      end
+    end
+
+    test "rejects an unknown field given nil", ctx do
+      assert {:error, %InvalidField{field: :key_id, reason: :unknown}} =
+               JWK.new(private_key_pem: ctx.pem, kid: ctx.kid, key_id: nil)
+    end
+
+    test "invalid kid reports its value" do
       jwk = JWK.generate()
-      assert {:error, error} = JWK.new(private_key_pem: jwk.private_key_pem)
-      assert Exception.message(error) =~ "kid"
+
+      for kid <- ["", 123] do
+        assert {:error, %InvalidField{field: :kid, value: ^kid}} =
+                 JWK.new(private_key_pem: jwk.private_key_pem, kid: kid)
+      end
     end
 
-    test "empty string kid returns error" do
-      jwk = JWK.generate()
-      assert {:error, error} = JWK.new(private_key_pem: jwk.private_key_pem, kid: "")
-      assert Exception.message(error) =~ "kid"
-    end
-
-    test "non-PEM string returns error" do
-      assert {:error, error} = JWK.new(private_key_pem: "not-a-pem", kid: "some-kid")
-      assert Exception.message(error) =~ "private_key_pem"
-    end
-
-    test "PEM containing an EC key returns error" do
-      # Generate an EC key PEM
+    test "invalid private_key_pem is reported without revealing key material", ctx do
       ec_key = :public_key.generate_key({:namedCurve, :secp256r1})
       ec_pem = :public_key.pem_encode([:public_key.pem_entry_encode(:ECPrivateKey, ec_key)])
+      public_pem = JWK.to_public_key(JWK.generate())
 
-      assert {:error, error} = JWK.new(private_key_pem: ec_pem, kid: "ec-kid")
-      assert Exception.message(error) =~ "RSA private key"
+      for {pem, reason} <- [
+            {"not-a-pem", "must be a PEM"},
+            {ec_pem, "expected an RSA private key"},
+            {public_pem, "expected an RSA private key"}
+          ] do
+        assert {:error, %InvalidField{field: :private_key_pem, value: "[redacted]"} = error} =
+                 JWK.new(private_key_pem: pem, kid: ctx.kid)
+
+        assert Exception.message(error) =~ reason
+      end
+
+      assert {:error, %InvalidField{field: :private_key_pem, value: 123}} =
+               JWK.new(private_key_pem: 123, kid: ctx.kid)
     end
 
-    test "PEM containing a public key returns error" do
-      jwk = JWK.generate()
-      public_pem = JWK.to_public_key(jwk)
-
-      assert {:error, error} = JWK.new(private_key_pem: public_pem, kid: "pub-kid")
-      assert Exception.message(error) =~ "RSA private key"
+    test "reports every invalid field together" do
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [%InvalidField{field: :private_key_pem}, %InvalidField{field: :kid}]
+              }} = JWK.new(private_key_pem: "not-a-pem", kid: "")
     end
   end
 
