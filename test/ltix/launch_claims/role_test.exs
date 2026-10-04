@@ -21,9 +21,11 @@ defmodule Ltix.LaunchClaims.RoleTest do
         Role.parse_all([uri], role_parsers: [Ltix.LaunchClaims.Role.LIS])
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption,
-                   ~r/Option :role_parsers is invalid, role parsers must be modules/,
-                   fn -> Role.parse(uri, role_parsers: %{"https://example.com/" => "parser"}) end
+      for parser <- ["parser", Enum, fn _uri, _other -> :error end] do
+        assert_raise Ltix.Errors.Invalid.InvalidOption,
+                     ~r/Option :role_parsers is invalid, parsers must be modules/,
+                     fn -> Role.parse(uri, role_parsers: %{"https://example.com/" => parser}) end
+      end
     end
   end
 

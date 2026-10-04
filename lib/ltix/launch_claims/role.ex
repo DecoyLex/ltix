@@ -50,7 +50,6 @@ defmodule Ltix.LaunchClaims.Role do
   require Logger
 
   alias Ltix.AppConfig
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.LaunchClaims.Role.LIS
   alias Ltix.Options
 
@@ -134,22 +133,8 @@ defmodule Ltix.LaunchClaims.Role do
 
     application_parsers
     |> Map.merge(parsers)
-    |> Map.filter(fn
-      {_prefix, parser} when is_atom(parser) ->
-        Code.ensure_loaded?(parser) and function_exported?(parser, :parse, 1)
-
-      {_prefix, parser} when is_function(parser, 1) ->
-        true
-
-      {_prefix, parser} ->
-        raise InvalidOption,
-          key: :role_parsers,
-          value: parser,
-          reason: "role parsers must be modules or 1-arity functions"
-    end)
-    |> Map.new(fn
-      {prefix, parser} when is_atom(parser) -> {prefix, &parser.parse/1}
-      {prefix, parser} when is_function(parser, 1) -> {prefix, parser}
+    |> Map.new(fn {prefix, parser} ->
+      {prefix, Options.parser_function!(parser, :role_parsers)}
     end)
   end
 
