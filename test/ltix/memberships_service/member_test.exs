@@ -168,5 +168,23 @@ defmodule Ltix.MembershipsService.MemberTest do
       json = %{"user_id" => "user-1", "roles" => []}
       assert {:ok, %Member{message: nil}} = Member.from_json(json)
     end
+
+    test "keeps unrecognized fields in extensions" do
+      json = %{
+        "user_id" => "user-1",
+        "roles" => [],
+        "name" => "Jane",
+        "lis_person_sourcedid" => "sis-1",
+        "https://canvas.instructure.com/lti/sis_user_id" => "sis-1",
+        "nickname" => "JJ"
+      }
+
+      assert {:ok, %Member{} = member} = Member.from_json(json)
+
+      assert member.extensions == %{
+               "https://canvas.instructure.com/lti/sis_user_id" => "sis-1",
+               "nickname" => "JJ"
+             }
+    end
   end
 end

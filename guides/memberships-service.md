@@ -139,6 +139,14 @@ defp display_name(member) do
 end
 ```
 
+## Platform-specific fields
+
+Platforms may add custom fields to each member. Ltix puts any field it does not recognize in `extensions`, keyed by the original JSON name.
+
+```elixir
+member.extensions["https://lms.example.com/student_number"]
+```
+
 ## Large courses
 
 `list_members/2` loads the entire roster into memory. For courses with

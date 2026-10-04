@@ -1203,6 +1203,38 @@ defmodule Ltix.GradeServiceTest do
     end
   end
 
+  describe "a client authenticated for another service" do
+    test "gets ScopeMismatch from every operation", ctx do
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      client = %{
+        build_client(ctx.platform, scopes: [@nrps_scope])
+        | endpoints: %{
+            Ltix.MembershipsService => %MembershipsEndpoint{
+              context_memberships_url: @line_items_url
+            }
+          }
+      }
+
+      item = %LineItem{id: @line_item_url, label: "Quiz", score_maximum: 10}
+
+      assert {:error, %ScopeMismatch{}} = GradeService.list_line_items(client)
+
+      assert {:error, %ScopeMismatch{}} =
+               GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+
+      assert {:error, %ScopeMismatch{}} = GradeService.get_line_item(client)
+      assert {:error, %ScopeMismatch{}} = GradeService.update_line_item(client, item)
+      assert {:error, %ScopeMismatch{}} = GradeService.delete_line_item(client)
+
+      assert {:error, %ScopeMismatch{scopes: [@scope_score]}} =
+               GradeService.post_score(client, score)
+
+      assert {:error, %ScopeMismatch{}} = GradeService.list_results(client)
+    end
+  end
+
   # --- telemetry ---
 
   describe "telemetry" do
@@ -1289,32 +1321,10 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "a client authenticated for another service gets ScopeMismatch", ctx do
-      client = %{
-        build_client(ctx.platform, scopes: [@nrps_scope])
-        | endpoints: %{
-            Ltix.MembershipsService => %MembershipsEndpoint{
-              context_memberships_url: @line_items_url
-            }
-          }
-      }
+    test "reports no URL when the client has no grade service endpoint", ctx do
+      client = %{build_client(ctx.platform) | endpoints: %{}}
 
-      item = %LineItem{id: @line_item_url, label: "Quiz", score_maximum: 10}
-
-      assert {:error, %ScopeMismatch{}} = GradeService.list_line_items(client)
-
-      assert {:error, %ScopeMismatch{}} =
-               GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
-
-      assert {:error, %ScopeMismatch{}} = GradeService.get_line_item(client)
-      assert {:error, %ScopeMismatch{}} = GradeService.update_line_item(client, item)
-      assert {:error, %ScopeMismatch{}} = GradeService.delete_line_item(client)
-
-      assert {:error, %ScopeMismatch{scopes: [@scope_score]}} =
-               GradeService.post_score(client, ctx.score)
-
-      assert {:error, %ScopeMismatch{}} = GradeService.list_results(client)
-
+      assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
       assert_received {:telemetry, :list_line_items, :stop, %{endpoint: nil}}
     end
 

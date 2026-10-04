@@ -5,6 +5,8 @@ defmodule Ltix.MembershipsService.Member do
   Each member has a `user_id` (matching `sub` from launch JWTs) and
   `roles` (parsed into `%Role{}` structs). Additional fields like
   `name`, `email`, and `picture` depend on platform consent.
+  Fields Ltix does not recognize, such as platform-specific extensions,
+  are in `extensions` with their original JSON keys.
 
   ## Examples
 
@@ -44,7 +46,8 @@ defmodule Ltix.MembershipsService.Member do
     :lti_1_1_legacy_user_id,
     :message,
     roles: [],
-    unrecognized_roles: []
+    unrecognized_roles: [],
+    extensions: %{}
   ]
 
   @type t :: %__MODULE__{
@@ -60,8 +63,12 @@ defmodule Ltix.MembershipsService.Member do
           lti_1_1_legacy_user_id: String.t() | nil,
           message: [LaunchClaims.t()] | nil,
           roles: [Role.t()],
-          unrecognized_roles: [String.t()]
+          unrecognized_roles: [String.t()],
+          extensions: %{optional(String.t()) => term()}
         }
+
+  # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data)
+  @known_keys ~w(user_id roles status message name picture given_name family_name middle_name email lis_person_sourcedid lti11_legacy_user_id)
 
   @status_map %{
     "Active" => :active,
@@ -117,7 +124,8 @@ defmodule Ltix.MembershipsService.Member do
            status: status,
            message: message,
            roles: parsed_roles,
-           unrecognized_roles: unrecognized
+           unrecognized_roles: unrecognized,
+           extensions: Map.drop(json, @known_keys)
        }}
     end
   end
