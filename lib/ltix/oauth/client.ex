@@ -47,6 +47,22 @@ defmodule Ltix.OAuth.Client do
 
   @expiry_buffer_seconds 60
 
+  @option_fields [
+    req_options:
+      Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.request/2`.")
+      |> Zoi.default([]),
+    require_all_scopes:
+      Zoi.boolean(
+        description:
+          "Return a `ScopeMismatch` error unless every scope the endpoints need was granted."
+      )
+      |> Zoi.default(false)
+  ]
+
+  @with_endpoints_schema Zoi.keyword(Keyword.take(@option_fields, [:require_all_scopes]),
+                           unrecognized_keys: :error
+                         )
+
   @from_access_token_schema Zoi.keyword(
                               [
                                 registration:
@@ -58,15 +74,14 @@ defmodule Ltix.OAuth.Client do
                                   Zoi.map(Zoi.atom(), Zoi.any(),
                                     description: "Map of service modules to endpoint structs."
                                   )
-                                  |> Zoi.required(),
-                                req_options:
-                                  Zoi.keyword(Zoi.any(),
-                                    description: "Options passed through to `Req.request/2`."
-                                  )
-                                  |> Zoi.default([])
-                              ],
+                                  |> Zoi.required()
+                              ] ++ @option_fields,
                               unrecognized_keys: :error
                             )
+
+  # Options shared by every entry point that builds a client.
+  @doc false
+  def option_fields, do: @option_fields
 
   @doc """
   Check whether the client's token has expired.
@@ -123,12 +138,7 @@ defmodule Ltix.OAuth.Client do
     if has_scope?(client, scope) do
       :ok
     else
-      {:error,
-       ScopeMismatch.exception(
-         scopes: [scope],
-         granted_scopes: MapSet.to_list(client.scopes),
-         spec_ref: "Sec §4.1"
-       )}
+      {:error, scope_mismatch(client, [scope])}
     end
   end
 
@@ -142,12 +152,7 @@ defmodule Ltix.OAuth.Client do
     if Enum.any?(scopes, &has_scope?(client, &1)) do
       :ok
     else
-      {:error,
-       ScopeMismatch.exception(
-         scopes: scopes,
-         granted_scopes: MapSet.to_list(client.scopes),
-         spec_ref: "Sec §4.1"
-       )}
+      {:error, scope_mismatch(client, scopes)}
     end
   end
 
@@ -220,8 +225,7 @@ defmodule Ltix.OAuth.Client do
   @doc """
   Build a client from a cached `AccessToken`.
 
-  Validates endpoints and checks that the token's granted scopes cover
-  the required scopes for all endpoints.
+  The token may lack some of the scopes the endpoints need.
 
   ## Options
 
@@ -235,17 +239,10 @@ defmodule Ltix.OAuth.Client do
     req_options = Keyword.fetch!(opts, :req_options)
 
     with {:ok, registration} <- Registerable.to_registration(registerable),
-         :ok <- validate_endpoints(endpoints),
-         :ok <- check_scope_coverage(collect_scopes(endpoints), token.granted_scopes) do
-      {:ok,
-       %__MODULE__{
-         access_token: token.access_token,
-         expires_at: token.expires_at,
-         scopes: MapSet.new(token.granted_scopes),
-         registration: registration,
-         req_options: req_options,
-         endpoints: endpoints
-       }}
+         :ok <- validate_endpoints(endpoints) do
+      token
+      |> new(registration, endpoints, req_options)
+      |> check_granted_scopes(Keyword.fetch!(opts, :require_all_scopes))
     end
   end
 
@@ -263,31 +260,57 @@ defmodule Ltix.OAuth.Client do
   @doc """
   Swap endpoints on an existing client.
 
-  Validates the new endpoints and checks that the client's granted scopes
-  cover the required scopes. The token remains the same.
+  The token remains the same, so it may lack some of the scopes the new endpoints need.
+
+  ## Options
+
+  #{Zoi.describe(@with_endpoints_schema)}
   """
-  @spec with_endpoints(t(), %{module() => term()}) :: {:ok, t()} | {:error, Exception.t()}
-  def with_endpoints(%__MODULE__{} = client, endpoints) do
-    with :ok <- validate_endpoints(endpoints),
-         :ok <- check_scope_coverage(collect_scopes(endpoints), MapSet.to_list(client.scopes)) do
-      {:ok, %{client | endpoints: endpoints}}
+  @spec with_endpoints(t(), %{module() => term()}, keyword()) ::
+          {:ok, t()} | {:error, Exception.t()}
+  def with_endpoints(%__MODULE__{} = client, endpoints, opts \\ []) do
+    opts = Options.parse!(opts, @with_endpoints_schema)
+
+    case validate_endpoints(endpoints) do
+      :ok ->
+        check_granted_scopes(
+          %{client | endpoints: endpoints},
+          Keyword.fetch!(opts, :require_all_scopes)
+        )
+
+      {:error, _} = error ->
+        error
     end
   end
 
   @doc """
-  Same as `with_endpoints/2` but raises on error.
+  Same as `with_endpoints/3` but raises on error.
   """
-  @spec with_endpoints!(t(), %{module() => term()}) :: t()
-  def with_endpoints!(%__MODULE__{} = client, endpoints) do
-    case with_endpoints(client, endpoints) do
+  @spec with_endpoints!(t(), %{module() => term()}, keyword()) :: t()
+  def with_endpoints!(%__MODULE__{} = client, endpoints, opts \\ []) do
+    case with_endpoints(client, endpoints, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
   end
 
-  # --- Private helpers ---
+  # Builds a client holding the token's grant.
+  @doc false
+  @spec new(AccessToken.t(), Registration.t(), %{module() => term()}, keyword()) :: t()
+  def new(%AccessToken{} = token, registration, endpoints, req_options) do
+    %__MODULE__{
+      access_token: token.access_token,
+      expires_at: token.expires_at,
+      scopes: MapSet.new(token.granted_scopes),
+      registration: registration,
+      req_options: req_options,
+      endpoints: endpoints
+    }
+  end
 
-  defp validate_endpoints(endpoints) do
+  @doc false
+  @spec validate_endpoints(%{module() => term()}) :: :ok | {:error, Exception.t()}
+  def validate_endpoints(endpoints) do
     Enum.reduce_while(endpoints, :ok, fn {module, endpoint}, :ok ->
       case module.validate_endpoint(endpoint) do
         :ok -> {:cont, :ok}
@@ -296,26 +319,32 @@ defmodule Ltix.OAuth.Client do
     end)
   end
 
-  defp collect_scopes(endpoints) do
+  @doc false
+  @spec collect_scopes(%{module() => term()}) :: [String.t()]
+  def collect_scopes(endpoints) do
     endpoints
     |> Enum.flat_map(fn {module, endpoint} -> module.scopes(endpoint) end)
     |> Enum.uniq()
   end
 
-  defp check_scope_coverage(required_scopes, granted_scopes) do
-    granted_set = MapSet.new(granted_scopes)
+  # With `require_all_scopes`, every scope the endpoints need must be granted.
+  # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
+  @doc false
+  @spec check_granted_scopes(t(), boolean()) :: {:ok, t()} | {:error, Exception.t()}
+  def check_granted_scopes(%__MODULE__{} = client, false), do: {:ok, client}
 
-    case Enum.find(required_scopes, fn scope -> not MapSet.member?(granted_set, scope) end) do
-      nil ->
-        :ok
-
-      missing ->
-        {:error,
-         ScopeMismatch.exception(
-           scopes: [missing],
-           granted_scopes: granted_scopes,
-           spec_ref: "Sec §4.1"
-         )}
+  def check_granted_scopes(%__MODULE__{} = client, true) do
+    case Enum.reject(collect_scopes(client.endpoints), &has_scope?(client, &1)) do
+      [] -> {:ok, client}
+      missing -> {:error, Ltix.Errors.combine(Enum.map(missing, &scope_mismatch(client, [&1])))}
     end
+  end
+
+  defp scope_mismatch(client, scopes) do
+    ScopeMismatch.exception(
+      scopes: scopes,
+      granted_scopes: MapSet.to_list(client.scopes),
+      spec_ref: "Sec §4.1"
+    )
   end
 end

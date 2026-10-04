@@ -3,6 +3,7 @@ defmodule Ltix.OAuthTest do
 
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.OAuth
@@ -161,6 +162,17 @@ defmodule Ltix.OAuthTest do
 
       assert MapSet.member?(client.scopes, @test_scope)
       refute MapSet.member?(client.scopes, @other_scope)
+    end
+
+    test "require_all_scopes returns ScopeMismatch when the platform grants only some", ctx do
+      stub_token_response(@test_scope)
+
+      assert {:error, %ScopeMismatch{scopes: [@other_scope]}} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint, OtherService => :other_endpoint},
+                 req_options: req_options(),
+                 require_all_scopes: true
+               )
     end
 
     test "accepts mixed-case bearer with optional fields absent and ignores extensions", ctx do

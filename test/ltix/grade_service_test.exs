@@ -254,6 +254,33 @@ defmodule Ltix.GradeServiceTest do
                GradeService.authenticate(ctx.platform.registration, endpoint: endpoint)
     end
 
+    test "accepts a partial scope grant unless require_all_scopes is set, from a registration or a launch",
+         ctx do
+      stub_token_response([@scope_score])
+
+      endpoint =
+        AGSEndpoint.new!(line_item: @line_item_url, scopes: [@scope_lineitem, @scope_score])
+
+      req_options = [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
+      context = Ltix.Test.build_launch_context(ctx.platform, ags_endpoint: endpoint)
+
+      assert {:ok, %Client{}} =
+               GradeService.authenticate(ctx.platform.registration,
+                 endpoint: endpoint,
+                 req_options: req_options
+               )
+
+      for context_or_registration <- [context, ctx.platform.registration] do
+        opts = if context_or_registration == context, do: [], else: [endpoint: endpoint]
+
+        assert {:error, %ScopeMismatch{scopes: [@scope_lineitem]}} =
+                 GradeService.authenticate(
+                   context_or_registration,
+                   opts ++ [req_options: req_options, require_all_scopes: true]
+                 )
+      end
+    end
+
     test "raises without endpoint option", ctx do
       assert_raise InvalidOption, "Option :endpoint is required", fn ->
         GradeService.authenticate(ctx.platform.registration, [])

@@ -85,16 +85,9 @@ defmodule Ltix.MembershipsService do
   # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
   def scopes(%MembershipsEndpoint{}), do: [@nrps_scope]
 
-  @context_auth_schema Zoi.keyword(
-                         [
-                           req_options:
-                             Zoi.keyword(Zoi.any(),
-                               description: "Options passed through to `Req.request/2`."
-                             )
-                             |> Zoi.default([])
-                         ],
-                         unrecognized_keys: :error
-                       )
+  @auth_fields Client.option_fields()
+
+  @context_auth_schema Zoi.keyword(@auth_fields, unrecognized_keys: :error)
 
   @registration_auth_schema Zoi.keyword(
                               [
@@ -103,13 +96,8 @@ defmodule Ltix.MembershipsService do
                                     description:
                                       "MembershipsEndpoint struct for the service endpoint."
                                   )
-                                  |> Zoi.required(),
-                                req_options:
-                                  Zoi.keyword(Zoi.any(),
-                                    description: "Options passed through to `Req.request/2`."
-                                  )
-                                  |> Zoi.default([])
-                              ],
+                                  |> Zoi.required()
+                              ] ++ @auth_fields,
                               unrecognized_keys: :error
                             )
 
@@ -148,21 +136,14 @@ defmodule Ltix.MembershipsService do
 
     with {:ok, registration} <- Registerable.to_registration(context.registration),
          {:ok, endpoint} <- fetch_endpoint(context.claims) do
-      OAuth.authenticate(registration,
-        endpoints: %{__MODULE__ => endpoint},
-        req_options: Keyword.get(opts, :req_options, [])
-      )
+      OAuth.authenticate(registration, Keyword.put(opts, :endpoints, %{__MODULE__ => endpoint}))
     end
   end
 
   def authenticate(registerable, opts) do
     opts = Options.parse!(opts, @registration_auth_schema)
-    endpoint = Keyword.fetch!(opts, :endpoint)
-
-    OAuth.authenticate(registerable,
-      endpoints: %{__MODULE__ => endpoint},
-      req_options: Keyword.get(opts, :req_options, [])
-    )
+    {endpoint, opts} = Keyword.pop!(opts, :endpoint)
+    OAuth.authenticate(registerable, Keyword.put(opts, :endpoints, %{__MODULE__ => endpoint}))
   end
 
   @doc """

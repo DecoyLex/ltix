@@ -42,9 +42,10 @@ client = Ltix.OAuth.Client.refresh!(client)
 ```
 
 - Tokens are scoped to a registration (platform + client_id), not a course. Reuse across
-  courses on the same platform with `Client.with_endpoints/2`.
-- Platforms may grant fewer scopes than requested. Service functions validate automatically
-  and return `ScopeMismatch` if the required scope is missing.
+  courses on the same platform with `Client.with_endpoints/3`.
+- Platforms may grant fewer scopes than requested. Authentication still succeeds. Service
+  functions validate automatically and return `ScopeMismatch` if the required scope is
+  missing. Pass `require_all_scopes: true` to fail at authentication instead.
 
 ## Grade Service
 

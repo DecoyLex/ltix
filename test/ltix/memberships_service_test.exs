@@ -5,6 +5,7 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
@@ -225,6 +226,35 @@ defmodule Ltix.MembershipsServiceTest do
                )
 
       assert MapSet.member?(client.scopes, @nrps_scope)
+    end
+
+    test "accepts a token without the NRPS scope unless require_all_scopes is set", ctx do
+      Ltix.Test.stub_token_response(scopes: ["other:scope"])
+      endpoint = MembershipsEndpoint.new!(@memberships_url)
+      req_options = [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
+      context = Ltix.Test.build_launch_context(ctx.platform, memberships_endpoint: endpoint)
+
+      assert {:ok, client} =
+               MembershipsService.authenticate(ctx.platform.registration,
+                 endpoint: endpoint,
+                 req_options: req_options
+               )
+
+      assert {:error, %ScopeMismatch{scopes: [@nrps_scope]}} =
+               MembershipsService.list_members(client)
+
+      assert {:error, %ScopeMismatch{scopes: [@nrps_scope]}} =
+               MembershipsService.authenticate(ctx.platform.registration,
+                 endpoint: endpoint,
+                 req_options: req_options,
+                 require_all_scopes: true
+               )
+
+      assert {:error, %ScopeMismatch{scopes: [@nrps_scope]}} =
+               MembershipsService.authenticate(context,
+                 req_options: req_options,
+                 require_all_scopes: true
+               )
     end
 
     test "raises without endpoint option", ctx do

@@ -133,7 +133,10 @@ your endpoint in its `endpoints` map, keyed by `AttendanceService`.
 ## Making authenticated requests
 
 The client gives you a bearer token and Req options. Build your
-request as a keyword list and pass it to Req:
+request as a keyword list and pass it to Req. The platform may grant
+fewer scopes than requested, so check the scope first.
+`Ltix.OAuth.Client.require_scope/2` returns
+`Ltix.Errors.Invalid.ScopeMismatch` when the token lacks it:
 
 ```elixir
 # lib/my_app/lti/attendance_service.ex
@@ -152,15 +155,17 @@ def get_records(%Client{} = client) do
       {"accept", "application/json"}
     ])
 
-  case Req.get(req_opts) do
-    {:ok, %Req.Response{status: 200, body: body}} ->
-      {:ok, body["records"]}
+  with :ok <- Client.require_scope(client, @scope) do
+    case Req.get(req_opts) do
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, body["records"]}
 
-    {:ok, %Req.Response{status: status}} ->
-      {:error, RuntimeError.exception("attendance request failed: HTTP #{status}")}
+      {:ok, %Req.Response{status: status}} ->
+        {:error, RuntimeError.exception("attendance request failed: HTTP #{status}")}
 
-    {:error, exception} ->
-      {:error, exception}
+      {:error, exception} ->
+        {:error, exception}
+    end
   end
 end
 ```

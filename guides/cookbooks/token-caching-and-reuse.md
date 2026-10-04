@@ -61,7 +61,7 @@ endpoints and registration — only the token changes.
 
 A token is scoped to a registration (platform + client\_id), not to a
 course. If you sync several courses on the same platform in one job,
-authenticate once and swap endpoints with `with_endpoints!/2`:
+authenticate once and swap endpoints with `with_endpoints!/3`:
 
 ```elixir
 def perform(%{args: %{"platform_id" => platform_id}}) do
@@ -94,10 +94,7 @@ def perform(%{args: %{"platform_id" => platform_id}}) do
 end
 ```
 
-`with_endpoints/2` validates that the client's granted scopes cover the
-new endpoint's requirements. If the platform granted fewer scopes than
-needed, you get a `ScopeMismatch` error at swap time rather than
-mid-request.
+The token's granted scopes do not change. If it lacks a scope a new endpoint needs, that service returns a `ScopeMismatch` error when called. Pass `require_all_scopes: true` to `with_endpoints/3` to get the error at swap time instead.
 
 ## Caching tokens across workers
 
@@ -190,7 +187,7 @@ Don't add caching complexity unless you have a reason:
 |---|---|
 | Single API call per job | Just authenticate. No caching needed. |
 | One job, many API calls | Refresh mid-batch with `expired?/1` + `refresh!/1`. |
-| One job, many courses | Authenticate once, swap with `with_endpoints/2`. |
+| One job, many courses | Authenticate once, swap with `with_endpoints/3`. |
 | Many concurrent jobs, same platform | Cache tokens in ETS. |
 
 ## Next steps

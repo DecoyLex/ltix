@@ -1,6 +1,7 @@
 defmodule Ltix.OAuth.ClientTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.OAuth.AccessToken
@@ -9,6 +10,7 @@ defmodule Ltix.OAuth.ClientTest do
   doctest Client
 
   @test_scope "https://example.com/scope/test.readonly"
+  @other_scope "https://example.com/scope/other.write"
 
   defmodule TestService do
     @behaviour Ltix.AdvantageService
@@ -28,6 +30,19 @@ defmodule Ltix.OAuth.ClientTest do
       do: ["https://example.com/scope/test.readonly"]
   end
 
+  defmodule OtherService do
+    @behaviour Ltix.AdvantageService
+
+    @impl Ltix.AdvantageService
+    def endpoint_from_claims(_), do: :error
+
+    @impl Ltix.AdvantageService
+    def validate_endpoint(:other_endpoint), do: :ok
+
+    @impl Ltix.AdvantageService
+    def scopes(:other_endpoint), do: ["https://example.com/scope/other.write"]
+  end
+
   defp build_client(overrides \\ %{}) do
     defaults = %{
       access_token: "test-token",
@@ -39,6 +54,19 @@ defmodule Ltix.OAuth.ClientTest do
     }
 
     struct!(Client, Map.merge(defaults, overrides))
+  end
+
+  defp both_endpoints, do: %{TestService => :valid_endpoint, OtherService => :other_endpoint}
+
+  defp cached_token(scope) do
+    {:ok, token} =
+      AccessToken.from_response(%{
+        "access_token" => "cached-token",
+        "token_type" => "Bearer",
+        "scope" => scope
+      })
+
+    token
   end
 
   defp build_registration do
@@ -175,20 +203,34 @@ defmodule Ltix.OAuth.ClientTest do
       assert client.endpoints == %{TestService => :valid_endpoint}
     end
 
-    test "fails with ScopeMismatch when token lacks needed scopes" do
+    test "require_all_scopes returns ScopeMismatch for each scope the token lacks" do
       registration = build_registration()
 
-      {:ok, token} =
-        AccessToken.from_response(%{
-          "access_token" => "no-scope-token",
-          "token_type" => "Bearer",
-          "scope" => "unrelated:scope"
-        })
-
-      assert {:error, %ScopeMismatch{}} =
-               Client.from_access_token(token,
+      assert {:error, %ScopeMismatch{scopes: [@other_scope]}} =
+               Client.from_access_token(cached_token(@test_scope),
                  registration: registration,
-                 endpoints: %{TestService => :valid_endpoint}
+                 endpoints: both_endpoints(),
+                 require_all_scopes: true
+               )
+
+      assert {:error,
+              %Invalid{
+                errors: [
+                  %ScopeMismatch{scopes: [@test_scope]},
+                  %ScopeMismatch{scopes: [@other_scope]}
+                ]
+              }} =
+               Client.from_access_token(cached_token("unrelated:scope"),
+                 registration: registration,
+                 endpoints: both_endpoints(),
+                 require_all_scopes: true
+               )
+
+      assert {:ok, %Client{}} =
+               Client.from_access_token(cached_token("#{@test_scope} #{@other_scope}"),
+                 registration: registration,
+                 endpoints: both_endpoints(),
+                 require_all_scopes: true
                )
     end
 
@@ -243,7 +285,7 @@ defmodule Ltix.OAuth.ClientTest do
     end
   end
 
-  describe "with_endpoints/2" do
+  describe "with_endpoints/3" do
     test "swaps endpoints keeping same token" do
       client = build_client()
 
@@ -262,11 +304,31 @@ defmodule Ltix.OAuth.ClientTest do
                Client.with_endpoints(client, %{TestService => :wrong_endpoint})
     end
 
-    test "fails with ScopeMismatch when token lacks new endpoint scopes" do
-      client = build_client(%{scopes: MapSet.new(["unrelated:scope"])})
+    test "accepts endpoints whose scopes the token only partly covers" do
+      client = build_client()
 
-      assert {:error, %ScopeMismatch{}} =
-               Client.with_endpoints(client, %{TestService => :valid_endpoint})
+      assert {:ok, %Client{endpoints: endpoints}} =
+               Client.with_endpoints(client, both_endpoints())
+
+      assert endpoints == both_endpoints()
+    end
+
+    test "require_all_scopes returns ScopeMismatch when the token lacks an endpoint's scope" do
+      client = build_client()
+
+      assert {:error, %ScopeMismatch{scopes: [@other_scope]}} =
+               Client.with_endpoints(client, both_endpoints(), require_all_scopes: true)
+
+      assert {:ok, %Client{}} =
+               Client.with_endpoints(client, %{TestService => :other_valid_endpoint},
+                 require_all_scopes: true
+               )
+    end
+
+    test "raises on unknown options" do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :unknown is unknown", fn ->
+        Client.with_endpoints(build_client(), both_endpoints(), unknown: true)
+      end
     end
   end
 

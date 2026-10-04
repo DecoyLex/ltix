@@ -158,9 +158,7 @@ token by passing multiple endpoints:
 
 > #### Scope negotiation {: .warning}
 >
-> Platforms may grant fewer scopes than requested. Service functions
-> check scopes automatically and return a `ScopeMismatch` error if
-> the required scope was not granted.
+> Platforms may grant fewer scopes than requested. Authentication still succeeds, and each service function returns a `ScopeMismatch` error if its scope was not granted. Pass `require_all_scopes: true` to `Ltix.OAuth.authenticate/2`, `Ltix.GradeService.authenticate/2`, `Ltix.MembershipsService.authenticate/2`, `Ltix.OAuth.Client.with_endpoints/3`, or `Ltix.OAuth.Client.from_access_token/2` to get that error up front instead.
 
 ## Custom platform APIs
 

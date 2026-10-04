@@ -10,7 +10,13 @@ defmodule Ltix.OAuth do
                              Zoi.keyword(Zoi.any(),
                                description: "Options passed through to `Req.request/2`."
                              )
-                             |> Zoi.default([])
+                             |> Zoi.default([]),
+                           require_all_scopes:
+                             Zoi.boolean(
+                               description:
+                                 "Return a `ScopeMismatch` error unless the platform grants every requested scope."
+                             )
+                             |> Zoi.default(false)
                          ],
                          unrecognized_keys: :error
                        )
@@ -36,7 +42,7 @@ defmodule Ltix.OAuth do
         }
       )
 
-  Scopes from all endpoints are combined into a single token request.
+  The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2` instead.
 
   ## Options
 
@@ -66,18 +72,12 @@ defmodule Ltix.OAuth do
     req_options = Keyword.fetch!(opts, :req_options)
 
     with {:ok, registration} <- Registerable.to_registration(registerable),
-         :ok <- validate_endpoints(endpoints),
-         scopes = collect_scopes(endpoints),
+         :ok <- Client.validate_endpoints(endpoints),
+         scopes = Client.collect_scopes(endpoints),
          {:ok, token} <- do_request_token(registration, scopes, req_options) do
-      {:ok,
-       %Client{
-         access_token: token.access_token,
-         expires_at: token.expires_at,
-         scopes: MapSet.new(token.granted_scopes),
-         registration: registration,
-         req_options: req_options,
-         endpoints: endpoints
-       }}
+      token
+      |> Client.new(registration, endpoints, req_options)
+      |> Client.check_granted_scopes(Keyword.fetch!(opts, :require_all_scopes))
     end
   end
 
@@ -90,21 +90,6 @@ defmodule Ltix.OAuth do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
-  end
-
-  defp validate_endpoints(endpoints) do
-    Enum.reduce_while(endpoints, :ok, fn {module, endpoint}, :ok ->
-      case module.validate_endpoint(endpoint) do
-        :ok -> {:cont, :ok}
-        {:error, _} = error -> {:halt, error}
-      end
-    end)
-  end
-
-  defp collect_scopes(endpoints) do
-    endpoints
-    |> Enum.flat_map(fn {module, endpoint} -> module.scopes(endpoint) end)
-    |> Enum.uniq()
   end
 
   defp do_request_token(registration, scopes, req_options) do
