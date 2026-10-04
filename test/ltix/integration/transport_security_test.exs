@@ -87,7 +87,9 @@ defmodule Ltix.Integration.TransportSecurityTest do
       assert Exception.message(error) =~ "HTTPS"
       refute Exception.message(error) =~ "secret"
       assert {:error, %TransportError{}} = GradeService.get_line_item(client, line_item: url)
-      assert {:error, %TransportError{}} = GradeService.delete_line_item(client, url, force: true)
+
+      assert {:error, %TransportError{}} =
+               GradeService.delete_line_item(client, line_item: url, force: true)
 
       assert {:error, %TransportError{}} =
                GradeService.update_line_item(client, %LineItem{
@@ -520,7 +522,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
                      GradeService.update_line_item(client, item)
 
           :delete ->
-            assert :ok = GradeService.delete_line_item(client, item, force: true)
+            assert :ok = GradeService.delete_line_item(client, line_item: item, force: true)
         end
 
         Req.Test.verify!(GradeService)

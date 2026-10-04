@@ -484,7 +484,11 @@ defmodule Ltix.TestTest do
       Ltix.Test.stub_delete_line_item()
 
       client = build_grade_client(platform)
-      assert :ok = Ltix.GradeService.delete_line_item(client, "https://lms.example.com/items/99")
+
+      assert :ok =
+               Ltix.GradeService.delete_line_item(client,
+                 line_item: "https://lms.example.com/items/99"
+               )
     end
   end
 

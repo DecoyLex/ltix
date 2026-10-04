@@ -112,7 +112,10 @@ defmodule Ltix.GradeServiceTest do
               )
             end,
             fn ->
-              GradeService.delete_line_item(client, @line_items_url <> "/9", unknown: true)
+              GradeService.delete_line_item(client,
+                line_item: @line_items_url <> "/9",
+                unknown: true
+              )
             end,
             fn -> GradeService.post_score(client, score, unknown: true) end,
             fn -> GradeService.list_results(client, unknown: true) end
@@ -568,48 +571,56 @@ defmodule Ltix.GradeServiceTest do
     end
   end
 
-  # --- delete_line_item/3 ---
+  # --- delete_line_item/2 ---
 
-  describe "delete_line_item/3" do
+  describe "delete_line_item/2" do
     test "deletes line item by struct", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
-        assert conn.method == "DELETE"
+        assert {conn.method, conn.request_path} ==
+                 {"DELETE", "/context/2923/lineitems/99/lineitem"}
+
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
       client = build_client(ctx.platform)
       item = %LineItem{id: "#{@line_items_url}/99/lineitem"}
 
-      assert :ok = GradeService.delete_line_item(client, item)
+      assert :ok = GradeService.delete_line_item(client, line_item: item)
     end
 
     test "deletes line item by URL string", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
-        assert conn.method == "DELETE"
+        assert {conn.method, conn.request_path} ==
+                 {"DELETE", "/context/2923/lineitems/99/lineitem"}
+
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
       client = build_client(ctx.platform)
 
-      assert :ok = GradeService.delete_line_item(client, "#{@line_items_url}/99/lineitem")
+      assert :ok =
+               GradeService.delete_line_item(client, line_item: "#{@line_items_url}/99/lineitem")
     end
 
     test "returns CoupledLineItem when URL matches endpoint line_item", ctx do
       client = build_client(ctx.platform)
 
       assert {:error, %CoupledLineItem{}} =
-               GradeService.delete_line_item(client, @line_item_url)
+               GradeService.delete_line_item(client, line_item: @line_item_url)
     end
 
-    test "succeeds with force: true when URL matches endpoint line_item", ctx do
+    test "defaults to the coupled line item", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
-        assert conn.method == "DELETE"
+        assert {conn.method, conn.request_path} ==
+                 {"DELETE", "/context/2923/lineitems/1/lineitem"}
+
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
       client = build_client(ctx.platform)
 
-      assert :ok = GradeService.delete_line_item(client, @line_item_url, force: true)
+      assert {:error, %CoupledLineItem{}} = GradeService.delete_line_item(client)
+      assert :ok = GradeService.delete_line_item(client, force: true)
     end
 
     test "no guard when endpoint has no line_item URL", ctx do
@@ -620,14 +631,15 @@ defmodule Ltix.GradeServiceTest do
       endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
-      assert :ok = GradeService.delete_line_item(client, "#{@line_items_url}/99/lineitem")
+      assert :ok =
+               GradeService.delete_line_item(client, line_item: "#{@line_items_url}/99/lineitem")
     end
 
     test "returns ScopeMismatch without lineitem scope", ctx do
       client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
 
       assert {:error, %ScopeMismatch{}} =
-               GradeService.delete_line_item(client, "#{@line_items_url}/99/lineitem")
+               GradeService.delete_line_item(client, line_item: "#{@line_items_url}/99/lineitem")
     end
   end
 

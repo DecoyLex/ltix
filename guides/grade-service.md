@@ -95,7 +95,9 @@ updated = %{item | label: "Quiz 1 (Updated)", score_maximum: 120}
 
 ## Reading results
 
-Fetch the current grades the platform has recorded for a line item:
+Fetch the current grades the platform has recorded for a line item.
+Without a `line_item:` option, grade operations use the coupled line
+item from the launch.
 
 ```elixir
 {:ok, results} = Ltix.GradeService.list_results(client)
@@ -116,7 +118,7 @@ Fetch the current grades the platform has recorded for a line item:
 Tool-created line items can be deleted normally:
 
 ```elixir
-:ok = Ltix.GradeService.delete_line_item(client, tool_created_item)
+:ok = Ltix.GradeService.delete_line_item(client, line_item: tool_created_item)
 ```
 
 Deleting the **coupled** line item — the one the platform created for
@@ -133,10 +135,10 @@ leaving the tool unable to post scores through the coupled flow.
 ```elixir
 # Blocked by default
 {:error, %Ltix.Errors.Invalid.CoupledLineItem{}} =
-  Ltix.GradeService.delete_line_item(client, coupled_item)
+  Ltix.GradeService.delete_line_item(client, line_item: coupled_item)
 
 # Explicit opt-in when you understand the consequences
-:ok = Ltix.GradeService.delete_line_item(client, coupled_item, force: true)
+:ok = Ltix.GradeService.delete_line_item(client, line_item: coupled_item, force: true)
 ```
 
 ## Next steps

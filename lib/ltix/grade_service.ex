@@ -58,6 +58,11 @@ defmodule Ltix.GradeService do
   @result_container_media_type "application/vnd.ims.lis.v2.resultcontainer+json"
   @score_media_type "application/vnd.ims.lis.v1.score+json"
 
+  @line_item_option Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                      description:
+                        "Line item URL or struct. Defaults to the endpoint's `line_item`."
+                    )
+
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   def endpoint_from_claims(%LaunchClaims{ags_endpoint: %AGSEndpoint{} = ep}), do: {:ok, ep}
@@ -230,11 +235,7 @@ defmodule Ltix.GradeService do
 
   @get_line_item_schema Zoi.keyword(
                           [
-                            line_item:
-                              Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                                description:
-                                  "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                              )
+                            line_item: @line_item_option
                           ],
                           unrecognized_keys: :error
                         )
@@ -394,6 +395,7 @@ defmodule Ltix.GradeService do
 
   @delete_line_item_schema Zoi.keyword(
                              [
+                               line_item: @line_item_option,
                                force:
                                  Zoi.boolean(
                                    description:
@@ -407,8 +409,7 @@ defmodule Ltix.GradeService do
   @doc """
   Delete a line item.
 
-  Accepts a `%LineItem{}` struct or a URL string. Returns `:ok` on
-  success.
+  Returns `:ok` on success.
 
   By default, refuses to delete the platform-coupled line item
   (the `line_item` URL from the launch claim). Pass `force: true`
@@ -418,18 +419,16 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@delete_line_item_schema)}
   """
-  @spec delete_line_item(Client.t(), LineItem.t() | String.t(), keyword()) ::
-          :ok | {:error, Exception.t()}
-  def delete_line_item(%Client{} = client, line_item_or_url, opts \\ []) do
+  @spec delete_line_item(Client.t(), keyword()) :: :ok | {:error, Exception.t()}
+  def delete_line_item(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @delete_line_item_schema)
     metadata = span_metadata(client)
 
     :telemetry.span([:ltix, :grade_service, :delete_line_item], metadata, fn ->
-      url = extract_line_item_url(line_item_or_url)
-
       result =
         with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_lineitem),
+             {:ok, url} <- resolve_line_item_url(client, opts),
              :ok <- check_coupled_guard(client, url, Keyword.fetch!(opts, :force)),
              headers = auth_headers(client, nil),
              req_opts = build_request(:delete, merged_req_options(client), url, headers),
@@ -443,11 +442,7 @@ defmodule Ltix.GradeService do
 
   @post_score_schema Zoi.keyword(
                        [
-                         line_item:
-                           Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                             description:
-                               "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                           )
+                         line_item: @line_item_option
                        ],
                        unrecognized_keys: :error
                      )
@@ -496,11 +491,7 @@ defmodule Ltix.GradeService do
 
   @list_results_schema Zoi.keyword(
                          [
-                           line_item:
-                             Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                               description:
-                                 "Line item URL or struct. Defaults to the endpoint's `line_item`."
-                             ),
+                           line_item: @line_item_option,
                            user_id: Zoi.string(description: "Filter results to a single user."),
                            per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
                          ],
@@ -612,9 +603,6 @@ defmodule Ltix.GradeService do
     path = String.trim_trailing(uri.path || "", "/") <> "/" <> suffix
     URI.to_string(%{uri | path: path})
   end
-
-  defp extract_line_item_url(%LineItem{id: id}) when is_binary(id), do: id
-  defp extract_line_item_url(url) when is_binary(url), do: url
 
   defp check_coupled_guard(%Client{} = client, url, false) do
     endpoint = get_endpoint(client)

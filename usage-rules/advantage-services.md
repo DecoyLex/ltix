@@ -84,6 +84,7 @@ automatically. Post scores directly without specifying a line item.
 
 - `label` and `score_maximum` are required when creating line items.
 - `score_maximum` must be a positive number.
+- Per-item operations take a `line_item:` option (a URL or `%LineItem{}`) and default to the coupled line item, as in `get_line_item(client, line_item: item)`, `delete_line_item(client, line_item: item)`, and `list_results(client, line_item: item)`.
 
 ### Coupled Line Item Deletion
 

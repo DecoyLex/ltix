@@ -579,7 +579,7 @@ defmodule Ltix.Test do
   end
 
   @doc """
-  Stub `delete_line_item/3` to succeed.
+  Stub `delete_line_item/2` to succeed.
 
       Ltix.Test.stub_delete_line_item()
   """
