@@ -6,6 +6,7 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
@@ -993,6 +994,25 @@ defmodule Ltix.GradeServiceTest do
             fn -> GradeService.list_results!(client) end
           ] do
         assert_raise ScopeMismatch, call
+      end
+    end
+  end
+
+  describe "malformed line item responses" do
+    test "return MalformedResponse instead of crashing", ctx do
+      client = build_client(ctx.platform)
+      item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
+
+      for body <- ["", "not json", [1]] do
+        Req.Test.stub(Ltix.GradeService, &Req.Test.json(&1, body))
+
+        for result <- [
+              GradeService.get_line_item(client),
+              GradeService.create_line_item(client, label: "Quiz", score_maximum: 10),
+              GradeService.update_line_item(client, item)
+            ] do
+          assert {:error, %MalformedResponse{service: GradeService}} = result
+        end
       end
     end
   end

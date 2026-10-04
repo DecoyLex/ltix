@@ -315,7 +315,7 @@ defmodule Ltix.GradeService do
 
     run(:get_line_item, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
       with {:ok, body} <- send_request(client, :get, url, accept: @lineitem_media_type) do
-        LineItem.from_json(body)
+        parse_line_item(body)
       end
     end)
   end
@@ -383,7 +383,7 @@ defmodule Ltix.GradeService do
     run(:create_line_item, client, [@scope_lineitem], url, fn url ->
       with :ok <- LineItem.validate(item),
            {:ok, body} <- send_request(client, :post, url, body: {@lineitem_media_type, item}) do
-        LineItem.from_json(body)
+        parse_line_item(body)
       end
     end)
   end
@@ -412,7 +412,7 @@ defmodule Ltix.GradeService do
     run(:update_line_item, client, [@scope_lineitem], line_item_url(item, nil), fn url ->
       with :ok <- LineItem.validate(item),
            {:ok, body} <- send_request(client, :put, url, body: {@lineitem_media_type, item}) do
-        LineItem.from_json(body)
+        parse_line_item(body)
       end
     end)
   end
@@ -799,6 +799,13 @@ defmodule Ltix.GradeService do
       {:error, _error} = error ->
         [error]
     end)
+  end
+
+  # [AGS §3.2.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas)
+  defp parse_line_item(body) when is_map(body), do: LineItem.from_json(body)
+
+  defp parse_line_item(_body) do
+    {:error, malformed_response("expected JSON object", "AGS §3.2.1")}
   end
 
   defp parse_collection_item(json, parser, _spec_ref) when is_map(json), do: parser.(json)
