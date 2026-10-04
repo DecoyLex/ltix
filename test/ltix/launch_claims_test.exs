@@ -377,6 +377,11 @@ defmodule Ltix.LaunchClaimsTest do
   # --- Errors ---
 
   describe "from_json/2 errors" do
+    test "a single invalid claim is returned on its own" do
+      assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "launch.issuer", value: 1}} =
+               LaunchClaims.from_json(%{"iss" => 1})
+    end
+
     test "several invalid claims are described without stack frames" do
       assert {:error, %Ltix.Errors.Invalid{} = error} =
                LaunchClaims.from_json(%{"iss" => 1, "sub" => 2})

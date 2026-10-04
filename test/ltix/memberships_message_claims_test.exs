@@ -3,7 +3,6 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
   import Ltix.Test.MembershipsServiceHelper
 
-  alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.Context
@@ -42,16 +41,13 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
         stub_pages(page, body)
 
-        assert {:error,
-                %Invalid{
-                  errors: [%InvalidClaim{claim: ^claim, value: ^value, spec_ref: ^spec_ref}]
-                }} = MembershipsService.get_members(client)
+        assert {:error, %InvalidClaim{claim: ^claim, value: ^value, spec_ref: ^spec_ref}} =
+                 MembershipsService.get_members(client)
 
         assert {:ok, stream} = MembershipsService.stream_members(client)
-        error = assert_raise Invalid, fn -> Enum.to_list(stream) end
+        error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-        assert [%InvalidClaim{claim: ^claim, value: ^value, spec_ref: ^spec_ref}] =
-                 error.errors
+        assert %InvalidClaim{claim: ^claim, value: ^value, spec_ref: ^spec_ref} = error
       end
     end
 
@@ -353,12 +349,12 @@ defmodule Ltix.MembershipsMessageClaimsTest do
             assert Enum.to_list(stream) == members
 
           123 ->
-            assert {:error, %Invalid{errors: [%InvalidClaim{claim: "context.id", value: 123}]}} =
+            assert {:error, %InvalidClaim{claim: "context.id", value: 123}} =
                      MembershipsService.get_members(client)
 
             assert {:ok, stream} = MembershipsService.stream_members(client)
-            error = assert_raise Invalid, fn -> Enum.to_list(stream) end
-            assert [%InvalidClaim{claim: "context.id", value: 123}] = error.errors
+            error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
+            assert %InvalidClaim{claim: "context.id", value: 123} = error
         end
       end
     end
@@ -488,12 +484,12 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
           stub_pages(page, body)
 
-          assert {:error, %Invalid{errors: [%InvalidClaim{claim: ^expected_claim}]}} =
+          assert {:error, %InvalidClaim{claim: ^expected_claim}} =
                    MembershipsService.get_members(client)
 
           assert {:ok, stream} = MembershipsService.stream_members(client)
-          error = assert_raise Invalid, fn -> Enum.to_list(stream) end
-          assert [%InvalidClaim{claim: ^expected_claim}] = error.errors
+          error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
+          assert %InvalidClaim{claim: ^expected_claim} = error
         end
       end
     end

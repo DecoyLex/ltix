@@ -32,14 +32,14 @@ defmodule Ltix.LaunchClaims.ClaimHelpersTest do
     end
 
     test "missing required field produces MissingClaim" do
-      assert {:error, %Invalid{errors: [%MissingClaim{claim: "test.id"}]}} =
+      assert {:error, %MissingClaim{claim: "test.id"}} =
                ClaimHelpers.from_json(TestClaim.schema(), %{}, "test", "Spec §1")
     end
 
     test "invalid type produces InvalidClaim with the bad value" do
       json = %{"id" => "ok", "type" => "not_a_list"}
 
-      assert {:error, %Invalid{errors: [%InvalidClaim{} = err]}} =
+      assert {:error, %InvalidClaim{} = err} =
                ClaimHelpers.from_json(TestClaim.schema(), json, "test", "Spec §1")
 
       assert err.claim == "test.type"

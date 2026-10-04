@@ -3,7 +3,6 @@ defmodule Ltix.MembershipsMemberPayloadTest do
 
   import Ltix.Test.MembershipsServiceHelper
 
-  alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.LaunchClaims.Context
@@ -208,18 +207,13 @@ defmodule Ltix.MembershipsMemberPayloadTest do
 
       stub_pages(page, Map.put(container(page), "context", %{"id" => nil}))
 
-      assert {:error,
-              %Invalid{
-                errors: [
-                  %InvalidClaim{claim: "context.id", value: nil, spec_ref: "Core §5.4.1"}
-                ]
-              }} = MembershipsService.get_members(client)
+      assert {:error, %InvalidClaim{claim: "context.id", value: nil, spec_ref: "Core §5.4.1"}} =
+               MembershipsService.get_members(client)
 
       assert {:ok, stream} = MembershipsService.stream_members(client)
-      error = assert_raise Invalid, fn -> Enum.to_list(stream) end
+      error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-      assert [%InvalidClaim{claim: "context.id", value: nil, spec_ref: "Core §5.4.1"}] =
-               error.errors
+      assert %InvalidClaim{claim: "context.id", value: nil, spec_ref: "Core §5.4.1"} = error
     end
 
     test "container context requires an object on page #{page}", %{client: client} do
@@ -228,18 +222,13 @@ defmodule Ltix.MembershipsMemberPayloadTest do
       for context <- [123, false, [], "invalid"] do
         stub_pages(page, Map.put(container(page), "context", context))
 
-        assert {:error,
-                %Invalid{
-                  errors: [
-                    %InvalidClaim{claim: "context", value: ^context, spec_ref: "Core §5.4.1"}
-                  ]
-                }} = MembershipsService.get_members(client)
+        assert {:error, %InvalidClaim{claim: "context", value: ^context, spec_ref: "Core §5.4.1"}} =
+                 MembershipsService.get_members(client)
 
         assert {:ok, stream} = MembershipsService.stream_members(client)
-        error = assert_raise Invalid, fn -> Enum.to_list(stream) end
+        error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-        assert [%InvalidClaim{claim: "context", value: ^context, spec_ref: "Core §5.4.1"}] =
-                 error.errors
+        assert %InvalidClaim{claim: "context", value: ^context, spec_ref: "Core §5.4.1"} = error
       end
     end
 
@@ -253,12 +242,12 @@ defmodule Ltix.MembershipsMemberPayloadTest do
           ] do
         stub_pages(page, body)
 
-        assert {:error, %Invalid{errors: [%MissingClaim{claim: "context.id"}]}} =
+        assert {:error, %MissingClaim{claim: "context.id"}} =
                  MembershipsService.get_members(client)
 
         assert {:ok, stream} = MembershipsService.stream_members(client)
-        error = assert_raise Invalid, fn -> Enum.to_list(stream) end
-        assert [%MissingClaim{claim: "context.id"}] = error.errors
+        error = assert_raise MissingClaim, fn -> Enum.to_list(stream) end
+        assert %MissingClaim{claim: "context.id"} = error
       end
     end
 
@@ -269,17 +258,13 @@ defmodule Ltix.MembershipsMemberPayloadTest do
         stub_pages(page, Map.put(container(page), "context", %{"id" => value}))
 
         assert {:error,
-                %Invalid{
-                  errors: [
-                    %InvalidClaim{claim: "context.id", value: ^value, spec_ref: "Core §5.4.1"}
-                  ]
-                }} = MembershipsService.get_members(client)
+                %InvalidClaim{claim: "context.id", value: ^value, spec_ref: "Core §5.4.1"}} =
+                 MembershipsService.get_members(client)
 
         assert {:ok, stream} = MembershipsService.stream_members(client)
-        error = assert_raise Invalid, fn -> Enum.to_list(stream) end
+        error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-        assert [%InvalidClaim{claim: "context.id", value: ^value, spec_ref: "Core §5.4.1"}] =
-                 error.errors
+        assert %InvalidClaim{claim: "context.id", value: ^value, spec_ref: "Core §5.4.1"} = error
       end
     end
 

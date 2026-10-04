@@ -95,12 +95,14 @@ login hints, and platform instances. The companion package
 
 **Ltix** uses [Splode](https://hex.pm/packages/splode) to define a
 structured exception hierarchy. Errors are grouped into three classes
-(`:invalid`, `:security`, `:unknown`) and carry `spec_ref` fields:
+(`:invalid`, `:security`, `:unknown`) and carry `spec_ref` fields.
+A single failure is returned as an error struct, and several
+failures found at once are grouped in their class struct:
 
 ```elixir
 case Ltix.handle_callback(params, state) do
   {:ok, context} -> ...
-  {:error, %Ltix.Errors.Security{} = error} ->
+  {:error, %{class: :security} = error} ->
     Logger.warning("Security: #{Exception.message(error)}")
 end
 ```

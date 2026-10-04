@@ -4,6 +4,8 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItem.File, as: ContentFile
 
+  doctest ContentFile
+
   describe "new/1" do
     test "succeeds with required url field" do
       assert {:ok, %ContentFile{url: "https://example.com/doc.pdf"}} =
@@ -11,7 +13,7 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
     end
 
     test "returns error without url field" do
-      assert {:error, %Ltix.Errors.Invalid{} = error} = ContentFile.new([])
+      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} = ContentFile.new([])
       assert Exception.message(error) =~ "file.url"
       assert Exception.message(error) =~ "is required"
     end

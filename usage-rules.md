@@ -90,6 +90,8 @@ Most errors carry a `.spec_ref` field pointing to the violated spec passage. Use
 security=401, unknown=500). When Plug is a dependency, all errors also implement
 `Plug.Exception`, so Phoenix error views pick up the correct status automatically.
 
+A single failure is returned directly. Several simultaneous failures are grouped in their class, such as `%Ltix.Errors.Invalid{errors: [...]}`.
+
 Match on specific error modules for targeted handling, or fall back to `.class` for broad
 categories:
 

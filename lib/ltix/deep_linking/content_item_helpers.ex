@@ -39,8 +39,8 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   @doc """
   Build a content item struct from keyword options.
 
-  Validates against the item's schema and returns all validation errors
-  at once, wrapped in `Ltix.Errors.Invalid`.
+  Validates against the item's schema. A single invalid field returns its
+  error, and several are grouped in `Ltix.Errors.Invalid`.
   """
   @spec new(Zoi.schema(), keyword(), atom(), String.t()) ::
           {:ok, struct()} | {:error, Exception.t()}
@@ -101,7 +101,7 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
         spec_ref: spec_ref
       )
     end)
-    |> Ltix.Errors.to_class()
+    |> Ltix.Errors.combine()
   end
 
   # HERE BE DRAGONS

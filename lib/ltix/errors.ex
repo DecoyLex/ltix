@@ -11,6 +11,10 @@ defmodule Ltix.Errors do
   | `:security` | 401    | Security framework violations (signature, nonce, expiry) |
   | `:unknown`  | 500    | Unexpected / catch-all errors                            |
 
+  A single failure is returned directly. Several failures found
+  at once are returned together in their class, such as
+  `%Ltix.Errors.Invalid{errors: [...]}`.
+
   Use `status_code/1` to get the HTTP status for any Ltix error:
 
       error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
@@ -74,6 +78,13 @@ defmodule Ltix.Errors do
     raise ArgumentError,
           "invalid :type option #{inspect(other)} — expected :error or :error_class"
   end
+
+  # A single failure is returned directly. Several simultaneous failures are
+  # grouped in their error class.
+  @doc false
+  @spec combine([Exception.t(), ...]) :: Exception.t()
+  def combine([error]), do: error
+  def combine([_ | _] = errors), do: to_class(errors)
 
   defp default_status(:invalid), do: 400
   defp default_status(:security), do: 401

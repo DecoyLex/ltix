@@ -4,6 +4,8 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItem.Image
 
+  doctest Image
+
   describe "new/1" do
     test "succeeds with required url field" do
       assert {:ok, %Image{url: "https://example.com/image.png"}} =
@@ -11,7 +13,7 @@ defmodule Ltix.DeepLinking.ContentItem.ImageTest do
     end
 
     test "returns error without url field" do
-      assert {:error, %Ltix.Errors.Invalid{} = error} = Image.new([])
+      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} = Image.new([])
       assert Exception.message(error) =~ "image.url"
       assert Exception.message(error) =~ "is required"
     end

@@ -4,6 +4,8 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragmentTest do
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItem.HTMLFragment
 
+  doctest HTMLFragment
+
   describe "to_map/1" do
     test "merges extensions at top level" do
       {:ok, fragment} =

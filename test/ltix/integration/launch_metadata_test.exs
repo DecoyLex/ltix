@@ -1,7 +1,6 @@
 defmodule Ltix.Integration.LaunchMetadataTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security.NonceReused
@@ -214,7 +213,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
 
         claim = "deep_linking_settings." <> field
 
-        assert {:error, %Invalid{errors: [%InvalidClaim{claim: ^claim, value: ^value}]}} =
+        assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} =
                  callback(login, params,
                    claim_parsers: %{
                      (@lti <> "message_type") => fn _ -> {:ok, "LtiResourceLinkRequest"} end

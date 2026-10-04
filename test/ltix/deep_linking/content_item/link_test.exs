@@ -4,6 +4,8 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItem.Link
 
+  doctest Link
+
   describe "new/1" do
     test "succeeds with required url field" do
       assert {:ok, %Link{url: "https://example.com"}} =
@@ -11,7 +13,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
     end
 
     test "returns error without url field" do
-      assert {:error, %Ltix.Errors.Invalid{} = error} = Link.new([])
+      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} = Link.new([])
       assert Exception.message(error) =~ "link.url"
       assert Exception.message(error) =~ "is required"
     end
@@ -57,7 +59,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
     end
 
     test "validates keyword list sub-structures (missing required field)" do
-      assert {:error, %Ltix.Errors.Invalid{} = error} =
+      assert {:error, %Ltix.Errors.Invalid.InvalidContentItem{} = error} =
                Link.new(url: "https://example.com", icon: [width: 16])
 
       assert Exception.message(error) =~ "link.icon.url"

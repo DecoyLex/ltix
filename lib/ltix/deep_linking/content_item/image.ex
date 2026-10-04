@@ -53,8 +53,9 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
       iex> image.url
       "https://example.com/photo.png"
 
-      iex> {:error, %Ltix.Errors.Invalid{}} =
-      ...>   Ltix.DeepLinking.ContentItem.Image.new([])
+      iex> {:error, error} = Ltix.DeepLinking.ContentItem.Image.new([])
+      iex> error.field
+      "image.url"
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, :image, "DL §3.5")

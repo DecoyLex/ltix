@@ -74,7 +74,7 @@ defmodule Ltix.LaunchClaims.ClaimHelpers do
   defp to_errors(errors, json, claim_prefix, spec_ref) do
     errors
     |> Enum.map(&to_error(&1, json, claim_prefix, spec_ref))
-    |> Ltix.Errors.to_class()
+    |> Ltix.Errors.combine()
   end
 
   defp to_error(%{code: :required} = error, _json, claim_prefix, spec_ref) do

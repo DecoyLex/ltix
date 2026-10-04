@@ -92,6 +92,25 @@ case Ltix.handle_login(params, launch_url) do
 end
 ```
 
+## Single and grouped errors
+
+A single failure returns its error struct directly. When validation finds several problems at once, such as two malformed claims, they are grouped in their class struct and `errors` lists each one.
+
+```elixir
+case Ltix.LaunchClaims.from_json(claims) do
+  {:ok, claims} ->
+    claims
+
+  {:error, %Ltix.Errors.Invalid{errors: errors}} ->
+    Enum.each(errors, &Logger.warning(Exception.message(&1)))
+
+  {:error, error} ->
+    Logger.warning(Exception.message(error))
+end
+```
+
+The message of a grouped error lists the message of each error it contains.
+
 ## Error messages and spec references
 
 Every error produces a human-readable message via `Exception.message/1`

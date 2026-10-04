@@ -56,8 +56,9 @@ defmodule Ltix.DeepLinking.ContentItem.File do
       iex> file.url
       "https://example.com/doc.pdf"
 
-      iex> {:error, %Ltix.Errors.Invalid{}} =
-      ...>   Ltix.DeepLinking.ContentItem.File.new([])
+      iex> {:error, error} = Ltix.DeepLinking.ContentItem.File.new([])
+      iex> error.field
+      "file.url"
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, :file, "DL §3.3")
