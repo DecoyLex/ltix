@@ -59,6 +59,10 @@ defmodule Ltix.GradeService do
   @result_container_media_type "application/vnd.ims.lis.v2.resultcontainer+json"
   @score_media_type "application/vnd.ims.lis.v1.score+json"
 
+  @endpoint_option Zoi.struct(AGSEndpoint,
+                     description: "Override the endpoint stored on the client."
+                   )
+
   @line_item_option Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
                       description:
                         "Line item URL or struct. Defaults to the endpoint's `line_item`."
@@ -185,6 +189,7 @@ defmodule Ltix.GradeService do
 
   @list_line_items_schema Zoi.keyword(
                             [
+                              endpoint: @endpoint_option,
                               resource_link_id:
                                 Zoi.string(
                                   description: "Filter to line items bound to this resource link."
@@ -210,37 +215,24 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@list_line_items_schema)}
   """
-  # [AGS §3.2.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#getting-all-the-line-items-in-the-container-url)
+  # [AGS §3.2.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#container-request-filters)
   @spec list_line_items(Client.t(), keyword()) ::
           {:ok, [LineItem.t()]} | {:error, Exception.t()}
   def list_line_items(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @list_line_items_schema)
-    metadata = span_metadata(client)
+    url = line_items_url(endpoint(client, opts))
 
-    :telemetry.span([:ltix, :grade_service, :list_line_items], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <-
-               Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
-             {:ok, url} <- require_line_items_url(client),
-             params = list_line_items_params(opts),
-             headers = auth_headers(client, @lineitem_container_media_type),
-             {:ok, pages} <-
-               Pagination.stream_results(url, headers,
-                 params: params,
-                 req_options: merged_req_options(client)
-               ) do
-          collect_line_items(pages)
-        end
+    run(:list_line_items, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
+      params = list_line_items_params(opts)
 
-      {result, metadata}
+      with {:ok, pages} <- fetch_pages(client, url, @lineitem_container_media_type, params) do
+        collect_line_items(pages)
+      end
     end)
   end
 
   @get_line_item_schema Zoi.keyword(
-                          [
-                            line_item: @line_item_option
-                          ],
+                          [endpoint: @endpoint_option, line_item: @line_item_option],
                           unrecognized_keys: :error
                         )
 
@@ -251,30 +243,23 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@get_line_item_schema)}
   """
+  # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
   @spec get_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def get_line_item(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @get_line_item_schema)
-    metadata = span_metadata(client)
+    url = resolve_line_item_url(endpoint(client, opts), opts)
 
-    :telemetry.span([:ltix, :grade_service, :get_line_item], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <-
-               Client.require_any_scope(client, [@scope_lineitem, @scope_lineitem_readonly]),
-             {:ok, url} <- resolve_line_item_url(client, opts),
-             headers = auth_headers(client, @lineitem_media_type),
-             req_opts = build_request(:get, merged_req_options(client), url, headers),
-             {:ok, body} <- request(req_opts) do
-          LineItem.from_json(body)
-        end
-
-      {result, metadata}
+    run(:get_line_item, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
+      with {:ok, body} <- send_request(client, :get, url, accept: @lineitem_media_type) do
+        LineItem.from_json(body)
+      end
     end)
   end
 
   @create_line_item_schema Zoi.keyword(
                              [
+                               endpoint: @endpoint_option,
                                label:
                                  Zoi.string(description: "Human-readable label.")
                                  |> Zoi.required(),
@@ -318,30 +303,14 @@ defmodule Ltix.GradeService do
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def create_line_item(%Client{} = client, opts) do
     opts = Options.parse!(opts, @create_line_item_schema)
-    metadata = span_metadata(client)
+    url = line_items_url(endpoint(client, opts))
+    item = struct!(LineItem, Keyword.delete(opts, :endpoint))
 
-    :telemetry.span([:ltix, :grade_service, :create_line_item], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @scope_lineitem),
-             {:ok, url} <- require_line_items_url(client),
-             item = struct!(LineItem, Enum.into(opts, %{})),
-             :ok <- LineItem.validate(item),
-             headers = auth_headers(client, nil),
-             req_opts =
-               build_request(
-                 :post,
-                 merged_req_options(client),
-                 url,
-                 headers,
-                 @lineitem_media_type,
-                 item
-               ),
-             {:ok, body} <- request(req_opts) do
-          LineItem.from_json(body)
-        end
-
-      {result, metadata}
+    run(:create_line_item, client, [@scope_lineitem], url, fn url ->
+      with :ok <- LineItem.validate(item),
+           {:ok, body} <- send_request(client, :post, url, body: {@lineitem_media_type, item}) do
+        LineItem.from_json(body)
+      end
     end)
   end
 
@@ -355,34 +324,17 @@ defmodule Ltix.GradeService do
   @spec update_line_item(Client.t(), LineItem.t()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def update_line_item(%Client{} = client, %LineItem{} = item) do
-    metadata = span_metadata(client)
-
-    :telemetry.span([:ltix, :grade_service, :update_line_item], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @scope_lineitem),
-             {:ok, url} <- line_item_url(item, client),
-             :ok <- LineItem.validate(item),
-             headers = auth_headers(client, nil),
-             req_opts =
-               build_request(
-                 :put,
-                 merged_req_options(client),
-                 url,
-                 headers,
-                 @lineitem_media_type,
-                 item
-               ),
-             {:ok, body} <- request(req_opts) do
-          LineItem.from_json(body)
-        end
-
-      {result, metadata}
+    run(:update_line_item, client, [@scope_lineitem], line_item_url(item, nil), fn url ->
+      with :ok <- LineItem.validate(item),
+           {:ok, body} <- send_request(client, :put, url, body: {@lineitem_media_type, item}) do
+        LineItem.from_json(body)
+      end
     end)
   end
 
   @delete_line_item_schema Zoi.keyword(
                              [
+                               endpoint: @endpoint_option,
                                line_item: @line_item_option,
                                force:
                                  Zoi.boolean(
@@ -407,31 +359,23 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@delete_line_item_schema)}
   """
+  # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
   @spec delete_line_item(Client.t(), keyword()) :: :ok | {:error, Exception.t()}
   def delete_line_item(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @delete_line_item_schema)
-    metadata = span_metadata(client)
+    endpoint = endpoint(client, opts)
+    url = resolve_line_item_url(endpoint, opts)
 
-    :telemetry.span([:ltix, :grade_service, :delete_line_item], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @scope_lineitem),
-             {:ok, url} <- resolve_line_item_url(client, opts),
-             :ok <- check_coupled_guard(client, url, Keyword.fetch!(opts, :force)),
-             headers = auth_headers(client, nil),
-             req_opts = build_request(:delete, merged_req_options(client), url, headers),
-             {:ok, _body} <- request(req_opts) do
-          :ok
-        end
-
-      {result, metadata}
+    run(:delete_line_item, client, [@scope_lineitem], url, fn url ->
+      with :ok <- check_coupled_guard(endpoint, url, Keyword.fetch!(opts, :force)),
+           {:ok, _body} <- send_request(client, :delete, url) do
+        :ok
+      end
     end)
   end
 
   @post_score_schema Zoi.keyword(
-                       [
-                         line_item: @line_item_option
-                       ],
+                       [endpoint: @endpoint_option, line_item: @line_item_option],
                        unrecognized_keys: :error
                      )
 
@@ -450,35 +394,18 @@ defmodule Ltix.GradeService do
           :ok | {:error, Exception.t()}
   def post_score(%Client{} = client, %Score{} = score, opts \\ []) do
     opts = Options.parse!(opts, @post_score_schema)
-    metadata = span_metadata(client)
+    url = derive_url(resolve_line_item_url(endpoint(client, opts), opts), "scores")
 
-    :telemetry.span([:ltix, :grade_service, :post_score], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @scope_score),
-             {:ok, base_url} <- resolve_line_item_url(client, opts),
-             {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
-             url = derive_url(uri, "scores"),
-             headers = auth_headers(client, nil),
-             req_opts =
-               build_request(
-                 :post,
-                 merged_req_options(client),
-                 url,
-                 headers,
-                 @score_media_type,
-                 score
-               ),
-             {:ok, _body} <- request(req_opts) do
-          :ok
-        end
-
-      {result, metadata}
+    run(:post_score, client, [@scope_score], url, fn url ->
+      with {:ok, _body} <- send_request(client, :post, url, body: {@score_media_type, score}) do
+        :ok
+      end
     end)
   end
 
   @list_results_schema Zoi.keyword(
                          [
+                           endpoint: @endpoint_option,
                            line_item: @line_item_option,
                            user_id: Zoi.string(description: "Filter results to a single user."),
                            per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
@@ -501,28 +428,36 @@ defmodule Ltix.GradeService do
           {:ok, [Result.t()]} | {:error, Exception.t()}
   def list_results(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @list_results_schema)
-    metadata = span_metadata(client)
+    url = derive_url(resolve_line_item_url(endpoint(client, opts), opts), "results")
 
-    :telemetry.span([:ltix, :grade_service, :list_results], metadata, fn ->
+    run(:list_results, client, [@scope_result_readonly], url, fn url ->
+      params = list_results_params(opts)
+
+      with {:ok, pages} <- fetch_pages(client, url, @result_container_media_type, params) do
+        collect_results(pages)
+      end
+    end)
+  end
+
+  # Telemetry metadata names the URL the operation requests, or `nil` when it
+  # cannot be resolved.
+  defp run(operation, %Client{} = client, scopes, url, request) do
+    metadata = %{endpoint: requested_url(url)}
+
+    :telemetry.span([:ltix, :grade_service, operation], metadata, fn ->
       result =
         with :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @scope_result_readonly),
-             {:ok, base_url} <- resolve_line_item_url(client, opts),
-             {:ok, uri} <- Ltix.HTTP.validate_url(base_url),
-             url = derive_url(uri, "results"),
-             params = list_results_params(opts),
-             headers = auth_headers(client, @result_container_media_type),
-             {:ok, pages} <-
-               Pagination.stream_results(url, headers,
-                 params: params,
-                 req_options: merged_req_options(client)
-               ) do
-          collect_results(pages)
+             :ok <- Client.require_any_scope(client, scopes),
+             {:ok, url} <- url do
+          request.(url)
         end
 
       {result, metadata}
     end)
   end
+
+  defp requested_url({:ok, url}), do: url
+  defp requested_url({:error, _error}), do: nil
 
   defp check_expiry(%Client{} = client) do
     if Client.expired?(client) do
@@ -536,74 +471,53 @@ defmodule Ltix.GradeService do
     end
   end
 
-  defp get_endpoint(%Client{endpoints: endpoints}) do
-    Map.fetch!(endpoints, __MODULE__)
+  defp endpoint(%Client{endpoints: endpoints}, opts) do
+    Keyword.get_lazy(opts, :endpoint, fn -> Map.get(endpoints, __MODULE__) end)
   end
 
-  defp span_metadata(%Client{} = client) do
-    endpoint = get_endpoint(client)
-    %{endpoint: endpoint.line_items || endpoint.line_item}
+  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  defp line_items_url(%AGSEndpoint{line_items: url}) when is_binary(url), do: {:ok, url}
+
+  defp line_items_url(_endpoint) do
+    {:error, ServiceNotAvailable.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
   end
 
-  defp require_line_items_url(%Client{} = client) do
-    endpoint = get_endpoint(client)
-
-    case endpoint.line_items do
-      nil ->
-        {:error,
-         ServiceNotAvailable.exception(
-           service: __MODULE__,
-           spec_ref: "AGS §3.2"
-         )}
-
-      url ->
-        {:ok, url}
-    end
+  defp resolve_line_item_url(endpoint, opts) do
+    line_item_url(Keyword.get(opts, :line_item), endpoint)
   end
 
-  defp resolve_line_item_url(%Client{} = client, opts) do
-    line_item_url(Keyword.get(opts, :line_item), client)
-  end
+  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  defp line_item_url(nil, %AGSEndpoint{line_item: url}) when is_binary(url), do: {:ok, url}
 
-  defp line_item_url(nil, %Client{} = client) do
-    case get_endpoint(client) do
-      %AGSEndpoint{line_item: nil} ->
-        {:error, ServiceNotAvailable.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
-
-      %AGSEndpoint{line_item: url} ->
-        {:ok, url}
-    end
+  defp line_item_url(nil, _endpoint) do
+    {:error, ServiceNotAvailable.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
   end
 
   # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
-  defp line_item_url(%LineItem{id: nil} = item, _client) do
+  defp line_item_url(%LineItem{id: nil} = item, _endpoint) do
     {:error, MissingLineItemId.exception(line_item: item, spec_ref: "AGS §3.2.3")}
   end
 
-  defp line_item_url(%LineItem{id: id}, _client), do: {:ok, id}
-  defp line_item_url(url, _client) when is_binary(url), do: {:ok, url}
+  defp line_item_url(%LineItem{id: id}, _endpoint), do: {:ok, id}
+  defp line_item_url(url, _endpoint) when is_binary(url), do: {:ok, url}
 
-  # [AGS §3.3.1, §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
-  defp derive_url(uri, suffix) do
-    path = String.trim_trailing(uri.path || "", "/") <> "/" <> suffix
-    URI.to_string(%{uri | path: path})
-  end
-
-  defp check_coupled_guard(%Client{} = client, url, false) do
-    endpoint = get_endpoint(client)
-
-    if endpoint.line_item != nil and endpoint.line_item == url do
-      {:error,
-       CoupledLineItem.exception(
-         line_item_url: url,
-         spec_ref: "AGS §3.2"
-       )}
-    else
-      :ok
+  # [AGS §3.3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service-endpoint)
+  # [AGS §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#service-endpoint)
+  defp derive_url({:ok, url}, suffix) do
+    with {:ok, uri} <- Ltix.HTTP.validate_url(url) do
+      path = String.trim_trailing(uri.path || "", "/") <> "/" <> suffix
+      {:ok, URI.to_string(%{uri | path: path})}
     end
   end
 
-  defp check_coupled_guard(_client, _url, true), do: :ok
+  defp derive_url({:error, _error} = error, _suffix), do: error
+
+  # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
+  defp check_coupled_guard(%AGSEndpoint{line_item: url}, url, false) do
+    {:error, CoupledLineItem.exception(line_item_url: url, spec_ref: "AGS §3.2")}
+  end
+
+  defp check_coupled_guard(_endpoint, _url, _force), do: :ok
 
   defp auth_headers(%Client{access_token: token}, nil) do
     [{"authorization", "Bearer #{token}"}]
@@ -616,23 +530,46 @@ defmodule Ltix.GradeService do
     ]
   end
 
-  defp merged_req_options(%Client{} = client) do
+  defp req_options(%Client{} = client) do
     Ltix.HTTP.req_options(client.req_options, __MODULE__)
   end
 
-  defp build_request(method, req_options, url, headers) do
-    req_options
-    |> Keyword.put(:method, method)
-    |> Keyword.put(:url, url)
-    |> Keyword.put(:headers, headers)
+  defp fetch_pages(%Client{} = client, url, accept, params) do
+    Pagination.stream_results(url, auth_headers(client, accept),
+      params: params,
+      req_options: req_options(client)
+    )
   end
 
-  defp build_request(method, req_options, url, headers, content_type, body) do
-    req_options
-    |> Keyword.put(:method, method)
-    |> Keyword.put(:url, url)
-    |> Keyword.put(:headers, [{"content-type", content_type} | headers])
-    |> Keyword.put(:body, AppConfig.json_library!().encode!(body))
+  defp send_request(%Client{} = client, method, url, opts \\ []) do
+    headers = auth_headers(client, Keyword.get(opts, :accept))
+
+    {headers, body_options} =
+      case Keyword.get(opts, :body) do
+        nil ->
+          {headers, []}
+
+        {content_type, body} ->
+          {[{"content-type", content_type} | headers],
+           [body: AppConfig.json_library!().encode!(body)]}
+      end
+
+    request_options =
+      Keyword.merge(
+        req_options(client),
+        [method: method, url: url, headers: headers] ++ body_options
+      )
+
+    case Ltix.HTTP.request(request_options) do
+      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
+        {:ok, body}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, TransportError.exception(status: status, body: body, url: url)}
+
+      {:error, _exception} = error ->
+        error
+    end
   end
 
   defp list_line_items_params(opts) do
@@ -642,13 +579,7 @@ defmodule Ltix.GradeService do
     |> maybe_put_param("resource_link_id", Keyword.get(opts, :resource_link_id))
     |> maybe_put_param("resource_id", Keyword.get(opts, :resource_id))
     |> maybe_put_param("tag", Keyword.get(opts, :tag))
-    |> maybe_put_param(
-      "limit",
-      case Keyword.get(opts, :per_page) do
-        nil -> nil
-        n -> Integer.to_string(n)
-      end
-    )
+    |> maybe_put_limit(Keyword.get(opts, :per_page))
   end
 
   defp list_results_params(opts) do
@@ -656,14 +587,13 @@ defmodule Ltix.GradeService do
 
     params
     |> maybe_put_param("user_id", Keyword.get(opts, :user_id))
-    |> maybe_put_param(
-      "limit",
-      case Keyword.get(opts, :per_page) do
-        nil -> nil
-        n -> Integer.to_string(n)
-      end
-    )
+    |> maybe_put_limit(Keyword.get(opts, :per_page))
   end
+
+  defp maybe_put_limit(params, nil), do: params
+
+  defp maybe_put_limit(params, per_page),
+    do: Map.put(params, "limit", Integer.to_string(per_page))
 
   defp maybe_put_param(params, _key, nil), do: params
   defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
@@ -736,18 +666,5 @@ defmodule Ltix.GradeService do
         :error -> {fields, Map.put(extensions, key, value)}
       end
     end)
-  end
-
-  defp request(req_opts) do
-    case Ltix.HTTP.request(req_opts) do
-      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-        {:ok, body}
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, TransportError.exception(status: status, body: body, url: req_opts[:url])}
-
-      {:error, exception} ->
-        {:error, exception}
-    end
   end
 end

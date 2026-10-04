@@ -15,12 +15,14 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.GradeService.Score
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AGSEndpoint
+  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.OAuth.Client
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
   @scope_lineitem_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
   @scope_result_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
   @scope_score "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+  @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
 
   @all_scopes [@scope_lineitem, @scope_result_readonly, @scope_score]
 
@@ -81,6 +83,10 @@ defmodule Ltix.GradeServiceTest do
     result
     |> maybe_put("resultScore", Keyword.get(opts, :result_score))
     |> maybe_put("resultMaximum", Keyword.get(opts, :result_maximum))
+  end
+
+  def forward_telemetry([_, _, operation, suffix], _measurements, metadata, owner) do
+    if self() == owner, do: send(owner, {:telemetry, operation, suffix, metadata})
   end
 
   defp maybe_put(map, _key, nil), do: map
@@ -929,6 +935,204 @@ defmodule Ltix.GradeServiceTest do
                GradeService.post_score(client, score, line_item: item)
 
       assert {:error, %MissingLineItemId{}} = GradeService.list_results(client, line_item: item)
+    end
+  end
+
+  # --- endpoint override ---
+
+  describe "endpoint option" do
+    setup ctx do
+      owner = self()
+
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        send(owner, {:request, conn.method, conn.request_path})
+
+        case conn.method do
+          "DELETE" ->
+            Plug.Conn.send_resp(conn, 204, "")
+
+          "POST" when conn.request_path == "/other/lineitems/5/scores" ->
+            Plug.Conn.send_resp(conn, 204, "")
+
+          "GET" when conn.request_path in ["/other/lineitems", "/other/lineitems/5/results"] ->
+            Req.Test.json(conn, [])
+
+          _ ->
+            Req.Test.json(conn, build_line_item_json())
+        end
+      end)
+
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      endpoint = %AGSEndpoint{
+        line_items: "https://platform.example.com/other/lineitems",
+        line_item: "https://platform.example.com/other/lineitems/5",
+        scopes: @all_scopes
+      }
+
+      %{client: build_client(ctx.platform), endpoint: endpoint, score: score}
+    end
+
+    test "every operation uses the given endpoint instead of the client's", ctx do
+      %{client: client, endpoint: endpoint} = ctx
+
+      assert {:ok, []} = GradeService.list_line_items(client, endpoint: endpoint)
+      assert_received {:request, "GET", "/other/lineitems"}
+
+      assert {:ok, _} =
+               GradeService.create_line_item(client,
+                 endpoint: endpoint,
+                 label: "Quiz",
+                 score_maximum: 10
+               )
+
+      assert_received {:request, "POST", "/other/lineitems"}
+
+      assert {:ok, _} = GradeService.get_line_item(client, endpoint: endpoint)
+      assert_received {:request, "GET", "/other/lineitems/5"}
+
+      assert :ok = GradeService.post_score(client, ctx.score, endpoint: endpoint)
+      assert_received {:request, "POST", "/other/lineitems/5/scores"}
+
+      assert {:ok, []} = GradeService.list_results(client, endpoint: endpoint)
+      assert_received {:request, "GET", "/other/lineitems/5/results"}
+
+      assert {:error, %CoupledLineItem{}} =
+               GradeService.delete_line_item(client, endpoint: endpoint)
+
+      assert :ok =
+               GradeService.delete_line_item(client,
+                 endpoint: endpoint,
+                 line_item: @line_item_url
+               )
+
+      assert_received {:request, "DELETE", "/context/2923/lineitems/1/lineitem"}
+    end
+
+    test "works with a client that has no grade service endpoint", ctx do
+      client = %{ctx.client | endpoints: %{}}
+
+      assert {:ok, []} = GradeService.list_line_items(client, endpoint: ctx.endpoint)
+      assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
+    end
+  end
+
+  # --- telemetry ---
+
+  describe "telemetry" do
+    setup do
+      owner = self()
+      handler_id = "grade-service-test-#{System.unique_integer([:positive])}"
+
+      events =
+        for operation <- [
+              :list_line_items,
+              :get_line_item,
+              :create_line_item,
+              :update_line_item,
+              :delete_line_item,
+              :post_score,
+              :list_results
+            ],
+            suffix <- [:start, :stop, :exception] do
+          [:ltix, :grade_service, operation, suffix]
+        end
+
+      :telemetry.attach_many(
+        handler_id,
+        events,
+        &__MODULE__.forward_telemetry/4,
+        owner
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      %{score: score}
+    end
+
+    test "reports the URL each operation requests", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        case conn.method do
+          method
+          when method in ["DELETE", "POST"] and conn.request_path != "/context/2923/lineitems" ->
+            Plug.Conn.send_resp(conn, 204, "")
+
+          "GET"
+          when conn.request_path in [
+                 "/context/2923/lineitems",
+                 "/context/2923/lineitems/1/lineitem/results"
+               ] ->
+            Req.Test.json(conn, [])
+
+          _ ->
+            Req.Test.json(conn, build_line_item_json())
+        end
+      end)
+
+      client = build_client(ctx.platform)
+      item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
+
+      GradeService.list_line_items(client)
+      GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+      GradeService.get_line_item(client)
+      GradeService.update_line_item(client, item)
+      GradeService.delete_line_item(client, line_item: item)
+      GradeService.post_score(client, ctx.score)
+      GradeService.list_results(client)
+
+      for {operation, url} <- [
+            list_line_items: @line_items_url,
+            create_line_item: @line_items_url,
+            get_line_item: @line_item_url,
+            update_line_item: item.id,
+            delete_line_item: item.id,
+            post_score: @line_item_url <> "/scores",
+            list_results: @line_item_url <> "/results"
+          ] do
+        assert_received {:telemetry, ^operation, :start, %{endpoint: ^url}}
+        assert_received {:telemetry, ^operation, :stop, %{endpoint: ^url}}
+      end
+    end
+
+    test "a client authenticated for another service gets ScopeMismatch", ctx do
+      client = %{
+        build_client(ctx.platform, scopes: [@nrps_scope])
+        | endpoints: %{
+            Ltix.MembershipsService => %MembershipsEndpoint{
+              context_memberships_url: @line_items_url
+            }
+          }
+      }
+
+      item = %LineItem{id: @line_item_url, label: "Quiz", score_maximum: 10}
+
+      assert {:error, %ScopeMismatch{}} = GradeService.list_line_items(client)
+
+      assert {:error, %ScopeMismatch{}} =
+               GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+
+      assert {:error, %ScopeMismatch{}} = GradeService.get_line_item(client)
+      assert {:error, %ScopeMismatch{}} = GradeService.update_line_item(client, item)
+      assert {:error, %ScopeMismatch{}} = GradeService.delete_line_item(client)
+      assert {:error, %ScopeMismatch{}} = GradeService.post_score(client, ctx.score)
+      assert {:error, %ScopeMismatch{}} = GradeService.list_results(client)
+
+      assert_received {:telemetry, :list_line_items, :stop, %{endpoint: nil}}
+    end
+
+    test "a crash inside an operation emits an exception event", ctx do
+      Req.Test.stub(Ltix.GradeService, fn _conn -> raise "platform plug crashed" end)
+
+      assert_raise RuntimeError, fn ->
+        GradeService.post_score(build_client(ctx.platform), ctx.score)
+      end
+
+      assert_received {:telemetry, :post_score, :exception,
+                       %{endpoint: @line_item_url <> "/scores"}}
     end
   end
 end
