@@ -1,6 +1,7 @@
 defmodule Ltix.OAuth.AccessTokenTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.OAuth.AccessToken
 
   doctest AccessToken
@@ -93,7 +94,8 @@ defmodule Ltix.OAuth.AccessTokenTest do
     test "returns error when access_token is not a string" do
       response = %{@valid_response | "access_token" => 123}
 
-      assert {:error, _error} = AccessToken.from_response(response, now: @now)
+      assert {:error, %MalformedResponse{service: :oauth}} =
+               AccessToken.from_response(response, now: @now)
     end
   end
 

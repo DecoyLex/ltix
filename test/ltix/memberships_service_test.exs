@@ -416,6 +416,21 @@ defmodule Ltix.MembershipsServiceTest do
       end
     end
 
+    test "requests the endpoint override instead of the client's endpoint", ctx do
+      Req.Test.stub(Ltix.MembershipsService, fn conn ->
+        assert conn.request_path == "/other-memberships"
+
+        conn
+        |> Plug.Conn.put_resp_content_type(@nrps_media_type)
+        |> Req.Test.json(build_membership_response([]))
+      end)
+
+      override = MembershipsEndpoint.new!("https://platform.example.com/other-memberships")
+
+      assert {:ok, %MembershipContainer{}} =
+               MembershipsService.list_members(build_client(ctx.platform), endpoint: override)
+    end
+
     test "returns AccessTokenExpired when token is expired", ctx do
       stub_memberships_response(build_membership_response([]))
 

@@ -40,8 +40,10 @@ defmodule Ltix.JWT.KeySetTest do
     test "fetches and selects key by kid", ctx do
       stub_jwks(ctx.jwks)
 
-      assert {:ok, _jwk} =
-               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
+      kid = ctx.platform_jwk.kid
+
+      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+               KeySet.get_key(ctx.registration, kid, req_options: req_options())
     end
 
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
@@ -50,8 +52,10 @@ defmodule Ltix.JWT.KeySetTest do
       jwks = Ltix.JWK.to_jwks([ctx.platform_jwk, second_jwk])
       stub_jwks(jwks)
 
-      assert {:ok, _jwk} =
-               KeySet.get_key(ctx.registration, second_jwk.kid, req_options: req_options())
+      kid = second_jwk.kid
+
+      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+               KeySet.get_key(ctx.registration, kid, req_options: req_options())
     end
 
     # [Cert §6.1.1] "Incorrect KID in JWT header"
@@ -78,8 +82,10 @@ defmodule Ltix.JWT.KeySetTest do
       stub_jwks(jwks_rotated)
 
       # Should re-fetch and find the new key
-      assert {:ok, _jwk} =
-               KeySet.get_key(ctx.registration, second_jwk.kid, req_options: req_options())
+      kid = second_jwk.kid
+
+      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+               KeySet.get_key(ctx.registration, kid, req_options: req_options())
     end
 
     # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
@@ -226,10 +232,10 @@ defmodule Ltix.JWT.KeySetTest do
     end
   end
 
-  defp stub_jwks(jwks, cache_control \\ "max-age=300") do
+  defp stub_jwks(jwks) do
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
-      |> Plug.Conn.put_resp_header("cache-control", cache_control)
+      |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
       |> Req.Test.json(jwks)
     end)
   end

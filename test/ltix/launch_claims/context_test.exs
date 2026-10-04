@@ -1,6 +1,7 @@
 defmodule Ltix.LaunchClaims.ContextTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.LaunchClaims.Context
 
   doctest Ltix.LaunchClaims.Context
@@ -36,7 +37,7 @@ defmodule Ltix.LaunchClaims.ContextTest do
     end
 
     test "returns error for empty map" do
-      assert {:error, _} = Context.from_json(%{})
+      assert {:error, %MissingClaim{claim: "context.id"}} = Context.from_json(%{})
     end
 
     # [Core §A.1] context type vocabulary - full URIs

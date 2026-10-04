@@ -86,10 +86,14 @@ defmodule Ltix.MembershipsService.MemberTest do
     end
 
     test "handles minor variations in status string formatting" do
-      for string <- [" active ", "ACTIVE", "inactive", "DELETED"] do
+      for {string, atom} <- [
+            {" active ", :active},
+            {"ACTIVE", :active},
+            {"inactive", :inactive},
+            {"DELETED", :deleted}
+          ] do
         json = %{"user_id" => "user-1", "roles" => [], "status" => string}
-        assert {:ok, %Member{status: status}} = Member.from_json(json)
-        assert status in [:active, :inactive, :deleted]
+        assert {:ok, %Member{status: ^atom}} = Member.from_json(json)
       end
     end
 

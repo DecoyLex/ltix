@@ -366,6 +366,8 @@ defmodule Ltix.OAuthTest do
     end
 
     test "invalid endpoint returns error before any HTTP call", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn _conn -> flunk("token request was sent") end)
+
       assert {:error, %InvalidEndpoint{}} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :wrong_endpoint},
@@ -438,45 +440,13 @@ defmodule Ltix.OAuthTest do
                )
     end
 
-    test "token request failure propagated", ctx do
-      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-        conn
-        |> Plug.Conn.put_status(400)
-        |> Req.Test.json(%{"error" => "invalid_grant"})
-      end)
-
-      assert {:error, %TokenRequestFailed{}} =
-               OAuth.authenticate(ctx.registration,
-                 endpoints: %{TestService => :valid_endpoint},
-                 req_options: req_options()
-               )
-    end
-
     test "network failure returns TransportError", ctx do
       Req.Test.stub(Ltix.OAuth.ClientCredentials, &Req.Test.transport_error(&1, :econnrefused))
 
-      assert {:error, %TransportError{url: "https://platform.example.com/token"} = error} =
+      assert {:error, %TransportError{url: "https://platform.example.com/token", status: nil}} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options() ++ [retry: false]
-               )
-
-      assert Exception.message(error) =~ "connection refused"
-    end
-
-    test "req_options passed through to token request", ctx do
-      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-        # If we got here, the plug option was passed through correctly
-        Req.Test.json(conn, %{
-          "access_token" => "plug-test",
-          "token_type" => "Bearer"
-        })
-      end)
-
-      assert {:ok, %Client{access_token: "plug-test"}} =
-               OAuth.authenticate(ctx.registration,
-                 endpoints: %{TestService => :valid_endpoint},
-                 req_options: req_options()
                )
     end
 

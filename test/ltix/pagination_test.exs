@@ -3,6 +3,8 @@ defmodule Ltix.PaginationTest do
 
   alias Ltix.Pagination
 
+  doctest Ltix.Pagination
+
   defp req_options do
     [plug: {Req.Test, __MODULE__}, retry: false]
   end

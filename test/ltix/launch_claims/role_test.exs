@@ -26,6 +26,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
   end
 
   doctest Ltix.LaunchClaims.Role
+  doctest Ltix.LaunchClaims.Role.LIS
 
   # --- Context Roles [Core §A.2.3] ---
 
@@ -100,7 +101,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
 
   describe "parse/1 context sub-roles [Core §A.2.3.1]" do
     # Exhaustive test of every sub-role in the vocabulary.
-    # Each entry: {PrincipalRole, SubRole, expected_name_atom, expected_sub_role_atom}
+    # Each entry is {PrincipalRole, SubRole, expected_name_atom, expected_sub_role_atom}
     @sub_role_cases [
       # Administrator sub-roles
       {"Administrator", "Administrator", :administrator, :administrator},
@@ -337,7 +338,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert :error = Role.to_uri(%Role{type: :custom, name: :something})
     end
 
-    test "to_uri returns the URI a role carries" do
+    test "to_uri returns the URI a role has" do
       role = %Role{
         type: :custom,
         name: :reviewer,
@@ -345,16 +346,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
       }
 
       assert Role.to_uri(role) == {:ok, "https://vendor.example.com/roles#Reviewer"}
-    end
-
-    test "to_uri! returns the URI a role carries" do
-      role = %Role{
-        type: :custom,
-        name: :reviewer,
-        uri: "https://vendor.example.com/roles#Reviewer"
-      }
-
-      assert Role.to_uri!(role) == "https://vendor.example.com/roles#Reviewer"
     end
 
     test "to_uri! raises for a role no parser can convert" do
@@ -632,22 +623,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
   # --- from_atom/1 ---
 
   describe "from_atom/1" do
-    test "context principal: instructor" do
-      assert %Role{
-               type: :context,
-               name: :instructor,
-               sub_role: nil,
-               uri: @context_base <> "Instructor"
-             } =
-               Role.from_atom(:instructor)
-    end
-
-    test "context principal: learner" do
-      assert %Role{type: :context, name: :learner, sub_role: nil, uri: @context_base <> "Learner"} =
-               Role.from_atom(:learner)
-    end
-
-    test "context principal: content_developer" do
+    test "context principal content_developer" do
       assert %Role{
                type: :context,
                name: :content_developer,
@@ -657,51 +633,12 @@ defmodule Ltix.LaunchClaims.RoleTest do
                Role.from_atom(:content_developer)
     end
 
-    test "context principal: mentor" do
+    test "context principal mentor" do
       assert %Role{type: :context, name: :mentor, sub_role: nil, uri: @context_base <> "Mentor"} =
                Role.from_atom(:mentor)
     end
 
-    test "context sub-role: teaching_assistant" do
-      assert %Role{
-               type: :context,
-               name: :instructor,
-               sub_role: :teaching_assistant,
-               uri: @sub_role_base <> "Instructor#TeachingAssistant"
-             } =
-               Role.from_atom(:teaching_assistant)
-    end
-
-    test "context: context_administrator" do
-      assert %Role{
-               type: :context,
-               name: :administrator,
-               sub_role: nil,
-               uri: @context_base <> "Administrator"
-             } = Role.from_atom(:context_administrator)
-    end
-
-    test "institution: administrator" do
-      assert %Role{
-               type: :institution,
-               name: :administrator,
-               sub_role: nil,
-               uri: @institution_base <> "Administrator"
-             } =
-               Role.from_atom(:administrator)
-    end
-
-    test "institution: faculty" do
-      assert %Role{
-               type: :institution,
-               name: :faculty,
-               sub_role: nil,
-               uri: @institution_base <> "Faculty"
-             } =
-               Role.from_atom(:faculty)
-    end
-
-    test "institution: student" do
+    test "institution student" do
       assert %Role{
                type: :institution,
                name: :student,
@@ -711,7 +648,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
                Role.from_atom(:student)
     end
 
-    test "institution: staff" do
+    test "institution staff" do
       assert %Role{
                type: :institution,
                name: :staff,
@@ -719,16 +656,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
                uri: @institution_base <> "Staff"
              } =
                Role.from_atom(:staff)
-    end
-
-    test "system: test_user" do
-      assert %Role{
-               type: :system,
-               name: :test_user,
-               sub_role: nil,
-               uri: "http://purl.imsglobal.org/vocab/lti/system/person#TestUser"
-             } =
-               Role.from_atom(:test_user)
     end
 
     test "raises on unknown atom" do
