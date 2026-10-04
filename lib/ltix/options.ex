@@ -45,6 +45,17 @@ defmodule Ltix.Options do
     end
   end
 
+  # Returns a keyword list option value as a map. Other values are returned
+  # unchanged.
+  @spec keyword_to_map(term()) :: term()
+  def keyword_to_map([]), do: %{}
+
+  def keyword_to_map([{key, _} | _] = list) when is_atom(key) do
+    if Keyword.keyword?(list), do: Map.new(list), else: list
+  end
+
+  def keyword_to_map(value), do: value
+
   defp invalid_option(%{code: :unrecognized_key, path: [], issue: {_, vars}}, opts) do
     key = Keyword.fetch!(vars, :key)
     InvalidOption.exception(key: key, value: Keyword.get(opts, key), reason: :unknown)

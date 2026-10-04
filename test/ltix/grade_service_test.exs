@@ -497,6 +497,31 @@ defmodule Ltix.GradeServiceTest do
       assert item.label == "Quiz 1"
     end
 
+    test "sends extensions given as a map with atom or string keys or as a keyword list", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        conn
+        |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
+        |> Plug.Conn.send_resp(201, body)
+      end)
+
+      client = build_client(ctx.platform)
+
+      for extensions <- [
+            %{"https://example.com/extra" => "data", vendor: 1},
+            ["https://example.com/extra": "data", vendor: 1]
+          ] do
+        assert {:ok,
+                %LineItem{extensions: %{"https://example.com/extra" => "data", "vendor" => 1}}} =
+                 GradeService.create_line_item(client,
+                   label: "Quiz 1",
+                   score_maximum: 100,
+                   extensions: extensions
+                 )
+      end
+    end
+
     test "sends correct Content-Type", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         [content_type] = Plug.Conn.get_req_header(conn, "content-type")
@@ -570,6 +595,18 @@ defmodule Ltix.GradeServiceTest do
 
       assert {:error, %InvalidField{struct: LineItem, field: :score_maximum}} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 0)
+
+      assert {:error,
+              %InvalidField{
+                struct: LineItem,
+                field: [:extensions, "scoreMaximum"],
+                reason: "would replace a standard field"
+              }} =
+               GradeService.create_line_item(client,
+                 label: "Quiz 1",
+                 score_maximum: 100,
+                 extensions: %{"scoreMaximum" => 5}
+               )
     end
 
     test "raises when score_maximum is not a number", ctx do

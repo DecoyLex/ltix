@@ -32,6 +32,7 @@ defmodule Ltix.GradeService do
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.Extensions
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
@@ -327,11 +328,10 @@ defmodule Ltix.GradeService do
                                grades_released:
                                  Zoi.boolean(description: "Hint about releasing grades."),
                                extensions:
-                                 Zoi.map(Zoi.string(), Zoi.any(),
-                                   description:
-                                     "Extension properties keyed by fully qualified URLs."
+                                 Extensions.schema(
+                                   "Extension properties keyed by fully qualified URLs, " <>
+                                     "given as strings or atoms."
                                  )
-                                 |> Zoi.default(%{})
                              ],
                              unrecognized_keys: :error
                            )
@@ -347,7 +347,7 @@ defmodule Ltix.GradeService do
   @spec create_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def create_line_item(%Client{} = client, opts) do
-    opts = Options.parse!(opts, @create_line_item_schema)
+    opts = Options.parse!(keyword_extensions_to_map(opts), @create_line_item_schema)
     url = line_items_url(endpoint(client, opts))
     item = struct!(LineItem, Keyword.delete(opts, :endpoint))
 
@@ -358,6 +358,16 @@ defmodule Ltix.GradeService do
       end
     end)
   end
+
+  # Converts extensions given as a keyword list to a map.
+  defp keyword_extensions_to_map(opts) when is_list(opts) do
+    Enum.map(opts, fn
+      {:extensions, extensions} -> {:extensions, Options.keyword_to_map(extensions)}
+      option -> option
+    end)
+  end
+
+  defp keyword_extensions_to_map(opts), do: opts
 
   @doc """
   Same as `create_line_item/2` but raises on error.

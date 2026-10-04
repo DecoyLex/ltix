@@ -5,12 +5,12 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       icon_schema: 1,
       object: 1,
       object: 2,
-      string_keyed_map: 2,
       window_schema: 1
     ]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
+  alias Ltix.Extensions
   alias Ltix.GradeService.LineItem
 
   # [DL §3.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#lti-resource-link)
@@ -64,7 +64,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
               iframe: @iframe_schema |> Zoi.optional(),
               custom:
                 Zoi.string()
-                |> string_keyed_map(description: "Custom parameter key-value pairs.")
+                |> Extensions.string_keyed_map(description: "Custom parameter key-value pairs.")
                 |> Zoi.optional(),
               line_item: @line_item_schema |> Zoi.optional(),
               available: @time_window_schema |> Zoi.optional(),

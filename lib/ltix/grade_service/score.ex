@@ -25,6 +25,8 @@ defmodule Ltix.GradeService.Score do
   """
 
   alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.Extensions
+  alias Ltix.Options
 
   # [AGS §3.4.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#activityprogress)
   @activity_progress_values [
@@ -115,11 +117,9 @@ defmodule Ltix.GradeService.Score do
                 )
                 |> Zoi.optional(),
               extensions:
-                Zoi.map(Zoi.string(), Zoi.any(),
-                  description: "Extension properties keyed by fully qualified URLs."
+                Extensions.schema(
+                  "Extension properties keyed by fully qualified URLs, given as strings or atoms."
                 )
-                |> Zoi.nullable()
-                |> Zoi.default(%{})
             },
             coerce: true,
             unrecognized_keys: :error,
@@ -129,6 +129,19 @@ defmodule Ltix.GradeService.Score do
   @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
+
+  # The JSON key of each score field in `to_map/1`.
+  @json_keys %{
+    user_id: "userId",
+    activity_progress: "activityProgress",
+    grading_progress: "gradingProgress",
+    timestamp: "timestamp",
+    score_given: "scoreGiven",
+    score_maximum: "scoreMaximum",
+    scoring_user_id: "scoringUserId",
+    comment: "comment",
+    submission: "submission"
+  }
 
   @activity_progress_to_json %{
     initialized: "Initialized",
@@ -172,11 +185,20 @@ defmodule Ltix.GradeService.Score do
   def new(attributes) when is_list(attributes) or is_map(attributes) do
     attributes =
       attributes
-      |> Map.new()
+      |> Map.new(fn {key, value} -> {key, Options.keyword_to_map(value)} end)
       |> Map.put_new_lazy(:timestamp, &DateTime.utc_now/0)
-      |> normalize_submission()
 
-    with {:ok, score} <- InvalidField.parse(__MODULE__, @schema, attributes, &spec_ref/1),
+    # [AGS §3.1.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#extensions)
+    conflicts =
+      Extensions.conflicts(
+        __MODULE__,
+        attributes[:extensions],
+        Map.values(@json_keys),
+        "AGS §3.1.2"
+      )
+
+    with {:ok, score} <-
+           InvalidField.parse(__MODULE__, @schema, attributes, &spec_ref/1, conflicts),
          :ok <- validate_timestamp(score),
          :ok <- validate_score_pair(score),
          :ok <- validate_submission_order(score.submission) do
@@ -207,32 +229,17 @@ defmodule Ltix.GradeService.Score do
   """
   @spec to_map(t()) :: map()
   def to_map(%__MODULE__{} = score) do
-    json = %{
-      "userId" => score.user_id,
-      "activityProgress" => Map.fetch!(@activity_progress_to_json, score.activity_progress),
-      "gradingProgress" => Map.fetch!(@grading_progress_to_json, score.grading_progress),
-      "timestamp" => format_timestamp(score.timestamp)
-    }
+    json =
+      for {field, key} <- @json_keys,
+          value = Map.fetch!(score, field),
+          value != nil,
+          into: %{},
+          do: {key, to_json(field, value)}
 
-    json
-    |> maybe_put("scoreGiven", score.score_given)
-    |> maybe_put("scoreMaximum", score.score_maximum)
-    |> maybe_put("scoringUserId", score.scoring_user_id)
-    |> maybe_put("comment", score.comment)
-    |> maybe_put_submission(score.submission)
-    |> Map.merge(score.extensions || %{})
+    Extensions.merge(json, score.extensions)
   end
 
   # --- Private ---
-
-  # A keyword list submission reads like a map.
-  defp normalize_submission(%{submission: submission} = attributes) when is_list(submission) do
-    if Keyword.keyword?(submission),
-      do: %{attributes | submission: Map.new(submission)},
-      else: attributes
-  end
-
-  defp normalize_submission(attributes), do: attributes
 
   # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
   defp validate_timestamp(%__MODULE__{timestamp: nil}),
@@ -273,20 +280,18 @@ defmodule Ltix.GradeService.Score do
     DateTime.to_iso8601(DateTime.from_unix!(microseconds, :microsecond))
   end
 
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+  defp to_json(:activity_progress, progress), do: Map.fetch!(@activity_progress_to_json, progress)
+  defp to_json(:grading_progress, progress), do: Map.fetch!(@grading_progress_to_json, progress)
+  defp to_json(:timestamp, timestamp), do: format_timestamp(timestamp)
 
-  defp maybe_put_submission(map, nil), do: map
-
-  defp maybe_put_submission(map, submission) do
-    json_submission =
-      Map.new(submission, fn
-        {:started_at, value} -> {"startedAt", format_timestamp(value)}
-        {:submitted_at, value} -> {"submittedAt", format_timestamp(value)}
-      end)
-
-    Map.put(map, "submission", json_submission)
+  defp to_json(:submission, submission) do
+    Map.new(submission, fn
+      {:started_at, value} -> {"startedAt", format_timestamp(value)}
+      {:submitted_at, value} -> {"submittedAt", format_timestamp(value)}
+    end)
   end
+
+  defp to_json(_field, value), do: value
 end
 
 if Code.ensure_loaded?(JSON.Encoder) do

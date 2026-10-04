@@ -80,9 +80,34 @@ defmodule Ltix.GradeService.ScoreTest do
                Score.new(attrs)
     end
 
-    test "sets extensions given nil to nil instead of the empty default" do
+    test "accepts extensions with atom or string keys, keeping the keys as strings" do
+      for extensions <- [
+            %{"https://example.com/extra" => "data", vendor: 1},
+            ["https://example.com/extra": "data", vendor: 1]
+          ] do
+        assert {:ok,
+                %Score{extensions: %{"https://example.com/extra" => "data", "vendor" => 1}} =
+                  score} = Score.new(@valid_attrs ++ [extensions: extensions])
+
+        assert %{"https://example.com/extra" => "data", "vendor" => 1} = encode_decode!(score)
+      end
+    end
+
+    test "rejects extensions that would replace a standard field" do
+      assert {:error,
+              %InvalidField{
+                struct: Score,
+                field: [:extensions, :userId],
+                value: "someone-else",
+                reason: "would replace a standard field"
+              }} = Score.new(@valid_attrs ++ [extensions: %{userId: "someone-else"}])
+    end
+
+    test "sets extensions given nil to nil" do
       assert {:ok, %Score{extensions: nil} = score} = Score.new(@valid_attrs ++ [extensions: nil])
-      assert encode_decode!(score) == encode_decode!(%{score | extensions: %{}})
+
+      assert Enum.sort(Map.keys(encode_decode!(score))) ==
+               ["activityProgress", "gradingProgress", "timestamp", "userId"]
     end
 
     test "accepts nil for a submission time" do
@@ -100,7 +125,7 @@ defmodule Ltix.GradeService.ScoreTest do
              }
     end
 
-    test "requires a timestamp given nil instead of using the current time" do
+    test "requires a timestamp given nil" do
       assert {:error, %InvalidField{field: :timestamp, reason: :required}} =
                Score.new(@valid_attrs ++ [timestamp: nil])
     end

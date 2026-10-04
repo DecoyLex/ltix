@@ -24,6 +24,8 @@ defmodule Ltix.GradeService.LineItem do
 
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Extensions
+  alias Ltix.GradeService
 
   defstruct [
     :id,
@@ -48,7 +50,7 @@ defmodule Ltix.GradeService.LineItem do
           start_date_time: DateTime.t() | nil,
           end_date_time: DateTime.t() | nil,
           grades_released: boolean() | nil,
-          extensions: %{optional(String.t()) => term()}
+          extensions: %{optional(String.t()) => term()} | nil
         }
 
   # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)
@@ -148,8 +150,18 @@ defmodule Ltix.GradeService.LineItem do
       |> Map.take(@validated_fields)
       |> Map.reject(fn {_field, value} -> is_nil(value) end)
 
+    # [AGS §3.1.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#extensions)
+    conflicts =
+      Extensions.conflicts(__MODULE__, item.extensions, Map.keys(@known_keys), "AGS §3.1.2")
+
     with {:ok, _fields} <-
-           InvalidField.parse(__MODULE__, @validation_schema, fields, &Map.fetch!(@spec_refs, &1)),
+           InvalidField.parse(
+             __MODULE__,
+             @validation_schema,
+             fields,
+             &Map.fetch!(@spec_refs, &1),
+             conflicts
+           ),
          do: :ok
   end
 
@@ -184,11 +196,11 @@ defmodule Ltix.GradeService.LineItem do
 
     fields
     |> Map.reject(fn {_json_key, value} -> is_nil(value) end)
-    |> Map.merge(item.extensions)
+    |> Extensions.merge(item.extensions)
   end
 
   defp classify_keys(json) do
-    Ltix.GradeService.classify_keys(json, @known_keys)
+    GradeService.classify_keys(json, @known_keys)
   end
 
   # [AGS §4.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#datetime-values)
