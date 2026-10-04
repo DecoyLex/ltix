@@ -145,8 +145,8 @@ These indicate problems with the incoming data or the calling code:
 | Error | Fields | When |
 |---|---|---|
 | `MissingParameter` | `parameter`, `spec_ref` | OIDC login request missing a required param |
-| `MissingClaim` | `claim`, `spec_ref` | JWT missing a required claim, named by its spec name such as `sub` or `resource_link.id` |
-| `InvalidClaim` | `claim`, `value`, `message`, `spec_ref` | JWT claim has an invalid value, or a custom claim parser returned an error |
+| `MissingClaim` | `claim`, `spec_ref` | A JWT or platform response, such as a memberships page, is missing a required claim, such as `sub` or `resource_link.id` |
+| `InvalidClaim` | `claim`, `value`, `message`, `spec_ref` | A claim in a JWT or platform response has an invalid value, or a custom claim parser returned an error |
 | `InvalidField` | `struct`, `field`, `value`, `reason`, `spec_ref` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
 | `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
 | `InvalidJSON` | `spec_ref` | JWT body isn't valid JSON |

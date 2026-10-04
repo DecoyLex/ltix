@@ -1,6 +1,7 @@
 defmodule Ltix.MembershipsService.MembershipContainerTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.LaunchClaims.Context
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
@@ -34,24 +35,14 @@ defmodule Ltix.MembershipsService.MembershipContainerTest do
     end
 
     test "returns error when context is missing [NRPS §2.2]" do
-      json = %{
-        "id" => "https://lms.example.com/memberships",
-        "members" => []
-      }
+      for context <- [nil, %{}] do
+        json = %{"context" => context, "members" => []}
 
-      assert {:error, error} = MembershipContainer.from_json(json)
-      assert Exception.message(error) =~ "context"
-    end
+        assert {:error, %MissingClaim{claim: "context.id"}} = MembershipContainer.from_json(json)
+      end
 
-    test "returns error when context.id is missing [NRPS §2.2]" do
-      json = %{
-        "id" => "https://lms.example.com/memberships",
-        "context" => %{"label" => "CPS 435"},
-        "members" => []
-      }
-
-      assert {:error, error} = MembershipContainer.from_json(json)
-      assert Exception.message(error) =~ "context.id"
+      assert {:error, %MissingClaim{claim: "context.id"}} =
+               MembershipContainer.from_json(%{"members" => []})
     end
 
     test "parses empty members list" do
@@ -59,14 +50,6 @@ defmodule Ltix.MembershipsService.MembershipContainerTest do
         "id" => "https://lms.example.com/memberships",
         "context" => %{"id" => "ctx-1"},
         "members" => []
-      }
-
-      assert {:ok, %MembershipContainer{members: []}} = MembershipContainer.from_json(json)
-    end
-
-    test "defaults members to empty list when absent" do
-      json = %{
-        "context" => %{"id" => "ctx-1"}
       }
 
       assert {:ok, %MembershipContainer{members: []}} = MembershipContainer.from_json(json)

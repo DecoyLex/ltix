@@ -20,8 +20,10 @@ defmodule Ltix.MembershipsService.MembershipContainer do
       Enum.count(roster)
   """
 
-  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.LaunchClaims.Context
+  alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
 
   defstruct [:id, :context, members: []]
@@ -35,40 +37,65 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   @doc """
   Parse a membership container from a decoded JSON response body.
 
-  Returns `{:ok, container}` on success or `{:error, exception}` if
-  the context is missing or a member fails to parse.
+  Returns `{:ok, container}` on success or `{:error, exception}` if the body
+  is not a membership container or a member fails to parse.
   """
-  @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  # [NRPS §2.2] "A context parameter must be present that must contain: id"
-  def from_json(%{"context" => context_json} = json) when is_map(context_json) do
-    with {:ok, context} <- Context.from_json(context_json),
-         {:ok, members} <- parse_members(json["members"] || []) do
-      {:ok,
-       %__MODULE__{
-         id: json["id"],
-         context: context,
-         members: members
-       }}
+  @spec from_json(term()) :: {:ok, t()} | {:error, Exception.t()}
+  # [membership-container-media-type]:
+  # https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type
+  #
+  # [NRPS §2.1][membership-container-media-type]
+  def from_json(%{"members" => members} = json) when is_list(members) do
+    with :ok <- validate_id(json["id"]),
+         {:ok, context} <- parse_context(json["context"]),
+         {:ok, members} <- parse_members(members) do
+      {:ok, %__MODULE__{id: json["id"], context: context, members: members}}
     end
   end
 
-  def from_json(_) do
-    {:error, MissingClaim.exception(claim: "context", spec_ref: "NRPS §2.2")}
+  def from_json(json) when is_map(json), do: malformed("expected members to be a JSON array")
+  def from_json(_json), do: malformed("expected JSON object")
+
+  # [sharing-of-personal-data]:
+  # https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data
+  #
+  # [NRPS §2.2][sharing-of-personal-data]
+  defp parse_context(nil), do: Context.from_json(%{})
+  defp parse_context(context), do: Context.from_json(context)
+
+  defp validate_id(id) when is_nil(id) or is_binary(id), do: :ok
+
+  defp validate_id(id) do
+    {:error,
+     InvalidClaim.exception(
+       claim: "membership.id",
+       value: id,
+       message: "must be a string",
+       spec_ref: "NRPS §2.1"
+     )}
   end
 
-  defp parse_members(members) when is_list(members) do
-    result =
-      Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
-        case Member.from_json(member_json) do
-          {:ok, member} -> {:cont, {:ok, [member | acc]}}
-          {:error, _} = error -> {:halt, error}
-        end
-      end)
-
-    case result do
+  defp parse_members(members) do
+    members
+    |> Enum.reduce_while({:ok, []}, fn member_json, {:ok, acc} ->
+      case Member.from_json(member_json) do
+        {:ok, member} -> {:cont, {:ok, [member | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
       {:ok, parsed} -> {:ok, Enum.reverse(parsed)}
       error -> error
     end
+  end
+
+  defp malformed(reason) do
+    {:error,
+     MalformedResponse.exception(
+       service: MembershipsService,
+       reason: reason,
+       spec_ref: "NRPS §2.1"
+     )}
   end
 end
 

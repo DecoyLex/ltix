@@ -36,11 +36,9 @@ defmodule Ltix.MembershipsService do
 
   @behaviour Ltix.AdvantageService
 
-  alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
 
   alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
@@ -52,10 +50,8 @@ defmodule Ltix.MembershipsService do
   alias Ltix.Registerable
 
   alias Ltix.Errors.Invalid.CollectionTooLarge
-  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidOption
-  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
 
@@ -336,7 +332,7 @@ defmodule Ltix.MembershipsService do
   defp accumulate_page({:error, _} = error, _accumulator, _limit), do: {:halt, error}
 
   defp accumulate_page({:ok, body}, {first_container, chunks, count}, limit) do
-    case parse_page(body) do
+    case MembershipContainer.from_json(body) do
       {:ok, container} ->
         first_container = first_container || container
         members = container.members
@@ -377,81 +373,11 @@ defmodule Ltix.MembershipsService do
   end
 
   defp parse_members!(body) do
-    case parse_page(body) do
+    case MembershipContainer.from_json(body) do
       {:ok, container} -> container.members
       {:error, reason} -> raise reason
     end
   end
-
-  # [membership-container-media-type]:
-  # https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type
-  #
-  # [NRPS §2.1][membership-container-media-type]
-  defp parse_page(%{"members" => members} = body) when is_list(members) do
-    with :ok <- validate_container_id(body["id"]),
-         {:ok, context} <- parse_context(body["context"]),
-         {:ok, parsed_members} <- parse_member_list(members) do
-      {:ok,
-       %MembershipContainer{
-         id: body["id"],
-         context: context,
-         members: parsed_members
-       }}
-    end
-  end
-
-  defp parse_page(body) when is_map(body) do
-    {:error,
-     MalformedResponse.exception(
-       service: __MODULE__,
-       reason: "expected members to be a JSON array",
-       spec_ref: "NRPS §2.1"
-     )}
-  end
-
-  defp parse_page(_body) do
-    {:error,
-     MalformedResponse.exception(
-       service: __MODULE__,
-       reason: "expected JSON object",
-       spec_ref: "NRPS §2.1"
-     )}
-  end
-
-  defp parse_member_list(members) do
-    result =
-      Enum.reduce_while(members, {:ok, []}, fn member_json, {:ok, acc} ->
-        case Member.from_json(member_json) do
-          {:ok, member} -> {:cont, {:ok, [member | acc]}}
-          {:error, _} = error -> {:halt, error}
-        end
-      end)
-
-    case result do
-      {:ok, acc} -> {:ok, Enum.reverse(acc)}
-      {:error, _} = error -> error
-    end
-  end
-
-  defp validate_container_id(id) when is_nil(id) or is_binary(id), do: :ok
-
-  defp validate_container_id(id) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "membership.id",
-       value: id,
-       message: "must be a string",
-       spec_ref: "NRPS §2.1"
-     )}
-  end
-
-  # [sharing-of-personal-data]:
-  # https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data
-  #
-  # [NRPS §2.2][sharing-of-personal-data]
-  defp parse_context(nil), do: Context.from_json(%{})
-
-  defp parse_context(context), do: Context.from_json(context)
 
   # [NRPS §2.4.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#role-query-parameter)
   defp query_params(opts) do
