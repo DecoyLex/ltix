@@ -578,6 +578,7 @@ defmodule MyAppWeb.Router do
   scope "/lti", MyAppWeb do
     pipe_through :lti_launch
 
+    get "/login", LtiController, :login
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
     get "/jwks", LtiController, :jwks

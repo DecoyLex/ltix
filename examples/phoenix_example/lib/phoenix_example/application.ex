@@ -11,6 +11,7 @@ defmodule PhoenixExample.Application do
       PhoenixExampleWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:phoenix_example, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PhoenixExample.PubSub},
+      Ltix.JWT.KeySet.ETSCache,
       PhoenixExample.LtiStorage,
       PhoenixExampleWeb.Endpoint
     ]

@@ -14,7 +14,7 @@ defmodule PhoenixExampleWeb.Router do
     plug :accepts, ["json"]
   end
 
-  # LTI endpoints receive form POSTs from platforms — no CSRF protection.
+  # LTI endpoints receive form POSTs from platforms, so this pipeline has no CSRF protection.
   pipeline :lti do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -31,6 +31,7 @@ defmodule PhoenixExampleWeb.Router do
   scope "/lti", PhoenixExampleWeb do
     pipe_through :lti
 
+    get "/login", LtiController, :login
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
     post "/echo", LtiController, :echo

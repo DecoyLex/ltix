@@ -10,7 +10,7 @@ import Config
 # ## Using releases
 #
 # If you use `mix release`, you need to explicitly enable the server
-# by passing the PHX_SERVER=true when you start it:
+# by passing the PHX_SERVER=true when you start it.
 #
 #     PHX_SERVER=true bin/phoenix_example start
 #
@@ -22,15 +22,14 @@ end
 
 port = String.to_integer(System.get_env("PORT", "4000"))
 
-config :phoenix_example, PhoenixExampleWeb.Endpoint,
-  https: [port: port]
+config :phoenix_example, PhoenixExampleWeb.Endpoint, https: [port: port]
 
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
   # to check this value into version control, so we use an environment
-  # variable instead.
+  # variable.
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
       raise """
@@ -55,8 +54,8 @@ if config_env() == :prod do
 
   # ## SSL Support
   #
-  # To get SSL working, you will need to add the `https` key
-  # to your endpoint configuration:
+  # To enable SSL, you will need to add the `https` key
+  # to your endpoint configuration.
   #
   #     config :phoenix_example, PhoenixExampleWeb.Endpoint,
   #       https: [
@@ -72,13 +71,13 @@ if config_env() == :prod do
   # and clients may not be supported. You can set it to
   # `:compatible` for wider support.
   #
-  # `:keyfile` and `:certfile` expect an absolute path to the key
+  # `:keyfile` and `:certfile` require an absolute path to the key
   # and cert in disk or a relative path inside priv, for example
   # "priv/ssl/server.key". For all supported SSL configuration
   # options, see https://hexdocs.pm/plug/Plug.SSL.html#configure/1
   #
   # We also recommend setting `force_ssl` in your config/prod.exs,
-  # ensuring no data is ever sent via http, always redirecting to https:
+  # ensuring no data is ever sent via http, always redirecting to https.
   #
   #     config :phoenix_example, PhoenixExampleWeb.Endpoint,
   #       force_ssl: [hsts: true]

@@ -26,14 +26,13 @@
 
 <h2>Create an LTI Resource Link</h2>
 <form action={~p"/lti/deep_link"} method="post">
-
   <p>
-    <label for="title">Title</label><br />
+    <label for="title">Title</label> <br />
     <input type="text" id="title" name="title" value={@settings.title} />
   </p>
 
   <p>
-    <label for="url">URL (optional — platform uses your tool's base URL if blank)</label><br />
+    <label for="url">URL (optional — platform uses your tool's base URL if blank)</label> <br />
     <input type="text" id="url" name="url" placeholder="https://..." />
   </p>
 

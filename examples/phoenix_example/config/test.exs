@@ -20,3 +20,6 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Route Ltix HTTP requests through Req.Test so Ltix.Test stubs handle them
+config :ltix, req_options: [plug: {Req.Test, :ltix}]

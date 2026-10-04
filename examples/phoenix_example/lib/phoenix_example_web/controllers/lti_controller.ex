@@ -6,6 +6,7 @@ defmodule PhoenixExampleWeb.LtiController do
   alias Ltix.DeepLinking.ContentItem.LTIResourceLink
   alias Ltix.GradeService
   alias Ltix.GradeService.Score
+  alias Ltix.MembershipsService
   alias PhoenixExample.LtiStorage
 
   def login(conn, params) do
@@ -48,8 +49,8 @@ defmodule PhoenixExampleWeb.LtiController do
   def roster(conn, _params) do
     with context_id when is_binary(context_id) <- get_session(conn, :lti_context_id),
          {:ok, context} <- LtiStorage.get_context(context_id),
-         {:ok, client} <- Ltix.MembershipsService.authenticate(context),
-         {:ok, roster} <- Ltix.MembershipsService.list_members(client) do
+         {:ok, client} <- MembershipsService.authenticate(context),
+         {:ok, roster} <- MembershipsService.list_members(client) do
       render(conn, :roster, roster: roster, error: nil)
     else
       nil ->
@@ -59,7 +60,6 @@ defmodule PhoenixExampleWeb.LtiController do
         )
 
       {:error, %{__struct__: _} = exception} ->
-        dbg(exception)
         Logger.error(Exception.message(exception))
         render(conn, :roster, roster: nil, error: Exception.message(exception))
 
@@ -94,20 +94,12 @@ defmodule PhoenixExampleWeb.LtiController do
     with {:ok, context} <- fetch_context(conn),
          {:ok, client} <- GradeService.authenticate(context) do
       endpoint = client.endpoints[GradeService]
-
-      line_items =
-        if endpoint.line_items do
-          case GradeService.list_line_items(client) do
-            {:ok, items} -> items
-            {:error, _} -> []
-          end
-        else
-          []
-        end
+      {line_items, line_items_error} = list_line_items(endpoint, client)
 
       render(conn, :grades,
         endpoint: endpoint,
         line_items: line_items,
+        line_items_error: line_items_error,
         scopes: client.scopes,
         score_for: params["score_for"],
         user_id: context.claims.subject,
@@ -120,6 +112,7 @@ defmodule PhoenixExampleWeb.LtiController do
         render(conn, :grades,
           endpoint: nil,
           line_items: [],
+          line_items_error: nil,
           scopes: MapSet.new(),
           score_for: nil,
           user_id: nil,
@@ -130,6 +123,7 @@ defmodule PhoenixExampleWeb.LtiController do
         render(conn, :grades,
           endpoint: nil,
           line_items: [],
+          line_items_error: nil,
           scopes: MapSet.new(),
           score_for: nil,
           user_id: nil,
@@ -203,6 +197,19 @@ defmodule PhoenixExampleWeb.LtiController do
     end
   end
 
+  defp list_line_items(%{line_items: nil}, _client), do: {[], nil}
+
+  defp list_line_items(_endpoint, client) do
+    case GradeService.list_line_items(client) do
+      {:ok, items} ->
+        {items, nil}
+
+      {:error, exception} ->
+        Logger.error(Exception.message(exception))
+        {[], Exception.message(exception)}
+    end
+  end
+
   defp fetch_context(conn) do
     case get_session(conn, :lti_context_id) do
       nil -> {:error, "No active launch session. Please launch from your LMS first."}
@@ -211,20 +218,14 @@ defmodule PhoenixExampleWeb.LtiController do
   end
 
   defp build_score(params) do
-    score_given = parse_optional_float(params["score_given"])
-    score_maximum = parse_optional_float(params["score_maximum"])
-
-    opts =
-      [
-        user_id: params["user_id"],
-        activity_progress: params["activity_progress"],
-        grading_progress: params["grading_progress"]
-      ]
-      |> maybe_put(:score_given, score_given)
-      |> maybe_put(:score_maximum, score_maximum)
-      |> maybe_put(:comment, non_blank(params["comment"]))
-
-    Score.new(opts)
+    Score.new(
+      user_id: non_blank(params["user_id"]),
+      activity_progress: params["activity_progress"],
+      grading_progress: params["grading_progress"],
+      score_given: parse_optional_float(params["score_given"]),
+      score_maximum: parse_optional_float(params["score_maximum"]),
+      comment: non_blank(params["comment"])
+    )
   end
 
   defp score_opts(nil), do: []
@@ -237,16 +238,13 @@ defmodule PhoenixExampleWeb.LtiController do
   defp parse_optional_float(val) do
     case Float.parse(val) do
       {num, ""} -> num
-      _ -> nil
+      _ -> val
     end
   end
 
   defp non_blank(nil), do: nil
   defp non_blank(""), do: nil
   defp non_blank(s), do: s
-
-  defp maybe_put(opts, _key, nil), do: opts
-  defp maybe_put(opts, key, val), do: Keyword.put(opts, key, val)
 
   defp render_launch(conn, %{claims: %{message_type: "LtiDeepLinkingRequest"}} = context) do
     settings = context.claims.deep_linking_settings
@@ -263,11 +261,7 @@ defmodule PhoenixExampleWeb.LtiController do
   end
 
   defp build_content_items(%{"title" => title, "url" => url}) do
-    opts =
-      [title: non_blank(title)]
-      |> maybe_put(:url, non_blank(url))
-
-    case LTIResourceLink.new(opts) do
+    case LTIResourceLink.new(title: non_blank(title), url: non_blank(url)) do
       {:ok, item} -> {:ok, [item]}
       {:error, _} = err -> err
     end
