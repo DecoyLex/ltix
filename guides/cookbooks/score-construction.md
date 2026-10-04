@@ -1,13 +1,13 @@
 # Building Scores
 
 Beyond posting a final grade, you can track student progress, award
-extra credit, and attach feedback. This cookbook walks through common
+extra credit, and attach feedback. This cookbook shows common
 scoring scenarios.
 
 ## Posting a final grade
 
 Set both progress fields to their "done" values so the platform
-records the grade:
+records the grade.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -28,7 +28,7 @@ records the grade:
 ## Tracking progress without a grade
 
 Report that a student has started an activity before you have a score
-to post:
+to post.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -38,7 +38,7 @@ to post:
 )
 ```
 
-Update the progress as the student works through the activity:
+Update the progress as the student works through the activity.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -50,7 +50,7 @@ Update the progress as the student works through the activity:
 
 ## Awarding extra credit
 
-`score_given` may exceed `score_maximum`:
+`score_given` may exceed `score_maximum`.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -64,7 +64,7 @@ Update the progress as the student works through the activity:
 
 ## Including feedback
 
-Add a plain-text comment visible to both student and instructor:
+Add a plain-text comment visible to both student and instructor.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -76,6 +76,23 @@ Add a plain-text comment visible to both student and instructor:
   comment: "Good work on part 2, but review section 3."
 )
 ```
+
+## Recording submission times
+
+Send the times the student started and submitted their work as `DateTime` values. `submitted_at` must not be earlier than `started_at`.
+
+```elixir
+{:ok, score} = Ltix.GradeService.Score.new(
+  user_id: user_id,
+  score_given: 88,
+  score_maximum: 100,
+  activity_progress: :submitted,
+  grading_progress: :pending_manual,
+  submission: [started_at: attempt.started_at, submitted_at: attempt.submitted_at]
+)
+```
+
+Invalid or unknown fields return an `Ltix.Errors.Invalid.InvalidField` error.
 
 ## Choosing progress values
 

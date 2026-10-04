@@ -62,7 +62,9 @@ client = Ltix.OAuth.Client.refresh!(client)
 :ok = Ltix.GradeService.post_score(client, score)
 ```
 
-- `Score.new/1` validates fields and auto-generates `:timestamp` if omitted.
+- `Score.new/1` takes a keyword list or map, validates fields, and auto-generates
+  `:timestamp` if omitted. Timestamps are `DateTime` structs. Invalid or unknown fields
+  return `Ltix.Errors.Invalid.InvalidField`, and `Score.new!/1` raises it.
 - **Only `:fully_graded`** guarantees the grade appears in the platform's gradebook. Other
   grading progress values (`:pending`, `:pending_manual`, `:not_ready`, `:failed`) may be
   ignored by the platform.

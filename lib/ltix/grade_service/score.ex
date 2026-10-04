@@ -24,6 +24,8 @@ defmodule Ltix.GradeService.Score do
       #=> 85
   """
 
+  alias Ltix.Errors.Invalid.InvalidField
+
   # [AGS §3.4.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#activityprogress)
   @activity_progress_values [
     initialized: "initialized",
@@ -42,6 +44,21 @@ defmodule Ltix.GradeService.Score do
     not_ready: "not_ready"
   ]
 
+  # [AGS §3.4.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#score-service-media-type-and-schema)
+  @spec_refs %{
+    user_id: "AGS §3.4.5",
+    scoring_user_id: "AGS §3.4.6",
+    activity_progress: "AGS §3.4.7",
+    grading_progress: "AGS §3.4.8",
+    timestamp: "AGS §3.4.9",
+    score_given: "AGS §3.4.4",
+    score_maximum: "AGS §3.4.4",
+    submission: "AGS §3.4.10",
+    started_at: "AGS §3.4.10.1",
+    submitted_at: "AGS §3.4.10.2",
+    comment: "AGS §3.4.11"
+  }
+
   @schema Zoi.struct(
             __MODULE__,
             %{
@@ -58,7 +75,7 @@ defmodule Ltix.GradeService.Score do
                     "Status of the grading process. Must be `:fully_graded` for final scores."
                 ),
               timestamp:
-                Zoi.struct(DateTime,
+                Zoi.datetime(
                   description: "When the score was set. Auto-generated if not provided."
                 )
                 |> Zoi.optional(),
@@ -85,11 +102,15 @@ defmodule Ltix.GradeService.Score do
                 )
                 |> Zoi.optional(),
               submission:
-                Zoi.map(Zoi.atom(), Zoi.string(),
+                Zoi.map(
+                  %{
+                    started_at: Zoi.datetime() |> Zoi.optional(),
+                    submitted_at: Zoi.datetime() |> Zoi.optional()
+                  },
+                  unrecognized_keys: :error,
                   description:
-                    "Optional `:started_at` and `:submitted_at` timestamps " <>
-                      "in ISO 8601 with fractional seconds and a time zone. " <>
-                      "`submitted_at` must not precede `started_at`."
+                    "Keyword list or map with optional `:started_at` and `:submitted_at` " <>
+                      "`DateTime` values. `submitted_at` must not precede `started_at`."
                 )
                 |> Zoi.optional(),
               extensions:
@@ -98,7 +119,8 @@ defmodule Ltix.GradeService.Score do
                 )
                 |> Zoi.default(%{})
             },
-            coerce: true
+            coerce: true,
+            unrecognized_keys: :error
           )
 
   @type t :: unquote(Zoi.type_spec(@schema))
@@ -122,7 +144,7 @@ defmodule Ltix.GradeService.Score do
   }
 
   @doc """
-  Build a validated score from keyword options.
+  Build a validated score from a keyword list or a map.
 
   Auto-generates a `timestamp` with microsecond precision if not provided.
 
@@ -139,23 +161,18 @@ defmodule Ltix.GradeService.Score do
   Strings are also accepted for `activity_progress` and `grading_progress`,
   which is convenient when values come from form params:
 
-      iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: "completed", grading_progress: "fully_graded")
+      iex> {:ok, score} = Ltix.GradeService.Score.new(%{user_id: "u1", activity_progress: "completed", grading_progress: "fully_graded"})
       iex> score.activity_progress
       :completed
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts) do
-    case Zoi.parse(@schema, Map.new(opts)) do
-      {:ok, %__MODULE__{} = score} ->
-        score = %{score | timestamp: score.timestamp || DateTime.utc_now()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
+  def new(attributes) when is_list(attributes) or is_map(attributes) do
+    attributes = normalize(attributes)
 
-        with :ok <- validate_score_pair(score.score_given, score.score_maximum),
-             :ok <- validate_submission(score.submission) do
-          {:ok, score}
-        end
-
-      {:error, errors} ->
-        {:error, Zoi.ParseError.exception(errors: errors)}
+    with {:ok, score} <- InvalidField.parse(__MODULE__, @schema, attributes, &spec_ref/1),
+         :ok <- validate_score_pair(score),
+         :ok <- validate_submission_order(score.submission) do
+      {:ok, %{score | timestamp: score.timestamp || DateTime.utc_now()}}
     end
   end
 
@@ -166,20 +183,16 @@ defmodule Ltix.GradeService.Score do
 
       iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded, timestamp: ~U[2024-01-15 10:30:00.123456Z])
       iex> map = Ltix.GradeService.Score.to_map(score)
-      iex> map["userId"]
-      "u1"
+      iex> map["timestamp"]
+      "2024-01-15T10:30:00.123456Z"
   """
   @spec to_map(t()) :: map()
   def to_map(%__MODULE__{} = score) do
-    # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
-    {microsecond, _precision} = score.timestamp.microsecond
-    timestamp = %{score.timestamp | microsecond: {microsecond, 6}}
-
     json = %{
       "userId" => score.user_id,
       "activityProgress" => Map.fetch!(@activity_progress_to_json, score.activity_progress),
       "gradingProgress" => Map.fetch!(@grading_progress_to_json, score.grading_progress),
-      "timestamp" => DateTime.to_iso8601(timestamp, :extended, 0)
+      "timestamp" => format_timestamp(score.timestamp)
     }
 
     json
@@ -193,62 +206,54 @@ defmodule Ltix.GradeService.Score do
 
   # --- Private ---
 
-  defp validate_score_pair(nil, _), do: :ok
-
-  defp validate_score_pair(_score_given, nil) do
-    {:error, ArgumentError.exception("score_maximum is required when score_given is present")}
+  # Absent and nil attributes are equivalent, and a keyword list submission
+  # reads like a map.
+  defp normalize(attributes) do
+    attributes
+    |> Map.new()
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> normalize_submission()
   end
 
-  defp validate_score_pair(_, _), do: :ok
-
-  defp validate_submission(nil), do: :ok
-
-  defp validate_submission(submission) do
-    with {:ok, started_at} <-
-           parse_submission_timestamp(Map.get(submission, :started_at), :started_at),
-         {:ok, submitted_at} <-
-           parse_submission_timestamp(Map.get(submission, :submitted_at), :submitted_at) do
-      validate_submission_order(started_at, submitted_at)
-    end
+  defp normalize_submission(%{submission: submission} = attributes) when is_list(submission) do
+    if Keyword.keyword?(submission),
+      do: %{attributes | submission: Map.new(submission)},
+      else: attributes
   end
 
-  # [startedat-optional]:
-  # https://www.imsglobal.org/spec/lti-ags/v2p0/#startedat-optional
-  # [submittedat-optional]:
-  # https://www.imsglobal.org/spec/lti-ags/v2p0/#submittedat-optional
-  #
-  # [AGS §3.4.10.1][startedat-optional] and [AGS §3.4.10.2][submittedat-optional]
-  defp parse_submission_timestamp(nil, _field), do: {:ok, nil}
+  defp normalize_submission(attributes), do: attributes
 
-  defp parse_submission_timestamp(timestamp, field) do
-    with [_, fraction] <-
-           Regex.run(~r/[.,](\d+)(?:Z|[+-]\d{2}(?::?\d{2})?)\z/, timestamp),
-         {:ok, datetime, _offset} <- parse_iso8601(timestamp) do
-      {:ok, {DateTime.to_unix(datetime), String.trim_trailing(fraction, "0")}}
+  # [AGS §3.4.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoregiven-and-scoremaximum)
+  defp validate_score_pair(%__MODULE__{score_given: given, score_maximum: nil})
+       when not is_nil(given) do
+    {:error, invalid(:score_maximum, nil, "must be present when score_given is present")}
+  end
+
+  defp validate_score_pair(%__MODULE__{}), do: :ok
+
+  # [AGS §3.4.10.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#submittedat-optional)
+  defp validate_submission_order(%{started_at: started_at, submitted_at: submitted_at}) do
+    if DateTime.compare(submitted_at, started_at) == :lt do
+      {:error,
+       invalid([:submission, :submitted_at], submitted_at, "must not be earlier than started_at")}
     else
-      _ ->
-        {:error,
-         ArgumentError.exception(
-           "#{field} must use ISO 8601 with fractional seconds and a time zone designator"
-         )}
+      :ok
     end
   end
 
-  defp parse_iso8601(timestamp) do
-    case DateTime.from_iso8601(timestamp) do
-      {:ok, _, _} = result -> result
-      {:error, _} -> DateTime.from_iso8601(timestamp, :basic)
-    end
-  end
+  defp validate_submission_order(_submission), do: :ok
 
-  defp validate_submission_order(nil, _submitted_at), do: :ok
-  defp validate_submission_order(_started_at, nil), do: :ok
+  defp invalid(field, value, reason),
+    do: InvalidField.invalid(__MODULE__, field, value, reason, spec_ref(field))
 
-  defp validate_submission_order(started_at, submitted_at) when submitted_at >= started_at,
-    do: :ok
+  defp spec_ref([_ | _] = path), do: spec_ref(List.last(path))
+  defp spec_ref(field), do: Map.get(@spec_refs, field, "AGS §3.4")
 
-  defp validate_submission_order(_started_at, _submitted_at) do
-    {:error, ArgumentError.exception("submitted_at must be equal to or later than started_at")}
+  # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
+  # [AGS §3.4.10](https://www.imsglobal.org/spec/lti-ags/v2p0/#submission-optional)
+  defp format_timestamp(%DateTime{} = date_time) do
+    microseconds = DateTime.to_unix(date_time, :microsecond)
+    DateTime.to_iso8601(DateTime.from_unix!(microseconds, :microsecond))
   end
 
   defp maybe_put(map, _key, nil), do: map
@@ -258,10 +263,9 @@ defmodule Ltix.GradeService.Score do
 
   defp maybe_put_submission(map, submission) do
     json_submission =
-      Enum.reduce(submission, %{}, fn
-        {:started_at, value}, acc -> Map.put(acc, "startedAt", value)
-        {:submitted_at, value}, acc -> Map.put(acc, "submittedAt", value)
-        _, acc -> acc
+      Map.new(submission, fn
+        {:started_at, value} -> {"startedAt", format_timestamp(value)}
+        {:submitted_at, value} -> {"submittedAt", format_timestamp(value)}
       end)
 
     Map.put(map, "submission", json_submission)

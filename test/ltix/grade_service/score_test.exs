@@ -1,6 +1,8 @@
 defmodule Ltix.GradeService.ScoreTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.GradeService.Score
 
   doctest Score
@@ -38,8 +40,8 @@ defmodule Ltix.GradeService.ScoreTest do
             comment: "Great work!",
             timestamp: ~U[2024-01-15 10:30:00.123456Z],
             submission: %{
-              started_at: "2024-01-15T09:00:00.000Z",
-              submitted_at: "2024-01-15T10:00:00.000Z"
+              started_at: ~U[2024-01-15 09:00:00.000Z],
+              submitted_at: ~U[2024-01-15 10:00:00.000Z]
             },
             extensions: %{"https://example.com/extra" => "data"}
           ]
@@ -50,8 +52,8 @@ defmodule Ltix.GradeService.ScoreTest do
       assert score.timestamp == ~U[2024-01-15 10:30:00.123456Z]
 
       assert score.submission == %{
-               started_at: "2024-01-15T09:00:00.000Z",
-               submitted_at: "2024-01-15T10:00:00.000Z"
+               started_at: ~U[2024-01-15 09:00:00.000Z],
+               submitted_at: ~U[2024-01-15 10:00:00.000Z]
              }
 
       assert score.extensions == %{"https://example.com/extra" => "data"}
@@ -60,7 +62,7 @@ defmodule Ltix.GradeService.ScoreTest do
     test "auto-generates timestamp when not provided" do
       assert {:ok, %Score{} = score} = Score.new(@valid_attrs)
       assert %DateTime{} = score.timestamp
-      assert score.timestamp.microsecond != {0, 0}
+      assert {_microsecond, 6} = score.timestamp.microsecond
     end
 
     test "uses explicit timestamp when provided" do
@@ -70,121 +72,111 @@ defmodule Ltix.GradeService.ScoreTest do
       assert {:ok, %Score{timestamp: ^ts}} = Score.new(attrs)
     end
 
-    test "rejects malformed submission timestamps, missing fractions, and missing time zones" do
-      for field <- [:started_at, :submitted_at],
-          value <- [
-            "not a timestamp",
-            "",
-            "2024-01-15T09:00:00Z",
-            "2024-01-15T09:00:00+05:30",
-            "2024-01-15T09:00:00.123",
-            "2024-02-30T09:00:00.123Z",
-            "2024-01-15T25:00:00.123Z",
-            "2024-01-15T09:00:00.123+24:00",
-            "2024-01-15T09:00:00.Z",
-            ~N[2024-01-15 09:00:00.123],
-            123,
-            nil
-          ] do
-        assert {:error, error} = Score.new(@valid_attrs ++ [submission: %{field => value}])
-        assert Exception.message(error) =~ Atom.to_string(field)
-      end
-    end
+    test "accepts submission as a keyword list or a map" do
+      started_at = ~U[2024-01-15 09:00:00.000Z]
+      submitted_at = ~U[2024-01-15 10:00:00.000Z]
 
-    test "accepts each submission timestamp independently without changing its value" do
-      for field <- [:started_at, :submitted_at],
-          value <- [
-            "2024-01-15T09:00:00.0Z",
-            "2024-01-15T09:00:00.12+00",
-            "2024-01-15T09:00:00.123+05:30",
-            "2024-01-15T09:00:00.1234-04:00",
-            "2024-01-15T09:00:00.12345+0530",
-            "2024-01-15T09:00:00.123456Z",
-            "2024-01-15T09:00:00.123456789Z",
-            "2024-01-15T09:00:00,123Z",
-            "20240115T090000.123Z"
+      for submission <- [
+            [started_at: started_at, submitted_at: submitted_at],
+            %{started_at: started_at, submitted_at: submitted_at}
           ] do
-        submission = %{field => value}
-
-        assert {:ok, %Score{submission: ^submission}} =
+        assert {:ok, %Score{submission: %{started_at: ^started_at, submitted_at: ^submitted_at}}} =
                  Score.new(@valid_attrs ++ [submission: submission])
       end
 
-      assert {:ok, %Score{submission: submission}} = Score.new(@valid_attrs ++ [submission: %{}])
-      assert submission == %{}
+      assert {:ok, %Score{submission: %{}}} = Score.new(@valid_attrs ++ [submission: []])
     end
 
-    test "rejects submission completion before its start by instant" do
-      for {started_at, submitted_at} <- [
-            {"2024-01-15T09:00:00.000Z", "2024-01-15T08:59:59.999Z"},
-            {"2024-01-15T09:00:00.000Z", "2024-01-15T10:00:00.000+02:00"},
-            {"2024-01-15T09:00:00.123456789Z", "2024-01-15T09:00:00.123456788Z"}
-          ] do
-        assert {:error, error} =
-                 Score.new(
-                   @valid_attrs ++
-                     [
-                       submission: %{started_at: started_at, submitted_at: submitted_at}
-                     ]
-                 )
+    test "rejects submission times that are not DateTime structs" do
+      for field <- [:started_at, :submitted_at] do
+        value = "2024-01-15T09:00:00.123Z"
 
-        assert Exception.message(error) =~
-                 "submitted_at must be equal to or later than started_at"
+        assert {:error, %InvalidField{field: [:submission, ^field], value: ^value}} =
+                 Score.new(@valid_attrs ++ [submission: %{field => value}])
       end
     end
 
-    test "accepts equal and later submission instants across offsets and precisions" do
-      for {started_at, submitted_at} <- [
-            {"2024-01-15T09:00:00.0Z", "2024-01-15T09:00:00.000Z"},
-            {"2024-01-15T09:00:00.123+02:00", "2024-01-15T07:00:00.123000Z"},
-            {"2024-01-15T09:00:00.000+02:00", "2024-01-15T08:00:00.000Z"},
-            {"2024-01-15T09:00:00.123456788Z", "2024-01-15T09:00:00.123456789Z"},
-            {"2024-01-15T09:00:00.123456789Z", "2024-01-15T09:00:00.1234567890Z"}
-          ] do
-        submission = %{started_at: started_at, submitted_at: submitted_at}
+    test "rejects a timestamp that is not a DateTime struct" do
+      assert {:error, %InvalidField{field: :timestamp}} =
+               Score.new(@valid_attrs ++ [timestamp: "2024-01-15T10:30:00.123Z"])
+    end
 
-        assert {:ok, %Score{submission: ^submission}} =
-                 Score.new(@valid_attrs ++ [submission: submission])
-      end
+    test "rejects unknown fields" do
+      assert {:error, %InvalidField{struct: Score, field: :score, reason: :unknown}} =
+               Score.new(@valid_attrs ++ [score: 1])
+
+      assert {:error, %InvalidField{field: [:submission, :ended_at], reason: :unknown}} =
+               Score.new(@valid_attrs ++ [submission: [ended_at: ~U[2024-01-15 09:00:00Z]]])
+    end
+
+    test "returns every invalid field at once" do
+      assert {:error, %Invalid{errors: errors}} =
+               Score.new(user_id: 1, activity_progress: :done, grading_progress: :fully_graded)
+
+      assert Enum.sort(Enum.map(errors, & &1.field)) == [:activity_progress, :user_id]
+    end
+
+    test "rejects submission completion before its start" do
+      submission = %{
+        started_at: ~U[2024-01-15 09:00:00.000Z],
+        submitted_at: ~U[2024-01-15 08:59:59.999Z]
+      }
+
+      assert {:error,
+              %InvalidField{
+                field: [:submission, :submitted_at],
+                value: ~U[2024-01-15 08:59:59.999Z]
+              }} =
+               Score.new(@valid_attrs ++ [submission: submission])
+    end
+
+    test "accepts equal submission instants in different offsets" do
+      started_at = %{
+        ~U[2024-01-15 09:00:00.000Z]
+        | utc_offset: 7200,
+          time_zone: "Europe/Athens",
+          zone_abbr: "EET"
+      }
+
+      submission = %{started_at: started_at, submitted_at: ~U[2024-01-15 07:00:00.000Z]}
+      assert {:ok, %Score{}} = Score.new(@valid_attrs ++ [submission: submission])
     end
 
     test "returns error without user_id" do
       attrs = Keyword.delete(@valid_attrs, :user_id)
 
-      assert {:error, _} = Score.new(attrs)
+      assert {:error, %InvalidField{struct: Score, field: :user_id, reason: :required}} =
+               Score.new(attrs)
     end
 
     test "returns error without activity_progress" do
       attrs = Keyword.delete(@valid_attrs, :activity_progress)
 
-      assert {:error, _} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :activity_progress}} = Score.new(attrs)
     end
 
     test "returns error without grading_progress" do
       attrs = Keyword.delete(@valid_attrs, :grading_progress)
 
-      assert {:error, _} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :grading_progress}} = Score.new(attrs)
     end
 
     test "returns error with score_given but no score_maximum" do
       attrs = @valid_attrs ++ [score_given: 85]
 
-      assert {:error, error} = Score.new(attrs)
-      assert Exception.message(error) =~ "required when score_given is present"
+      assert {:error, %InvalidField{field: :score_maximum, value: nil}} = Score.new(attrs)
     end
 
     test "returns error with score_given < 0" do
       attrs = @valid_attrs ++ [score_given: -1, score_maximum: 100]
 
-      assert {:error, error} = Score.new(attrs)
-      assert Exception.message(error) =~ "score_given"
+      assert {:error, %InvalidField{field: :score_given, value: -1}} = Score.new(attrs)
     end
 
     test "returns error with score_maximum <= 0" do
       attrs = @valid_attrs ++ [score_given: 50, score_maximum: 0]
 
-      assert {:error, error} = Score.new(attrs)
-      assert Exception.message(error) =~ "score_maximum"
+      assert {:error, %InvalidField{field: :score_maximum, value: 0}} = Score.new(attrs)
     end
 
     test "succeeds with score_given > score_maximum (extra credit)" do
@@ -202,13 +194,15 @@ defmodule Ltix.GradeService.ScoreTest do
     test "returns error with unknown activity_progress" do
       attrs = Keyword.put(@valid_attrs, :activity_progress, :unknown_value)
 
-      assert {:error, _} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :activity_progress, value: :unknown_value}} =
+               Score.new(attrs)
     end
 
     test "returns error with unknown grading_progress" do
       attrs = Keyword.put(@valid_attrs, :grading_progress, :unknown_value)
 
-      assert {:error, _} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :grading_progress, value: :unknown_value}} =
+               Score.new(attrs)
     end
 
     test "accepts all valid activity_progress values" do
@@ -274,25 +268,6 @@ defmodule Ltix.GradeService.ScoreTest do
 
       json = encode_decode!(score)
       assert json["timestamp"] == "2024-01-15T10:30:00.123456Z"
-    end
-
-    test "serializes submission with camelCase keys" do
-      attrs =
-        @valid_attrs ++
-          [
-            submission: %{
-              started_at: "2024-01-15T09:00:00.000Z",
-              submitted_at: "2024-01-15T10:00:00.000Z"
-            }
-          ]
-
-      {:ok, score} = Score.new(attrs)
-      json = encode_decode!(score)
-
-      assert json["submission"] == %{
-               "startedAt" => "2024-01-15T09:00:00.000Z",
-               "submittedAt" => "2024-01-15T10:00:00.000Z"
-             }
     end
 
     test "excludes nil optional fields" do

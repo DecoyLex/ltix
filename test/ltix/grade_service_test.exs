@@ -770,21 +770,21 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "posts validated submission timestamps unchanged with time zones and fractions", ctx do
+    test "posts submission times as UTC ISO 8601 with microseconds", ctx do
       client = build_client(ctx.platform)
 
       for {submission, expected} <- [
-            {%{started_at: "2024-01-15T09:00:00.1+05:30"},
-             %{"startedAt" => "2024-01-15T09:00:00.1+05:30"}},
-            {%{submitted_at: "2024-01-15T10:00:00.123456789-04:00"},
-             %{"submittedAt" => "2024-01-15T10:00:00.123456789-04:00"}},
+            {[started_at: ~U[2024-01-15 09:00:00.1Z]],
+             %{"startedAt" => "2024-01-15T09:00:00.100000Z"}},
+            {%{submitted_at: ~U[2024-01-15 10:00:00Z]},
+             %{"submittedAt" => "2024-01-15T10:00:00.000000Z"}},
             {%{
-               started_at: "2024-01-15T09:00:00.123+02:00",
-               submitted_at: "2024-01-15T07:00:00.123000Z"
+               started_at: ~U[2024-01-15 07:00:00.123Z],
+               submitted_at: ~U[2024-01-15 07:00:00.123456Z]
              },
              %{
-               "startedAt" => "2024-01-15T09:00:00.123+02:00",
-               "submittedAt" => "2024-01-15T07:00:00.123000Z"
+               "startedAt" => "2024-01-15T07:00:00.123000Z",
+               "submittedAt" => "2024-01-15T07:00:00.123456Z"
              }}
           ] do
         Req.Test.stub(Ltix.GradeService, fn conn ->
