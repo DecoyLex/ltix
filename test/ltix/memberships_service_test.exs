@@ -1,9 +1,9 @@
 defmodule Ltix.MembershipsServiceTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
-  alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.LaunchClaims.MembershipsEndpoint
@@ -321,7 +321,7 @@ defmodule Ltix.MembershipsServiceTest do
       assert "user-2" in user_ids
     end
 
-    test "returns RosterTooLarge when max_members exceeded", ctx do
+    test "returns CollectionTooLarge when max_members exceeded", ctx do
       members =
         for i <- 1..5 do
           build_member("user-#{i}", [@learner_uri])
@@ -331,7 +331,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       client = build_client(ctx.platform)
 
-      assert {:error, %RosterTooLarge{max: 3}} =
+      assert {:error, %CollectionTooLarge{max: 3, option: :max_members}} =
                MembershipsService.list_members(client, max_members: 3)
     end
 

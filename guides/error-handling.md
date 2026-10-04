@@ -209,7 +209,7 @@ etc.) and OAuth authentication.
 | `ServiceNotAvailable` | `service`, `spec_ref` | Service not included in launch claims |
 | `TokenRequestFailed` | `error`, `error_description`, `status`, `body`, `spec_ref` | OAuth token request failed |
 | `MalformedResponse` | `service`, `reason`, `spec_ref` | Platform returned an unparseable response |
-| `RosterTooLarge` | `count`, `max`, `spec_ref` | `get_members/2` exceeded `max_members` limit |
+| `CollectionTooLarge` | `service`, `option`, `count`, `max`, `spec_ref` | An eager fetch such as `list_results/2` exceeded its limit option, such as `max_results` |
 | `ScopeMismatch` | `scope`, `granted_scopes`, `spec_ref` | Client lacks the required OAuth scope |
 | `InvalidEndpoint` | `service`, `spec_ref` | Wrong endpoint struct passed to a service |
 | `MissingLineItemId` | `line_item`, `spec_ref` | A grade operation received a line item without an `id` |

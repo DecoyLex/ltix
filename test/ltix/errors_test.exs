@@ -3,6 +3,7 @@ defmodule Ltix.ErrorsTest do
 
   alias Ltix.Errors
 
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
   alias Ltix.Errors.Invalid.CoupledLineItem
@@ -17,7 +18,6 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
-  alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Invalid.TokenRequestFailed
@@ -208,12 +208,20 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "invalid JSON"
     end
 
-    test "RosterTooLarge includes count and max" do
-      error = RosterTooLarge.exception(count: 15_000, max: 10_000, spec_ref: "")
+    test "CollectionTooLarge includes service, limit option, count, and max" do
+      error =
+        CollectionTooLarge.exception(
+          service: Ltix.MembershipsService,
+          option: :max_members,
+          count: 15_000,
+          max: 10_000,
+          spec_ref: ""
+        )
 
+      assert Exception.message(error) =~ "MembershipsService"
+      assert Exception.message(error) =~ "max_members"
       assert Exception.message(error) =~ "15000"
       assert Exception.message(error) =~ "10000"
-      assert Exception.message(error) =~ "stream_members/2"
       assert Exception.message(error) =~ "higher limit"
     end
 

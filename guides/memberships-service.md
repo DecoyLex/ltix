@@ -156,7 +156,7 @@ end)
 ```
 
 `list_members/2` includes a safety limit (default: 10,000 members) and
-returns a `RosterTooLarge` error if exceeded. Increase it with
+returns a `CollectionTooLarge` error if exceeded. Increase it with
 `max_members: 50_000` or disable it with `max_members: :infinity`.
 For rosters of unknown size, streaming is the safer choice.
 

@@ -85,6 +85,7 @@ automatically. Post scores directly without specifying a line item.
 - `label` and `score_maximum` are required when creating line items.
 - `score_maximum` must be a positive number.
 - Per-item operations take a `line_item:` option (a URL or `%LineItem{}`) and default to the coupled line item, as in `get_line_item(client, line_item: item)`, `delete_line_item(client, line_item: item)`, and `list_results(client, line_item: item)`.
+- `list_line_items/2` and `list_results/2` stop at `max_line_items` and `max_results` (both default to 10,000) and return `CollectionTooLarge` beyond them. Use `stream_line_items/2` or `stream_results/2` for large collections.
 
 ### Coupled Line Item Deletion
 
@@ -127,6 +128,7 @@ Pass Canvas-specific properties via `:extensions`:
 ```
 
 - `list_members/2` loads the entire roster into memory (safety limit: 10,000 members).
+  Beyond that it returns `CollectionTooLarge`.
 - For large courses, use `stream_members/2` for lazy, paginated processing:
 
 ```elixir

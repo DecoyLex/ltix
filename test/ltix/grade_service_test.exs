@@ -1,6 +1,7 @@
 defmodule Ltix.GradeServiceTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidField
@@ -935,6 +936,7 @@ defmodule Ltix.GradeServiceTest do
                GradeService.post_score(client, score, line_item: item)
 
       assert {:error, %MissingLineItemId{}} = GradeService.list_results(client, line_item: item)
+      assert {:error, %MissingLineItemId{}} = GradeService.stream_results(client, line_item: item)
     end
   end
 
@@ -1033,7 +1035,9 @@ defmodule Ltix.GradeServiceTest do
               :update_line_item,
               :delete_line_item,
               :post_score,
-              :list_results
+              :list_results,
+              :stream_line_items,
+              :stream_results
             ],
             suffix <- [:start, :stop, :exception] do
           [:ltix, :grade_service, operation, suffix]
@@ -1083,6 +1087,8 @@ defmodule Ltix.GradeServiceTest do
       GradeService.delete_line_item(client, line_item: item)
       GradeService.post_score(client, ctx.score)
       GradeService.list_results(client)
+      GradeService.stream_line_items(client)
+      GradeService.stream_results(client)
 
       for {operation, url} <- [
             list_line_items: @line_items_url,
@@ -1091,7 +1097,9 @@ defmodule Ltix.GradeServiceTest do
             update_line_item: item.id,
             delete_line_item: item.id,
             post_score: @line_item_url <> "/scores",
-            list_results: @line_item_url <> "/results"
+            list_results: @line_item_url <> "/results",
+            stream_line_items: @line_items_url,
+            stream_results: @line_item_url <> "/results"
           ] do
         assert_received {:telemetry, ^operation, :start, %{endpoint: ^url}}
         assert_received {:telemetry, ^operation, :stop, %{endpoint: ^url}}
@@ -1133,6 +1141,96 @@ defmodule Ltix.GradeServiceTest do
 
       assert_received {:telemetry, :post_score, :exception,
                        %{endpoint: @line_item_url <> "/scores"}}
+    end
+  end
+
+  # --- streams and limits ---
+
+  describe "stream_line_items/2 and stream_results/2" do
+    setup ctx do
+      owner = self()
+
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        page = Plug.Conn.fetch_query_params(conn).query_params["page"] || "1"
+        send(owner, {:requested, conn.request_path, page, conn.query_string})
+
+        body =
+          if String.ends_with?(conn.request_path, "/results"),
+            do: [build_result_json("user-#{page}", [])],
+            else: [build_line_item_json(id: "#{@line_items_url}/#{page}")]
+
+        if page == "1" do
+          conn
+          |> Plug.Conn.put_resp_header(
+            "link",
+            "<https://platform.example.com#{conn.request_path}?page=2>; rel=next"
+          )
+          |> Req.Test.json(body)
+        else
+          Req.Test.json(conn, body)
+        end
+      end)
+
+      %{client: build_client(ctx.platform)}
+    end
+
+    test "stream line items lazily with filters on the first page", ctx do
+      assert {:ok, stream} = GradeService.stream_line_items(ctx.client, tag: "quiz")
+      assert_received {:requested, "/context/2923/lineitems", "1", "tag=quiz"}
+      refute_received {:requested, _, "2", _}
+
+      assert [%LineItem{id: "#{@line_items_url}/1"}, %LineItem{id: "#{@line_items_url}/2"}] =
+               Enum.to_list(stream)
+
+      assert_received {:requested, "/context/2923/lineitems", "2", "page=2"}
+    end
+
+    test "stream results for the given line item", ctx do
+      item = %LineItem{id: "#{@line_items_url}/4/lineitem"}
+
+      assert {:ok, stream} =
+               GradeService.stream_results(ctx.client, line_item: item, user_id: "user-1")
+
+      assert_received {:requested, "/context/2923/lineitems/4/lineitem/results", "1",
+                       "user_id=user-1"}
+
+      assert [%Result{user_id: "user-1"}, %Result{user_id: "user-2"}] = Enum.to_list(stream)
+    end
+
+    test "return errors before streaming", ctx do
+      client = build_client(ctx.platform, scopes: [@scope_score])
+
+      assert {:error, %ScopeMismatch{}} = GradeService.stream_line_items(client)
+      assert {:error, %ScopeMismatch{}} = GradeService.stream_results(client)
+    end
+
+    test "stream options reject the eager limits", ctx do
+      assert_raise InvalidOption, "Option :max_line_items is unknown", fn ->
+        GradeService.stream_line_items(ctx.client, max_line_items: 1)
+      end
+
+      assert_raise InvalidOption, "Option :max_results is unknown", fn ->
+        GradeService.stream_results(ctx.client, max_results: 1)
+      end
+    end
+
+    test "list functions stop at their limits", ctx do
+      assert {:error, %CollectionTooLarge{max: 1, option: :max_line_items}} =
+               GradeService.list_line_items(ctx.client, max_line_items: 1)
+
+      assert {:error, %CollectionTooLarge{max: 1, option: :max_results}} =
+               GradeService.list_results(ctx.client, max_results: 1)
+
+      assert {:ok, [_, _]} = GradeService.list_line_items(ctx.client, max_line_items: 2)
+
+      assert {:ok, [%Result{user_id: "user-1"}, %Result{user_id: "user-2"}]} =
+               GradeService.list_results(ctx.client, max_results: :infinity)
+    end
+
+    test "a limit must be an integer or :infinity", ctx do
+      assert_raise InvalidOption, ~r/Option :max_results is invalid/, fn ->
+        GradeService.list_results(ctx.client, max_results: :none)
+      end
     end
   end
 end

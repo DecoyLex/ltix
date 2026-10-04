@@ -41,6 +41,7 @@ defmodule Ltix.GradeService do
   alias Ltix.Pagination
   alias Ltix.Registerable
 
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.MalformedResponse
@@ -62,6 +63,20 @@ defmodule Ltix.GradeService do
   @endpoint_option Zoi.struct(AGSEndpoint,
                      description: "Override the endpoint stored on the client."
                    )
+
+  @max_line_items_option Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
+                           description:
+                             "Safety limit for eager fetch. Returns a `CollectionTooLarge` error if exceeded. " <>
+                               "Set to `:infinity` to disable, or use `stream_line_items/2` for large gradebooks."
+                         )
+                         |> Zoi.default(10_000)
+
+  @max_results_option Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
+                        description:
+                          "Safety limit for eager fetch. Returns a `CollectionTooLarge` error if exceeded. " <>
+                            "Set to `:infinity` to disable, or use `stream_results/2` for large courses."
+                      )
+                      |> Zoi.default(10_000)
 
   @line_item_option Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
                       description:
@@ -187,23 +202,22 @@ defmodule Ltix.GradeService do
     end
   end
 
+  @line_items_query_fields [
+    endpoint: @endpoint_option,
+    resource_link_id:
+      Zoi.string(description: "Filter to line items bound to this resource link."),
+    resource_id: Zoi.string(description: "Filter by the tool's resource identifier."),
+    tag: Zoi.string(description: "Filter by tag."),
+    per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+  ]
+
   @list_line_items_schema Zoi.keyword(
-                            [
-                              endpoint: @endpoint_option,
-                              resource_link_id:
-                                Zoi.string(
-                                  description: "Filter to line items bound to this resource link."
-                                ),
-                              resource_id:
-                                Zoi.string(
-                                  description: "Filter by the tool's resource identifier."
-                                ),
-                              tag: Zoi.string(description: "Filter by tag."),
-                              per_page:
-                                Zoi.integer(description: "Page size hint.") |> Zoi.positive()
-                            ],
+                            @line_items_query_fields ++
+                              [max_line_items: @max_line_items_option],
                             unrecognized_keys: :error
                           )
+
+  @stream_line_items_schema Zoi.keyword(@line_items_query_fields, unrecognized_keys: :error)
 
   @doc """
   Fetch all line items from the container endpoint.
@@ -220,13 +234,41 @@ defmodule Ltix.GradeService do
           {:ok, [LineItem.t()]} | {:error, Exception.t()}
   def list_line_items(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @list_line_items_schema)
+    {max, opts} = Keyword.pop(opts, :max_line_items)
+
+    with_line_items(:list_line_items, client, opts, fn items ->
+      collect(items, max, :max_line_items, "AGS §3.2.4")
+    end)
+  end
+
+  @doc """
+  Fetch line items as a lazy stream.
+
+  Returns `{:ok, stream}` where each element is a `%LineItem{}`. Use this
+  instead of `list_line_items/2` for large gradebooks where you want to
+  process line items incrementally or stop early. Later page failures and
+  parsing errors raise during enumeration.
+
+  ## Options
+
+  #{Zoi.describe(@stream_line_items_schema)}
+  """
+  # [AGS §3.2.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#container-request-filters)
+  @spec stream_line_items(Client.t(), keyword()) ::
+          {:ok, Enumerable.t()} | {:error, Exception.t()}
+  def stream_line_items(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @stream_line_items_schema)
+    with_line_items(:stream_line_items, client, opts, &{:ok, stream(&1)})
+  end
+
+  defp with_line_items(operation, client, opts, consume) do
     url = line_items_url(endpoint(client, opts))
 
-    run(:list_line_items, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
+    run(operation, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
       params = list_line_items_params(opts)
 
       with {:ok, pages} <- fetch_pages(client, url, @lineitem_container_media_type, params) do
-        collect_line_items(pages)
+        consume.(parse_pages(pages, :line_items))
       end
     end)
   end
@@ -403,15 +445,19 @@ defmodule Ltix.GradeService do
     end)
   end
 
+  @results_query_fields [
+    endpoint: @endpoint_option,
+    line_item: @line_item_option,
+    user_id: Zoi.string(description: "Filter results to a single user."),
+    per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
+  ]
+
   @list_results_schema Zoi.keyword(
-                         [
-                           endpoint: @endpoint_option,
-                           line_item: @line_item_option,
-                           user_id: Zoi.string(description: "Filter results to a single user."),
-                           per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
-                         ],
+                         @results_query_fields ++ [max_results: @max_results_option],
                          unrecognized_keys: :error
                        )
+
+  @stream_results_schema Zoi.keyword(@results_query_fields, unrecognized_keys: :error)
 
   @doc """
   Fetch results for a line item.
@@ -428,13 +474,41 @@ defmodule Ltix.GradeService do
           {:ok, [Result.t()]} | {:error, Exception.t()}
   def list_results(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @list_results_schema)
+    {max, opts} = Keyword.pop(opts, :max_results)
+
+    with_results(:list_results, client, opts, fn results ->
+      collect(results, max, :max_results, "AGS §3.3.6")
+    end)
+  end
+
+  @doc """
+  Fetch results for a line item as a lazy stream.
+
+  Returns `{:ok, stream}` where each element is a `%Result{}`. Use this
+  instead of `list_results/2` for large courses where you want to process
+  results incrementally or stop early. Later page failures and parsing
+  errors raise during enumeration.
+
+  ## Options
+
+  #{Zoi.describe(@stream_results_schema)}
+  """
+  # [AGS §3.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
+  @spec stream_results(Client.t(), keyword()) ::
+          {:ok, Enumerable.t()} | {:error, Exception.t()}
+  def stream_results(%Client{} = client, opts \\ []) do
+    opts = Options.parse!(opts, @stream_results_schema)
+    with_results(:stream_results, client, opts, &{:ok, stream(&1)})
+  end
+
+  defp with_results(operation, client, opts, consume) do
     url = derive_url(resolve_line_item_url(endpoint(client, opts), opts), "results")
 
-    run(:list_results, client, [@scope_result_readonly], url, fn url ->
+    run(operation, client, [@scope_result_readonly], url, fn url ->
       params = list_results_params(opts)
 
       with {:ok, pages} <- fetch_pages(client, url, @result_container_media_type, params) do
-        collect_results(pages)
+        consume.(parse_pages(pages, :results))
       end
     end)
   end
@@ -602,59 +676,70 @@ defmodule Ltix.GradeService do
   # https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas
   #
   # [AGS §3.2.1][line-item-service-media-types-and-schemas]
-  defp collect_line_items(pages), do: collect_items(pages, &LineItem.from_json/1, "AGS §3.2.1")
+  defp parse_pages(pages, :line_items),
+    do: parse_pages(pages, &LineItem.from_json/1, "AGS §3.2.1")
 
-  # [media-type-and-schema-0]:
-  # https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema-0
-  #
-  # [AGS §3.3.4][media-type-and-schema-0]
-  defp collect_results(pages), do: collect_items(pages, &Result.from_json/1, "AGS §3.3.4")
+  # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema)
+  defp parse_pages(pages, :results), do: parse_pages(pages, &Result.from_json/1, "AGS §3.3.4")
 
-  defp collect_items(pages, parser, spec_ref) do
-    result = Enum.reduce_while(pages, {:ok, []}, &collect_page(&1, &2, parser, spec_ref))
+  # Emits `{:ok, item}` or `{:error, error}` for each entry, so consumers stop
+  # at the first failure without fetching later pages.
+  defp parse_pages(pages, parser, spec_ref) do
+    Stream.flat_map(pages, fn
+      {:ok, body} when is_list(body) ->
+        Stream.map(body, &parse_collection_item(&1, parser, spec_ref))
 
-    case result do
-      {:ok, items} -> {:ok, Enum.reverse(items)}
-      {:error, _} = error -> error
-    end
-  end
+      {:ok, _body} ->
+        [{:error, malformed_response("expected JSON array", spec_ref)}]
 
-  defp collect_page({:error, _} = error, _accumulator, _parser, _spec_ref), do: {:halt, error}
-
-  defp collect_page({:ok, body}, accumulator, parser, spec_ref) when is_list(body) do
-    result =
-      Enum.reduce_while(body, accumulator, fn json, {:ok, items} ->
-        case parse_collection_item(json, parser, spec_ref) do
-          {:ok, item} -> {:cont, {:ok, [item | items]}}
-          {:error, _} = error -> {:halt, error}
-        end
-      end)
-
-    case result do
-      {:ok, _} = collected -> {:cont, collected}
-      {:error, _} = error -> {:halt, error}
-    end
-  end
-
-  defp collect_page({:ok, _body}, _accumulator, _parser, spec_ref) do
-    {:halt,
-     {:error,
-      MalformedResponse.exception(
-        service: __MODULE__,
-        reason: "expected JSON array",
-        spec_ref: spec_ref
-      )}}
+      {:error, _error} = error ->
+        [error]
+    end)
   end
 
   defp parse_collection_item(json, parser, _spec_ref) when is_map(json), do: parser.(json)
 
   defp parse_collection_item(_json, _parser, spec_ref) do
-    {:error,
-     MalformedResponse.exception(
-       service: __MODULE__,
-       reason: "expected JSON object in collection",
-       spec_ref: spec_ref
-     )}
+    {:error, malformed_response("expected JSON object in collection", spec_ref)}
+  end
+
+  defp malformed_response(reason, spec_ref) do
+    MalformedResponse.exception(service: __MODULE__, reason: reason, spec_ref: spec_ref)
+  end
+
+  defp collect(items, max, option, spec_ref) do
+    collected =
+      Enum.reduce_while(items, {:ok, [], 0}, fn
+        {:ok, _item}, {:ok, _collected, count} when count == max ->
+          error =
+            CollectionTooLarge.exception(
+              service: __MODULE__,
+              option: option,
+              count: count + 1,
+              max: max,
+              spec_ref: spec_ref
+            )
+
+          {:halt, {:error, error}}
+
+        {:ok, item}, {:ok, collected, count} ->
+          {:cont, {:ok, [item | collected], count + 1}}
+
+        {:error, _error} = error, _accumulator ->
+          {:halt, error}
+      end)
+
+    case collected do
+      {:ok, items, _count} -> {:ok, Enum.reverse(items)}
+      {:error, _error} = error -> error
+    end
+  end
+
+  defp stream(items) do
+    Stream.map(items, fn
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end)
   end
 
   @doc false

@@ -51,11 +51,11 @@ defmodule Ltix.MembershipsService do
   alias Ltix.Pagination
   alias Ltix.Registerable
 
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
-  alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
 
@@ -199,7 +199,7 @@ defmodule Ltix.MembershipsService do
                                Zoi.union(
                                  [Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
                                  description:
-                                   "Safety limit for eager fetch. Returns a `RosterTooLarge` error " <>
+                                   "Safety limit for eager fetch. Returns a `CollectionTooLarge` error " <>
                                      "if exceeded. Set to `:infinity` to disable."
                                )
                                |> Zoi.default(10_000)
@@ -368,7 +368,14 @@ defmodule Ltix.MembershipsService do
 
   defp finalize_roster({_first_container, _chunks, count}, max)
        when max != :infinity and count > max do
-    {:error, RosterTooLarge.exception(count: count, max: max, spec_ref: "NRPS §2.4.2")}
+    {:error,
+     CollectionTooLarge.exception(
+       service: __MODULE__,
+       option: :max_members,
+       count: count,
+       max: max,
+       spec_ref: "NRPS §2.4.2"
+     )}
   end
 
   defp finalize_roster({first_container, chunks, _count}, _max) do

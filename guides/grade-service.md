@@ -113,6 +113,20 @@ item from the launch.
 > The platform may skip users who have no score yet. Do not assume
 > every enrolled user will appear in the results list.
 
+## Streaming large collections
+
+`list_line_items/2` and `list_results/2` fetch every page before returning and stop with a `CollectionTooLarge` error after 10,000 entries. Raise the limit with `max_line_items:` or `max_results:`, or pass `:infinity` to disable it. For collections of unknown size, stream instead.
+
+```elixir
+{:ok, stream} = Ltix.GradeService.stream_results(client, line_item: quiz_item)
+
+stream
+|> Stream.filter(&(&1.result_score != nil))
+|> Enum.each(&record_result/1)
+```
+
+`stream_line_items/2` works the same way for line items. Pages are fetched as the stream is consumed, and a failure on a later page raises during enumeration.
+
 ## Deleting line items
 
 Tool-created line items can be deleted normally:

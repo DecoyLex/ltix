@@ -1,9 +1,9 @@
 defmodule Ltix.ServiceCollectionFailuresTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingClaim
-  alias Ltix.Errors.Invalid.RosterTooLarge
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
   alias Ltix.GradeService.LineItem
@@ -52,30 +52,33 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     end
   end
 
-  for page <- [2, 3] do
-    test "lazy members raise only when HTTP failure page #{page} is consumed", context do
+  for collection <- [:line_items, :results, :members], page <- [2, 3] do
+    test "lazy #{collection} raise only when HTTP failure page #{page} is consumed", context do
+      collection = unquote(collection)
       failed_page = unquote(page)
       client = build_client(context.registration)
 
-      stub_pages(:members, failed_page, fn conn ->
+      stub_pages(collection, failed_page, fn conn ->
         Plug.Conn.send_resp(conn, 500, "unavailable")
       end)
 
-      assert {:ok, stream} = MembershipsService.stream_members(client)
+      assert {:ok, stream} = stream_collection(collection, client)
       assert_receive {:requested_page, 1}
       refute_received {:requested_page, ^failed_page}
-      assert [%{user_id: "user-1"}] = Enum.take(stream, 1)
+      assert [first] = Enum.take(stream, 1)
+      assert collection_identifier(collection, first) == "user-1"
       refute_received {:requested_page, ^failed_page}
       assert_raise TransportError, fn -> Enum.to_list(stream) end
       assert_receive {:requested_page, ^failed_page}
     end
 
-    test "lazy members preserve the transport exception on page #{page}", context do
+    test "lazy #{collection} preserve the transport exception on page #{page}", context do
+      collection = unquote(collection)
       failed_page = unquote(page)
       client = build_client(context.registration)
-      stub_pages(:members, failed_page, &Req.Test.transport_error(&1, :timeout))
+      stub_pages(collection, failed_page, &Req.Test.transport_error(&1, :timeout))
 
-      assert {:ok, stream} = MembershipsService.stream_members(client)
+      assert {:ok, stream} = stream_collection(collection, client)
       assert_raise Req.TransportError, fn -> Enum.to_list(stream) end
       assert_receive {:requested_page, ^failed_page}
     end
@@ -85,7 +88,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     client = build_client(context.registration)
     stub_pages(:members, 3, fn conn -> Plug.Conn.send_resp(conn, 500, "unavailable") end)
 
-    assert {:error, %RosterTooLarge{count: 2, max: 1}} =
+    assert {:error, %CollectionTooLarge{count: 2, max: 1}} =
              MembershipsService.list_members(client, max_members: 1)
 
     assert_receive {:requested_page, 2}
@@ -103,6 +106,19 @@ defmodule Ltix.ServiceCollectionFailuresTest do
 
         assert {:error, %MalformedResponse{service: GradeService, reason: "expected JSON array"}} =
                  fetch_collection(collection, client)
+      end
+    end
+
+    test "lazy #{collection} reject malformed containers when page #{page} is consumed",
+         context do
+      collection = unquote(collection)
+      page = unquote(page)
+      client = build_client(context.registration)
+
+      for body <- [%{}, nil, 42, [nil]] do
+        stub_pages(collection, page, &Req.Test.json(&1, body))
+        assert {:ok, stream} = stream_collection(collection, client)
+        assert_raise MalformedResponse, fn -> Enum.to_list(stream) end
       end
     end
 
@@ -414,6 +430,10 @@ defmodule Ltix.ServiceCollectionFailuresTest do
   defp fetch_collection(:line_items, client, opts), do: GradeService.list_line_items(client, opts)
   defp fetch_collection(:results, client, opts), do: GradeService.list_results(client, opts)
   defp fetch_collection(:members, client, opts), do: MembershipsService.list_members(client, opts)
+
+  defp stream_collection(:line_items, client), do: GradeService.stream_line_items(client)
+  defp stream_collection(:results, client), do: GradeService.stream_results(client)
+  defp stream_collection(:members, client), do: MembershipsService.stream_members(client)
 
   defp collection_identifier(:line_items, item), do: item.id
   defp collection_identifier(_collection, item), do: item.user_id
