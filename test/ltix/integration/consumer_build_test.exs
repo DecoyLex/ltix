@@ -63,7 +63,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
           assert {:ok, %{"sub" => "consumer-user"}} =
                    Ltix.Test.verify_deep_linking_response(platform, token)
           other_token = Ltix.Test.sign_id_token(%{"sub" => "consumer-user"}, platform.jwk)
-          assert {:error, :signature_invalid} =
+          assert {:error, %Ltix.Errors.Security.SignatureInvalid{}} =
                    Ltix.Test.verify_deep_linking_response(platform, other_token)
           assert {:ok, claims} = Ltix.LaunchClaims.from_json(Ltix.Test.valid_lti_claims(platform))
           assert claims.resource_link.id == "resource-link-001"

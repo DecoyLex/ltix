@@ -147,6 +147,7 @@ defmodule Ltix.Test do
   alias Ltix.Deployable
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.LaunchClaims
@@ -679,6 +680,8 @@ defmodule Ltix.Test do
 
   Decodes the JWT using the tool's public key (derived from
   `registration.tool_jwk`) and returns the parsed claims on success.
+  Returns `Ltix.Errors.Security.SignatureInvalid` when the token is
+  malformed or was not signed with the tool's key.
 
       {:ok, response} = Ltix.DeepLinking.build_response(context, items)
       {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
@@ -686,23 +689,27 @@ defmodule Ltix.Test do
                "LtiDeepLinkingResponse"
   """
   @spec verify_deep_linking_response(Platform.t(), String.t()) ::
-          {:ok, map()} | {:error, term()}
+          {:ok, map()} | {:error, Exception.t()}
   def verify_deep_linking_response(%Platform{} = platform, jwt) do
-    public_key =
-      resolved_registration(platform).tool_jwk
-      |> Ltix.JWK.to_jose()
-      |> JOSE.JWK.to_public()
+    tool_jwk = resolved_registration(platform).tool_jwk
+    public_key = JOSE.JWK.to_public(Ltix.JWK.to_jose(tool_jwk))
 
-    case JOSE.JWT.verify_strict(public_key, ["RS256"], jwt) do
-      {true, %JOSE.JWT{fields: claims}, _jws} -> {:ok, claims}
-      {false, _jwt, _jws} -> {:error, :signature_invalid}
+    # [Sec §5.2.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation-0)
+    case verify_signature(public_key, jwt) do
+      {true, %JOSE.JWT{fields: claims}, _jws} when is_map(claims) -> {:ok, claims}
+      _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.2.3")}
     end
   end
+
+  defp verify_signature(public_key, jwt) when is_binary(jwt),
+    do: JOSE.JWT.verify_strict(public_key, ["RS256"], jwt)
+
+  defp verify_signature(_public_key, _jwt), do: :error
 
   @doc """
   Sign claims as an ID token with a platform key.
 
-  Use it to build launch tokens by hand, for example a token missing a claim:
+  Use it to build launch tokens by hand, such as a token missing a claim.
 
       claims = Map.delete(Ltix.Test.valid_lti_claims(platform), "sub")
       id_token = Ltix.Test.sign_id_token(claims, platform.jwk)

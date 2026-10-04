@@ -4,6 +4,7 @@ defmodule Ltix.TestTest do
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
+  alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.GradeService.Score
   alias Ltix.JWT.Token
   alias Ltix.LaunchClaims.MembershipsEndpoint
@@ -412,6 +413,26 @@ defmodule Ltix.TestTest do
       assert context.claims.audience == "my-tool"
       assert context.claims.deployment_id == "dep-99"
       assert context.claims.subject == "student-1"
+    end
+  end
+
+  describe "verify_deep_linking_response/2" do
+    test "returns SignatureInvalid for a response signed with another key",
+         %{platform: platform} do
+      token = Ltix.Test.sign_id_token(%{"sub" => "user"}, platform.jwk)
+
+      assert {:error, %SignatureInvalid{}} =
+               Ltix.Test.verify_deep_linking_response(platform, token)
+    end
+
+    test "returns SignatureInvalid for malformed tokens", %{platform: platform} do
+      context = Ltix.Test.build_launch_context(platform, message_type: :deep_linking)
+      {:ok, response} = Ltix.DeepLinking.build_response(context)
+
+      for token <- [response.jwt <> "tampered", "", "not-a-token", "a.b.c", nil, 123] do
+        assert {:error, %SignatureInvalid{}} =
+                 Ltix.Test.verify_deep_linking_response(platform, token)
+      end
     end
   end
 

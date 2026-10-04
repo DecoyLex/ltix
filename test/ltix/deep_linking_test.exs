@@ -674,14 +674,4 @@ defmodule Ltix.DeepLinkingTest do
       assert response.return_url == "https://platform.example.com/deep_links"
     end
   end
-
-  describe "verify_deep_linking_response/2" do
-    test "returns error for tampered JWT", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, response} = DeepLinking.build_response(context)
-
-      assert {:error, :signature_invalid} =
-               Ltix.Test.verify_deep_linking_response(p, response.jwt <> "tampered")
-    end
-  end
 end
