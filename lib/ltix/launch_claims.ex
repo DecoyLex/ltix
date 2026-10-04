@@ -83,6 +83,7 @@ defmodule Ltix.LaunchClaims do
   """
 
   alias Ltix.AppConfig
+  alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Options
 
@@ -289,8 +290,10 @@ defmodule Ltix.LaunchClaims do
   - `:claim_parsers` - Map of claim keys to parsers, each a module
     implementing `Ltix.LaunchClaims.Parser` or a 1-arity function. Standard
     claim keys replace built-in parsers. Each parser receives the raw value
-    and must return `{:ok, parsed}` or `{:error, reason}`. Per-call parsers
-    override application config.
+    and must return `{:ok, parsed}` or `{:error, reason}`. A parser's
+    `{:error, reason}` is returned as `Ltix.Errors.Invalid.InvalidClaim`,
+    unless `reason` is already an Ltix error. Per-call parsers override
+    application config.
   - `:role_parsers` — Map of role URI prefixes to parser functions for
     parsing the `roles` claim. Each parser receives a role URI and must
     return a `{:ok, t:Ltix.LaunchClaims.Role.t/0}` struct or `:error`. Per-call
@@ -448,10 +451,23 @@ defmodule Ltix.LaunchClaims do
     Enum.reduce_while(claims, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
       case Map.fetch!(parsers, key).(value) do
         {:ok, parsed} -> {:cont, {:ok, Map.put(acc, key, parsed)}}
-        {:error, _} = error -> {:halt, error}
+        {:error, reason} -> {:halt, {:error, claim_parser_error(key, value, reason)}}
       end
     end)
   end
+
+  # Ltix errors are returned unchanged. Any other reason becomes an invalid claim error.
+  defp claim_parser_error(key, value, reason) do
+    if Errors.ltix_error?(reason) do
+      reason
+    else
+      InvalidClaim.exception(claim: key, value: value, message: reason_message(reason))
+    end
+  end
+
+  defp reason_message(reason) when is_binary(reason), do: reason
+  defp reason_message(reason) when is_exception(reason), do: Exception.message(reason)
+  defp reason_message(reason), do: inspect(reason)
 
   defp resolve_claim_parsers(opts) do
     configured_parsers = AppConfig.claims_parsers!()

@@ -4,7 +4,7 @@ Ltix parses standard OIDC and LTI claims from the launch JWT
 automatically. Unusable optional metadata becomes `nil`, while valid
 fields remain available. Identity and required launch fields remain
 validated. Any unrecognized claims are put in the `extensions` map as raw
-values:
+values.
 
 ```elixir
 context.claims.extensions
@@ -45,7 +45,7 @@ Claim parsers are registered as a map of claim key to parser module or
 function. The key is the full claim name as it appears in the JWT
 (usually a namespaced URI for extension claims).
 
-**Via application config** (recommended for parsers that apply globally):
+**Via application config** (recommended for parsers that apply globally)
 
 ```elixir
 # config/config.exs
@@ -55,7 +55,7 @@ config :ltix, Ltix.LaunchClaims,
   }
 ```
 
-**Via `handle_callback/3`** (for per-call control):
+**Via `handle_callback/3`** (for per-call control)
 
 ```elixir
 Ltix.handle_callback(params, state,
@@ -65,7 +65,7 @@ Ltix.handle_callback(params, state,
 )
 ```
 
-**Via `LaunchClaims.from_json/2`** (for direct parsing):
+**Via `LaunchClaims.from_json/2`** (for direct parsing)
 
 ```elixir
 Ltix.LaunchClaims.from_json(claims,
@@ -83,8 +83,8 @@ appears in the corresponding `LaunchClaims` field.
 
 ## Accessing parsed claims
 
-Parsed extension claims remain in the `extensions` map, but with your
-parsed values instead of raw maps:
+Parsed extension claims remain in the `extensions` map, and their
+values are your parsed values.
 
 ```elixir
 {:ok, context} = Ltix.handle_callback(params, state)
@@ -93,22 +93,28 @@ context.claims.extensions["https://myplatform.example.com/claim/analytics"]
 #=> %MyApp.Lti.AnalyticsClaim{session_id: "abc123", tracking_enabled: true}
 ```
 
+## Missing claims
+
+A parser runs only for claims present in the token. An absent extension claim is left out of `extensions`, and an absent standard claim leaves its `LaunchClaims` field `nil`. A claim sent as JSON `null` is passed to the parser as `nil`.
+
 ## Error handling
 
-If a claim parser returns `{:error, reason}`, the entire launch fails
-with that error. Only register parsers for claims you require. If a
-claim is optional, handle the missing case gracefully in your parser:
+When a parser returns `{:error, reason}`, the launch fails with `Ltix.Errors.Invalid.InvalidClaim`, whose `message` is the reason (a string as given, an exception's message, or any other term as `inspect/1` shows it). A reason that is already an Ltix error is returned unchanged.
 
 ```elixir
-def parse(nil), do: {:ok, nil}
-def parse(%{"session_id" => _} = raw), do: {:ok, to_struct(raw)}
-def parse(_), do: {:error, "invalid analytics claim"}
+{:error, %Ltix.Errors.Invalid.InvalidClaim{} = error} = Ltix.handle_callback(params, state)
+
+error.claim
+#=> "https://myplatform.example.com/claim/analytics"
+
+error.message
+#=> "missing session_id in analytics claim"
 ```
 
 ## Registering multiple parsers
 
 You can register claim parsers and role parsers together in application
-config:
+config.
 
 ```elixir
 config :ltix, Ltix.LaunchClaims,
@@ -126,4 +132,4 @@ config :ltix, Ltix.LaunchClaims,
 - [Custom Role Parsers](custom-role-parsers.md) for handling
   proprietary role vocabularies
 - `Ltix.LaunchClaims` for the full claims struct and `from_json/2` options
-- [Error Handling](error-handling.md) for how parser errors surface
+- [Error Handling](error-handling.md) for how parser errors are returned

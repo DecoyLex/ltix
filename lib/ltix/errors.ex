@@ -86,6 +86,12 @@ defmodule Ltix.Errors do
   def combine([error]), do: error
   def combine([_ | _] = errors), do: to_class(errors)
 
+  # Whether `value` is an error defined by Ltix.
+  @doc false
+  @spec ltix_error?(term()) :: boolean()
+  def ltix_error?(%module{}), do: function_exported?(module, :__status_code__, 0)
+  def ltix_error?(_value), do: false
+
   defp default_status(:invalid), do: 400
   defp default_status(:security), do: 401
   defp default_status(:unknown), do: 500

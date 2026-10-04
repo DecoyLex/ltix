@@ -146,7 +146,7 @@ These indicate problems with the incoming data or the calling code:
 |---|---|---|
 | `MissingParameter` | `parameter`, `spec_ref` | OIDC login request missing a required param |
 | `MissingClaim` | `claim`, `spec_ref` | JWT missing a required claim |
-| `InvalidClaim` | `claim`, `value`, `spec_ref` | JWT claim has an invalid value |
+| `InvalidClaim` | `claim`, `value`, `spec_ref` | JWT claim has an invalid value, or a custom claim parser returned an error |
 | `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
 | `InvalidJSON` | `spec_ref` | JWT body isn't valid JSON |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |

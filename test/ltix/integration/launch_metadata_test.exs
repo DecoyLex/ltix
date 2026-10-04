@@ -317,8 +317,15 @@ defmodule Ltix.Integration.LaunchMetadataTest do
 
     {login, params} = begin_launch(context.platform, %{"name" => 123})
 
-    assert_raise FunctionClauseError, fn ->
-      callback(login, params, claim_parsers: %{"name" => fn "name" -> {:ok, "name"} end})
+    assert {:error, %InvalidClaim{claim: "name", value: 123, message: "must be a string"}} =
+             callback(login, params,
+               claim_parsers: %{"name" => fn 123 -> {:error, "must be a string"} end}
+             )
+
+    {login, params} = begin_launch(context.platform, %{"name" => 123})
+
+    assert_raise ParserError, fn ->
+      callback(login, params, claim_parsers: %{"name" => fn 123 -> raise ParserError end})
     end
   end
 

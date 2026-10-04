@@ -371,17 +371,44 @@ defmodule Ltix.LaunchClaimsTest do
       end
     end
 
-    test "extension parser error halts pipeline" do
-      json = %{
-        "https://example.com/bad" => "value"
-      }
+    test "claim parser failures are returned as invalid claim errors naming the claim" do
+      key = "https://example.com/bad"
 
-      parser = fn _value -> {:error, RuntimeError.exception("parse failed")} end
+      for {reason, message} <- [
+            {"missing session_id", "missing session_id"},
+            {:no_session, ":no_session"},
+            {{:unexpected, 1}, "{:unexpected, 1}"},
+            {RuntimeError.exception("parse failed"), "parse failed"}
+          ] do
+        assert {:error,
+                %Ltix.Errors.Invalid.InvalidClaim{claim: ^key, value: "value", message: ^message}} =
+                 LaunchClaims.from_json(%{key => "value"},
+                   claim_parsers: %{key => fn "value" -> {:error, reason} end}
+                 )
+      end
 
       assert {:error, error} =
-               LaunchClaims.from_json(json, claim_parsers: %{"https://example.com/bad" => parser})
+               LaunchClaims.from_json(%{"name" => 1},
+                 claim_parsers: %{"name" => fn 1 -> {:error, "must be a string"} end}
+               )
 
-      assert Exception.message(error) =~ "parse failed"
+      assert Exception.message(error) == "Invalid LTI claim name: must be a string (got 1)"
+    end
+
+    test "claim parsers run only for claims present in the token" do
+      parser = fn value ->
+        send(self(), {:parsed, value})
+        {:ok, value}
+      end
+
+      assert {:ok, %LaunchClaims{name: nil, extensions: extensions}} =
+               LaunchClaims.from_json(%{"https://example.com/null" => nil},
+                 claim_parsers: %{"name" => parser, "https://example.com/null" => parser}
+               )
+
+      assert extensions == %{"https://example.com/null" => nil}
+      assert_received {:parsed, nil}
+      refute_received {:parsed, _}
     end
   end
 

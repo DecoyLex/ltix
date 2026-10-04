@@ -2,11 +2,10 @@ defmodule Ltix.Errors.Invalid.InvalidClaim do
   @moduledoc "Claim present but wrong value or format."
   use Ltix.Errors, fields: [:claim, :value, :message, :spec_ref], class: :invalid
 
-  def message(%{claim: claim, message: nil, value: value, spec_ref: ref}) do
-    "Invalid LTI claim #{claim}: got #{inspect(value)} [#{ref}]"
+  def message(%{claim: claim, spec_ref: ref} = error) do
+    "Invalid LTI claim #{claim}: #{description(error)}" <> if(ref, do: " [#{ref}]", else: "")
   end
 
-  def message(%{claim: claim, message: message, value: value, spec_ref: ref}) do
-    "Invalid LTI claim #{claim}: #{message} (got #{inspect(value)}) [#{ref}]"
-  end
+  defp description(%{message: nil, value: value}), do: "got #{inspect(value)}"
+  defp description(%{message: message, value: value}), do: "#{message} (got #{inspect(value)})"
 end
