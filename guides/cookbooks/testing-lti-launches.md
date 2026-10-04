@@ -212,6 +212,19 @@ Ltix.Test.launch_params(platform,
 )
 ```
 
+### Hand-built tokens
+
+To test how your app handles a token `launch_params/2` doesn't build, start from `valid_lti_claims/2`, change the claims, and sign them with the platform's key.
+
+```elixir
+claims =
+  platform
+  |> Ltix.Test.valid_lti_claims(%{"nonce" => nonce})
+  |> Map.delete("sub")
+
+params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => state}
+```
+
 ## Testing advantage services
 
 When your application uses `Ltix.GradeService` or

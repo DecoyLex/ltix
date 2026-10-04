@@ -28,8 +28,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
       )
 
     claims =
-      Ltix.Test.valid_lti_claims(%{
-        "iss" => platform.registration.issuer,
+      Ltix.Test.valid_lti_claims(platform, %{
         "nonce" => Ltix.Test.extract_nonce(login.redirect_uri)
       })
 
@@ -58,8 +57,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
   end
 
   test "callback matches string key identifiers case sensitively", context do
-    public_key = JOSE.JWK.merge(context.platform.public_key, %{"kid" => "CaseSensitiveKey"})
-    jwks = Ltix.Test.build_jwks([public_key])
+    jwks = Ltix.JWK.to_jwks(%{context.platform.jwk | kid: "CaseSensitiveKey"})
     Req.Test.stub(Ltix.JWT.KeySet, fn connection -> Req.Test.json(connection, jwks) end)
 
     token = sign(context.claims, %{"alg" => "RS256", "kid" => "casesensitivekey"}, context)
@@ -132,14 +130,16 @@ defmodule Ltix.Integration.MalformedTokenTest do
     assert {:ok, %LaunchContext{claims: %{subject: "user-12345"}}} = callback(token, context)
   end
 
-  defp header(context), do: %{"alg" => "RS256", "kid" => context.platform.kid}
+  defp header(context), do: %{"alg" => "RS256", "kid" => context.platform.jwk.kid}
 
   defp sign(claims, protected, context) do
     sign_payload(Ltix.AppConfig.json_library!().encode!(claims), protected, context)
   end
 
   defp sign_payload(payload, protected, context) do
-    signed = JOSE.JWS.sign(context.platform.private_key, payload, protected)
+    signed =
+      JOSE.JWS.sign(JOSE.JWK.from_pem(context.platform.jwk.private_key_pem), payload, protected)
+
     {_metadata, token} = JOSE.JWS.compact(signed)
     token
   end

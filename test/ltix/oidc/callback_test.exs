@@ -12,14 +12,13 @@ defmodule Ltix.OIDC.CallbackTest do
   alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
   alias Ltix.Registration
-  alias Ltix.Test.JWTHelper
   alias Ltix.Test.StorageAdapter
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
 
   setup do
-    {private, public, kid} = JWTHelper.generate_rsa_key_pair()
-    jwks = JWTHelper.build_jwks([public])
+    platform_jwk = Ltix.JWK.generate()
+    jwks = Ltix.JWK.to_jwks(platform_jwk)
 
     {:ok, registration} =
       Registration.new(%{
@@ -31,6 +30,12 @@ defmodule Ltix.OIDC.CallbackTest do
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")
+
+    platform = %Ltix.Test.Platform{
+      registration: registration,
+      deployment: deployment,
+      jwk: platform_jwk
+    }
 
     {:ok, pid} =
       StorageAdapter.start_link(
@@ -57,16 +62,16 @@ defmodule Ltix.OIDC.CallbackTest do
 
     stub_jwks(jwks)
 
-    claims = JWTHelper.valid_lti_claims(%{"nonce" => nonce})
-    id_token = JWTHelper.mint_id_token(claims, private, kid: kid)
+    claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
+    id_token = Ltix.Test.sign_id_token(claims, platform_jwk)
 
     params = %{"id_token" => id_token, "state" => state}
 
     %{
+      platform: platform,
       registration: registration,
       deployment: deployment,
-      private: private,
-      kid: kid,
+      platform_jwk: platform_jwk,
       nonce: nonce,
       state: state,
       params: params,
@@ -155,12 +160,12 @@ defmodule Ltix.OIDC.CallbackTest do
   describe "registration lookup" do
     test "unknown issuer returns RegistrationNotFound", ctx do
       claims =
-        JWTHelper.valid_lti_claims(%{
+        Ltix.Test.valid_lti_claims(ctx.platform, %{
           "iss" => "https://unknown.example.com",
           "nonce" => ctx.nonce
         })
 
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %RegistrationNotFound{issuer: "https://unknown.example.com"}} =
@@ -171,7 +176,7 @@ defmodule Ltix.OIDC.CallbackTest do
   # [Cert §6.1.1](https://www.imsglobal.org/spec/lti/v1p3/cert/#known-bad-payloads)
   describe "bad JWT payloads [Cert §6.1.1]" do
     test "missing KID", ctx do
-      id_token = JWTHelper.mint_id_token(ctx.claims, ctx.private)
+      id_token = Ltix.Test.sign_id_token(ctx.claims, ctx.platform_jwk, kid: nil)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.KidMissing{}} =
@@ -179,7 +184,7 @@ defmodule Ltix.OIDC.CallbackTest do
     end
 
     test "incorrect KID", ctx do
-      id_token = JWTHelper.mint_id_token(ctx.claims, ctx.private, kid: "wrong-kid")
+      id_token = Ltix.Test.sign_id_token(ctx.claims, ctx.platform_jwk, kid: "wrong-kid")
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.KidNotFound{kid: "wrong-kid"}} =
@@ -188,7 +193,7 @@ defmodule Ltix.OIDC.CallbackTest do
 
     test "expired token", ctx do
       claims = Map.put(ctx.claims, "exp", System.system_time(:second) - 3600)
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.TokenExpired{}} =
@@ -200,7 +205,7 @@ defmodule Ltix.OIDC.CallbackTest do
   describe "nonce validation [Sec §5.1.3 step 9]" do
     test "unknown nonce returns NonceNotFound", ctx do
       claims = Map.put(ctx.claims, "nonce", "never-stored-nonce")
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:error, %Security.NonceNotFound{}} =
@@ -628,7 +633,7 @@ defmodule Ltix.OIDC.CallbackTest do
   # -- Helpers --
 
   defp mint_and_params(claims, ctx) do
-    id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+    id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
     %{"id_token" => id_token, "state" => ctx.state}
   end
 

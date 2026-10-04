@@ -144,6 +144,15 @@ end
 - `:memberships_endpoint` — URL string or map (enables memberships service in tests)
 - `:ags_endpoint` — map with `:line_items`, `:line_item`, `:scopes` (enables grade service)
 
+## Hand-Built Tokens
+
+For a token `launch_params/2` doesn't build, such as one missing a claim, start from `valid_lti_claims/2` and sign it with the platform key using `sign_id_token/3`. The platform key is `platform.jwk`, an `%Ltix.JWK{}`.
+
+```elixir
+claims = Map.delete(Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce}), "sub")
+params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => state}
+```
+
 ## Testing Advantage Services
 
 When testing code that uses `Ltix.GradeService` or `Ltix.MembershipsService`,

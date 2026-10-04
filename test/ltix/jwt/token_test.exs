@@ -11,11 +11,10 @@ defmodule Ltix.JWT.TokenTest do
   alias Ltix.Errors.Security.TokenExpired
 
   alias Ltix.JWT.Token
-  alias Ltix.Test.JWTHelper
 
   setup do
-    {private, public, kid} = JWTHelper.generate_rsa_key_pair()
-    jwks = JWTHelper.build_jwks([public])
+    platform_jwk = Ltix.JWK.generate()
+    jwks = Ltix.JWK.to_jwks(platform_jwk)
 
     unique_id = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
 
@@ -31,10 +30,13 @@ defmodule Ltix.JWT.TokenTest do
     stub_jwks(jwks)
 
     %{
+      platform: %Ltix.Test.Platform{
+        registration: registration,
+        deployment: Ltix.Deployment.new!("deployment-001"),
+        jwk: platform_jwk
+      },
       registration: registration,
-      private: private,
-      public: public,
-      kid: kid,
+      platform_jwk: platform_jwk,
       jwks: jwks
     }
   end
@@ -63,16 +65,16 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
     test "valid JWT with aud as single string", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"aud" => "tool-client-id"})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => "tool-client-id"})
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:ok, _claims} = Token.verify(token, ctx.registration, req_options: req_options())
     end
 
     # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
     test "valid JWT with aud as single-element array", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"aud" => ["tool-client-id"]})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => ["tool-client-id"]})
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:ok, _claims} = Token.verify(token, ctx.registration, req_options: req_options())
     end
@@ -81,7 +83,7 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
     test "rejects alg=none", ctx do
-      token = forge_token_with_alg("none", ctx.kid)
+      token = forge_token_with_alg("none", ctx)
 
       assert {:error, %AlgorithmNotAllowed{algorithm: "none"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -89,7 +91,7 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Cert §4.2] Symmetric cryptosystems forbidden
     test "rejects alg=HS256", ctx do
-      token = forge_token_with_alg("HS256", ctx.kid)
+      token = forge_token_with_alg("HS256", ctx)
 
       assert {:error, %AlgorithmNotAllowed{algorithm: "HS256"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -97,7 +99,7 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 6](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects non-RS256 alg", ctx do
-      token = forge_token_with_alg("RS384", ctx.kid)
+      token = forge_token_with_alg("RS384", ctx)
 
       assert {:error, %AlgorithmNotAllowed{algorithm: "RS384"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -107,8 +109,8 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Cert §6.1.1] "No KID Sent in JWT header"
     test "rejects JWT with no kid in header", ctx do
-      claims = JWTHelper.valid_lti_claims()
-      token = JWTHelper.mint_id_token(claims, ctx.private)
+      claims = Ltix.Test.valid_lti_claims(ctx.platform)
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk, kid: nil)
 
       assert {:error, %KidMissing{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -116,8 +118,8 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Cert §6.1.1] "Incorrect KID in JWT header"
     test "rejects JWT with incorrect kid", ctx do
-      claims = JWTHelper.valid_lti_claims()
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: "wrong-kid")
+      claims = Ltix.Test.valid_lti_claims(ctx.platform)
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk, kid: "wrong-kid")
 
       assert {:error, %KidNotFound{kid: "wrong-kid"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -138,10 +140,10 @@ defmodule Ltix.JWT.TokenTest do
     end
 
     test "rejects JWT signed with wrong key", ctx do
-      {wrong_private, _wrong_public, _wrong_kid} = JWTHelper.generate_rsa_key_pair()
-      claims = JWTHelper.valid_lti_claims()
+      wrong_jwk = Ltix.JWK.generate()
+      claims = Ltix.Test.valid_lti_claims(ctx.platform)
       # Sign with wrong key but use the correct kid
-      token = JWTHelper.mint_id_token(claims, wrong_private, kid: ctx.kid)
+      token = Ltix.Test.sign_id_token(claims, wrong_jwk, kid: ctx.platform_jwk.kid)
 
       assert {:error, %SignatureInvalid{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -151,8 +153,10 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects iss mismatch", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://wrong-issuer.example.com"})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims =
+        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://wrong-issuer.example.com"})
+
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %IssuerMismatch{expected: "https://platform.example.com"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -160,8 +164,8 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects aud mismatch as string", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"aud" => "wrong-client-id"})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => "wrong-client-id"})
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{expected: "tool-client-id"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -169,8 +173,8 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects aud mismatch as array", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"aud" => ["wrong-1", "wrong-2"]})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => ["wrong-1", "wrong-2"]})
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{expected: "tool-client-id"}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -179,12 +183,12 @@ defmodule Ltix.JWT.TokenTest do
     # [Sec §5.1.3 step 5](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects wrong azp with single string aud", ctx do
       claims =
-        JWTHelper.valid_lti_claims(%{
+        Ltix.Test.valid_lti_claims(ctx.platform, %{
           "aud" => "tool-client-id",
           "azp" => "other-client"
         })
 
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -193,12 +197,12 @@ defmodule Ltix.JWT.TokenTest do
     # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects aud array with untrusted additional audience", ctx do
       claims =
-        JWTHelper.valid_lti_claims(%{
+        Ltix.Test.valid_lti_claims(ctx.platform, %{
           "aud" => ["tool-client-id", "other-client"],
           "azp" => "tool-client-id"
         })
 
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -206,8 +210,10 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 7](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects expired token", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"exp" => System.system_time(:second) - 60})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims =
+        Ltix.Test.valid_lti_claims(ctx.platform, %{"exp" => System.system_time(:second) - 60})
+
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %TokenExpired{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -216,8 +222,10 @@ defmodule Ltix.JWT.TokenTest do
     # [Sec §5.1.3 step 7](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "accepts token within clock skew tolerance", ctx do
       # Token expired 3 seconds ago, but default clock skew is 5 seconds
-      claims = JWTHelper.valid_lti_claims(%{"exp" => System.system_time(:second) - 3})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims =
+        Ltix.Test.valid_lti_claims(ctx.platform, %{"exp" => System.system_time(:second) - 3})
+
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:ok, _claims} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -225,9 +233,9 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects missing nonce", ctx do
-      claims = Map.delete(JWTHelper.valid_lti_claims(), "nonce")
+      claims = Map.delete(Ltix.Test.valid_lti_claims(ctx.platform), "nonce")
 
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %NonceMissing{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -238,8 +246,10 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects issuer with trailing slash", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://platform.example.com/"})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims =
+        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://platform.example.com/"})
+
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %IssuerMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -247,8 +257,10 @@ defmodule Ltix.JWT.TokenTest do
 
     # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects issuer with different case", ctx do
-      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://PLATFORM.example.com"})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims =
+        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://PLATFORM.example.com"})
+
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %IssuerMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -257,8 +269,10 @@ defmodule Ltix.JWT.TokenTest do
     # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects issuer with unicode homoglyph", ctx do
       # Cyrillic 'а' (U+0430) looks identical to Latin 'a'
-      claims = JWTHelper.valid_lti_claims(%{"iss" => "https://plаtform.example.com"})
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      claims =
+        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://plаtform.example.com"})
+
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %IssuerMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -269,11 +283,11 @@ defmodule Ltix.JWT.TokenTest do
     # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects aud array containing untrusted audiences without azp", ctx do
       claims =
-        JWTHelper.valid_lti_claims(%{
+        Ltix.Test.valid_lti_claims(ctx.platform, %{
           "aud" => ["tool-client-id", "evil-client"]
         })
 
-      token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
@@ -283,14 +297,14 @@ defmodule Ltix.JWT.TokenTest do
   # Build a JWT with a specific alg in the header (without actually signing
   # with that algorithm). Used to test algorithm rejection before signature
   # verification.
-  defp forge_token_with_alg(alg, kid) do
+  defp forge_token_with_alg(alg, ctx) do
     header =
-      %{"alg" => alg, "kid" => kid}
+      %{"alg" => alg, "kid" => ctx.platform_jwk.kid}
       |> Jason.encode!()
       |> Base.url_encode64(padding: false)
 
     payload =
-      JWTHelper.valid_lti_claims()
+      Ltix.Test.valid_lti_claims(ctx.platform)
       |> Jason.encode!()
       |> Base.url_encode64(padding: false)
 
@@ -299,8 +313,8 @@ defmodule Ltix.JWT.TokenTest do
   end
 
   defp mint_valid_token(ctx) do
-    claims = JWTHelper.valid_lti_claims()
-    JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+    claims = Ltix.Test.valid_lti_claims(ctx.platform)
+    Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
   end
 
   defp stub_jwks(jwks) do

@@ -92,6 +92,15 @@ defmodule Ltix.Test do
         assert MyApp.Permissions.can_manage_grades?(context)
       end
 
+  ## Hand-built tokens
+
+  To send a token `launch_params/2` doesn't build, start from
+  `valid_lti_claims/2`, change the claims, and sign them with the
+  platform's key using `sign_id_token/3`.
+
+      claims = Map.delete(Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce}), "sub")
+      params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => state}
+
   ## Advantage service tests
 
   When testing code that calls `Ltix.GradeService` or
@@ -225,7 +234,17 @@ defmodule Ltix.Test do
                              unrecognized_keys: :error
                            )
 
-  @mint_id_token_schema Zoi.keyword([kid: Zoi.string(), alg: Zoi.string()],
+  @sign_id_token_schema Zoi.keyword(
+                          [
+                            kid:
+                              Zoi.nullable(Zoi.string(),
+                                description:
+                                  "Key ID for the token header. Defaults to the key's `kid`. Pass `nil` to leave it out."
+                              ),
+                            alg:
+                              Zoi.string(description: "Signing algorithm.")
+                              |> Zoi.default("RS256")
+                          ],
                           unrecognized_keys: :error
                         )
 
@@ -263,8 +282,8 @@ defmodule Ltix.Test do
     opts = Options.parse!(opts, @setup_platform_schema)
     validate_setup_opts!(opts)
 
-    {private_key, public_key, kid} = generate_rsa_key_pair()
-    jwks = build_jwks([public_key])
+    jwk = Ltix.JWK.generate(key_size: 2048)
+    jwks = Ltix.JWK.to_jwks(jwk)
 
     registration = build_or_use_registration(opts)
     deployment = build_or_use_deployment(opts, registration)
@@ -279,14 +298,7 @@ defmodule Ltix.Test do
       |> Req.Test.json(jwks)
     end)
 
-    %Platform{
-      registration: registration,
-      deployment: deployment,
-      private_key: private_key,
-      public_key: public_key,
-      kid: kid,
-      jwks: jwks
-    }
+    %Platform{registration: registration, deployment: deployment, jwk: jwk}
   end
 
   # --- Request Builders ---
@@ -343,7 +355,7 @@ defmodule Ltix.Test do
     state = Keyword.fetch!(opts, :state)
 
     claims = build_claims(platform, nonce, opts)
-    id_token = mint_id_token(claims, platform.private_key, kid: platform.kid)
+    id_token = sign_id_token(claims, platform.jwk)
 
     %{"id_token" => id_token, "state" => state}
   end
@@ -688,66 +700,28 @@ defmodule Ltix.Test do
   end
 
   @doc """
-  Generate an RSA key pair for testing.
+  Sign claims as an ID token with a platform key.
 
-  Returns `{private_jwk, public_jwk, kid}` as `JOSE.JWK.t()` values.
-  Used internally for platform-side keys in test helpers.
-  """
-  @spec generate_rsa_key_pair() :: {JOSE.JWK.t(), JOSE.JWK.t(), String.t()}
-  def generate_rsa_key_pair do
-    private_jwk =
-      {:rsa, 2048}
-      |> JOSE.JWK.generate_key()
-      |> JOSE.JWK.merge(%{"alg" => "RS256", "use" => "sig"})
+  Use it to build launch tokens by hand, for example a token missing a claim:
 
-    kid = JOSE.JWK.thumbprint(private_jwk)
-    private_jwk = JOSE.JWK.merge(private_jwk, %{"kid" => kid})
-    public_jwk = JOSE.JWK.to_public(private_jwk)
-
-    {private_jwk, public_jwk, kid}
-  end
-
-  @doc """
-  Build a JWKS map from a list of public JWKs.
-
-  Returns `%{"keys" => [...]}`. Accepts `JOSE.JWK.t()` values
-  (platform-side keys used in test helpers).
-  """
-  @spec build_jwks([JOSE.JWK.t()]) :: map()
-  def build_jwks(public_keys) do
-    keys =
-      Enum.map(public_keys, fn jwk ->
-        {_kty, fields} =
-          jwk
-          |> JOSE.JWK.to_public()
-          |> JOSE.JWK.to_map()
-
-        fields
-      end)
-
-    %{"keys" => keys}
-  end
-
-  @doc """
-  Sign claims as a JWT.
+      claims = Map.delete(Ltix.Test.valid_lti_claims(platform), "sub")
+      id_token = Ltix.Test.sign_id_token(claims, platform.jwk)
 
   ## Options
 
-    * `:kid` — key ID for the JWT header
-    * `:alg` — algorithm (default: `"RS256"`)
+  #{Zoi.describe(@sign_id_token_schema)}
   """
-  @spec mint_id_token(map(), JOSE.JWK.t(), keyword()) :: String.t()
-  def mint_id_token(claims, private_jwk, opts \\ []) do
-    opts = Options.parse!(opts, @mint_id_token_schema)
-    kid = Keyword.get(opts, :kid)
-    alg = Keyword.get(opts, :alg, "RS256")
+  @spec sign_id_token(map(), Ltix.JWK.t(), keyword()) :: String.t()
+  def sign_id_token(claims, %Ltix.JWK{} = jwk, opts \\ []) do
+    opts = Options.parse!(opts, @sign_id_token_schema)
+    kid = Keyword.get(opts, :kid, jwk.kid)
+    header = maybe_put(%{"alg" => Keyword.fetch!(opts, :alg)}, "kid", kid)
 
-    jws_fields = if kid, do: %{"alg" => alg, "kid" => kid}, else: %{"alg" => alg}
-
-    jws = JOSE.JWS.from_map(jws_fields)
-    jwt = JOSE.JWT.from_map(claims)
-
-    {_meta, token} = JOSE.JWS.compact(JOSE.JWT.sign(private_jwk, jws, jwt))
+    {_meta, token} =
+      jwk.private_key_pem
+      |> JOSE.JWK.from_pem()
+      |> JOSE.JWT.sign(JOSE.JWS.from_map(header), JOSE.JWT.from_map(claims))
+      |> JOSE.JWS.compact()
 
     token
   end
@@ -755,34 +729,16 @@ defmodule Ltix.Test do
   @doc """
   Return a complete, valid LTI claim set.
 
-  Caller can override individual claims via the `overrides` map.
+  The issuer, audience, and deployment ID are the platform's. Caller
+  can override individual claims via the `overrides` map.
+
+      claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
+      id_token = Ltix.Test.sign_id_token(claims, platform.jwk)
   """
-  @spec valid_lti_claims(map()) :: map()
-  def valid_lti_claims(overrides \\ %{}) do
-    now = System.system_time(:second)
-
-    base = %{
-      "iss" => "https://platform.example.com",
-      "sub" => "user-12345",
-      "aud" => "tool-client-id",
-      "exp" => now + 3600,
-      "iat" => now,
-      "nonce" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false),
-      "https://purl.imsglobal.org/spec/lti/claim/message_type" => "LtiResourceLinkRequest",
-      "https://purl.imsglobal.org/spec/lti/claim/version" => "1.3.0",
-      "https://purl.imsglobal.org/spec/lti/claim/deployment_id" => "deployment-001",
-      "https://purl.imsglobal.org/spec/lti/claim/target_link_uri" =>
-        "https://tool.example.com/launch",
-      "https://purl.imsglobal.org/spec/lti/claim/roles" => [
-        "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-      ],
-      "https://purl.imsglobal.org/spec/lti/claim/resource_link" => %{
-        "id" => "resource-link-001",
-        "title" => "Example Assignment"
-      }
-    }
-
-    Map.merge(base, overrides)
+  @spec valid_lti_claims(Platform.t(), map()) :: map()
+  def valid_lti_claims(%Platform{} = platform, overrides \\ %{}) do
+    nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+    Map.merge(build_claims(platform, nonce, []), overrides)
   end
 
   # --- Private ---

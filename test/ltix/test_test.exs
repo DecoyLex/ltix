@@ -2,7 +2,10 @@ defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Security.KidMissing
+  alias Ltix.Errors.Security.KidNotFound
   alias Ltix.GradeService.Score
+  alias Ltix.JWT.Token
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
@@ -33,7 +36,7 @@ defmodule Ltix.TestTest do
             fn -> Ltix.Test.build_launch_context(platform, unknown: true) end,
             fn -> Ltix.Test.stub_token_response(unknown: true) end,
             fn -> Ltix.Test.stub_get_members([], unknown: true) end,
-            fn -> Ltix.Test.mint_id_token(%{}, platform.private_key, unknown: true) end,
+            fn -> Ltix.Test.sign_id_token(%{}, platform.jwk, unknown: true) end,
             fn -> StorageAdapter.start_link(unknown: true) end
           ] do
         assert_raise InvalidOption, "Option :unknown is unknown", call
@@ -372,6 +375,62 @@ defmodule Ltix.TestTest do
     end
   end
 
+  describe "valid_lti_claims/2" do
+    test "builds claims that launch against the platform" do
+      platform =
+        Ltix.Test.setup_platform!(
+          issuer: "https://custom.lms.edu",
+          client_id: "my-tool",
+          deployment_id: "dep-99"
+        )
+
+      {:ok, pid} =
+        StorageAdapter.start_link(
+          registrations: [platform.registration],
+          deployments: [platform.deployment]
+        )
+
+      StorageAdapter.set_pid(pid)
+      {:ok, login_result} = do_login(platform)
+      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+
+      claims =
+        Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce, "sub" => "student-1"})
+
+      params = %{
+        "id_token" => Ltix.Test.sign_id_token(claims, platform.jwk),
+        "state" => login_result.state
+      }
+
+      assert {:ok, context} =
+               Ltix.handle_callback(params, login_result.state,
+                 storage_adapter: StorageAdapter,
+                 req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
+               )
+
+      assert context.claims.issuer == "https://custom.lms.edu"
+      assert context.claims.audience == "my-tool"
+      assert context.claims.deployment_id == "dep-99"
+      assert context.claims.subject == "student-1"
+    end
+  end
+
+  describe "sign_id_token/3" do
+    test "kid: nil leaves the key ID out of the header", %{platform: platform} do
+      token =
+        Ltix.Test.sign_id_token(Ltix.Test.valid_lti_claims(platform), platform.jwk, kid: nil)
+
+      assert {:error, %KidMissing{}} = verify_token(token, platform)
+    end
+
+    test "kid overrides the key ID in the header", %{platform: platform} do
+      token =
+        Ltix.Test.sign_id_token(Ltix.Test.valid_lti_claims(platform), platform.jwk, kid: "other")
+
+      assert {:error, %KidNotFound{kid: "other"}} = verify_token(token, platform)
+    end
+  end
+
   # --- Service Stub Helpers ---
 
   describe "stub_token_response/1" do
@@ -604,6 +663,10 @@ defmodule Ltix.TestTest do
         Ltix.MembershipsService => MembershipsEndpoint.new!("https://lms.example.com/memberships")
       }
     }
+  end
+
+  defp verify_token(token, platform) do
+    Token.verify(token, platform.registration, req_options: [plug: {Req.Test, Ltix.JWT.KeySet}])
   end
 
   # -- OIDC Flow Helpers --

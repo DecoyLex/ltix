@@ -3,11 +3,10 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
 
   alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
-  alias Ltix.Test.JWTHelper
 
   setup do
-    {private, public, kid} = JWTHelper.generate_rsa_key_pair()
-    jwks = JWTHelper.build_jwks([public])
+    platform_jwk = Ltix.JWK.generate()
+    jwks = Ltix.JWK.to_jwks(platform_jwk)
 
     custom_reg = %CustomRegistration{
       id: 42,
@@ -24,6 +23,12 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
       registration_id: 42,
       platform_deployment_id: "deployment-001",
       label: "Production"
+    }
+
+    platform = %Ltix.Test.Platform{
+      registration: custom_reg,
+      deployment: custom_dep,
+      jwk: platform_jwk
     }
 
     {:ok, pid} =
@@ -55,8 +60,8 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
       |> Req.Test.json(jwks)
     end)
 
-    claims = JWTHelper.valid_lti_claims(%{"nonce" => nonce})
-    id_token = JWTHelper.mint_id_token(claims, private, kid: kid)
+    claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
+    id_token = Ltix.Test.sign_id_token(claims, platform_jwk)
 
     params = %{"id_token" => id_token, "state" => state}
 

@@ -889,7 +889,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
       assert conn.request_path == "/keys/current"
       assert conn.method == "GET"
       assert Plug.Conn.get_req_header(conn, "authorization") == []
-      Req.Test.json(conn, platform.jwks)
+      Req.Test.json(conn, Ltix.JWK.to_jwks(platform.jwk))
     end)
 
     assert {:ok, login} =

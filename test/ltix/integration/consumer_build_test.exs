@@ -47,24 +47,25 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         test "core parsing and signing work without HTTP stubs" do
           refute Code.ensure_loaded?(Plug.Conn)
           refute Code.ensure_loaded?(Cachex)
-          {private_key, _public_key, kid} = Ltix.Test.generate_rsa_key_pair()
-          {_type, pem} = JOSE.JWK.to_pem(private_key)
-          {:ok, tool_key} = Ltix.JWK.new(private_key_pem: pem, kid: kid)
+          tool_key = Ltix.JWK.generate(key_size: 2048)
           {:ok, registration} = Ltix.Registration.new(%{
             issuer: "https://platform.example.com", client_id: "consumer",
             auth_endpoint: "https://platform.example.com/login",
             token_endpoint: "https://platform.example.com/token",
             jwks_uri: "https://platform.example.com/keys", tool_jwk: tool_key
           })
-          platform = %Ltix.Test.Platform{registration: registration}
-          token = Ltix.Test.mint_id_token(%{"sub" => "consumer-user"}, private_key, kid: kid)
+          platform = %Ltix.Test.Platform{
+            registration: registration,
+            deployment: Ltix.Deployment.new!("deployment-001"),
+            jwk: Ltix.JWK.generate(key_size: 2048)
+          }
+          token = Ltix.Test.sign_id_token(%{"sub" => "consumer-user"}, tool_key)
           assert {:ok, %{"sub" => "consumer-user"}} =
                    Ltix.Test.verify_deep_linking_response(platform, token)
-          {other_key, _public_key, _kid} = Ltix.Test.generate_rsa_key_pair()
-          other_token = Ltix.Test.mint_id_token(%{"sub" => "consumer-user"}, other_key)
+          other_token = Ltix.Test.sign_id_token(%{"sub" => "consumer-user"}, platform.jwk)
           assert {:error, :signature_invalid} =
                    Ltix.Test.verify_deep_linking_response(platform, other_token)
-          assert {:ok, claims} = Ltix.LaunchClaims.from_json(Ltix.Test.valid_lti_claims())
+          assert {:ok, claims} = Ltix.LaunchClaims.from_json(Ltix.Test.valid_lti_claims(platform))
           assert claims.resource_link.id == "resource-link-001"
           assert {:error, %Ltix.Errors.Security.AlgorithmNotAllowed{algorithm: "HS256"}} =
                    Ltix.JWT.Token.verify("eyJhbGciOiJIUzI1NiJ9.e30.c2ln", registration)

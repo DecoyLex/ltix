@@ -7,15 +7,14 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
-  alias Ltix.Test.JWTHelper
   alias Ltix.Test.StorageAdapter
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl_settings_key "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
 
   setup do
-    {private, public, kid} = JWTHelper.generate_rsa_key_pair()
-    jwks = JWTHelper.build_jwks([public])
+    platform_jwk = Ltix.JWK.generate()
+    jwks = Ltix.JWK.to_jwks(platform_jwk)
 
     {:ok, registration} =
       Ltix.Registration.new(%{
@@ -58,12 +57,11 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
     end)
 
     claims = deep_linking_claims(%{"nonce" => nonce})
-    id_token = JWTHelper.mint_id_token(claims, private, kid: kid)
+    id_token = Ltix.Test.sign_id_token(claims, platform_jwk)
     params = %{"id_token" => id_token, "state" => state}
 
     %{
-      private: private,
-      kid: kid,
+      platform_jwk: platform_jwk,
       nonce: nonce,
       state: state,
       params: params,
@@ -309,7 +307,7 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
   end
 
   defp mint_and_params(claims, ctx) do
-    id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+    id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
     %{"id_token" => id_token, "state" => ctx.state}
   end
 

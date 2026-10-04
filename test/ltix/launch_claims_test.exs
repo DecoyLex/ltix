@@ -2,7 +2,6 @@ defmodule Ltix.LaunchClaimsTest do
   use ExUnit.Case, async: true
 
   alias Ltix.LaunchClaims
-  alias Ltix.Test.JWTHelper
 
   alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.Context
@@ -46,7 +45,7 @@ defmodule Ltix.LaunchClaimsTest do
       assert claims.authorized_party == "tool-client-id"
     end
 
-    # [OIDC Core §5.1] profile claims; [Core §5.3.6] user identity
+    # [OIDC Core §5.1] profile claims, [Core §5.3.6] user identity
     test "parses OIDC profile claims" do
       json = %{
         "email" => "user@example.com",
@@ -371,7 +370,7 @@ defmodule Ltix.LaunchClaimsTest do
       end
     end
 
-    test "claim parser failures are returned as invalid claim errors naming the claim" do
+    test "claim parser failures are returned as invalid claim errors with the claim name" do
       key = "https://example.com/bad"
 
       for {reason, message} <- [
@@ -416,7 +415,7 @@ defmodule Ltix.LaunchClaimsTest do
 
   describe "from_json/2 full parse" do
     test "parses a complete LTI launch" do
-      json = JWTHelper.valid_lti_claims()
+      json = Ltix.Test.valid_lti_claims(Ltix.Test.setup_platform!())
 
       assert {:ok, %LaunchClaims{} = claims} = LaunchClaims.from_json(json)
       assert claims.issuer == "https://platform.example.com"

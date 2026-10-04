@@ -3,13 +3,12 @@ defmodule Ltix.JWT.KeySetTest do
 
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.JWT.KeySet
-  alias Ltix.Test.JWTHelper
 
   @tool_jwk Ltix.JWK.generate()
 
   setup do
-    {_private, public, kid} = JWTHelper.generate_rsa_key_pair()
-    jwks = JWTHelper.build_jwks([public])
+    platform_jwk = Ltix.JWK.generate()
+    jwks = Ltix.JWK.to_jwks(platform_jwk)
 
     # Unique JWKS URI per test to avoid cache interference in async tests
     unique_id = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
@@ -23,17 +22,17 @@ defmodule Ltix.JWT.KeySetTest do
         tool_jwk: @tool_jwk
       })
 
-    %{registration: registration, public: public, kid: kid, jwks: jwks}
+    %{registration: registration, platform_jwk: platform_jwk, jwks: jwks}
   end
 
   describe "get_key/3" do
     test "raises on unknown and invalid options", ctx do
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :request_options is unknown", fn ->
-        KeySet.get_key(ctx.registration, ctx.kid, request_options: [])
+        KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, request_options: [])
       end
 
       assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :jwks_cache is invalid/, fn ->
-        KeySet.get_key(ctx.registration, ctx.kid, jwks_cache: "cache")
+        KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, jwks_cache: "cache")
       end
     end
 
@@ -41,16 +40,18 @@ defmodule Ltix.JWT.KeySetTest do
     test "fetches and selects key by kid", ctx do
       stub_jwks(ctx.jwks)
 
-      assert {:ok, _jwk} = KeySet.get_key(ctx.registration, ctx.kid, req_options: req_options())
+      assert {:ok, _jwk} =
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
     end
 
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
     test "selects correct key from multi-key JWKS", ctx do
-      {_private2, public2, kid2} = JWTHelper.generate_rsa_key_pair()
-      jwks = JWTHelper.build_jwks([ctx.public, public2])
+      second_jwk = Ltix.JWK.generate()
+      jwks = Ltix.JWK.to_jwks([ctx.platform_jwk, second_jwk])
       stub_jwks(jwks)
 
-      assert {:ok, _jwk} = KeySet.get_key(ctx.registration, kid2, req_options: req_options())
+      assert {:ok, _jwk} =
+               KeySet.get_key(ctx.registration, second_jwk.kid, req_options: req_options())
     end
 
     # [Cert §6.1.1] "Incorrect KID in JWT header"
@@ -63,20 +64,22 @@ defmodule Ltix.JWT.KeySetTest do
 
     # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
     test "re-fetches on unknown kid for key rotation", ctx do
-      {_private2, public2, kid2} = JWTHelper.generate_rsa_key_pair()
+      second_jwk = Ltix.JWK.generate()
 
       # First stub: only original key
       stub_jwks(ctx.jwks)
 
       # Fetch original key to populate cache
-      assert {:ok, _jwk} = KeySet.get_key(ctx.registration, ctx.kid, req_options: req_options())
+      assert {:ok, _jwk} =
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
 
       # Now stub with both keys (simulates key rotation)
-      jwks_rotated = JWTHelper.build_jwks([ctx.public, public2])
+      jwks_rotated = Ltix.JWK.to_jwks([ctx.platform_jwk, second_jwk])
       stub_jwks(jwks_rotated)
 
       # Should re-fetch and find the new key
-      assert {:ok, _jwk} = KeySet.get_key(ctx.registration, kid2, req_options: req_options())
+      assert {:ok, _jwk} =
+               KeySet.get_key(ctx.registration, second_jwk.kid, req_options: req_options())
     end
 
     # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
@@ -109,7 +112,7 @@ defmodule Ltix.JWT.KeySetTest do
       jwks_uri = ctx.registration.jwks_uri
 
       assert {:error, %TransportError{status: 404, url: ^jwks_uri, spec_ref: "Sec §6.3"}} =
-               KeySet.get_key(ctx.registration, ctx.kid,
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
                  req_options: req_options() ++ [retry: false]
                )
     end
@@ -129,7 +132,7 @@ defmodule Ltix.JWT.KeySetTest do
                 url: ^jwks_uri,
                 spec_ref: "Sec §6.3"
               }} =
-               KeySet.get_key(ctx.registration, ctx.kid,
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
                  req_options: req_options() ++ [retry: false]
                )
     end
@@ -142,7 +145,7 @@ defmodule Ltix.JWT.KeySetTest do
       end)
 
       assert {:error, %Ltix.Errors.Security.KidNotFound{}} =
-               KeySet.get_key(ctx.registration, ctx.kid, req_options: req_options())
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
     end
 
     test "returns TransportError on network failure", ctx do
@@ -153,7 +156,7 @@ defmodule Ltix.JWT.KeySetTest do
       jwks_uri = ctx.registration.jwks_uri
 
       assert {:error, %TransportError{status: nil, url: ^jwks_uri}} =
-               KeySet.get_key(ctx.registration, ctx.kid,
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
                  req_options: req_options() ++ [retry: false]
                )
     end
@@ -172,9 +175,9 @@ defmodule Ltix.JWT.KeySetTest do
 
       opts = [req_options: req_options()]
 
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
 
       # Only one HTTP fetch
       assert :counters.get(fetch_count, 1) == 1
@@ -194,8 +197,8 @@ defmodule Ltix.JWT.KeySetTest do
 
       opts = [req_options: req_options()]
 
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
 
       # max-age=0 means no caching, so two fetches
       assert :counters.get(fetch_count, 1) == 2
@@ -215,8 +218,8 @@ defmodule Ltix.JWT.KeySetTest do
 
       opts = [req_options: req_options()]
 
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
 
       # Default max-age applies, so only one fetch
       assert :counters.get(fetch_count, 1) == 1

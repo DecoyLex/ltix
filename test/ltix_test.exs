@@ -11,7 +11,6 @@ defmodule LtixTest do
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.LaunchContext
   alias Ltix.Registration
-  alias Ltix.Test.JWTHelper
   alias Ltix.Test.StorageAdapter
 
   @redirect_uri "https://tool.example.com/callback"
@@ -95,8 +94,8 @@ defmodule LtixTest do
         {key, Application.fetch_env(:ltix, key)}
       end)
 
-    {private, public, kid} = JWTHelper.generate_rsa_key_pair()
-    jwks = JWTHelper.build_jwks([public])
+    platform_jwk = Ltix.JWK.generate()
+    jwks = Ltix.JWK.to_jwks(platform_jwk)
 
     {:ok, registration} =
       Registration.new(%{
@@ -108,6 +107,12 @@ defmodule LtixTest do
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")
+
+    platform = %Ltix.Test.Platform{
+      registration: registration,
+      deployment: deployment,
+      jwk: platform_jwk
+    }
 
     {:ok, pid} =
       StorageAdapter.start_link(
@@ -138,8 +143,8 @@ defmodule LtixTest do
       |> Req.Test.json(jwks)
     end)
 
-    claims = JWTHelper.valid_lti_claims(%{"nonce" => nonce})
-    id_token = JWTHelper.mint_id_token(claims, private, kid: kid)
+    claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
+    id_token = Ltix.Test.sign_id_token(claims, platform_jwk)
 
     on_exit(fn ->
       Enum.each(previous_configuration, fn
@@ -149,10 +154,10 @@ defmodule LtixTest do
     end)
 
     %{
+      platform: platform,
       registration: registration,
       deployment: deployment,
-      private: private,
-      kid: kid,
+      platform_jwk: platform_jwk,
       nonce: nonce,
       state: state,
       id_token: id_token,
@@ -311,7 +316,7 @@ defmodule LtixTest do
       ref = :telemetry_test.attach_event_handlers(self(), [[:ltix, :callback, :stop]])
 
       claims = Map.put(ctx.claims, "aud", ["tool-client-id"])
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:ok, %LaunchContext{}} =
@@ -332,7 +337,7 @@ defmodule LtixTest do
       Application.put_env(:ltix, :allow_anonymous, true)
 
       claims = Map.delete(ctx.claims, "sub")
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       assert {:ok, %LaunchContext{} = launch} =
@@ -345,7 +350,7 @@ defmodule LtixTest do
       Application.put_env(:ltix, :allow_anonymous, false)
 
       claims = Map.delete(ctx.claims, "sub")
-      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
       # Override allow_anonymous to true via opts
@@ -695,7 +700,7 @@ defmodule LtixTest do
       |> Map.put("nonce", nonce)
       |> Map.put(key, value)
 
-    id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+    id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
     Ltix.handle_callback(
       %{"id_token" => id_token, "state" => login.state},

@@ -107,11 +107,11 @@ defmodule Ltix.Integration.LaunchMetadataTest do
   end
 
   test "launch omits optional objects with unusable identifiers", context do
-    for key <- [@lti <> "context", @lti <> "tool_platform"], value <- [%{}, %{"id" => 123}] do
-      {login, params} = begin_launch(context.platform, %{key => value})
+    for field <- [:context, :tool_platform], value <- [%{}, %{"id" => 123}] do
+      {login, params} = begin_launch(context.platform, %{(@lti <> to_string(field)) => value})
 
-      assert {:ok, %LaunchContext{claims: %{context: nil, tool_platform: nil}}} =
-               callback(login, params)
+      assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
+      assert Map.fetch!(claims, field) == nil
     end
   end
 
@@ -337,6 +337,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
 
     claims =
       Ltix.Test.valid_lti_claims(
+        platform,
         Map.merge(
           %{
             "nonce" => Ltix.Test.extract_nonce(login.redirect_uri),
@@ -346,7 +347,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
         )
       )
 
-    token = Ltix.Test.mint_id_token(claims, platform.private_key, kid: platform.kid)
+    token = Ltix.Test.sign_id_token(claims, platform.jwk)
     {login, %{"id_token" => token, "state" => login.state}}
   end
 

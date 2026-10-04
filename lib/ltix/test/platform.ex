@@ -4,7 +4,8 @@ defmodule Ltix.Test.Platform do
 
   Holds everything needed to simulate platform-side behavior in tests:
   the registration and deployment (what the tool knows), plus the platform's
-  key material (what only the platform knows) for signing JWTs.
+  signing key. Sign tokens with
+  `Ltix.Test.sign_id_token/3` and publish the key with `Ltix.JWK.to_jwks/1`.
 
   Created by `Ltix.Test.setup_platform!/1`.
   """
@@ -12,14 +13,12 @@ defmodule Ltix.Test.Platform do
   alias Ltix.Deployable
   alias Ltix.Registerable
 
-  defstruct [:registration, :deployment, :private_key, :public_key, :kid, :jwks]
+  @enforce_keys [:registration, :deployment, :jwk]
+  defstruct [:registration, :deployment, :jwk]
 
   @type t :: %__MODULE__{
           registration: Registerable.t(),
           deployment: Deployable.t(),
-          private_key: JOSE.JWK.t(),
-          public_key: JOSE.JWK.t(),
-          kid: String.t(),
-          jwks: map()
+          jwk: Ltix.JWK.t()
         }
 end

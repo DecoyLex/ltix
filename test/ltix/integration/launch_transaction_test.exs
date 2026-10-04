@@ -39,12 +39,12 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     test "verifies the signature before checking nonce binding without consuming valid nonces",
          ctx do
       {login, params} = begin_launch(ctx.platform, "original-user")
-      {other_private_key, _public_key, _kid} = Ltix.Test.generate_rsa_key_pair()
+      other_jwk = Ltix.JWK.generate()
 
-      claims = Ltix.Test.valid_lti_claims(%{"nonce" => "unrelated-nonce"})
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => "unrelated-nonce"})
 
       invalid_token =
-        Ltix.Test.mint_id_token(claims, other_private_key, kid: ctx.platform.kid)
+        Ltix.Test.sign_id_token(claims, other_jwk, kid: ctx.platform.jwk.kid)
 
       invalid_params = Map.put(params, "id_token", invalid_token)
 
