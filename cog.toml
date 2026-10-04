@@ -1,4 +1,7 @@
 ignore_merge_commits = true
 
+[commit_types]
+improvement = { changelog_title = "Improvements" }
+
 [changelog]
 path = "CHANGELOG.md"
