@@ -48,7 +48,6 @@ defmodule Ltix.GradeService do
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
-  alias Ltix.Errors.Unknown.TransportError
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
   @scope_lineitem_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
@@ -737,8 +736,8 @@ defmodule Ltix.GradeService do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
         {:ok, body}
 
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, TransportError.exception(status: status, body: body, url: url)}
+      {:ok, %Req.Response{} = response} ->
+        {:error, Ltix.HTTP.status_error(response, url)}
 
       {:error, _exception} = error ->
         error

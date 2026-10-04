@@ -41,8 +41,7 @@ defmodule Ltix.JWT.KeySet do
   """
 
   alias Ltix.Errors.Security.KidNotFound
-  alias Ltix.Errors.Unknown
-  alias Ltix.Errors.Unknown.RedirectNotAllowed
+  alias Ltix.HTTP
   alias Ltix.JWT.KeySet.ETSCache
   alias Ltix.Options
   alias Ltix.Registration
@@ -103,11 +102,8 @@ defmodule Ltix.JWT.KeySet do
            spec_ref: "Sec §6.3"
          )}
 
-      {:error, %RedirectNotAllowed{} = error} ->
-        {:error, error}
-
-      {:error, reason} ->
-        {:error, Unknown.Unknown.exception(error: reason)}
+      {:error, _error} = error ->
+        error
     end
   end
 
@@ -122,13 +118,9 @@ defmodule Ltix.JWT.KeySet do
   end
 
   defp fetch_and_cache(jwks_uri, cache, opts) do
-    case fetch_jwks(jwks_uri, opts) do
-      {:ok, keys, max_age} ->
-        if max_age > 0, do: cache.put(jwks_uri, keys, max_age)
-        {:ok, {:cache_miss, keys}}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, keys, max_age} <- fetch_jwks(jwks_uri, opts) do
+      if max_age > 0, do: cache.put(jwks_uri, keys, max_age)
+      {:ok, {:cache_miss, keys}}
     end
   end
 
@@ -138,7 +130,7 @@ defmodule Ltix.JWT.KeySet do
     result =
       req_opts
       |> Keyword.put(:method, :get)
-      |> Ltix.HTTP.request()
+      |> HTTP.request()
 
     case result do
       {:ok, %Req.Response{status: 200, body: body, headers: headers}} ->
@@ -146,11 +138,11 @@ defmodule Ltix.JWT.KeySet do
         keys = parse_jwks(body)
         {:ok, keys, max_age}
 
-      {:ok, %Req.Response{status: status}} ->
-        {:error, "JWKS fetch returned HTTP #{status}"}
+      {:ok, %Req.Response{} = response} ->
+        {:error, HTTP.status_error(response, jwks_uri, "Sec §6.3")}
 
-      {:error, exception} ->
-        {:error, exception}
+      {:error, _error} = error ->
+        error
     end
   end
 
@@ -183,7 +175,7 @@ defmodule Ltix.JWT.KeySet do
   end
 
   defp req_options(opts) do
-    Ltix.HTTP.req_options(Keyword.get(opts, :req_options, []), __MODULE__)
+    HTTP.req_options(Keyword.get(opts, :req_options, []), __MODULE__)
   end
 
   defp resolve_cache(opts) do

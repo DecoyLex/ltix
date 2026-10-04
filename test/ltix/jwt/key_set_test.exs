@@ -1,6 +1,7 @@
 defmodule Ltix.JWT.KeySetTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Unknown.TransportError
   alias Ltix.JWT.KeySet
   alias Ltix.Test.JWTHelper
 
@@ -100,10 +101,34 @@ defmodule Ltix.JWT.KeySetTest do
 
     test "returns error for non-200 HTTP response", ctx do
       Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        Plug.Conn.send_resp(conn, 404, "Not Found")
+        conn
+        |> Plug.Conn.put_resp_content_type("text/plain")
+        |> Plug.Conn.send_resp(404, "Not Found")
       end)
 
-      assert {:error, %Ltix.Errors.Unknown.Unknown{}} =
+      jwks_uri = ctx.registration.jwks_uri
+
+      assert {:error, %TransportError{status: 404, url: ^jwks_uri, spec_ref: "Sec §6.3"}} =
+               KeySet.get_key(ctx.registration, ctx.kid,
+                 req_options: req_options() ++ [retry: false]
+               )
+    end
+
+    test "returns AccessDenied when the key set endpoint answers HTTP 401", ctx do
+      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("text/plain")
+        |> Plug.Conn.send_resp(401, "denied")
+      end)
+
+      jwks_uri = ctx.registration.jwks_uri
+
+      assert {:error,
+              %Ltix.Errors.Security.AccessDenied{
+                status: 401,
+                url: ^jwks_uri,
+                spec_ref: "Sec §6.3"
+              }} =
                KeySet.get_key(ctx.registration, ctx.kid,
                  req_options: req_options() ++ [retry: false]
                )
@@ -120,12 +145,14 @@ defmodule Ltix.JWT.KeySetTest do
                KeySet.get_key(ctx.registration, ctx.kid, req_options: req_options())
     end
 
-    test "returns Unknown error on network failure", ctx do
+    test "returns TransportError on network failure", ctx do
       Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
         Req.Test.transport_error(conn, :timeout)
       end)
 
-      assert {:error, %Ltix.Errors.Unknown.Unknown{}} =
+      jwks_uri = ctx.registration.jwks_uri
+
+      assert {:error, %TransportError{status: nil, url: ^jwks_uri}} =
                KeySet.get_key(ctx.registration, ctx.kid,
                  req_options: req_options() ++ [retry: false]
                )

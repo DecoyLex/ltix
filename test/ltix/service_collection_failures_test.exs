@@ -4,6 +4,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
   alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Security.AccessDenied
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
   alias Ltix.GradeService.LineItem
@@ -38,17 +39,36 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       refute_received {:requested_page, 4}
     end
 
-    test "#{collection} preserves a transport exception on page #{page}", context do
+    test "#{collection} returns TransportError for a connection failure on page #{page}",
+         context do
       collection = unquote(collection)
       failed_page = unquote(page)
       client = build_client(context.registration)
       stub_pages(collection, failed_page, &Req.Test.transport_error(&1, :timeout))
 
-      assert {:error, %Req.TransportError{reason: :timeout}} =
+      assert {:error, %TransportError{status: nil, url: url}} =
                fetch_collection(collection, client)
+
+      assert url == page_url(collection, failed_page)
 
       assert_receive {:requested_page, ^failed_page}
       refute_received {:requested_page, 4}
+    end
+  end
+
+  for collection <- [:line_items, :results, :members], page <- [1, 2], status <- [401, 403] do
+    test "#{collection} returns AccessDenied for HTTP #{status} on page #{page}", context do
+      collection = unquote(collection)
+      failed_page = unquote(page)
+      status = unquote(status)
+      client = build_client(context.registration)
+
+      stub_pages(collection, failed_page, &Plug.Conn.send_resp(&1, status, "denied"))
+
+      assert {:error, %AccessDenied{status: ^status, body: "denied", url: url}} =
+               fetch_collection(collection, client)
+
+      assert url == page_url(collection, failed_page)
     end
   end
 
@@ -72,14 +92,15 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       assert_receive {:requested_page, ^failed_page}
     end
 
-    test "lazy #{collection} preserve the transport exception on page #{page}", context do
+    test "lazy #{collection} raise TransportError for a connection failure on page #{page}",
+         context do
       collection = unquote(collection)
       failed_page = unquote(page)
       client = build_client(context.registration)
       stub_pages(collection, failed_page, &Req.Test.transport_error(&1, :timeout))
 
       assert {:ok, stream} = stream_collection(collection, client)
-      assert_raise Req.TransportError, fn -> Enum.to_list(stream) end
+      assert_raise TransportError, fn -> Enum.to_list(stream) end
       assert_receive {:requested_page, ^failed_page}
     end
   end

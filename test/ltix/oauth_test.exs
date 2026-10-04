@@ -4,6 +4,7 @@ defmodule Ltix.OAuthTest do
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.TokenRequestFailed
+  alias Ltix.Errors.Unknown.TransportError
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
 
@@ -425,6 +426,18 @@ defmodule Ltix.OAuthTest do
                  endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options()
                )
+    end
+
+    test "network failure returns TransportError", ctx do
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, &Req.Test.transport_error(&1, :econnrefused))
+
+      assert {:error, %TransportError{url: "https://platform.example.com/token"} = error} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options() ++ [retry: false]
+               )
+
+      assert Exception.message(error) =~ "connection refused"
     end
 
     test "req_options passed through to token request", ctx do

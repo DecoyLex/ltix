@@ -1,6 +1,8 @@
 defmodule Ltix.HTTP do
   @moduledoc false
 
+  alias Ltix.Errors
+  alias Ltix.Errors.Security.AccessDenied
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
 
@@ -25,10 +27,14 @@ defmodule Ltix.HTTP do
 
   @doc """
   Send a request only to an absolute HTTPS URL without a userinfo component (RFC 3986 §3.2.1).
+
+  A request that cannot connect to the platform returns `Ltix.Errors.Unknown.TransportError`.
   """
   @spec request(keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
   def request(opts) do
-    with {:ok, uri} <- validate_url(Keyword.get(opts, :url)),
+    url = Keyword.get(opts, :url)
+
+    with {:ok, uri} <- validate_url(url),
          :ok <- validate_certificate_verification(opts) do
       opts
       |> Keyword.merge(
@@ -41,7 +47,37 @@ defmodule Ltix.HTTP do
       |> Req.new()
       |> Req.Request.prepend_response_steps(ltix_redirect: &guard_redirect(&1, uri))
       |> Req.request()
+      |> to_ltix_error(url)
     end
+  end
+
+  defp to_ltix_error({:error, error}, url) do
+    if Errors.ltix_error?(error) do
+      {:error, error}
+    else
+      {:error, TransportError.exception(body: Exception.message(error), url: url)}
+    end
+  end
+
+  defp to_ltix_error(result, _url), do: result
+
+  @doc false
+  @spec status_error(Req.Response.t(), String.t(), String.t() | nil) :: Exception.t()
+  def status_error(response, url, spec_ref \\ nil)
+
+  # [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1)
+  def status_error(%Req.Response{status: status, body: body}, url, spec_ref)
+      when status in [401, 403] do
+    AccessDenied.exception(
+      status: status,
+      body: body,
+      url: url,
+      spec_ref: spec_ref || "RFC 6750 §3.1"
+    )
+  end
+
+  def status_error(%Req.Response{status: status, body: body}, url, spec_ref) do
+    TransportError.exception(status: status, body: body, url: url, spec_ref: spec_ref)
   end
 
   @doc false

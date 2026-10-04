@@ -3,6 +3,7 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Invalid.TokenRequestFailed
+  alias Ltix.HTTP
   alias Ltix.OAuth.AccessToken
   alias Ltix.Registration
 
@@ -51,9 +52,8 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:retry, false)
       |> Keyword.put(:decode_body, false)
 
-    case Ltix.HTTP.request(Keyword.put(req_opts, :method, :post)) do
-      {:ok, response} -> parse_response(decode_response(response), scopes)
-      {:error, exception} -> {:error, exception}
+    with {:ok, response} <- HTTP.request(Keyword.put(req_opts, :method, :post)) do
+      parse_response(decode_response(response), scopes)
     end
   end
 
@@ -125,6 +125,6 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   defp req_options(opts) do
-    Ltix.HTTP.req_options(Keyword.get(opts, :req_options, []), __MODULE__)
+    HTTP.req_options(Keyword.get(opts, :req_options, []), __MODULE__)
   end
 end

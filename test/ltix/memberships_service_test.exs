@@ -6,6 +6,7 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
+  alias Ltix.Errors.Unknown.TransportError
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService
@@ -387,16 +388,6 @@ defmodule Ltix.MembershipsServiceTest do
       client = build_client(ctx.platform)
       assert {:ok, _} = MembershipsService.list_members(client)
     end
-
-    test "HTTP error returns error tuple", ctx do
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
-        Plug.Conn.send_resp(conn, 403, "Forbidden")
-      end)
-
-      client = build_client(ctx.platform)
-
-      assert {:error, _} = MembershipsService.list_members(client)
-    end
   end
 
   # --- Query parameters ---
@@ -585,12 +576,12 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "returns error on first page failure", ctx do
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
-        Plug.Conn.send_resp(conn, 401, "Unauthorized")
-      end)
+      Req.Test.stub(Ltix.MembershipsService, &Plug.Conn.send_resp(&1, 500, "Unavailable"))
 
       client = build_client(ctx.platform)
-      assert {:error, _} = MembershipsService.stream_members(client)
+
+      assert {:error, %TransportError{status: 500, url: @memberships_url}} =
+               MembershipsService.stream_members(client)
     end
   end
 

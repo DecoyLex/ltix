@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Security.AccessDenied do
-  @moduledoc "Platform denied access to a service request."
-  use Ltix.Errors, fields: [:service, :status, :body, :spec_ref], class: :security
+  @moduledoc "Platform denied access to a service request or key set fetch."
+  use Ltix.Errors, fields: [:status, :body, :url, :spec_ref], class: :security
 
-  def message(%{service: service, status: status, spec_ref: ref}) do
-    "Access denied for #{inspect(service)} (HTTP #{status}) [#{ref}]"
+  def message(%{status: status, url: url, spec_ref: ref}) do
+    "Access denied for #{url} (HTTP #{status}) [#{ref}]"
   end
 end

@@ -121,8 +121,8 @@ defmodule Ltix.Pagination do
            validate_next_url(parse_next_link(resp_headers, response_url), base_uri) do
       {:ok, body, next_url}
     else
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, TransportError.exception(status: status, body: body, url: request_url)}
+      {:ok, %Req.Response{} = response} ->
+        {:error, Ltix.HTTP.status_error(response, request_url)}
 
       {:error, _} = error ->
         error

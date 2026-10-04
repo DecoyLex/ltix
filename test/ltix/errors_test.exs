@@ -102,7 +102,13 @@ defmodule Ltix.ErrorsTest do
     end
 
     test "Advantage service security errors produce Security class" do
-      error = AccessDenied.exception(service: Ltix.MembershipsService, status: 403, spec_ref: "")
+      error =
+        AccessDenied.exception(
+          url: "https://lms.example.com/memberships",
+          status: 403,
+          spec_ref: ""
+        )
+
       assert %Errors.Security{} = Errors.to_class([error])
     end
 
@@ -323,16 +329,16 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "unknown-key-id"
     end
 
-    test "AccessDenied includes service and status [Sec §4.1]" do
+    test "AccessDenied includes URL and status [RFC 6750 §3.1]" do
       error =
         AccessDenied.exception(
-          service: Ltix.MembershipsService,
+          url: "https://lms.example.com/memberships",
           status: 403,
           body: "Forbidden",
-          spec_ref: "Sec §4.1"
+          spec_ref: "RFC 6750 §3.1"
         )
 
-      assert Exception.message(error) =~ "MembershipsService"
+      assert Exception.message(error) =~ "https://lms.example.com/memberships"
       assert Exception.message(error) =~ "403"
     end
 
@@ -482,6 +488,15 @@ defmodule Ltix.ErrorsTest do
         )
 
       assert Exception.message(error) =~ "connection refused"
+    end
+
+    test "TransportError names the URL and leaves out a missing spec reference" do
+      assert Exception.message(
+               TransportError.exception(body: "timeout", url: "https://lms.example.com/jwks")
+             ) ==
+               "Transport error for https://lms.example.com/jwks: timeout"
+
+      assert Exception.message(TransportError.exception(status: 502)) == "HTTP 502"
     end
 
     test "TransportError without status with non-string body" do

@@ -139,7 +139,8 @@ Deleting the **coupled** line item — the one the platform created for
 the resource link — is a different story. Ltix blocks it by default
 because platforms handle it inconsistently:
 
-- **Canvas** rejects the request outright (HTTP 401)
+- **Canvas** rejects the request outright with HTTP 401, which returns
+  `Ltix.Errors.Security.AccessDenied`
 - **Moodle and Blackboard** delete the gradebook entry entirely
 - **D2L Brightspace** severs the link but preserves existing grade data
 

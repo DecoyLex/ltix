@@ -9,7 +9,9 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.Errors.Security.AccessDenied
   alias Ltix.Errors.Security.AccessTokenExpired
+  alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
@@ -981,6 +983,58 @@ defmodule Ltix.GradeServiceTest do
             fn -> GradeService.list_results!(client) end
           ] do
         assert_raise ScopeMismatch, call
+      end
+    end
+  end
+
+  describe "access denied" do
+    test "every request operation returns AccessDenied for HTTP 401 and 403", ctx do
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      client = build_client(ctx.platform)
+      item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
+
+      for status <- [401, 403] do
+        Req.Test.stub(Ltix.GradeService, &Plug.Conn.send_resp(&1, status, "denied"))
+
+        for result <- [
+              GradeService.get_line_item(client),
+              GradeService.create_line_item(client, label: "Quiz", score_maximum: 10),
+              GradeService.update_line_item(client, item),
+              GradeService.delete_line_item(client, line_item: item),
+              GradeService.post_score(client, score),
+              GradeService.list_line_items(client),
+              GradeService.list_results(client),
+              GradeService.stream_line_items(client),
+              GradeService.stream_results(client)
+            ] do
+          assert {:error, %AccessDenied{status: ^status, body: "denied"}} = result
+        end
+      end
+    end
+  end
+
+  describe "unreachable platform" do
+    test "every request operation returns TransportError with the requested URL", ctx do
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      client = build_client(ctx.platform)
+      item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
+      Req.Test.stub(Ltix.GradeService, &Req.Test.transport_error(&1, :econnrefused))
+
+      for {result, url} <- [
+            {GradeService.get_line_item(client), @line_item_url},
+            {GradeService.create_line_item(client, label: "Quiz", score_maximum: 10),
+             @line_items_url},
+            {GradeService.update_line_item(client, item), item.id},
+            {GradeService.delete_line_item(client, line_item: item), item.id},
+            {GradeService.post_score(client, score), "#{@line_item_url}/scores"},
+            {GradeService.list_line_items(client), @line_items_url},
+            {GradeService.list_results(client), "#{@line_item_url}/results"}
+          ] do
+        assert {:error, %TransportError{status: nil, url: ^url}} = result
       end
     end
   end

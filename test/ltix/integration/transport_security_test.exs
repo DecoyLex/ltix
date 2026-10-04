@@ -1,7 +1,6 @@
 defmodule Ltix.Integration.TransportSecurityTest do
   use ExUnit.Case, async: false
 
-  alias Ltix.Errors.Unknown
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
@@ -712,7 +711,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
       Plug.Conn.send_resp(conn, 500, "Service unavailable")
     end)
 
-    assert {:error, %Unknown.Unknown{error: "JWKS fetch returned HTTP 500"}} =
+    assert {:error, %TransportError{status: 500, body: "Service unavailable"}} =
              KeySet.get_key(registration, "missing",
                req_options: [plug: {Req.Test, :ltix}, retry: false]
              )
@@ -816,8 +815,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     end)
 
     client = %{client | req_options: Keyword.put(client.req_options, :max_redirects, 2)}
-    assert {:error, error} = GradeService.post_score(client, score)
-    assert Exception.message(error) =~ "too many redirects"
+    assert {:error, %TransportError{}} = GradeService.post_score(client, score)
     assert_receive {:loop_request, "/lineitems/1/scores"}
     assert_receive {:loop_request, "/loop"}
     assert_receive {:loop_request, "/loop"}

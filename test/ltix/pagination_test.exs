@@ -73,10 +73,10 @@ defmodule Ltix.PaginationTest do
 
     test "returns error on first page failure" do
       Req.Test.stub(__MODULE__, fn conn ->
-        Plug.Conn.send_resp(conn, 401, "Unauthorized")
+        Plug.Conn.send_resp(conn, 500, "Unavailable")
       end)
 
-      assert {:error, %Ltix.Errors.Unknown.TransportError{status: 401}} =
+      assert {:error, %Ltix.Errors.Unknown.TransportError{status: 500}} =
                Pagination.stream(
                  "https://example.com/api",
                  [{"accept", "application/json"}],

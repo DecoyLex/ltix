@@ -218,8 +218,15 @@ etc.) and OAuth authentication.
 
 | Error | Fields | When |
 |---|---|---|
-| `AccessDenied` | `service`, `status`, `body`, `spec_ref` | Platform returned 401/403 for a service request |
+| `AccessDenied` | `status`, `body`, `url`, `spec_ref` | Platform responded to a service request or key set fetch with HTTP 401 or 403 |
 | `AccessTokenExpired` | `expires_at`, `spec_ref` | OAuth access token has expired |
+
+### Unknown
+
+| Error | Fields | When |
+|---|---|---|
+| `TransportError` | `status`, `body`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is not an absolute HTTPS URL |
+| `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | The platform redirected to a different origin or an invalid location |
 
 ## Logging recommendations
 
