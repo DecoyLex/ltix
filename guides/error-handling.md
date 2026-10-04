@@ -119,7 +119,7 @@ These indicate problems with the incoming data:
 | `MissingParameter` | `parameter`, `spec_ref` | OIDC login request missing a required param |
 | `MissingClaim` | `claim`, `spec_ref` | JWT missing a required claim |
 | `InvalidClaim` | `claim`, `value`, `spec_ref` | JWT claim has an invalid value |
-| `InvalidJson` | `spec_ref` | JWT body isn't valid JSON |
+| `InvalidJSON` | `spec_ref` | JWT body isn't valid JSON |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |
 | `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment_id |
 

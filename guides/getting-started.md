@@ -33,7 +33,7 @@ every launch. Add the cache to your supervision tree:
 # lib/my_app/application.ex
 children = [
   # ... your existing children (Repo, Endpoint, etc.)
-  Ltix.JWT.KeySet.EtsCache
+  Ltix.JWT.KeySet.ETSCache
 ]
 ```
 

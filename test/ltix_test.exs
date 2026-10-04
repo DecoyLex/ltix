@@ -323,14 +323,14 @@ defmodule LtixTest do
              }},
             {"https://purl.imsglobal.org/spec/lti/claim/lis",
              %{"person_sourcedid" => nil, "course_offering_sourcedid" => "course"}, :lis,
-             %Ltix.LaunchClaims.Lis{person_sourcedid: nil, course_offering_sourcedid: "course"}},
+             %Ltix.LaunchClaims.LIS{person_sourcedid: nil, course_offering_sourcedid: "course"}},
             {"https://purl.imsglobal.org/spec/lti-ags/claim/endpoint",
              %{
                "scope" => [],
                "lineitems" => nil,
                "lineitem" => "https://platform.example.com/item"
              }, :ags_endpoint,
-             %Ltix.LaunchClaims.AgsEndpoint{
+             %Ltix.LaunchClaims.AGSEndpoint{
                scope: [],
                lineitems: nil,
                lineitem: "https://platform.example.com/item"

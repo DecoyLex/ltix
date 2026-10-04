@@ -8,7 +8,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Score
   alias Ltix.JWT.KeySet
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchContext
   alias Ltix.MembershipsService
@@ -34,7 +34,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
       registration: platform.registration,
       req_options: [plug: {Req.Test, :ltix}, retry: false],
       endpoints: %{
-        GradeService => %AgsEndpoint{
+        GradeService => %AGSEndpoint{
           lineitems: "https://grades.example.com/lineitems",
           lineitem: "https://grades.example.com/lineitems/1",
           scope: scopes
@@ -145,7 +145,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     client = %{
       client
       | endpoints: %{
-          GradeService => %AgsEndpoint{lineitems: "http://127.0.0.1/lineitems"},
+          GradeService => %AGSEndpoint{lineitems: "http://127.0.0.1/lineitems"},
           MembershipsService => %MembershipsEndpoint{
             context_memberships_url: "http://127.0.0.1/members"
           }

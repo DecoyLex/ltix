@@ -16,7 +16,7 @@ defmodule Ltix.JWT.KeySet do
 
   ## Caching
 
-  By default, keys are cached in an ETS table (`Ltix.JWT.KeySet.EtsCache`).
+  By default, keys are cached in an ETS table (`Ltix.JWT.KeySet.ETSCache`).
   The cache respects the platform's `cache-control: max-age` header. When a
   `kid` is not found in cached keys, the module re-fetches once to handle
   key rotation.
@@ -43,7 +43,7 @@ defmodule Ltix.JWT.KeySet do
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Unknown
   alias Ltix.Errors.Unknown.RedirectNotAllowed
-  alias Ltix.JWT.KeySet.EtsCache
+  alias Ltix.JWT.KeySet.ETSCache
   alias Ltix.Registration
 
   @default_max_age 300
@@ -58,7 +58,7 @@ defmodule Ltix.JWT.KeySet do
   ## Options
 
     * `:cache` — cache module implementing `Ltix.JWT.KeySet.Cache`
-      (default: `Ltix.JWT.KeySet.EtsCache`)
+      (default: `Ltix.JWT.KeySet.ETSCache`)
     * `:req_options` — extra options passed to `Req.get/2`
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
@@ -181,7 +181,7 @@ defmodule Ltix.JWT.KeySet do
 
   defp resolve_cache(opts) do
     Keyword.get_lazy(opts, :cache, fn ->
-      Application.get_env(:ltix, :jwks_cache, EtsCache)
+      Application.get_env(:ltix, :jwks_cache, ETSCache)
     end)
   end
 end

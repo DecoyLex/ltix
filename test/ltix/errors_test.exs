@@ -10,7 +10,7 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
-  alias Ltix.Errors.Invalid.InvalidJson
+  alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
   alias Ltix.Errors.Invalid.MalformedResponse
@@ -133,8 +133,8 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "Core §5.3.1"
     end
 
-    test "InvalidJson includes spec ref in message" do
-      error = InvalidJson.exception(spec_ref: "Cert §6.1.1")
+    test "InvalidJSON includes spec ref in message" do
+      error = InvalidJSON.exception(spec_ref: "Cert §6.1.1")
       assert Exception.message(error) =~ "Cert §6.1.1"
     end
 

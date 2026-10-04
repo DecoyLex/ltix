@@ -11,7 +11,7 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
   alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.OAuth.Client
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
@@ -45,7 +45,7 @@ defmodule Ltix.GradeServiceTest do
 
   defp build_client(platform, opts \\ []) do
     endpoint =
-      Keyword.get(opts, :endpoint, %AgsEndpoint{
+      Keyword.get(opts, :endpoint, %AGSEndpoint{
         lineitems: @lineitems_url,
         lineitem: @lineitem_url,
         scope: @all_scopes
@@ -88,13 +88,13 @@ defmodule Ltix.GradeServiceTest do
   describe "AdvantageService callbacks" do
     test "endpoint_from_claims extracts AGS endpoint" do
       claims = %LaunchClaims{
-        ags_endpoint: %AgsEndpoint{
+        ags_endpoint: %AGSEndpoint{
           lineitems: @lineitems_url,
           scope: @all_scopes
         }
       }
 
-      assert {:ok, %AgsEndpoint{}} = GradeService.endpoint_from_claims(claims)
+      assert {:ok, %AGSEndpoint{}} = GradeService.endpoint_from_claims(claims)
     end
 
     test "endpoint_from_claims returns :error when no endpoint" do
@@ -102,8 +102,8 @@ defmodule Ltix.GradeServiceTest do
       assert :error == GradeService.endpoint_from_claims(claims)
     end
 
-    test "validate_endpoint accepts AgsEndpoint" do
-      assert :ok == GradeService.validate_endpoint(%AgsEndpoint{})
+    test "validate_endpoint accepts AGSEndpoint" do
+      assert :ok == GradeService.validate_endpoint(%AGSEndpoint{})
     end
 
     test "validate_endpoint rejects other values" do
@@ -112,12 +112,12 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "scopes returns scope array from endpoint" do
-      endpoint = %AgsEndpoint{scope: @all_scopes}
+      endpoint = %AGSEndpoint{scope: @all_scopes}
       assert @all_scopes == GradeService.scopes(endpoint)
     end
 
     test "scopes returns empty list when scope is nil" do
-      endpoint = %AgsEndpoint{scope: nil}
+      endpoint = %AGSEndpoint{scope: nil}
       assert [] == GradeService.scopes(endpoint)
     end
   end
@@ -130,7 +130,7 @@ defmodule Ltix.GradeServiceTest do
 
       context =
         Ltix.Test.build_launch_context(ctx.platform,
-          ags_endpoint: %AgsEndpoint{
+          ags_endpoint: %AGSEndpoint{
             lineitems: @lineitems_url,
             lineitem: @lineitem_url,
             scope: @all_scopes
@@ -142,7 +142,7 @@ defmodule Ltix.GradeServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert %AgsEndpoint{} = client.endpoints[GradeService]
+      assert %AGSEndpoint{} = client.endpoints[GradeService]
     end
 
     test "errors when no AGS claim in launch", ctx do
@@ -157,7 +157,7 @@ defmodule Ltix.GradeServiceTest do
     test "acquires token with endpoint option", ctx do
       stub_token_response()
 
-      endpoint = %AgsEndpoint{
+      endpoint = %AGSEndpoint{
         lineitems: @lineitems_url,
         scope: @all_scopes
       }
@@ -168,7 +168,7 @@ defmodule Ltix.GradeServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert %AgsEndpoint{} = client.endpoints[GradeService]
+      assert %AGSEndpoint{} = client.endpoints[GradeService]
     end
 
     test "errors without endpoint option", ctx do
@@ -191,7 +191,7 @@ defmodule Ltix.GradeServiceTest do
         signing_key: Ltix.JWK.generate()
       }
 
-      endpoint = %AgsEndpoint{
+      endpoint = %AGSEndpoint{
         lineitems: @lineitems_url,
         scope: @all_scopes
       }
@@ -291,7 +291,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when lineitems URL not available", ctx do
-      endpoint = %AgsEndpoint{lineitems: nil, lineitem: @lineitem_url, scope: @all_scopes}
+      endpoint = %AGSEndpoint{lineitems: nil, lineitem: @lineitem_url, scope: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
@@ -344,7 +344,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when no URL available", ctx do
-      endpoint = %AgsEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.get_line_item(client)
@@ -400,7 +400,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when lineitems URL not available", ctx do
-      endpoint = %AgsEndpoint{lineitems: nil, lineitem: @lineitem_url, scope: @all_scopes}
+      endpoint = %AGSEndpoint{lineitems: nil, lineitem: @lineitem_url, scope: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} =
@@ -521,7 +521,7 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
-      endpoint = %AgsEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert :ok = GradeService.delete_line_item(client, "#{@lineitems_url}/99/lineitem")
@@ -684,7 +684,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when no line item URL available", ctx do
-      endpoint = %AgsEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.post_score(client, ctx.score)
@@ -792,7 +792,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "returns error when no line item URL available", ctx do
-      endpoint = %AgsEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
+      endpoint = %AGSEndpoint{lineitems: @lineitems_url, lineitem: nil, scope: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.get_results(client)

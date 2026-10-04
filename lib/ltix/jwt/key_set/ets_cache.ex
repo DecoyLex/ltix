@@ -1,4 +1,4 @@
-defmodule Ltix.JWT.KeySet.EtsCache do
+defmodule Ltix.JWT.KeySet.ETSCache do
   @moduledoc """
   Default ETS-backed cache for JWKS key sets.
 
@@ -12,7 +12,7 @@ defmodule Ltix.JWT.KeySet.EtsCache do
 
       # lib/my_app/application.ex
       children = [
-        Ltix.JWT.KeySet.EtsCache
+        Ltix.JWT.KeySet.ETSCache
       ]
 
   This is the default cache backend. If you prefer Cachex, see

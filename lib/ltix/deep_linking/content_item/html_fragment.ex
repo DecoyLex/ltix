@@ -1,4 +1,4 @@
-defmodule Ltix.DeepLinking.ContentItem.HtmlFragment do
+defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
   import Ltix.DeepLinking.ContentItemHelpers, only: [put_fields: 3]
 
   alias Ltix.DeepLinking.ContentItem
@@ -39,12 +39,12 @@ defmodule Ltix.DeepLinking.ContentItem.HtmlFragment do
 
   ## Examples
 
-      iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HtmlFragment.new(html: "<p>Hello</p>")
+      iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
       iex> fragment.html
       "<p>Hello</p>"
 
       iex> {:error, %Ltix.Errors.Invalid{}} =
-      ...>   Ltix.DeepLinking.ContentItem.HtmlFragment.new([])
+      ...>   Ltix.DeepLinking.ContentItem.HTMLFragment.new([])
   """
   @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, :html_fragment, "DL §3.4")
@@ -57,8 +57,8 @@ defmodule Ltix.DeepLinking.ContentItem.HtmlFragment do
 
     ## Examples
 
-        iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HtmlFragment.new(html: "<p>Hello</p>")
-        iex> json = Ltix.DeepLinking.ContentItem.HtmlFragment.to_map(fragment)
+        iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
+        iex> json = Ltix.DeepLinking.ContentItem.HTMLFragment.to_map(fragment)
         iex> json["type"]
         "html"
         iex> json["html"]

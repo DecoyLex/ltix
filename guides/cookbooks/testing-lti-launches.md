@@ -229,7 +229,7 @@ test "submits a score after launch", %{platform: platform} do
   Ltix.Test.stub_post_score()
 
   context = Ltix.Test.build_launch_context(platform,
-    ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+    ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
       lineitem: "https://platform.example.com/lineitems/1",
       scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
     }
@@ -292,7 +292,7 @@ test "lists line items", %{platform: platform} do
   ])
 
   context = Ltix.Test.build_launch_context(platform,
-    ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+    ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
       lineitems: "https://lms.example.com/lineitems",
       scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
     }

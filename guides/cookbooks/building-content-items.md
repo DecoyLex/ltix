@@ -9,7 +9,7 @@ The simplest content item. The platform creates a link that launches
 back into your tool:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/activities/42",
   title: "Week 3 Activity"
 )
@@ -19,7 +19,7 @@ Omit `url` to use the tool's base launch URL configured in the
 platform:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   title: "Activity from Tool"
 )
 ```
@@ -30,7 +30,7 @@ Include a `line_item` so the platform auto-creates a gradebook column.
 You can then post scores to it using the grade service:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/quizzes/7",
   title: "Midterm Quiz",
   line_item: [
@@ -51,7 +51,7 @@ Custom parameters are passed to your tool on every launch of the
 created link. Both keys and values must be strings:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/assignments",
   title: "Essay Submission",
   custom: %{
@@ -67,7 +67,7 @@ created link. Both keys and values must be strings:
 Control when the link is accessible and when submissions are accepted:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/exams/final",
   title: "Final Exam",
   available: [
@@ -85,7 +85,7 @@ to leave the start open.
 
 ## External link
 
-For URLs outside your tool. Use `Link` instead of `LtiResourceLink`
+For URLs outside your tool. Use `Link` instead of `LTIResourceLink`
 when the resource isn't an LTI launch:
 
 ```elixir
@@ -135,7 +135,7 @@ platform when the URL stops working:
 Inline HTML the platform embeds directly in its page:
 
 ```elixir
-{:ok, fragment} = Ltix.DeepLinking.ContentItem.HtmlFragment.new(
+{:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(
   html: """
   <div class="tool-widget">
     <h3>Study Flashcards</h3>
@@ -185,7 +185,7 @@ Add vendor-specific properties keyed by fully qualified URLs. Extensions
 are merged into the top-level JSON output:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/activity/5",
   title: "Proctored Exam",
   extensions: %{
@@ -204,7 +204,7 @@ All five content item types support the `extensions` field.
 Pass a list of mixed content item types to `build_response/3`:
 
 ```elixir
-{:ok, quiz} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, quiz} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/quizzes/1",
   title: "Quiz 1",
   line_item: [score_maximum: 50]

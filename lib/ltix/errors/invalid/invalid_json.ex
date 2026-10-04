@@ -1,4 +1,4 @@
-defmodule Ltix.Errors.Invalid.InvalidJson do
+defmodule Ltix.Errors.Invalid.InvalidJSON do
   @moduledoc "Malformed JSON or JWT structure [Cert §6.1.1]."
   use Ltix.Errors, fields: [:spec_ref], class: :invalid
 

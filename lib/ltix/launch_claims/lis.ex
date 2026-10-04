@@ -1,4 +1,4 @@
-defmodule Ltix.LaunchClaims.Lis do
+defmodule Ltix.LaunchClaims.LIS do
   @moduledoc """
   SIS (Student Information System) integration identifiers from LIS.
 
@@ -6,8 +6,8 @@ defmodule Ltix.LaunchClaims.Lis do
 
   ## Examples
 
-      iex> Ltix.LaunchClaims.Lis.from_json(%{"person_sourcedid" => "sis-001"})
-      {:ok, %Ltix.LaunchClaims.Lis{person_sourcedid: "sis-001", course_offering_sourcedid: nil, course_section_sourcedid: nil}}
+      iex> Ltix.LaunchClaims.LIS.from_json(%{"person_sourcedid" => "sis-001"})
+      {:ok, %Ltix.LaunchClaims.LIS{person_sourcedid: "sis-001", course_offering_sourcedid: nil, course_section_sourcedid: nil}}
   """
 
   alias Ltix.LaunchClaims.ClaimHelpers
@@ -35,8 +35,8 @@ defmodule Ltix.LaunchClaims.Lis do
 
   ## Examples
 
-      iex> Ltix.LaunchClaims.Lis.from_json(%{})
-      {:ok, %Ltix.LaunchClaims.Lis{person_sourcedid: nil, course_offering_sourcedid: nil, course_section_sourcedid: nil}}
+      iex> Ltix.LaunchClaims.LIS.from_json(%{})
+      {:ok, %Ltix.LaunchClaims.LIS{person_sourcedid: nil, course_offering_sourcedid: nil, course_section_sourcedid: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do

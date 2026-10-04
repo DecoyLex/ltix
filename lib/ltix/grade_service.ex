@@ -32,7 +32,7 @@ defmodule Ltix.GradeService do
   alias Ltix.AppConfig
 
   alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchContext
 
   alias Ltix.OAuth
@@ -59,19 +59,19 @@ defmodule Ltix.GradeService do
 
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def endpoint_from_claims(%LaunchClaims{ags_endpoint: %AgsEndpoint{} = ep}), do: {:ok, ep}
+  def endpoint_from_claims(%LaunchClaims{ags_endpoint: %AGSEndpoint{} = ep}), do: {:ok, ep}
   def endpoint_from_claims(_), do: :error
 
   @impl Ltix.AdvantageService
-  def validate_endpoint(%AgsEndpoint{}), do: :ok
+  def validate_endpoint(%AGSEndpoint{}), do: :ok
 
   def validate_endpoint(_),
     do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
 
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def scopes(%AgsEndpoint{scope: scopes}) when is_list(scopes), do: scopes
-  def scopes(%AgsEndpoint{scope: nil}), do: []
+  def scopes(%AGSEndpoint{scope: scopes}) when is_list(scopes), do: scopes
+  def scopes(%AGSEndpoint{scope: nil}), do: []
 
   @context_auth_schema Zoi.keyword(
                          req_options:
@@ -83,7 +83,7 @@ defmodule Ltix.GradeService do
 
   @registration_auth_schema Zoi.keyword(
                               endpoint:
-                                Zoi.struct(AgsEndpoint, description: "AGS endpoint struct.")
+                                Zoi.struct(AGSEndpoint, description: "AGS endpoint struct.")
                                 |> Zoi.required(),
                               req_options:
                                 Zoi.keyword(Zoi.any(),
@@ -107,7 +107,7 @@ defmodule Ltix.GradeService do
   ## From a registration
 
       {:ok, client} = Ltix.GradeService.authenticate(registration,
-        endpoint: %AgsEndpoint{
+        endpoint: %AGSEndpoint{
           lineitems: "https://lms.example.com/lineitems",
           scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
         }

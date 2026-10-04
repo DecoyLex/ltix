@@ -3,7 +3,7 @@ defmodule PhoenixExampleWeb.LtiController do
   require Logger
 
   alias Ltix.DeepLinking
-  alias Ltix.DeepLinking.ContentItem.LtiResourceLink
+  alias Ltix.DeepLinking.ContentItem.LTIResourceLink
   alias Ltix.GradeService
   alias Ltix.GradeService.Score
   alias PhoenixExample.LtiStorage
@@ -267,7 +267,7 @@ defmodule PhoenixExampleWeb.LtiController do
       [title: non_blank(title)]
       |> maybe_put(:url, non_blank(url))
 
-    case LtiResourceLink.new(opts) do
+    case LTIResourceLink.new(opts) do
       {:ok, item} -> {:ok, [item]}
       {:error, _} = err -> err
     end

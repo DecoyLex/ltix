@@ -55,7 +55,7 @@ defmodule Ltix.LaunchClaims do
       (`t:Ltix.LaunchClaims.LaunchPresentation.t/0`)
     * `:tool_platform` — platform instance info
       (`t:Ltix.LaunchClaims.ToolPlatform.t/0`)
-    * `:lis` — SIS integration identifiers (`t:Ltix.LaunchClaims.Lis.t/0`)
+    * `:lis` — SIS integration identifiers (`t:Ltix.LaunchClaims.LIS.t/0`)
 
   ### Advantage service endpoints
 
@@ -63,7 +63,7 @@ defmodule Ltix.LaunchClaims do
   Pass the parent `%LaunchContext{}` to the service's `authenticate/2`.
 
     * `:ags_endpoint` — Assignment and Grade Services
-      (`t:Ltix.LaunchClaims.AgsEndpoint.t/0`)
+      (`t:Ltix.LaunchClaims.AGSEndpoint.t/0`)
     * `:memberships_endpoint` — Names and Roles Provisioning
       (`t:Ltix.LaunchClaims.MembershipsEndpoint.t/0`)
     * `:deep_linking_settings` — Deep Linking
@@ -85,12 +85,12 @@ defmodule Ltix.LaunchClaims do
   alias Ltix.AppConfig
   alias Ltix.Errors.Invalid.InvalidClaim
 
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.ClaimHelpers
   alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchClaims.LaunchPresentation
-  alias Ltix.LaunchClaims.Lis
+  alias Ltix.LaunchClaims.LIS
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
@@ -202,8 +202,8 @@ defmodule Ltix.LaunchClaims do
           custom: map() | nil,
           launch_presentation: LaunchPresentation.t() | nil,
           tool_platform: ToolPlatform.t() | nil,
-          lis: Lis.t() | nil,
-          ags_endpoint: AgsEndpoint.t() | nil,
+          lis: LIS.t() | nil,
+          ags_endpoint: AGSEndpoint.t() | nil,
           memberships_endpoint: MembershipsEndpoint.t() | nil,
           deep_linking_settings: DeepLinkingSettings.t() | nil,
           extensions: %{optional(String.t()) => term()}
@@ -262,8 +262,8 @@ defmodule Ltix.LaunchClaims do
     launch_presentation:
       {ClaimHelpers.optional(LaunchPresentation.schema()), "launch_presentation", "Core §5.4.4"},
     tool_platform: {ClaimHelpers.optional(ToolPlatform.schema()), "tool_platform", "Core §5.4.2"},
-    lis: {ClaimHelpers.optional(Lis.schema()), "lis", "Core §5.4.5"},
-    ags_endpoint: {ClaimHelpers.optional(AgsEndpoint.schema()), "ags_endpoint", "AGS §3.1"},
+    lis: {ClaimHelpers.optional(LIS.schema()), "lis", "Core §5.4.5"},
+    ags_endpoint: {ClaimHelpers.optional(AGSEndpoint.schema()), "ags_endpoint", "AGS §3.1"},
     memberships_endpoint:
       {ClaimHelpers.optional(MembershipsEndpoint.schema()), "memberships_endpoint",
        "NRPS §3.6.1.1"},

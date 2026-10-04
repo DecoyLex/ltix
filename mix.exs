@@ -210,7 +210,7 @@ defmodule Ltix.MixProject do
           Ltix.JWT.Token,
           Ltix.JWT.KeySet,
           Ltix.JWT.KeySet.Cache,
-          Ltix.JWT.KeySet.EtsCache,
+          Ltix.JWT.KeySet.ETSCache,
           Ltix.JWT.KeySet.CachexCache
         ],
         "Launch Claims": [
@@ -222,8 +222,8 @@ defmodule Ltix.MixProject do
           Ltix.LaunchClaims.ResourceLink,
           Ltix.LaunchClaims.LaunchPresentation,
           Ltix.LaunchClaims.ToolPlatform,
-          Ltix.LaunchClaims.Lis,
-          Ltix.LaunchClaims.AgsEndpoint,
+          Ltix.LaunchClaims.LIS,
+          Ltix.LaunchClaims.AGSEndpoint,
           Ltix.LaunchClaims.MembershipsEndpoint,
           Ltix.LaunchClaims.DeepLinkingSettings
         ],
@@ -232,9 +232,9 @@ defmodule Ltix.MixProject do
           Ltix.DeepLinking.ContentItem,
           Ltix.DeepLinking.Response,
           Ltix.DeepLinking.ContentItem.Link,
-          Ltix.DeepLinking.ContentItem.LtiResourceLink,
+          Ltix.DeepLinking.ContentItem.LTIResourceLink,
           Ltix.DeepLinking.ContentItem.File,
-          Ltix.DeepLinking.ContentItem.HtmlFragment,
+          Ltix.DeepLinking.ContentItem.HTMLFragment,
           Ltix.DeepLinking.ContentItem.Image
         ],
         "Advantage Services": [

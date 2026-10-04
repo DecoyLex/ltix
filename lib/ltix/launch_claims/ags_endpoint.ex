@@ -1,4 +1,4 @@
-defmodule Ltix.LaunchClaims.AgsEndpoint do
+defmodule Ltix.LaunchClaims.AGSEndpoint do
   @moduledoc """
   Assignment and Grade Services (AGS) endpoint claim.
 
@@ -6,8 +6,8 @@ defmodule Ltix.LaunchClaims.AgsEndpoint do
 
   ## Examples
 
-      iex> Ltix.LaunchClaims.AgsEndpoint.from_json(%{"lineitems" => "https://example.com/lineitems"})
-      {:ok, %Ltix.LaunchClaims.AgsEndpoint{scope: nil, lineitems: "https://example.com/lineitems", lineitem: nil}}
+      iex> Ltix.LaunchClaims.AGSEndpoint.from_json(%{"lineitems" => "https://example.com/lineitems"})
+      {:ok, %Ltix.LaunchClaims.AGSEndpoint{scope: nil, lineitems: "https://example.com/lineitems", lineitem: nil}}
   """
 
   alias Ltix.LaunchClaims.ClaimHelpers
@@ -35,8 +35,8 @@ defmodule Ltix.LaunchClaims.AgsEndpoint do
 
   ## Examples
 
-      iex> Ltix.LaunchClaims.AgsEndpoint.from_json(%{})
-      {:ok, %Ltix.LaunchClaims.AgsEndpoint{scope: nil, lineitems: nil, lineitem: nil}}
+      iex> Ltix.LaunchClaims.AGSEndpoint.from_json(%{})
+      {:ok, %Ltix.LaunchClaims.AGSEndpoint{scope: nil, lineitems: nil, lineitem: nil}}
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do

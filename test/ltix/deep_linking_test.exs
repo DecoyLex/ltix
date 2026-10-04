@@ -3,10 +3,10 @@ defmodule Ltix.DeepLinkingTest do
 
   alias Ltix.DeepLinking
   alias Ltix.DeepLinking.ContentItem.File
-  alias Ltix.DeepLinking.ContentItem.HtmlFragment
+  alias Ltix.DeepLinking.ContentItem.HTMLFragment
   alias Ltix.DeepLinking.ContentItem.Image
   alias Ltix.DeepLinking.ContentItem.Link
-  alias Ltix.DeepLinking.ContentItem.LtiResourceLink
+  alias Ltix.DeepLinking.ContentItem.LTIResourceLink
   alias Ltix.DeepLinking.Response
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
@@ -101,11 +101,11 @@ defmodule Ltix.DeepLinkingTest do
                claims[@dl <> "content_items"]
     end
 
-    test "serializes an LtiResourceLink item", %{platform: p} do
+    test "serializes an LTIResourceLink item", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
 
       {:ok, item} =
-        LtiResourceLink.new(
+        LTIResourceLink.new(
           url: "https://tool.example.com",
           title: "Quiz",
           line_item: %{score_maximum: 100}
@@ -306,7 +306,7 @@ defmodule Ltix.DeepLinkingTest do
           deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_lineitem: false}
         )
 
-      {:ok, item} = LtiResourceLink.new(line_item: %{score_maximum: 100})
+      {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
 
       assert {:error, %LineItemNotAccepted{}} =
                DeepLinking.build_response(context, [item])
@@ -319,7 +319,7 @@ defmodule Ltix.DeepLinkingTest do
           deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_lineitem: true}
         )
 
-      {:ok, item} = LtiResourceLink.new(line_item: %{score_maximum: 100})
+      {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
     end
@@ -331,19 +331,19 @@ defmodule Ltix.DeepLinkingTest do
           deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
         )
 
-      {:ok, item} = LtiResourceLink.new(line_item: %{score_maximum: 100})
+      {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
     end
 
-    test "allows LtiResourceLink without line_item when accept_lineitem is false", %{platform: p} do
+    test "allows LTIResourceLink without line_item when accept_lineitem is false", %{platform: p} do
       context =
         Ltix.Test.build_launch_context(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_lineitem: false}
         )
 
-      {:ok, item} = LtiResourceLink.new(url: "https://tool.example.com")
+      {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
     end
@@ -360,13 +360,13 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, link} = Link.new(url: "https://example.com")
 
       {:ok, resource} =
-        LtiResourceLink.new(
+        LTIResourceLink.new(
           url: "https://tool.example.com",
           line_item: %{score_maximum: 100, label: "Quiz"}
         )
 
       {:ok, file} = File.new(url: "https://example.com/f.pdf")
-      {:ok, html} = HtmlFragment.new(html: "<p>Hi</p>")
+      {:ok, html} = HTMLFragment.new(html: "<p>Hi</p>")
       {:ok, image} = Image.new(url: "https://example.com/i.png")
       raw = %{"type" => "link", "url" => "https://raw.example.com"}
 

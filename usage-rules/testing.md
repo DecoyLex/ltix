@@ -108,7 +108,7 @@ Verify signed response JWTs from your tool:
 test "content selection returns valid JWT", %{platform: platform} do
   context = Ltix.Test.build_launch_context(platform, message_type: :deep_linking)
 
-  {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+  {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
     url: "https://tool.example.com/quiz/1",
     title: "Quiz"
   )
@@ -154,7 +154,7 @@ test "posts a score after launch", %{platform: platform} do
   Ltix.Test.stub_post_score()
 
   context = Ltix.Test.build_launch_context(platform,
-    ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+    ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
       lineitem: "https://platform.example.com/lineitems/1",
       scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
     }

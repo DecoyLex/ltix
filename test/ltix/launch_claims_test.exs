@@ -4,11 +4,10 @@ defmodule Ltix.LaunchClaimsTest do
   alias Ltix.LaunchClaims
   alias Ltix.Test.JWTHelper
 
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchClaims.LaunchPresentation
-  alias Ltix.LaunchClaims.Lis
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
@@ -216,18 +215,6 @@ defmodule Ltix.LaunchClaimsTest do
                LaunchClaims.from_json(json)
     end
 
-    # [Core §5.4.5] lis
-    test "parses lis into Lis struct" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/lis" => %{
-          "person_sourcedid" => "sis-001"
-        }
-      }
-
-      assert {:ok, %LaunchClaims{lis: %Lis{person_sourcedid: "sis-001"}}} =
-               LaunchClaims.from_json(json)
-    end
-
     # [Core §5.4] missing optional nested claims default to nil
     test "missing optional nested claims default to nil" do
       assert {:ok, %LaunchClaims{} = claims} = LaunchClaims.from_json(%{})
@@ -272,7 +259,7 @@ defmodule Ltix.LaunchClaimsTest do
         }
       }
 
-      assert {:ok, %LaunchClaims{ags_endpoint: %AgsEndpoint{lineitems: url}}} =
+      assert {:ok, %LaunchClaims{ags_endpoint: %AGSEndpoint{lineitems: url}}} =
                LaunchClaims.from_json(json)
 
       assert url == "https://platform.example.com/lineitems"

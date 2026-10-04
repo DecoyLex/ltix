@@ -8,7 +8,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
   alias Ltix.GradeService
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
@@ -355,7 +355,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       scopes: MapSet.new(scopes),
       req_options: request_options(),
       endpoints: %{
-        GradeService => %AgsEndpoint{
+        GradeService => %AGSEndpoint{
           lineitems: page_url(:line_items, 1),
           lineitem: "https://platform.example.com/lineitems/1",
           scope: scopes

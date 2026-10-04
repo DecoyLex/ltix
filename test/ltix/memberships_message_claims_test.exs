@@ -201,8 +201,8 @@ defmodule Ltix.MembershipsMessageClaimsTest do
                      width: nil,
                      return_url: nil
                    },
-                   lis: %Ltix.LaunchClaims.Lis{person_sourcedid: nil},
-                   ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{scope: [], lineitems: nil},
+                   lis: %Ltix.LaunchClaims.LIS{person_sourcedid: nil},
+                   ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{scope: [], lineitems: nil},
                    memberships_endpoint: %MembershipsEndpoint{
                      service_versions: [],
                      context_memberships_url: nil

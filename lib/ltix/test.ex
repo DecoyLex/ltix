@@ -113,7 +113,7 @@ defmodule Ltix.Test do
 
       test "posts a score", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
-          ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+          ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
             lineitem: "https://platform.example.com/lineitems/1",
             scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
           }
@@ -140,7 +140,7 @@ defmodule Ltix.Test do
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchClaims.MembershipsEndpoint
@@ -850,10 +850,10 @@ defmodule Ltix.Test do
 
   defp build_ags_endpoint(nil), do: nil
 
-  defp build_ags_endpoint(%AgsEndpoint{} = ep), do: ep
+  defp build_ags_endpoint(%AGSEndpoint{} = ep), do: ep
 
   defp build_ags_endpoint(map) when is_map(map) do
-    %AgsEndpoint{
+    %AGSEndpoint{
       lineitems: Map.get(map, :lineitems),
       lineitem: Map.get(map, :lineitem),
       scope: Map.get(map, :scope)

@@ -337,7 +337,7 @@ defmodule Ltix.TestTest do
 
       context =
         Ltix.Test.build_launch_context(platform,
-          ags_endpoint: %Ltix.LaunchClaims.AgsEndpoint{
+          ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
             lineitem: "https://platform.example.com/lineitems/1",
             scope: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
           }
@@ -554,7 +554,7 @@ defmodule Ltix.TestTest do
       registration: platform.registration,
       req_options: [plug: {Req.Test, Ltix.GradeService}, retry: false],
       endpoints: %{
-        Ltix.GradeService => %Ltix.LaunchClaims.AgsEndpoint{
+        Ltix.GradeService => %Ltix.LaunchClaims.AGSEndpoint{
           lineitems: "https://lms.example.com/lineitems",
           lineitem: "https://lms.example.com/lineitems/1",
           scope: scopes

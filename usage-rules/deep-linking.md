@@ -20,10 +20,10 @@ end
 
 Build items with `ContentItem.*.new/1`:
 
-- `Ltix.DeepLinking.ContentItem.LtiResourceLink` — activity that launches back into your tool
+- `Ltix.DeepLinking.ContentItem.LTIResourceLink` — activity that launches back into your tool
 - `Ltix.DeepLinking.ContentItem.Link` — external URL (article, docs page)
 - `Ltix.DeepLinking.ContentItem.File` — downloadable file with optional expiry
-- `Ltix.DeepLinking.ContentItem.HtmlFragment` — inline HTML the platform embeds
+- `Ltix.DeepLinking.ContentItem.HTMLFragment` — inline HTML the platform embeds
 - `Ltix.DeepLinking.ContentItem.Image` — image for direct rendering
 
 ## Platform Constraints
@@ -43,7 +43,7 @@ settings.accept_lineitem      # true or false
 ## Building LTI Resource Links with Line Items
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/quizzes/7",
   title: "Midterm Quiz",
   line_item: [

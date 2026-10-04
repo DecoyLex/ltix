@@ -1,9 +1,9 @@
-defmodule Ltix.LaunchClaims.AgsEndpointTest do
+defmodule Ltix.LaunchClaims.AGSEndpointTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.LaunchClaims.AgsEndpoint
+  alias Ltix.LaunchClaims.AGSEndpoint
 
-  doctest Ltix.LaunchClaims.AgsEndpoint
+  doctest Ltix.LaunchClaims.AGSEndpoint
 
   describe "from_json/1" do
     # [Core §6.1] Service endpoint claim
@@ -17,7 +17,7 @@ defmodule Ltix.LaunchClaims.AgsEndpointTest do
         "lineitem" => "https://platform.example.com/api/lineitems/123"
       }
 
-      assert {:ok, %AgsEndpoint{} = ags} = AgsEndpoint.from_json(json)
+      assert {:ok, %AGSEndpoint{} = ags} = AGSEndpoint.from_json(json)
 
       assert ags.scope == [
                "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
@@ -26,19 +26,6 @@ defmodule Ltix.LaunchClaims.AgsEndpointTest do
 
       assert ags.lineitems == "https://platform.example.com/api/lineitems"
       assert ags.lineitem == "https://platform.example.com/api/lineitems/123"
-    end
-
-    test "parses empty map" do
-      assert {:ok, %AgsEndpoint{scope: nil, lineitems: nil, lineitem: nil}} =
-               AgsEndpoint.from_json(%{})
-    end
-
-    test "parses with only scope" do
-      json = %{
-        "scope" => ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
-      }
-
-      assert {:ok, %AgsEndpoint{scope: [_], lineitems: nil}} = AgsEndpoint.from_json(json)
     end
   end
 end

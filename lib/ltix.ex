@@ -45,7 +45,7 @@ defmodule Ltix do
 
     * `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` for
       caching platform public keys. Defaults to
-      `Ltix.JWT.KeySet.EtsCache`, which must be started in your
+      `Ltix.JWT.KeySet.ETSCache`, which must be started in your
       supervision tree. A `Ltix.JWT.KeySet.CachexCache` adapter is
       also provided.
 
@@ -127,7 +127,7 @@ defmodule Ltix do
 
       case context.claims.message_type do
         "LtiDeepLinkingRequest" ->
-          {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+          {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
             url: "https://tool.example.com/activity/1",
             title: "Quiz 1"
           )

@@ -52,7 +52,7 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
 
   Use this for external URLs hosted outside your tool, such as articles,
   documentation, or third-party resources. For links that launch back
-  into your tool via LTI, use `Ltix.DeepLinking.ContentItem.LtiResourceLink`
+  into your tool via LTI, use `Ltix.DeepLinking.ContentItem.LTIResourceLink`
   instead.
 
   ## Options

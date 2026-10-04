@@ -151,8 +151,8 @@ end
 - `:json_library` — auto-detected (`JSON` on Elixir 1.18+/OTP 27+, else `Jason`)
 - `:req_options` — default HTTP options for all outgoing requests
 - `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` (default:
-  `Ltix.JWT.KeySet.EtsCache`). The default ETS cache is a GenServer that must be started
-  in your supervision tree: `children = [Ltix.JWT.KeySet.EtsCache]`
+  `Ltix.JWT.KeySet.ETSCache`). The default ETS cache is a GenServer that must be started
+  in your supervision tree: `children = [Ltix.JWT.KeySet.ETSCache]`
 - Custom claim/role parsers under the `Ltix.LaunchClaims` config key
 
 ## Telemetry

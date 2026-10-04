@@ -2,7 +2,7 @@ defmodule Ltix.JWT.KeySet.Cache do
   @moduledoc """
   Behaviour for caching JWKS (JSON Web Key Sets) fetched from platform endpoints.
 
-  The default implementation is `Ltix.JWT.KeySet.EtsCache`, which uses an ETS
+  The default implementation is `Ltix.JWT.KeySet.ETSCache`, which uses an ETS
   table. A `Ltix.JWT.KeySet.CachexCache` adapter is also provided for projects
   that already use Cachex.
 

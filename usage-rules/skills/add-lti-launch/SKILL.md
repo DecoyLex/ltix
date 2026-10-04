@@ -12,7 +12,7 @@ This skill walks through wiring up LTI 1.3 launch endpoints in a Phoenix applica
 - Ltix is installed as a dependency
 - A storage adapter is implemented (see the `implement-storage-adapter` skill)
 - `config :ltix, storage_adapter: MyApp.Lti.StorageAdapter` is set
-- `Ltix.JWT.KeySet.EtsCache` is started in the supervision tree (see Step 1)
+- `Ltix.JWT.KeySet.ETSCache` is started in the supervision tree (see Step 1)
 
 ## Before You Start — Survey the User
 
@@ -66,7 +66,7 @@ The cache is backed by a GenServer that must be started in your supervision tree
 # lib/my_app/application.ex
 children = [
   # ... your existing children (Repo, Endpoint, etc.)
-  Ltix.JWT.KeySet.EtsCache
+  Ltix.JWT.KeySet.ETSCache
 ]
 ```
 
@@ -324,7 +324,7 @@ end
 
 These are non-negotiable requirements from the LTI spec:
 
-- **`Ltix.JWT.KeySet.EtsCache` must be in the supervision tree.** It's a GenServer that
+- **`Ltix.JWT.KeySet.ETSCache` must be in the supervision tree.** It's a GenServer that
   owns the ETS table for caching platform public keys. Without it, launch validation
   will fail.
 - **State goes in the session**, not in query params or cookies. Store during login,

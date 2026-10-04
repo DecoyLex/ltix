@@ -1,4 +1,4 @@
-defmodule Ltix.DeepLinking.ContentItem.LtiResourceLink do
+defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   import Ltix.DeepLinking.ContentItemHelpers,
     only: [put_fields: 3, put_sub_map: 3, put_passthrough: 3, icon_schema: 1, window_schema: 1]
 
@@ -97,11 +97,11 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLink do
 
   ## Examples
 
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new([])
+      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new([])
       iex> link.url
       nil
 
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(url: "https://tool.example.com")
+      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(url: "https://tool.example.com")
       iex> link.url
       "https://tool.example.com"
   """
@@ -116,8 +116,8 @@ defmodule Ltix.DeepLinking.ContentItem.LtiResourceLink do
 
     ## Examples
 
-        iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(url: "https://tool.example.com")
-        iex> json = Ltix.DeepLinking.ContentItem.LtiResourceLink.to_map(link)
+        iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(url: "https://tool.example.com")
+        iex> json = Ltix.DeepLinking.ContentItem.LTIResourceLink.to_map(link)
         iex> json["type"]
         "ltiResourceLink"
     """

@@ -106,11 +106,11 @@ end
 Post a score to a line item the tool created earlier:
 
 ```elixir
-alias Ltix.LaunchClaims.AgsEndpoint
+alias Ltix.LaunchClaims.AGSEndpoint
 
 def post_attendance(course, user_id) do
   registration = get_registration(course)
-  endpoint = %AgsEndpoint{lineitems: course.lineitems_url}
+  endpoint = %AGSEndpoint{lineitems: course.lineitems_url}
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint
@@ -208,12 +208,12 @@ When a student checks in for a specific session, post the score directly
 to that session's grade column:
 
 ```elixir
-alias Ltix.LaunchClaims.AgsEndpoint
+alias Ltix.LaunchClaims.AGSEndpoint
 
 def post_check_in(session, user_id) do
   course = Repo.preload(session, :course).course
   registration = get_registration(course)
-  endpoint = %AgsEndpoint{lineitem: session.lineitem_url}
+  endpoint = %AGSEndpoint{lineitem: session.lineitem_url}
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint

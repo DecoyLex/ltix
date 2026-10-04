@@ -57,7 +57,7 @@ The most common content item is an LTI resource link, which tells the
 platform to create a link that launches back into your tool:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/activities/123",
   title: "Chapter 3 Quiz"
 )
@@ -67,10 +67,10 @@ Five content item types are available:
 
 | Type | Module | When to use |
 |------|--------|-------------|
-| `ltiResourceLink` | `Ltix.DeepLinking.ContentItem.LtiResourceLink` | Activity that launches back into your tool |
+| `ltiResourceLink` | `Ltix.DeepLinking.ContentItem.LTIResourceLink` | Activity that launches back into your tool |
 | `link` | `Ltix.DeepLinking.ContentItem.Link` | External URL (article, documentation) |
 | `file` | `Ltix.DeepLinking.ContentItem.File` | Downloadable file |
-| `html` | `Ltix.DeepLinking.ContentItem.HtmlFragment` | Inline HTML the platform embeds |
+| `html` | `Ltix.DeepLinking.ContentItem.HTMLFragment` | Inline HTML the platform embeds |
 | `image` | `Ltix.DeepLinking.ContentItem.Image` | Image for direct rendering |
 
 ```elixir
@@ -88,7 +88,7 @@ Five content item types are available:
 )
 
 # Inline HTML
-{:ok, fragment} = Ltix.DeepLinking.ContentItem.HtmlFragment.new(
+{:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(
   html: "<iframe src=\"https://tool.example.com/embed/42\"></iframe>",
   title: "Interactive Widget"
 )
@@ -109,7 +109,7 @@ auto-create a gradebook column. This connects deep linking to the
 grade service, so you can post scores to that column later:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/quizzes/7",
   title: "Midterm Quiz",
   line_item: [score_maximum: 100, label: "Midterm Quiz"],
@@ -120,7 +120,7 @@ grade service, so you can post scores to that column later:
 Set availability and submission windows with ISO 8601 timestamps:
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/assignments/5",
   title: "Homework 5",
   available: [
@@ -303,7 +303,7 @@ test "response JWT contains the selected items", %{platform: platform} do
     message_type: :deep_linking
   )
 
-  {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+  {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
     url: "https://tool.example.com/quiz/1",
     title: "Quiz 1",
     line_item: [score_maximum: 100]
@@ -327,5 +327,5 @@ end
 - [Testing LTI Launches](cookbooks/testing-lti-launches.md):
   more test patterns for both launch types
 - `Ltix.DeepLinking`: full API reference
-- `Ltix.DeepLinking.ContentItem.LtiResourceLink`: all options for
+- `Ltix.DeepLinking.ContentItem.LTIResourceLink`: all options for
   the most common content item type

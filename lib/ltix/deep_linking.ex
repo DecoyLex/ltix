@@ -8,11 +8,11 @@ defmodule Ltix.DeepLinking do
 
   Content items are built with these modules:
 
-    * `Ltix.DeepLinking.ContentItem.LtiResourceLink` — an LTI activity
+    * `Ltix.DeepLinking.ContentItem.LTIResourceLink` — an LTI activity
       the platform will link to
     * `Ltix.DeepLinking.ContentItem.Link` — an external URL
     * `Ltix.DeepLinking.ContentItem.File` — a downloadable file
-    * `Ltix.DeepLinking.ContentItem.HtmlFragment` — inline HTML to embed
+    * `Ltix.DeepLinking.ContentItem.HTMLFragment` — inline HTML to embed
     * `Ltix.DeepLinking.ContentItem.Image` — an image for direct rendering
 
   See the [Deep Linking](deep-linking.md) guide for the full workflow
@@ -21,7 +21,7 @@ defmodule Ltix.DeepLinking do
   """
 
   alias Ltix.DeepLinking.ContentItem
-  alias Ltix.DeepLinking.ContentItem.LtiResourceLink
+  alias Ltix.DeepLinking.ContentItem.LTIResourceLink
   alias Ltix.DeepLinking.Response
 
   alias Ltix.Deployable
@@ -70,7 +70,7 @@ defmodule Ltix.DeepLinking do
 
   ## Examples
 
-      {:ok, link} = Ltix.DeepLinking.ContentItem.LtiResourceLink.new(
+      {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
         url: "https://tool.example.com/activity/123",
         title: "Quiz 1"
       )
@@ -161,7 +161,7 @@ defmodule Ltix.DeepLinking do
   defp validate_line_items(items, accept_lineitem) when accept_lineitem == false do
     has_line_item? =
       Enum.any?(items, fn
-        %LtiResourceLink{line_item: li} when not is_nil(li) -> true
+        %LTIResourceLink{line_item: li} when not is_nil(li) -> true
         _ -> false
       end)
 
