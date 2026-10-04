@@ -196,9 +196,12 @@ Per-operation stubs are available for each service call:
 - `stub_list_line_items/1`, `stub_get_line_item/1`, `stub_create_line_item/1`,
   `stub_update_line_item/1`, `stub_delete_line_item/0`
 - `stub_post_score/0`, `stub_list_results/1`
-- `stub_get_members/1`
+- `stub_list_members/1`
+
+Each stub handles one operation, and stubs for different operations work together, so stub every operation the code under test calls. Stubbing an operation again replaces its stub. A request without a matching stub fails the test with its method and URL. Per-line-item stubs take `line_item:` (URL or `%LineItem{}`) to handle only that line item. List stubs also handle `stream_*` calls and page through results when the call passes `:per_page`.
 
 Each accepts the struct(s) the platform would return. For custom response
 logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly.
+It replaces every `Ltix.Test` stub of that service.
 
 `stub_token_response/1` accepts `:scopes`, `:access_token`, and `:expires_in`.

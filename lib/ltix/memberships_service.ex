@@ -361,4 +361,8 @@ defmodule Ltix.MembershipsService do
     {:error,
      ServiceNotAvailable.exception(service: __MODULE__, reason: reason, spec_ref: "NRPS §3.6.1")}
   end
+
+  @doc false
+  @spec media_type(:membership_container) :: String.t()
+  def media_type(:membership_container), do: @media_type
 end

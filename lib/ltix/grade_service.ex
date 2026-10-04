@@ -50,8 +50,8 @@ defmodule Ltix.GradeService do
   @scope_result_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
   @scope_score "https://purl.imsglobal.org/spec/lti-ags/scope/score"
 
-  @lineitem_media_type "application/vnd.ims.lis.v2.lineitem+json"
-  @lineitem_container_media_type "application/vnd.ims.lis.v2.lineitemcontainer+json"
+  @line_item_media_type "application/vnd.ims.lis.v2.lineitem+json"
+  @line_item_container_media_type "application/vnd.ims.lis.v2.lineitemcontainer+json"
   @result_container_media_type "application/vnd.ims.lis.v2.resultcontainer+json"
   @score_media_type "application/vnd.ims.lis.v1.score+json"
 
@@ -259,7 +259,7 @@ defmodule Ltix.GradeService do
     run(operation, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
       params = list_line_items_params(opts)
 
-      with {:ok, pages} <- fetch_pages(client, url, @lineitem_container_media_type, params) do
+      with {:ok, pages} <- fetch_pages(client, url, @line_item_container_media_type, params) do
         consume.(parse_pages(pages, :line_items))
       end
     end)
@@ -285,7 +285,7 @@ defmodule Ltix.GradeService do
     url = resolve_line_item_url(endpoint(client, opts), opts)
 
     run(:get_line_item, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
-      with {:ok, body} <- send_request(client, :get, url, accept: @lineitem_media_type) do
+      with {:ok, body} <- send_request(client, :get, url, accept: @line_item_media_type) do
         parse_line_item(body)
       end
     end)
@@ -353,7 +353,7 @@ defmodule Ltix.GradeService do
 
     run(:create_line_item, client, [@scope_lineitem], url, fn url ->
       with :ok <- LineItem.validate(item),
-           {:ok, body} <- send_request(client, :post, url, body: {@lineitem_media_type, item}) do
+           {:ok, body} <- send_request(client, :post, url, body: {@line_item_media_type, item}) do
         parse_line_item(body)
       end
     end)
@@ -382,7 +382,7 @@ defmodule Ltix.GradeService do
   def update_line_item(%Client{} = client, %LineItem{} = item) do
     run(:update_line_item, client, [@scope_lineitem], line_item_url(item, nil), fn url ->
       with :ok <- LineItem.validate(item),
-           {:ok, body} <- send_request(client, :put, url, body: {@lineitem_media_type, item}) do
+           {:ok, body} <- send_request(client, :put, url, body: {@line_item_media_type, item}) do
         parse_line_item(body)
       end
     end)
@@ -759,6 +759,13 @@ defmodule Ltix.GradeService do
   defp malformed_response(reason, spec_ref) do
     MalformedResponse.exception(service: __MODULE__, reason: reason, spec_ref: spec_ref)
   end
+
+  @doc false
+  @spec media_type(:line_item | :line_item_container | :result_container | :score) :: String.t()
+  def media_type(:line_item), do: @line_item_media_type
+  def media_type(:line_item_container), do: @line_item_container_media_type
+  def media_type(:result_container), do: @result_container_media_type
+  def media_type(:score), do: @score_media_type
 
   @doc false
   @spec classify_keys(map(), %{String.t() => atom()}) :: {map(), map()}

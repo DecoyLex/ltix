@@ -338,9 +338,10 @@ test "fetches roster", %{platform: platform} do
     "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
   ])
 
-  Ltix.Test.stub_get_members([
-    %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"}
-  ])
+  Ltix.Test.stub_list_members(
+    [%Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"}],
+    context: %{id: "course-1", title: "Elixir 101"}
+  )
 
   context = Ltix.Test.build_launch_context(platform,
     memberships_endpoint: "https://platform.example.com/memberships"
@@ -354,35 +355,61 @@ test "fetches roster", %{platform: platform} do
 end
 ```
 
-### Listing line items
+### Several grade operations
+
+Each stub handles one operation, so stub every operation your code calls. Stubbing an operation again replaces its stub. A request without a matching stub fails the test with its method and URL.
 
 ```elixir
-test "lists line items", %{platform: platform} do
+test "creates a line item and posts a score to it", %{platform: platform} do
   alias Ltix.GradeService.LineItem
 
-  Ltix.Test.stub_token_response(scopes: [
-    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
-  ])
+  Ltix.Test.stub_token_response()
 
-  Ltix.Test.stub_list_line_items([
-    %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
-    %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
-  ])
+  Ltix.Test.stub_create_line_item(
+    %LineItem{id: "https://lms.example.com/lineitems/9", label: "Quiz 1", score_maximum: 100}
+  )
+
+  Ltix.Test.stub_post_score()
 
   context = Ltix.Test.build_launch_context(platform,
     ags_endpoint: %{
       line_items: "https://lms.example.com/lineitems",
-      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+      scopes: [
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+      ]
     }
   )
 
   {:ok, client} = Ltix.GradeService.authenticate(context)
-  {:ok, items} = Ltix.GradeService.list_line_items(client)
+  {:ok, item} = Ltix.GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
 
-  assert length(items) == 2
+  score =
+    Ltix.GradeService.Score.new!(
+      user_id: "student-42",
+      score_given: 85,
+      score_maximum: 100,
+      activity_progress: :completed,
+      grading_progress: :fully_graded
+    )
+
+  assert :ok = Ltix.GradeService.post_score(client, score, line_item: item)
 end
 ```
 
+To return different data per line item, pass `:line_item` to the per-line-item stubs. A stub without it handles every line item the others do not.
+
+```elixir
+Ltix.Test.stub_list_line_items([quiz, exam])
+Ltix.Test.stub_list_results(quiz_results, line_item: quiz)
+Ltix.Test.stub_list_results(exam_results, line_item: exam)
+```
+
+The list stubs handle `list_*` and `stream_*` calls, one page at a time when the call passes `:per_page`.
+
+Stubs apply to the test process and to any process you allow with `Req.Test.allow(Ltix.GradeService, self(), pid)`, so they work in async tests and in processes your code starts.
+
 Per-operation stubs accept the struct(s) the platform would return. For
 custom response logic (inspecting headers, returning errors, etc.), use
-`Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly.
+`Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It
+replaces every `Ltix.Test` stub of that service.

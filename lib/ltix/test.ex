@@ -105,15 +105,25 @@ defmodule Ltix.Test do
   ## Advantage service tests
 
   When testing code that calls `Ltix.GradeService` or
-  `Ltix.MembershipsService`, stub the OAuth token endpoint and the
-  service's HTTP calls. Each service has a well-known `Req.Test` stub
-  name matching its module.
+  `Ltix.MembershipsService`, stub the OAuth token endpoint and each
+  operation your code calls. Each stub handles one operation, stubbing an
+  operation again replaces its stub, and a request without a matching stub
+  fails the test with its method and URL.
 
       setup do
         platform = Ltix.Test.setup_platform!()
 
         Ltix.Test.stub_token_response(scopes: [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
           "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ])
+
+        Ltix.Test.stub_list_line_items([
+          %Ltix.GradeService.LineItem{
+            id: "https://platform.example.com/lineitems/1",
+            label: "Quiz",
+            score_maximum: 100
+          }
         ])
 
         Ltix.Test.stub_post_score()
@@ -121,16 +131,31 @@ defmodule Ltix.Test do
         %{platform: platform}
       end
 
-      test "posts a score", %{platform: platform} do
+      test "posts a score to every line item", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
           ags_endpoint: %{
-            line_item: "https://platform.example.com/lineitems/1",
-            scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+            line_items: "https://platform.example.com/lineitems",
+            scopes: [
+              "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+              "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+            ]
           }
         )
 
         {:ok, client} = Ltix.GradeService.authenticate(context)
-        :ok = Ltix.GradeService.post_score(client, score)
+
+        score =
+          Ltix.GradeService.Score.new!(
+            user_id: "student-42",
+            score_given: 85,
+            score_maximum: 100,
+            activity_progress: :completed,
+            grading_progress: :fully_graded
+          )
+
+        for item <- Ltix.GradeService.list_line_items!(client) do
+          :ok = Ltix.GradeService.post_score(client, score, line_item: item)
+        end
       end
 
   See the [Testing LTI Launches](testing-lti-launches.md) cookbook for
@@ -149,8 +174,10 @@ defmodule Ltix.Test do
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Security.SignatureInvalid
+  alias Ltix.GradeService
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
+  alias Ltix.JWT.KeySet
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.Context
@@ -159,11 +186,14 @@ defmodule Ltix.Test do
   alias Ltix.LaunchClaims.ResourceLink
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
+  alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
+  alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Test.Platform
+  alias Ltix.Test.ServiceStub
 
   @default_issuer "https://platform.example.com"
   @default_client_id "tool-client-id"
@@ -188,6 +218,24 @@ defmodule Ltix.Test do
                          ],
                          unrecognized_keys: :error
                        )
+
+  @context_option Zoi.union(
+                    [
+                      Zoi.struct(Context),
+                      Zoi.map(
+                        %{
+                          id: Zoi.nullish(Zoi.string()),
+                          label: Zoi.nullish(Zoi.string()),
+                          title: Zoi.nullish(Zoi.string()),
+                          type: Zoi.nullish(Zoi.list(Zoi.string()))
+                        },
+                        unrecognized_keys: :error
+                      )
+                    ],
+                    description:
+                      "Course or section, as a `%Ltix.LaunchClaims.Context{}` or a map of its fields. " <>
+                        "The `:id` defaults to `\"context-001\"`."
+                  )
 
   @launch_option_fields [
     message_type:
@@ -214,24 +262,7 @@ defmodule Ltix.Test do
     target_link_uri:
       Zoi.string(description: "Launch URL.")
       |> Zoi.default("https://tool.example.com/launch"),
-    context:
-      Zoi.union(
-        [
-          Zoi.struct(Context),
-          Zoi.map(
-            %{
-              id: Zoi.nullish(Zoi.string()),
-              label: Zoi.nullish(Zoi.string()),
-              title: Zoi.nullish(Zoi.string()),
-              type: Zoi.nullish(Zoi.list(Zoi.string()))
-            },
-            unrecognized_keys: :error
-          )
-        ],
-        description:
-          "Course or section, as a `%Ltix.LaunchClaims.Context{}` or a map of its fields. " <>
-            "The `:id` defaults to `\"context-001\"`."
-      ),
+    context: @context_option,
     resource_link:
       Zoi.union(
         [
@@ -340,9 +371,25 @@ defmodule Ltix.Test do
                                 unrecognized_keys: :error
                               )
 
-  @stub_get_members_schema Zoi.keyword([context: Zoi.struct(Context), id: Zoi.string()],
-                             unrecognized_keys: :error
-                           )
+  @stub_line_item_schema Zoi.keyword(
+                           [
+                             line_item:
+                               Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                                 description:
+                                   "Line item URL or struct. Limits the stub to requests for this line item, " <>
+                                     "and replaces only the stub for it."
+                               )
+                           ],
+                           unrecognized_keys: :error
+                         )
+
+  @stub_list_members_schema Zoi.keyword(
+                              [
+                                context: @context_option,
+                                id: Zoi.string(description: "Container ID URL.")
+                              ],
+                              unrecognized_keys: :error
+                            )
 
   @sign_id_token_schema Zoi.keyword(
                           [
@@ -403,7 +450,7 @@ defmodule Ltix.Test do
     resolved_registration(platform)
     resolved_deployment(platform)
 
-    Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+    Req.Test.stub(KeySet, fn conn ->
       conn
       |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
       |> Req.Test.json(jwks)
@@ -542,7 +589,7 @@ defmodule Ltix.Test do
     response =
       if scopes == [], do: response, else: Map.put(response, "scope", Enum.join(scopes, " "))
 
-    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+    Req.Test.stub(ClientCredentials, fn conn ->
       Req.Test.json(conn, response)
     end)
   end
@@ -550,25 +597,22 @@ defmodule Ltix.Test do
   # --- Grade Service Stubs ---
 
   @doc """
-  Stub `list_line_items/2` to return the given line items.
+  Stub `list_line_items/2` and `stream_line_items/2` to return the given
+  line items.
 
       Ltix.Test.stub_list_line_items([
         %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
         %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
       ])
 
-  Registers a stub on `Ltix.GradeService`. Overwrites any previous
-  grade service stub in the current process.
+  Responds to a request with a `:per_page` size one page at a time, linking
+  to the next page like a platform does.
   """
   @spec stub_list_line_items([LineItem.t()]) :: :ok
   def stub_list_line_items(line_items) when is_list(line_items) do
     require_plug!()
-
     json = Enum.map(line_items, &LineItem.to_map/1)
-
-    Req.Test.stub(Ltix.GradeService, fn conn ->
-      Req.Test.json(conn, json)
-    end)
+    ServiceStub.put(GradeService, :list_line_items, nil, &ServiceStub.json_pages(&1, json))
   end
 
   @doc """
@@ -577,17 +621,14 @@ defmodule Ltix.Test do
       Ltix.Test.stub_get_line_item(
         %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100}
       )
+
+  ## Options
+
+  #{Zoi.describe(@stub_line_item_schema)}
   """
-  @spec stub_get_line_item(LineItem.t()) :: :ok
-  def stub_get_line_item(%LineItem{} = item) do
-    require_plug!()
-
-    json = LineItem.to_map(item)
-
-    Req.Test.stub(Ltix.GradeService, fn conn ->
-      Req.Test.json(conn, json)
-    end)
-  end
+  @spec stub_get_line_item(LineItem.t(), keyword()) :: :ok
+  def stub_get_line_item(%LineItem{} = item, opts \\ []),
+    do: stub_line_item(:get_line_item, item, opts)
 
   @doc """
   Stub `create_line_item/2` to return the given line item.
@@ -602,10 +643,9 @@ defmodule Ltix.Test do
   @spec stub_create_line_item(LineItem.t()) :: :ok
   def stub_create_line_item(%LineItem{} = item) do
     require_plug!()
-
     json = LineItem.to_map(item)
 
-    Req.Test.stub(Ltix.GradeService, fn conn ->
+    ServiceStub.put(GradeService, :create_line_item, nil, fn conn ->
       conn
       |> Plug.Conn.put_status(201)
       |> Req.Test.json(json)
@@ -618,97 +658,122 @@ defmodule Ltix.Test do
       Ltix.Test.stub_update_line_item(
         %LineItem{id: "https://lms.example.com/lineitems/1", label: "Updated Quiz", score_maximum: 100}
       )
+
+  ## Options
+
+  #{Zoi.describe(@stub_line_item_schema)}
   """
-  @spec stub_update_line_item(LineItem.t()) :: :ok
-  def stub_update_line_item(%LineItem{} = item) do
+  @spec stub_update_line_item(LineItem.t(), keyword()) :: :ok
+  def stub_update_line_item(%LineItem{} = item, opts \\ []),
+    do: stub_line_item(:update_line_item, item, opts)
+
+  defp stub_line_item(operation, item, opts) do
     require_plug!()
-
     json = LineItem.to_map(item)
-
-    Req.Test.stub(Ltix.GradeService, fn conn ->
-      Req.Test.json(conn, json)
-    end)
+    url = stub_line_item_url(opts)
+    ServiceStub.put(GradeService, operation, url, &Req.Test.json(&1, json))
   end
 
   @doc """
   Stub `delete_line_item/2` to succeed.
 
       Ltix.Test.stub_delete_line_item()
-  """
-  @spec stub_delete_line_item() :: :ok
-  def stub_delete_line_item do
-    require_plug!()
 
-    Req.Test.stub(Ltix.GradeService, fn conn ->
-      Plug.Conn.send_resp(conn, 204, "")
-    end)
+  ## Options
+
+  #{Zoi.describe(@stub_line_item_schema)}
+  """
+  @spec stub_delete_line_item(keyword()) :: :ok
+  def stub_delete_line_item(opts \\ []) do
+    require_plug!()
+    url = stub_line_item_url(opts)
+    ServiceStub.put(GradeService, :delete_line_item, url, &Plug.Conn.send_resp(&1, 204, ""))
   end
 
   @doc """
   Stub `post_score/3` to succeed.
 
       Ltix.Test.stub_post_score()
-  """
-  @spec stub_post_score() :: :ok
-  def stub_post_score do
-    require_plug!()
 
-    Req.Test.stub(Ltix.GradeService, fn conn ->
-      Plug.Conn.send_resp(conn, 200, "")
-    end)
+  ## Options
+
+  #{Zoi.describe(@stub_line_item_schema)}
+  """
+  @spec stub_post_score(keyword()) :: :ok
+  def stub_post_score(opts \\ []) do
+    require_plug!()
+    url = stub_line_item_url(opts)
+    ServiceStub.put(GradeService, :post_score, url, &Plug.Conn.send_resp(&1, 200, ""))
   end
 
   @doc """
-  Stub `list_results/2` to return the given results.
+  Stub `list_results/2` and `stream_results/2` to return the given results.
 
       Ltix.Test.stub_list_results([
         %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
         %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
       ])
+
+  Responds to a request with a `:per_page` size one page at a time, linking
+  to the next page like a platform does.
+
+  ## Options
+
+  #{Zoi.describe(@stub_line_item_schema)}
   """
-  @spec stub_list_results([Result.t()]) :: :ok
-  def stub_list_results(results) when is_list(results) do
+  @spec stub_list_results([Result.t()], keyword()) :: :ok
+  def stub_list_results(results, opts \\ []) when is_list(results) do
     require_plug!()
-
     json = Enum.map(results, &Result.to_map/1)
+    url = stub_line_item_url(opts)
+    ServiceStub.put(GradeService, :list_results, url, &ServiceStub.json_pages(&1, json))
+  end
 
-    Req.Test.stub(Ltix.GradeService, fn conn ->
-      Req.Test.json(conn, json)
-    end)
+  defp stub_line_item_url(opts) do
+    case Keyword.fetch(Options.parse!(opts, @stub_line_item_schema), :line_item) do
+      :error ->
+        nil
+
+      {:ok, %LineItem{id: nil} = item} ->
+        raise InvalidOption, key: :line_item, value: item, reason: "the line item has no id"
+
+      {:ok, %LineItem{id: url}} ->
+        url
+
+      {:ok, url} ->
+        url
+    end
   end
 
   # --- Memberships Service Stubs ---
 
   @doc """
-  Stub `list_members/2` (and `stream_members/2`) to return the given members.
+  Stub `list_members/2` and `stream_members/2` to return the given members.
 
-      Ltix.Test.stub_get_members([
+      Ltix.Test.stub_list_members([
         %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},
         %Member{user_id: "student-2", roles: [Role.from_atom(:instructor)], name: "Bob"}
       ])
 
+  Responds to a request with a `:per_page` size one page at a time, linking
+  to the next page like a platform does.
+
   ## Options
 
-    * `:context` — `%Context{}` for the container (default: `%Context{id: "context-001"}`)
-    * `:id` — container ID URL (default: `nil`)
+  #{Zoi.describe(@stub_list_members_schema)}
   """
-  @spec stub_get_members([Member.t()], keyword()) :: :ok
-  def stub_get_members(members, opts \\ []) when is_list(members) do
+  @spec stub_list_members([Member.t()], keyword()) :: :ok
+  def stub_list_members(members, opts \\ []) when is_list(members) do
     require_plug!()
 
-    opts = Options.parse!(opts, @stub_get_members_schema)
-    context = Keyword.get(opts, :context, %Context{id: "context-001"})
-    container_id = Keyword.get(opts, :id)
+    opts = Options.parse!(opts, @stub_list_members_schema)
+    context = context_claim(Keyword.get(opts, :context, %{}))
+    container = maybe_put(%{"context" => context}, "id", Keyword.get(opts, :id))
 
-    json =
-      %{
-        "context" => Context.to_map(context),
-        "members" => Enum.map(members, &Member.to_map/1)
-      }
-      |> maybe_put("id", container_id)
+    json = Enum.map(members, &Member.to_map/1)
 
-    Req.Test.stub(Ltix.MembershipsService, fn conn ->
-      Req.Test.json(conn, json)
+    ServiceStub.put(MembershipsService, :list_members, nil, fn conn ->
+      ServiceStub.json_pages(conn, json, &Map.put(container, "members", &1))
     end)
   end
 

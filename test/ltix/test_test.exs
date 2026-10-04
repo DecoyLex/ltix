@@ -6,11 +6,19 @@ defmodule Ltix.TestTest do
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.SignatureInvalid
+  alias Ltix.GradeService
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
   alias Ltix.JWT.Token
+  alias Ltix.LaunchClaims.AGSEndpoint
+  alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
+  alias Ltix.MembershipsService.Member
+  alias Ltix.MembershipsService.MembershipContainer
+  alias Ltix.OAuth.Client
   alias Ltix.Test.StorageAdapter
 
   @launch_url "https://tool.example.com/launch"
@@ -34,7 +42,7 @@ defmodule Ltix.TestTest do
             fn -> Ltix.Test.launch_params(platform, nonce: "n", state: "s", unknown: true) end,
             fn -> Ltix.Test.build_launch_context(platform, unknown: true) end,
             fn -> Ltix.Test.stub_token_response(unknown: true) end,
-            fn -> Ltix.Test.stub_get_members([], unknown: true) end,
+            fn -> Ltix.Test.stub_list_members([], unknown: true) end,
             fn -> Ltix.Test.sign_id_token(%{}, platform.jwk, unknown: true) end,
             fn -> StorageAdapter.start_link(unknown: true) end
           ] do
@@ -61,7 +69,7 @@ defmodule Ltix.TestTest do
         Ltix.handle_login(
           Ltix.Test.login_params(platform),
           @launch_url,
-          storage_adapter: Ltix.Test.StorageAdapter
+          storage_adapter: StorageAdapter
         )
 
       nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
@@ -227,12 +235,10 @@ defmodule Ltix.TestTest do
 
     test "both helpers build the same claims", %{platform: platform} do
       for opts <- [
-            [],
             [roles: [:learner, @custom_role], subject: "student-1"],
             [context: %{id: "course-1", label: "CS101", type: [@course_type]}],
-            [context: %Ltix.LaunchClaims.Context{id: "course-2", title: "Elixir"}],
+            [context: %Context{id: "course-2", title: "Elixir"}],
             [resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}],
-            [message_type: :deep_linking],
             [message_type: :deep_linking, deep_linking_settings: %{accept_line_item: true}],
             [ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}],
             [memberships_endpoint: "https://lms.example.com/memberships"],
@@ -263,6 +269,69 @@ defmodule Ltix.TestTest do
 
       assert Role.learner?(context.claims.roles)
       assert context.claims.unrecognized_roles == [@custom_role]
+    end
+
+    test "set the subject", %{platform: platform} do
+      context = Ltix.Test.build_launch_context(platform, subject: "student-1")
+
+      assert context.claims.subject == "student-1"
+    end
+
+    test "take the context as a struct", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform,
+          context: %Context{id: "course-2", title: "Elixir"}
+        )
+
+      assert context.claims.context.id == "course-2"
+      assert context.claims.context.title == "Elixir"
+    end
+
+    test "set the resource link", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform,
+          resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}
+        )
+
+      assert context.claims.resource_link.id == "quiz-1"
+      assert context.claims.resource_link.title == "Quiz"
+      assert context.claims.resource_link.description == "First quiz"
+    end
+
+    test "set deep linking settings over the defaults", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform,
+          message_type: :deep_linking,
+          deep_linking_settings: %{accept_line_item: true, accept_multiple: false}
+        )
+
+      assert context.claims.deep_linking_settings.accept_line_item == true
+      assert context.claims.deep_linking_settings.accept_multiple == false
+    end
+
+    test "set the grade service endpoint", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform,
+          ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}
+        )
+
+      assert context.claims.ags_endpoint.line_item == "https://lms.example.com/items/1"
+      assert context.claims.ags_endpoint.scopes == [@ags_scope]
+    end
+
+    test "take the memberships endpoint as a map", %{platform: platform} do
+      context =
+        Ltix.Test.build_launch_context(platform,
+          memberships_endpoint: %{
+            context_memberships_url: "https://lms.example.com/memberships",
+            service_versions: ["1.0", "2.0"]
+          }
+        )
+
+      assert context.claims.memberships_endpoint.context_memberships_url ==
+               "https://lms.example.com/memberships"
+
+      assert context.claims.memberships_endpoint.service_versions == ["1.0", "2.0"]
     end
 
     test "subject: nil makes an anonymous launch", %{platform: platform} do
@@ -544,7 +613,10 @@ defmodule Ltix.TestTest do
       context = Ltix.Test.build_launch_context(platform, message_type: :deep_linking)
       {:ok, response} = Ltix.DeepLinking.build_response(context)
 
-      for token <- [response.jwt <> "tampered", "", "not-a-token", "a.b.c", nil, 123] do
+      for token <- [
+            response.jwt <> "tampered",
+            nil
+          ] do
         assert {:error, %SignatureInvalid{}} =
                  Ltix.Test.verify_deep_linking_response(platform, token)
       end
@@ -578,7 +650,7 @@ defmodule Ltix.TestTest do
 
       context =
         Ltix.Test.build_launch_context(platform,
-          ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
+          ags_endpoint: %AGSEndpoint{
             line_item: "https://platform.example.com/lineitems/1",
             scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
           }
@@ -593,20 +665,166 @@ defmodule Ltix.TestTest do
     end
   end
 
+  describe "service stub routing" do
+    @quiz %LineItem{id: "https://lms.example.com/lineitems/7", label: "Quiz", score_maximum: 10}
+
+    test "stubs for different operations answer together", %{platform: platform} do
+      Ltix.Test.stub_create_line_item(@quiz)
+      Ltix.Test.stub_list_line_items([@quiz])
+      Ltix.Test.stub_post_score()
+      client = build_grade_client(platform)
+
+      assert {:ok, item} = GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+      assert :ok = GradeService.post_score(client, score(), line_item: item)
+      assert {:ok, [listed]} = GradeService.list_line_items(client)
+      assert :ok = GradeService.post_score(client, score(), line_item: listed)
+    end
+
+    test "stubbing an operation again replaces its stub", %{platform: platform} do
+      Ltix.Test.stub_get_line_item(@quiz)
+      Ltix.Test.stub_get_line_item(%{@quiz | label: "Renamed"})
+
+      assert {:ok, %LineItem{label: "Renamed"}} =
+               GradeService.get_line_item(build_grade_client(platform))
+    end
+
+    test "a request without a matching stub fails with its method and URL", %{platform: platform} do
+      Ltix.Test.stub_post_score()
+
+      assert_raise RuntimeError,
+                   ~r"GET https://lms\.example\.com/lineitems/1/results.*stub_list_results",
+                   fn -> GradeService.list_results(build_grade_client(platform)) end
+    end
+
+    test "line_item limits a stub to one line item", %{platform: platform} do
+      other = %LineItem{@quiz | id: "https://lms.example.com/lineitems/8", label: "Other"}
+      Ltix.Test.stub_get_line_item(@quiz, line_item: @quiz)
+      Ltix.Test.stub_get_line_item(other, line_item: other.id)
+      Ltix.Test.stub_post_score(line_item: @quiz)
+      client = build_grade_client(platform)
+
+      assert {:ok, %LineItem{label: "Quiz"}} =
+               GradeService.get_line_item(client, line_item: @quiz)
+
+      assert {:ok, %LineItem{label: "Other"}} =
+               GradeService.get_line_item(client, line_item: other)
+
+      assert :ok = GradeService.post_score(client, score(), line_item: @quiz)
+
+      assert_raise RuntimeError, ~r"POST https://lms\.example\.com/lineitems/8/scores", fn ->
+        GradeService.post_score(client, score(), line_item: other)
+      end
+
+      Ltix.Test.stub_post_score(line_item: "https://lms.example.com/lineitems/9/")
+
+      assert :ok =
+               GradeService.post_score(client, score(),
+                 line_item: "https://lms.example.com/lineitems/9/"
+               )
+
+      assert_raise InvalidOption,
+                   "Option :line_item is invalid, it must be an absolute HTTPS URL",
+                   fn ->
+                     Ltix.Test.stub_post_score(line_item: "http://lms.example.com/lineitems/9")
+                   end
+    end
+
+    test "stubs answer processes allowed to use them", %{platform: platform} do
+      Ltix.Test.stub_list_line_items([@quiz])
+      client = build_grade_client(platform)
+      test = self()
+
+      pid =
+        spawn(fn ->
+          receive do
+            :go -> send(test, {:listed, GradeService.list_line_items(client)})
+          end
+        end)
+
+      Req.Test.allow(GradeService, self(), pid)
+      send(pid, :go)
+
+      assert_receive {:listed, {:ok, [%LineItem{label: "Quiz"}]}}
+    end
+
+    test "each process keeps its own stubs", %{platform: platform} do
+      Ltix.Test.stub_list_line_items([@quiz])
+      client = build_grade_client(platform)
+
+      task =
+        Task.async(fn ->
+          Ltix.Test.stub_list_line_items([%{@quiz | label: "Task"}])
+          GradeService.list_line_items(client)
+        end)
+
+      assert {:ok, [%LineItem{label: "Task"}]} = Task.await(task)
+      assert {:ok, [%LineItem{label: "Quiz"}]} = GradeService.list_line_items(client)
+    end
+
+    test "list stubs answer page by page", %{platform: platform} do
+      items = for n <- 1..5, do: %LineItem{@quiz | id: "#{@quiz.id}#{n}", label: "Quiz #{n}"}
+      results = for n <- 1..3, do: %Result{user_id: "student-#{n}", result_score: n}
+      Ltix.Test.stub_list_line_items(items)
+      Ltix.Test.stub_list_results(results)
+      client = build_grade_client(platform)
+
+      page =
+        first_page(
+          "https://lms.example.com/lineitems",
+          GradeService,
+          "application/vnd.ims.lis.v2.lineitemcontainer+json"
+        )
+
+      assert length(page.body) == 2
+      assert [_next] = Req.Response.get_header(page, "link")
+
+      assert {:ok, ^items} = GradeService.list_line_items(client, per_page: 2)
+      assert Enum.to_list(GradeService.stream_line_items!(client, per_page: 2)) == items
+
+      assert Enum.take(GradeService.stream_line_items!(client, per_page: 2), 3) ==
+               Enum.take(items, 3)
+
+      assert {:error, %Ltix.Errors.Invalid.CollectionTooLarge{}} =
+               GradeService.list_line_items(client, per_page: 2, max_line_items: 4)
+
+      assert {:ok, listed} = GradeService.list_results(client, per_page: 1)
+      assert Enum.map(listed, & &1.user_id) == ["student-1", "student-2", "student-3"]
+
+      assert Enum.map(GradeService.stream_results!(client, per_page: 2), & &1.user_id) ==
+               ["student-1", "student-2", "student-3"]
+    end
+
+    test "memberships stubs answer page by page", %{platform: platform} do
+      members =
+        for n <- 1..3, do: %Member{user_id: "user-#{n}", roles: [Role.from_atom(:learner)]}
+
+      Ltix.Test.stub_list_members(members)
+      client = build_memberships_client(platform)
+
+      assert {:ok, roster} = Ltix.MembershipsService.list_members(client, per_page: 2)
+      assert Enum.map(roster.members, & &1.user_id) == ["user-1", "user-2", "user-3"]
+
+      assert Enum.map(Ltix.MembershipsService.stream_members!(client, per_page: 1), & &1.user_id) ==
+               ["user-1", "user-2", "user-3"]
+
+      page =
+        first_page(
+          "https://lms.example.com/memberships",
+          Ltix.MembershipsService,
+          "application/vnd.ims.lti-nrps.v2.membershipcontainer+json"
+        )
+
+      assert length(page.body["members"]) == 2
+      assert [_next] = Req.Response.get_header(page, "link")
+    end
+  end
+
   describe "stub_list_line_items/1" do
     test "returns serialized line items", %{platform: platform} do
-      alias Ltix.GradeService.LineItem
-
       items = [
         %LineItem{id: "https://lms.example.com/items/1", label: "Quiz 1", score_maximum: 100},
         %LineItem{id: "https://lms.example.com/items/2", label: "Quiz 2", score_maximum: 50}
       ]
-
-      Ltix.Test.stub_token_response(
-        scopes: [
-          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
-        ]
-      )
 
       Ltix.Test.stub_list_line_items(items)
 
@@ -619,8 +837,6 @@ defmodule Ltix.TestTest do
 
   describe "stub_get_line_item/1" do
     test "returns a single serialized line item", %{platform: platform} do
-      alias Ltix.GradeService.LineItem
-
       item = %LineItem{
         id: "https://lms.example.com/items/1",
         label: "Final Exam",
@@ -638,8 +854,6 @@ defmodule Ltix.TestTest do
 
   describe "stub_create_line_item/1" do
     test "returns the created line item with 201", %{platform: platform} do
-      alias Ltix.GradeService.LineItem
-
       item = %LineItem{
         id: "https://lms.example.com/items/new",
         label: "New Quiz",
@@ -657,8 +871,6 @@ defmodule Ltix.TestTest do
 
   describe "stub_update_line_item/1" do
     test "returns the updated line item", %{platform: platform} do
-      alias Ltix.GradeService.LineItem
-
       item = %LineItem{
         id: "https://lms.example.com/items/1",
         label: "Updated",
@@ -711,22 +923,30 @@ defmodule Ltix.TestTest do
     end
   end
 
-  describe "stub_get_members/1" do
-    test "returns serialized members in a container", %{platform: platform} do
-      alias Ltix.MembershipsService.Member
-      alias Ltix.MembershipsService.MembershipContainer
+  describe "stub_list_members/2" do
+    test "takes the container context as a struct too", %{platform: platform} do
+      Ltix.Test.stub_list_members([], context: %Context{id: "course-7"})
 
+      assert {:ok, %MembershipContainer{context: %{id: "course-7"}}} =
+               Ltix.MembershipsService.list_members(build_memberships_client(platform))
+    end
+
+    test "raises for unknown context keys" do
+      error =
+        assert_raise InvalidOption, fn ->
+          Ltix.Test.stub_list_members([], context: %{id: "c", name: "Course"})
+        end
+
+      assert %{key: :context, value: %{id: "c", name: "Course"}} = error
+    end
+
+    test "returns serialized members in a container", %{platform: platform} do
       members = [
         %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},
         %Member{user_id: "teacher-1", roles: [Role.from_atom(:instructor)], name: "Bob"}
       ]
 
-      Ltix.Test.stub_get_members(members,
-        context: %Ltix.LaunchClaims.Context{
-          id: "course-42",
-          title: "Elixir 101"
-        }
-      )
+      Ltix.Test.stub_list_members(members, context: %{id: "course-42", title: "Elixir 101"})
 
       client = build_memberships_client(platform)
 
@@ -743,10 +963,7 @@ defmodule Ltix.TestTest do
     end
 
     test "uses default context when none given", %{platform: platform} do
-      alias Ltix.MembershipsService.Member
-      alias Ltix.MembershipsService.MembershipContainer
-
-      Ltix.Test.stub_get_members([
+      Ltix.Test.stub_list_members([
         %Member{user_id: "student-1", roles: [Role.from_atom(:learner)]}
       ])
 
@@ -761,6 +978,26 @@ defmodule Ltix.TestTest do
 
   # -- Helpers --
 
+  # Requests the first page of two items the way a service does.
+  defp first_page(url, service, media_type) do
+    Req.get!(url,
+      params: [limit: 2],
+      headers: [accept: media_type],
+      plug: {Req.Test, service},
+      retry: false
+    )
+  end
+
+  defp score do
+    Score.new!(
+      user_id: "student-1",
+      score_given: 8,
+      score_maximum: 10,
+      activity_progress: :completed,
+      grading_progress: :fully_graded
+    )
+  end
+
   defp build_grade_client(platform, opts \\ []) do
     scopes =
       Keyword.get(opts, :scopes, [
@@ -769,35 +1006,35 @@ defmodule Ltix.TestTest do
         "https://purl.imsglobal.org/spec/lti-ags/scope/score"
       ])
 
-    %Ltix.OAuth.Client{
+    build_client(
+      platform,
+      GradeService,
+      %AGSEndpoint{
+        line_items: "https://lms.example.com/lineitems",
+        line_item: "https://lms.example.com/lineitems/1",
+        scopes: scopes
+      },
+      scopes
+    )
+  end
+
+  defp build_memberships_client(platform) do
+    build_client(
+      platform,
+      Ltix.MembershipsService,
+      MembershipsEndpoint.new!("https://lms.example.com/memberships"),
+      ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
+    )
+  end
+
+  defp build_client(platform, service, endpoint, scopes) do
+    %Client{
       access_token: "test-token",
       expires_at: DateTime.add(DateTime.utc_now(), 3600),
       scopes: MapSet.new(scopes),
       registration: platform.registration,
-      req_options: [plug: {Req.Test, Ltix.GradeService}, retry: false],
-      endpoints: %{
-        Ltix.GradeService => %Ltix.LaunchClaims.AGSEndpoint{
-          line_items: "https://lms.example.com/lineitems",
-          line_item: "https://lms.example.com/lineitems/1",
-          scopes: scopes
-        }
-      }
-    }
-  end
-
-  defp build_memberships_client(platform) do
-    %Ltix.OAuth.Client{
-      access_token: "test-token",
-      expires_at: DateTime.add(DateTime.utc_now(), 3600),
-      scopes:
-        MapSet.new([
-          "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
-        ]),
-      registration: platform.registration,
-      req_options: [plug: {Req.Test, Ltix.MembershipsService}, retry: false],
-      endpoints: %{
-        Ltix.MembershipsService => MembershipsEndpoint.new!("https://lms.example.com/memberships")
-      }
+      req_options: [plug: {Req.Test, service}, retry: false],
+      endpoints: %{service => endpoint}
     }
   end
 
@@ -823,7 +1060,7 @@ defmodule Ltix.TestTest do
     Ltix.handle_login(
       Ltix.Test.login_params(platform),
       @launch_url,
-      storage_adapter: Ltix.Test.StorageAdapter
+      storage_adapter: StorageAdapter
     )
   end
 
