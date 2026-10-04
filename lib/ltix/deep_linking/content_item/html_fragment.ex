@@ -1,5 +1,5 @@
 defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
-  import Ltix.DeepLinking.ContentItemHelpers, only: [extensions_schema: 0, put_fields: 3]
+  import Ltix.DeepLinking.ContentItemHelpers, only: [extensions_schema: 0]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -59,10 +59,6 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
   defimpl ContentItem do
     def item_type(_item), do: "html"
 
-    def to_map(item) do
-      %{"type" => "html"}
-      |> put_fields(item, [:html, :title, :text])
-      |> Map.merge(item.extensions)
-    end
+    def to_map(item), do: ContentItemHelpers.to_map(item, "html")
   end
 end

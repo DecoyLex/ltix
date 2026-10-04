@@ -1,6 +1,6 @@
 defmodule Ltix.DeepLinking.ContentItem.File do
   import Ltix.DeepLinking.ContentItemHelpers,
-    only: [extensions_schema: 0, put_fields: 3, put_sub_map: 3, icon_schema: 1]
+    only: [extensions_schema: 0, icon_schema: 1]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -76,12 +76,6 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   defimpl ContentItem do
     def item_type(_item), do: "file"
 
-    def to_map(item) do
-      %{"type" => "file"}
-      |> put_fields(item, [:url, :title, :text, :media_type, :expires_at])
-      |> put_sub_map("icon", item.icon)
-      |> put_sub_map("thumbnail", item.thumbnail)
-      |> Map.merge(item.extensions)
-    end
+    def to_map(item), do: ContentItemHelpers.to_map(item, "file")
   end
 end

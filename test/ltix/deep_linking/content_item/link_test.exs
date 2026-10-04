@@ -74,6 +74,30 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
       assert link.iframe.src == "https://example.com/embed"
     end
 
+    test "rejects extensions that would replace standard fields" do
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [
+                  %Ltix.Errors.Invalid.InvalidField{
+                    field: [:extensions, "title"],
+                    value: "Docs"
+                  },
+                  %Ltix.Errors.Invalid.InvalidField{
+                    field: [:extensions, "type"],
+                    value: "file"
+                  }
+                ]
+              }} =
+               Link.new(
+                 url: "https://example.com",
+                 extensions: %{
+                   "type" => "file",
+                   "title" => "Docs",
+                   "https://vendor.example.com/x" => 1
+                 }
+               )
+    end
+
     test "accepts extensions as a keyword list" do
       assert {:ok, %Link{extensions: %{"vendor_flag" => true}}} =
                Link.new(url: "https://example.com", extensions: [vendor_flag: true])
@@ -182,6 +206,15 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
       refute Map.has_key?(json, "embed")
       refute Map.has_key?(json, "window")
       refute Map.has_key?(json, "iframe")
+    end
+
+    test "keeps standard fields when extensions name the same keys" do
+      link = %Link{
+        url: "https://example.com",
+        extensions: %{"type" => "file", "url" => "https://other.example.com"}
+      }
+
+      assert %{"type" => "link", "url" => "https://example.com"} = ContentItem.to_map(link)
     end
 
     test "merges extensions at top level" do

@@ -2,8 +2,6 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   import Ltix.DeepLinking.ContentItemHelpers,
     only: [
       extensions_schema: 0,
-      put_fields: 3,
-      put_sub_map: 3,
       icon_schema: 1,
       object: 1,
       object: 2,
@@ -101,15 +99,6 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   defimpl ContentItem do
     def item_type(_item), do: "link"
 
-    def to_map(item) do
-      %{"type" => "link"}
-      |> put_fields(item, [:url, :title, :text])
-      |> put_sub_map("icon", item.icon)
-      |> put_sub_map("thumbnail", item.thumbnail)
-      |> put_sub_map("embed", item.embed)
-      |> put_sub_map("window", item.window)
-      |> put_sub_map("iframe", item.iframe)
-      |> Map.merge(item.extensions)
-    end
+    def to_map(item), do: ContentItemHelpers.to_map(item, "link")
   end
 end

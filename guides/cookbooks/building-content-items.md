@@ -183,7 +183,8 @@ Include a thumbnail for list views:
 ## Using extensions
 
 Add vendor-specific properties keyed by fully qualified URLs. Extensions
-are merged into the top-level JSON output:
+are merged into the top-level JSON output. A key that is a standard
+field, such as `type` or `url`, returns an error.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(

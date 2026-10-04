@@ -2,9 +2,6 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   import Ltix.DeepLinking.ContentItemHelpers,
     only: [
       extensions_schema: 0,
-      put_fields: 3,
-      put_sub_map: 3,
-      put_passthrough: 3,
       string_keyed_map: 2,
       icon_schema: 1,
       object: 1,
@@ -129,18 +126,6 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   defimpl ContentItem do
     def item_type(_item), do: "ltiResourceLink"
 
-    def to_map(item) do
-      %{"type" => "ltiResourceLink"}
-      |> put_fields(item, [:url, :title, :text])
-      |> put_sub_map("icon", item.icon)
-      |> put_sub_map("thumbnail", item.thumbnail)
-      |> put_sub_map("window", item.window)
-      |> put_sub_map("iframe", item.iframe)
-      |> put_sub_map("lineItem", item.line_item)
-      |> put_sub_map("available", item.available)
-      |> put_sub_map("submission", item.submission)
-      |> put_passthrough("custom", item.custom)
-      |> Map.merge(item.extensions)
-    end
+    def to_map(item), do: ContentItemHelpers.to_map(item, "ltiResourceLink")
   end
 end

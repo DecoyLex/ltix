@@ -1,6 +1,7 @@
 defmodule Ltix.DeepLinking.ContentItemHelpers do
   @moduledoc false
 
+  alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidField
 
   @not_a_map "invalid type: expected a map or keyword list"
@@ -89,49 +90,40 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   def new(%Zoi.Types.Struct{unrecognized_keys: :error} = schema, fields, spec_ref)
       when is_list(fields) or is_map(fields) do
     fields = Map.new(fields, fn {key, value} -> {key, keyword_to_map(value)} end)
+    result = Zoi.parse(schema, fields)
 
-    case Zoi.parse(schema, fields) do
-      {:ok, _} = ok -> ok
-      {:error, errors} -> {:error, to_error(errors, schema.module, fields, spec_ref)}
+    case parse_errors(result, schema.module, fields, spec_ref) ++
+           extension_conflicts(schema.module, fields[:extensions], spec_ref) do
+      [] -> result
+      errors -> {:error, Errors.combine(errors)}
     end
   end
 
   @doc """
-  Add top-level struct fields to the JSON map, converting keys to camelCase.
-  `nil` fields are omitted.
+  Serialize a content item struct to a JSON map with camelCase keys.
+
+  `nil` fields are omitted. Caller-chosen keys, such as those of `custom`, are
+  kept as given. Standard fields take precedence over extensions with the same
+  key.
   """
-  @spec put_fields(map(), struct(), [atom()]) :: map()
-  def put_fields(acc, item, fields) do
-    Enum.reduce(fields, acc, fn field, acc ->
-      case Map.fetch!(item, field) do
-        nil -> acc
-        value -> Map.put(acc, camelize(field), value)
-      end
-    end)
+  @spec to_map(struct(), String.t()) :: map()
+  def to_map(%{extensions: extensions} = item, item_type) do
+    standard =
+      for {field, value} <- Map.from_struct(item),
+          field != :extensions and value != nil,
+          into: %{"type" => item_type},
+          do: {camelize(field), to_json(value)}
+
+    Map.merge(extensions, standard)
   end
 
-  @doc """
-  Add a nested map (e.g. icon, window) to the JSON map, converting its
-  keys to camelCase. Omitted when the value is `nil`.
-  """
-  @spec put_sub_map(map(), String.t(), map() | nil) :: map()
-  def put_sub_map(acc, _key, nil), do: acc
-  def put_sub_map(acc, key, map), do: Map.put(acc, key, serialize_map(map))
+  defp to_json(map) when is_map(map), do: Map.new(map, fn {k, v} -> {json_key(k), to_json(v)} end)
+  defp to_json(value), do: value
 
-  @doc """
-  Add a value to the JSON map without transforming its keys (e.g. the
-  `custom` map which already has string keys). Omitted when `nil`.
-  """
-  @spec put_passthrough(map(), String.t(), term()) :: map()
-  def put_passthrough(acc, _key, nil), do: acc
-  def put_passthrough(acc, key, value), do: Map.put(acc, key, value)
+  defp json_key(key) when is_atom(key), do: camelize(key)
+  defp json_key(key), do: key
 
-  defp serialize_map(map) do
-    Map.new(map, fn {k, v} -> {camelize(k), v} end)
-  end
-
-  defp camelize(atom) when is_atom(atom), do: Recase.to_camel(Atom.to_string(atom))
-  defp camelize(binary) when is_binary(binary), do: Recase.to_camel(binary)
+  defp camelize(field), do: Recase.to_camel(Atom.to_string(field))
 
   defp keyword_to_map([]), do: %{}
 
@@ -141,9 +133,29 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
 
   defp keyword_to_map(value), do: value
 
-  defp to_error(errors, module, fields, spec_ref) do
-    module
-    |> InvalidField.from_zoi(errors, fields, fn _field -> spec_ref end)
-    |> Ltix.Errors.combine()
+  # [DL §3.6](https://www.imsglobal.org/spec/lti-dl/v2p0/#extending-a-type)
+  defp extension_conflicts(module, extensions, spec_ref) when is_map(extensions) do
+    standard =
+      for field <- Map.keys(module.__struct__()),
+          field not in [:__struct__, :extensions],
+          into: MapSet.new(["type"]),
+          do: camelize(field)
+
+    for {key, value} <- extensions, to_string(key) in standard do
+      InvalidField.invalid(
+        module,
+        [:extensions, key],
+        value,
+        "would replace a standard field",
+        spec_ref
+      )
+    end
   end
+
+  defp extension_conflicts(_module, _extensions, _spec_ref), do: []
+
+  defp parse_errors({:ok, _}, _module, _fields, _spec_ref), do: []
+
+  defp parse_errors({:error, errors}, module, fields, spec_ref),
+    do: InvalidField.from_zoi(module, errors, fields, fn _field -> spec_ref end)
 end
