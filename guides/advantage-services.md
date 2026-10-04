@@ -102,7 +102,9 @@ endpoint = AGSEndpoint.new!(line_items: line_items, line_item: line_item, scopes
 
 Tokens are not refreshed automatically. For a single request handler,
 tokens last long enough that you don't need to worry about expiry.
-For long-running processes, check before each operation:
+For long-running processes, refresh before each operation.
+`refresh!/1` requests a new token only when the current one has
+expired:
 
 ```elixir
 client = Ltix.OAuth.Client.refresh!(client)
@@ -128,7 +130,7 @@ platform, you can reuse one token:
 )
 
 # Switch to a different course without re-authenticating
-{:ok, client_b} = Client.with_endpoints(client, %{
+{:ok, client_b} = Ltix.OAuth.Client.with_endpoints(client, %{
   Ltix.MembershipsService => course_b_endpoint
 })
 

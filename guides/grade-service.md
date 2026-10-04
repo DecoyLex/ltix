@@ -7,9 +7,9 @@ working with grades in your application.
 
 ## Posting a score after launch
 
-The simplest case: the platform created a gradebook column (line item)
+In the simplest case, the platform created a gradebook column (line item)
 for your resource link, and you just need to post a score. Authenticate
-from the launch context and post directly:
+from the launch context and post directly.
 
 ```elixir
 def launch(conn, params) do
@@ -35,7 +35,7 @@ end
 
 Not all launches include the grade service endpoint. If the platform
 didn't include it, `authenticate/2` returns a `ServiceNotAvailable`
-error:
+error.
 
 ```elixir
 case Ltix.GradeService.authenticate(context) do
@@ -44,6 +44,7 @@ case Ltix.GradeService.authenticate(context) do
 
   {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} ->
     # Grade passback not available for this launch
+    :ok
 end
 ```
 
@@ -53,7 +54,7 @@ tracking, extra credit, comments, and choosing progress values.
 ## Managing line items
 
 When your tool needs multiple gradebook columns per resource link, or
-wants to create columns on its own, use the **programmatic** workflow:
+creates columns on its own, use the **programmatic** workflow.
 
 ```elixir
 {:ok, client} = Ltix.GradeService.authenticate(context)
@@ -68,7 +69,7 @@ wants to create columns on its own, use the **programmatic** workflow:
 ```
 
 Fetch a line item before updating it to avoid overwriting fields you
-didn't intend to change:
+didn't intend to change.
 
 ```elixir
 {:ok, item} = Ltix.GradeService.get_line_item(client,
@@ -81,7 +82,7 @@ updated = %{item | label: "Quiz 1 (Updated)", score_maximum: 120}
 
 ## Filtering line items
 
-`list_line_items/2` supports server-side filtering:
+`list_line_items/2` supports server-side filtering.
 
 ```elixir
 {:ok, items} = Ltix.GradeService.list_line_items(client,
@@ -110,12 +111,12 @@ item from the launch.
 
 > #### Sparse results {: .info}
 >
-> The platform may skip users who have no score yet. Do not assume
+> The platform may omit users who have no score yet. Do not assume
 > every enrolled user will appear in the results list.
 
 ## Streaming large collections
 
-`list_line_items/2` and `list_results/2` fetch every page before returning and stop with a `CollectionTooLarge` error after 10,000 entries. Raise the limit with `max_line_items:` or `max_results:`, or pass `:infinity` to disable it. For collections of unknown size, stream instead.
+`list_line_items/2` and `list_results/2` fetch every page before returning and stop with a `CollectionTooLarge` error after 10,000 entries. Raise the limit with `max_line_items:` or `max_results:`, or pass `:infinity` to disable it. For collections of unknown size, use a stream.
 
 ```elixir
 {:ok, stream} = Ltix.GradeService.stream_results(client, line_item: quiz_item)
@@ -129,22 +130,22 @@ stream
 
 ## Deleting line items
 
-Tool-created line items can be deleted normally:
+Tool-created line items can be deleted normally.
 
 ```elixir
 :ok = Ltix.GradeService.delete_line_item(client, line_item: tool_created_item)
 ```
 
-Deleting the **coupled** line item — the one the platform created for
-the resource link — is a different story. Ltix blocks it by default
-because platforms handle it inconsistently:
+Deleting the **coupled** line item (the one the platform created for
+the resource link) is blocked by default because platforms handle it
+inconsistently.
 
-- **Canvas** rejects the request outright with HTTP 401, which returns
+- **Canvas** rejects the request with HTTP 401, which returns
   `Ltix.Errors.Security.AccessDenied`
 - **Moodle and Blackboard** delete the gradebook entry entirely
-- **D2L Brightspace** severs the link but preserves existing grade data
+- **D2L Brightspace** removes the link but keeps existing grade data
 
-In all cases the `line_item` URL may vanish from future launch claims,
+In all cases the `line_item` URL may be absent from future launch claims,
 leaving the tool unable to post scores through the coupled flow.
 
 ```elixir
@@ -158,12 +159,12 @@ leaving the tool unable to post scores through the coupled flow.
 
 ## Next steps
 
-- [Building Scores](cookbooks/score-construction.md): progress
+- [Building Scores](cookbooks/score-construction.md) - progress
   values, extra credit, comments, and timestamps
-- [Syncing Grades in the Background](cookbooks/background-grade-sync.md):
+- [Syncing Grades in the Background](cookbooks/background-grade-sync.md) -
   posting grades from Oban workers
-- [Using Canvas Grade Extensions](cookbooks/canvas-grade-extensions.md):
+- [Using Canvas Grade Extensions](cookbooks/canvas-grade-extensions.md) -
   submission types and metadata for Canvas
-- [Advantage Services](advantage-services.md): token management,
+- [Advantage Services](advantage-services.md) - token management,
   caching, and multi-service authentication
-- `Ltix.GradeService`: full API reference and options
+- `Ltix.GradeService` - full API reference and options

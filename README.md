@@ -35,7 +35,7 @@ context.registration          #=> your struct from StorageAdapter.get_registrati
 - **Structured claims** - roles, context, resource links, and service
   endpoints parsed into typed structs
 - **Spec-referenced errors** - classified as `:invalid`, `:security`, or
-  `:unknown`, with a `spec_ref` pointing to the relevant spec section
+  `:unknown`, and most have a `spec_ref` pointing to the relevant spec section
 - **Testing utilities** - `Ltix.Test` provides a simulated platform for
   integration tests without a real LMS
 
@@ -55,7 +55,7 @@ end
 
 - [Getting Started](https://hexdocs.pm/ltix/getting-started.html)
 - [What is Ltix?](https://hexdocs.pm/ltix/what-is-ltix.html)
-- [LTI 1.3 Concepts](https://hexdocs.pm/ltix/concepts.html)
+- [LTI Advantage Concepts](https://hexdocs.pm/ltix/concepts.html)
 - [Storage Adapters](https://hexdocs.pm/ltix/storage-adapters.html)
 - [Working with Roles](https://hexdocs.pm/ltix/working-with-roles.html)
 - [Error Handling](https://hexdocs.pm/ltix/error-handling.html)

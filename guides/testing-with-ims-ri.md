@@ -69,7 +69,7 @@ If the launch fails silently, check these common issues:
   launch. Otherwise the platform's redirect will fail without an error.
 - **Session cookie not sent.** Make sure your endpoint uses
   `same_site: "None"` and `secure: true`. See
-  [Getting Started](getting-started.md#configure-phoenix-for-cross-origin-launches)
+  [Getting Started](getting-started.md#iframe-strategy)
   for details.
 - **Mismatched issuer or client_id.** Double-check that the values in
   your storage adapter match the RI platform page exactly.

@@ -8,7 +8,7 @@ avoids redundant authentication and handles mid-job expiry.
 ## Refreshing during a batch
 
 When processing many items in a single job, the token may expire before
-you finish. Check between batches with `expired?/1` and `refresh!/1`. The endpoint is rebuilt
+you finish. Call `refresh!/1` between batches. The endpoint is rebuilt
 from the URL and scopes saved during a launch, as in
 [Syncing Grades in the Background](background-grade-sync.md):
 
@@ -53,9 +53,11 @@ defp ensure_fresh(client) do
 end
 ```
 
-`refresh/1` re-derives scopes from the client's endpoints and requests
-a new token from the platform. The returned client keeps the same
-endpoints and registration — only the token changes.
+`refresh/1` requests a new token only when the current one has expired
+or expires within 60 seconds. Otherwise it returns the client unchanged.
+The returned client has the same endpoints and registration — only the
+token changes. To request a new token regardless of expiry, use
+`force_refresh!/1`.
 
 ## Syncing multiple courses
 
@@ -100,7 +102,10 @@ The token's granted scopes do not change. If it lacks a scope a new endpoint nee
 
 When many Oban workers hit the same platform concurrently — say, one
 job per course — each authenticates independently by default. To share
-a single token, cache it in ETS:
+tokens, cache them in ETS. A token has only the scopes it was
+requested for, so key the cache by the registration and the scopes the
+service requests. Workers calling the same service share one token, and
+a service that needs other scopes gets a separate token:
 
 ```elixir
 defmodule MyApp.LTI.TokenCache do
@@ -108,9 +113,13 @@ defmodule MyApp.LTI.TokenCache do
 
   alias Ltix.OAuth.{AccessToken, Client}
 
+  def create_table do
+    :ets.new(@table, [:set, :public, :named_table, read_concurrency: true])
+    :ok
+  end
+
   def get_or_authenticate(registration, service, endpoint) do
-    key = {registration.issuer, registration.client_id}
-    ensure_table()
+    key = {registration.issuer, registration.client_id, Enum.sort(service.scopes(endpoint))}
 
     case :ets.lookup(@table, key) do
       [{^key, token}] ->
@@ -134,12 +143,22 @@ defmodule MyApp.LTI.TokenCache do
     :ets.insert(@table, {key, Client.to_access_token(client)})
     {:ok, client}
   end
+end
+```
 
-  defp ensure_table do
-    :ets.new(@table, [:set, :public, :named_table])
-  rescue
-    ArgumentError -> :ok
-  end
+An ETS table is deleted when the process that created it exits, so create the table once when your application starts.
+
+```elixir
+# lib/my_app/application.ex
+def start(_type, _args) do
+  :ok = MyApp.LTI.TokenCache.create_table()
+
+  children = [
+    MyApp.Repo,
+    {Oban, Application.fetch_env!(:my_app, Oban)}
+  ]
+
+  Supervisor.start_link(children, strategy: :one_for_one, name: MyApp.Supervisor)
 end
 ```
 
@@ -175,7 +194,7 @@ Don't add caching complexity unless you have a reason:
 | Scenario | Approach |
 |---|---|
 | Single API call per job | Just authenticate. No caching needed. |
-| One job, many API calls | Refresh mid-batch with `expired?/1` + `refresh!/1`. |
+| One job, many API calls | Refresh mid-batch with `refresh!/1`. |
 | One job, many courses | Authenticate once, swap with `with_endpoints/3`. |
 | Many concurrent jobs, same platform | Cache tokens in ETS. |
 

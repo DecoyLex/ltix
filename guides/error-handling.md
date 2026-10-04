@@ -126,13 +126,13 @@ Every error produces a human-readable message via `Exception.message/1`
 and most carry a `spec_ref` field pointing to the violated spec section:
 
 ```elixir
-error = %Ltix.Errors.Security.TokenExpired{spec_ref: "Sec §5.1.3 step 5"}
+error = %Ltix.Errors.Security.TokenExpired{spec_ref: "Sec §5.1.3 step 7"}
 
 Exception.message(error)
-#=> "JWT token has expired [Sec §5.1.3 step 5]"
+#=> "JWT token has expired [Sec §5.1.3 step 7]"
 
 error.spec_ref
-#=> "Sec §5.1.3 step 5"
+#=> "Sec §5.1.3 step 7"
 ```
 
 The spec reference is useful for debugging — it tells you exactly which
@@ -162,7 +162,7 @@ These indicate the launch failed a security check:
 | `SignatureInvalid` | `spec_ref` | JWT signature doesn't verify against the platform's public key |
 | `TokenExpired` | `spec_ref` | JWT `exp` claim is in the past |
 | `IssuerMismatch` | `expected`, `actual`, `spec_ref` | JWT `iss` doesn't match the registration |
-| `AudienceMismatch` | `expected`, `actual`, `spec_ref` | Registration's client_id not in JWT `aud` |
+| `AudienceMismatch` | `expected`, `actual`, `spec_ref` | JWT `aud` is not the registration's client_id or a list holding only it, or `azp` is not the client_id |
 | `AlgorithmNotAllowed` | `algorithm`, `spec_ref` | JWT uses something other than RS256 |
 | `StateMismatch` | `spec_ref` | OIDC state from callback doesn't match the session |
 | `NonceMissing` | `spec_ref` | JWT has no `nonce` claim |
@@ -170,7 +170,7 @@ These indicate the launch failed a security check:
 | `NonceReused` | `spec_ref` | Nonce was already consumed (replay attempt) |
 | `KidMissing` | `spec_ref` | JWT header has no `kid` field |
 | `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's JWKS |
-| `AuthenticationFailed` | `error`, `error_description`, `spec_ref` | Platform returned an error response |
+| `AuthenticationFailed` | `error`, `error_description`, `error_uri`, `spec_ref` | Platform returned an error response |
 
 ## Unknown errors
 

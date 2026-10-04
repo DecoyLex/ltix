@@ -154,6 +154,7 @@ defmodule MyAppWeb.Router do
   scope "/lti", MyAppWeb do
     pipe_through :lti_launch
 
+    get "/login", LtiController, :login
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
     get "/jwks", LtiController, :jwks
@@ -269,9 +270,9 @@ Key points about the controller:
   directly (e.g., `context.registration.id`).
 - **`context.deployment`** is similarly your original struct from `get_deployment/2`.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
-- **Never store `%LaunchContext{}` in the session.** It contains the full
-  `%Registration{}`, which includes `tool_jwk` — private key material. Store only the
-  fields you need (e.g., `user_id`, `course_id`).
+- **Never store `%LaunchContext{}` in the session.** Its `registration` is the struct
+  your storage adapter returned, which can include private key material such as a
+  preloaded JWK. Store only the fields you need (e.g., `user_id`, `course_id`).
 - **The JWKS endpoint** reconstructs `%Ltix.JWK{}` structs from your stored
   `private_key_pem` + `kid` via `Ltix.JWK.new/1`. `Ltix.JWK.to_jwks/1` strips private
   key material automatically — safe to pass private keys directly.
@@ -280,7 +281,9 @@ Key points about the controller:
 
 ```elixir
 # config/test.exs
-config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+config :ltix,
+  storage_adapter: Ltix.Test.StorageAdapter,
+  req_options: [plug: {Req.Test, :ltix}]
 ```
 
 Example controller test — adapt route paths and assertions to match the app:
@@ -329,11 +332,11 @@ These are non-negotiable requirements from the LTI spec:
   will fail.
 - **State goes in the session**, not in query params or cookies. Store during login,
   retrieve during launch, delete after successful launch.
-- **Both login and launch endpoints are POST routes.** The platform sends form-encoded POSTs, not GETs.
+- **The login endpoint accepts both GET and POST, and the launch endpoint accepts POST.** The platform may initiate login with either method, and it sends the launch as a form-encoded POST.
 - **HTTPS is mandatory** in both production and development.
 - **`same_site: "None"` and `secure: true`** are required for session cookies to survive
   cross-origin redirects in iframes.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
-- **Never store `%LaunchContext{}` in the session.** It contains the full
-  `%Registration{}`, which includes `tool_jwk` — private key material. Store only the
-  fields you need (e.g., `subject`, `roles`, `context.id`).
+- **Never store `%LaunchContext{}` in the session.** Its `registration` is the struct
+  your storage adapter returned, which can include private key material such as a
+  preloaded JWK. Store only the fields you need (e.g., `subject`, `roles`, `context.id`).

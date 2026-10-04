@@ -18,7 +18,7 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   ## Options
 
-    * `:req_options` - options passed through to `Req.post/1` (default: `[]`)
+    * `:req_options` - options passed through to `Req.request/2` (default: `[]`)
   """
   @spec request_token(Registration.t(), [String.t()], keyword()) ::
           {:ok, AccessToken.t()} | {:error, Exception.t()}

@@ -181,7 +181,7 @@ For longer-lived processes, check before each call:
 ```elixir
 def get_records(%Client{} = client) do
   if Client.expired?(client) do
-    {:error, Ltix.Errors.Security.AccessTokenExpired.exception([])}
+    {:error, Ltix.Errors.Security.AccessTokenExpired.exception(expires_at: client.expires_at)}
   else
     do_get_records(client)
   end

@@ -38,9 +38,9 @@ login initiation request. Your adapter must handle both cases:
 
 ```elixir
 def get_registration(issuer, nil) do
-  case Repo.get_by(PlatformRegistration, issuer: issuer) do
-    nil -> {:error, :not_found}
-    record -> {:ok, record}
+  case Repo.all(from r in PlatformRegistration, where: r.issuer == ^issuer) do
+    [record] -> {:ok, record}
+    _none_or_several -> {:error, :not_found}
   end
 end
 
@@ -74,7 +74,7 @@ end
 > If you support multiple registrations from the same issuer (different
 > client_ids), an issuer-only lookup is ambiguous. You can either return
 > the first match or return `{:error, :not_found}` and require the
-> platform to include `client_id`.
+> platform to include `client_id`, as the example above does.
 
 ## Deployment lookups
 
@@ -91,11 +91,15 @@ your custom struct). The `deployment_id` is case-sensitive and assigned
 by the platform:
 
 ```elixir
-def get_deployment(%Ltix.Registration{} = reg, deployment_id) do
-  case Repo.get_by(PlatformDeployment,
-         registration_id: reg_id(reg),
-         deployment_id: deployment_id
-       ) do
+def get_deployment(%Ltix.Registration{issuer: issuer, client_id: client_id}, deployment_id) do
+  query =
+    from d in PlatformDeployment,
+      join: r in PlatformRegistration,
+      on: d.registration_id == r.id,
+      where: r.issuer == ^issuer and r.client_id == ^client_id,
+      where: d.deployment_id == ^deployment_id
+
+  case Repo.one(query) do
     nil -> {:error, :not_found}
     record -> {:ok, record}
   end
@@ -212,9 +216,9 @@ defmodule MyApp.LtiStorage do
 
   @impl true
   def get_registration(issuer, nil) do
-    case Repo.get_by(PlatformRegistration, issuer: issuer) do
-      nil -> {:error, :not_found}
-      record -> {:ok, record}
+    case Repo.all(from r in PlatformRegistration, where: r.issuer == ^issuer) do
+      [record] -> {:ok, record}
+      _none_or_several -> {:error, :not_found}
     end
   end
 

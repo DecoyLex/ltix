@@ -73,7 +73,8 @@ A registration contains:
 | `tool_jwk` | Your tool's private signing key for this registration (`Ltix.JWK.t()`) |
 
 In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter`
-looks up registrations by issuer during login initiation.
+looks up registrations by issuer and client_id, both during login
+initiation and again during launch validation.
 
 ## Deployments
 

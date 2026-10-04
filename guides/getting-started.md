@@ -752,4 +752,4 @@ way to production:
 
 - **Tests**: Ltix provides test helpers that simulate the full
   launch flow without hitting a real platform. See
-  [Testing LTI Launches](testing-lti-launches.md).
+  [Testing LTI Launches](cookbooks/testing-lti-launches.md).

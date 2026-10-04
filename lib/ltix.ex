@@ -142,7 +142,7 @@ defmodule Ltix do
           # POST response.jwt to response.return_url
 
         "LtiResourceLinkRequest" ->
-          # Normal launch flow
+          redirect(conn, external: context.claims.target_link_uri)
       end
 
   See the [Deep Linking](deep-linking.md) guide for content item types,

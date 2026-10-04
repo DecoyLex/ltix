@@ -7,7 +7,7 @@ covers common patterns for working with rosters in your application.
 ## Fetching the roster after launch
 
 Authenticate from the launch context and fetch the roster in your
-controller:
+controller.
 
 ```elixir
 def launch(conn, params) do
@@ -32,7 +32,7 @@ end
 Not all launches include the memberships endpoint. If the platform
 didn't include it, `authenticate/2` returns a `ServiceNotAvailable`
 error. Check for this if your tool should still work without roster
-access:
+access.
 
 ```elixir
 case Ltix.MembershipsService.authenticate(context) do
@@ -42,13 +42,14 @@ case Ltix.MembershipsService.authenticate(context) do
 
   {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} ->
     # roster not available for this launch
+    render(conn, :launch, roster: nil)
 end
 ```
 
 ## Syncing rosters in the background
 
 For scheduled syncs or Oban workers, store the endpoint URL during
-the first launch and authenticate from a registration later:
+the first launch and authenticate from a registration later.
 
 ```elixir
 # During launch: save the endpoint URL
@@ -100,7 +101,7 @@ management and reusing tokens across courses.
 ### By role
 
 The `:role` option filters server-side, so the platform only returns
-matching members:
+matching members.
 
 ```elixir
 # Only learners
@@ -115,7 +116,7 @@ vocabulary and predicates.
 
 ### By resource link
 
-Retrieve only members with access to a specific resource link:
+Retrieve only members with access to a specific resource link.
 
 ```elixir
 {:ok, roster} = Ltix.MembershipsService.list_members(client,
@@ -131,7 +132,7 @@ settings. Malformed optional profile fields become `nil` without losing
 other member data. A Canvas admin must explicitly enable "include name"
 and "include email" in the tool configuration.
 
-Always handle `nil`:
+Always handle `nil`.
 
 ```elixir
 defp display_name(member) do
@@ -151,7 +152,7 @@ member.extensions["https://lms.example.com/student_number"]
 
 `list_members/2` loads the entire roster into memory. For courses with
 thousands of students, use `stream_members/2` to process members
-incrementally:
+incrementally.
 
 ```elixir
 {:ok, stream} = Ltix.MembershipsService.stream_members(client)
@@ -163,16 +164,16 @@ stream
 end)
 ```
 
-`list_members/2` includes a safety limit (default: 10,000 members) and
+`list_members/2` includes a safety limit (10,000 members by default) and
 returns a `CollectionTooLarge` error if exceeded. Increase it with
 `max_members: 50_000` or disable it with `max_members: :infinity`.
 For rosters of unknown size, streaming is the safer choice.
 
 ## Next steps
 
-- [Advantage Services](advantage-services.md): token management,
+- [Advantage Services](advantage-services.md) - token management,
   caching, and multi-service authentication
-- [Working with Roles](working-with-roles.md): role predicates
+- [Working with Roles](working-with-roles.md) - role predicates
   for authorization with roster members
-- `Ltix.MembershipsService`: full API reference and options
-- `Ltix.MembershipsService.Member`: member struct fields
+- `Ltix.MembershipsService` - full API reference and options
+- `Ltix.MembershipsService.Member` - member struct fields

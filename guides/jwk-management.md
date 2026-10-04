@@ -1,8 +1,8 @@
 # JWK Management
 
-Every Advantage service call requires a signed JWT assertion, which
-means your tool needs an RSA key pair. This guide covers generating
-keys, serving a JWKS endpoint, and rotating keys.
+Requesting an access token for Advantage services requires a signed
+JWT assertion, which means your tool needs an RSA key pair. This guide
+covers generating keys, serving a JWKS endpoint, and rotating keys.
 
 > #### Leaked keys let attackers impersonate your tool {: .warning}
 >

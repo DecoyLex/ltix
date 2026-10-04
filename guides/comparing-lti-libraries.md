@@ -82,8 +82,8 @@ claims["https://purl.imsglobal.org/spec/lti/claim/context"]["title"]
 
 **Ltix** defines a single `Ltix.StorageAdapter` behaviour with four
 callbacks — registration lookup, deployment lookup, nonce storage,
-and nonce validation. JWK management and other concerns are handled
-internally.
+and nonce validation. Each registration includes your tool's signing
+key as `tool_jwk`, so there are no separate key callbacks.
 
 **`lti_1p3`** provides three behaviours (`DataProvider`,
 `ToolDataProvider`, `PlatformDataProvider`) with a broader callback
@@ -95,7 +95,7 @@ login hints, and platform instances. The companion package
 
 **Ltix** uses [Splode](https://hex.pm/packages/splode) to define a
 structured exception hierarchy. Errors are grouped into three classes
-(`:invalid`, `:security`, `:unknown`) and carry `spec_ref` fields.
+(`:invalid`, `:security`, `:unknown`) and most have a `spec_ref` field.
 A single failure is returned as an error struct, and several
 failures found at once are grouped in their class struct:
 
@@ -143,7 +143,7 @@ service calls, giving more visibility into each step:
 | **OIDC launch** | Yes | Yes |
 | **AGS** | Yes | Yes |
 | **NRPS** | Yes | Yes |
-| **Deep Linking** | Claim parsing | Claim parsing |
+| **Deep Linking** | Claim parsing and response building | Claim parsing |
 | **Platform side** | No (tool only) | Yes |
 | **Ecto provider** | No (bring your own adapter) | Yes (`lti_1p3_ecto_provider`) |
 | **Test helpers** | Yes (`Ltix.Test`) | In-memory provider |
@@ -156,11 +156,13 @@ service calls, giving more visibility into each step:
 | `jose` | `joken` |
 | `splode` | — |
 | `zoi` | — |
+| `telemetry` | — |
+| `recase` | — |
 | `plug` (optional) | — |
 | `cachex` (optional) | — |
 | — | `timex` |
 | — | `uuid` |
-| — | `jason` |
+| `jason` (optional) | `jason` |
 
 ## Choosing between them
 

@@ -123,11 +123,11 @@ as a fallback.
 
 ## Using function parsers
 
-For simple cases, you can pass an anonymous function or captured function
-instead of a module:
+For a one-off parser in a single call, you can pass an anonymous
+function or captured function instead of a module:
 
 ```elixir
-config :ltix, Ltix.LaunchClaims,
+Role.parse(uri,
   role_parsers: %{
     "https://myplatform.example.com/roles/" => fn uri ->
       case uri do
@@ -139,7 +139,10 @@ config :ltix, Ltix.LaunchClaims,
       end
     end
   }
+)
 ```
+
+Register parsers in application configuration as modules, because a release can't store an anonymous function in its configuration.
 
 > #### Function parsers can't convert back to URIs {: .warning}
 >

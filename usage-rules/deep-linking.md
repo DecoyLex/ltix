@@ -11,8 +11,8 @@ The same `handle_callback/3` handles both launch types. Branch on message type:
 {:ok, context} = Ltix.handle_callback(params, state)
 
 case context.claims.message_type do
-  "LtiDeepLinkingRequest" -> # show content picker UI
-  "LtiResourceLinkRequest" -> # normal activity launch
+  "LtiDeepLinkingRequest" -> render(conn, :content_picker, context: context)
+  "LtiResourceLinkRequest" -> redirect(conn, external: context.claims.target_link_uri)
 end
 ```
 
@@ -74,7 +74,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 - Pass a list of items (or `[]` for cancellation).
 - Options: `:message`, `:log`, `:error_message`, `:error_log`. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 - `build_response!/3` raises on error.
-- Returns `%Response{jwt: signed_jwt, return_url: platform_url}`.
+- Returns `{:ok, %Ltix.DeepLinking.Response{}}` with the signed `jwt` and the platform's `return_url`.
 
 ## Delivering the Response
 

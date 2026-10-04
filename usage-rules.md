@@ -8,9 +8,9 @@ deep linking).
 
 The entire OIDC launch flow is two functions:
 
-1. `Ltix.handle_login(params, redirect_uri, opts)` — called when the platform POSTs to
-   your login endpoint. Returns `{:ok, %{redirect_uri: url, state: state}}`. Store `state`
-   in the session, redirect the user to `redirect_uri`.
+1. `Ltix.handle_login(params, redirect_uri, opts)` — called when the platform sends the
+   user to your login endpoint. Returns `{:ok, %{redirect_uri: url, state: state}}`. Store
+   `state` in the session, redirect the user to `redirect_uri`.
 
 2. `Ltix.handle_callback(params, state, opts)` — called when the platform POSTs back to
    your launch endpoint. Returns `{:ok, %LaunchContext{}}` with parsed claims, registration,
@@ -87,7 +87,7 @@ not by retrying the callback.
 Errors use the Splode framework with three classes:
 
 - `:invalid` — bad input, missing claims, malformed JWT (HTTP 400)
-- `:security` — bad signature, expired token, nonce replay (HTTP 401/403)
+- `:security` — bad signature, expired token, nonce replay (HTTP 401)
 - `:unknown` — network errors, unexpected failures (HTTP 500)
 
 Most errors carry a `.spec_ref` field pointing to the violated spec passage. Use
@@ -102,12 +102,16 @@ categories:
 
 ```elixir
 case Ltix.handle_callback(params, state) do
-  {:ok, context} -> # success
-  {:error, %Ltix.Errors.Invalid.DeploymentNotFound{}} -> # auto-create or onboard
+  {:ok, context} ->
+    render(conn, :launch, context: context)
+
+  {:error, %Ltix.Errors.Invalid.DeploymentNotFound{} = error} ->
+    render(conn, :onboard, deployment_id: error.deployment_id)
+
   {:error, error} ->
-    status = Ltix.Errors.status_code(error)
-    class = Ltix.Errors.class(error)
-    # ...
+    conn
+    |> put_status(Ltix.Errors.status_code(error))
+    |> render(:error, class: error.class, message: Exception.message(error))
 end
 ```
 
@@ -148,8 +152,9 @@ platform decides what to include based on tool configuration. **Always** check f
 
 ```elixir
 case Ltix.GradeService.authenticate(context) do
-  {:ok, client} -> # service available
-  {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} -> # gracefully degrade
+  {:ok, client} -> Ltix.GradeService.post_score(client, score)
+  {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} -> :ok
+  {:error, error} -> {:error, error}
 end
 ```
 

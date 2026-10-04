@@ -61,12 +61,14 @@ the platform's public keys, validated the token's expiration and
 audience, checked and consumed the nonce, parsed role URIs into
 structured data, and confirmed the deployment exists.
 
-> #### That's the entire API {: .info}
+> #### Two calls per launch {: .info}
 >
-> `handle_login/3` and `handle_callback/3` are the only two functions
-> you call. Everything else — storage lookups, key fetching, token
+> `handle_login/3` and `handle_callback/3` are the only functions a
+> launch needs. Everything else — storage lookups, key fetching, token
 > validation — happens behind them. `handle_login!/3` and
-> `handle_callback!/3` do the same and raise on error.
+> `handle_callback!/3` do the same and raise on error. After a launch,
+> `Ltix.GradeService`, `Ltix.MembershipsService`, and `Ltix.DeepLinking`
+> take the returned context.
 
 ## What Ltix handles vs. what you handle
 

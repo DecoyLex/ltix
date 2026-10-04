@@ -44,10 +44,9 @@ defmodule Ltix.JWT.KeySet.Cache do
   Store keys for a JWKS URI with a TTL.
 
   `max_age` is the number of seconds the entry should be considered fresh,
-  derived from the `cache-control: max-age` HTTP header. A value of `0`
-  means no caching.
+  derived from the `cache-control: max-age` HTTP header.
   """
-  @callback put(jwks_uri :: String.t(), keys :: map(), max_age :: non_neg_integer()) :: :ok
+  @callback put(jwks_uri :: String.t(), keys :: map(), max_age :: pos_integer()) :: :ok
 
   @doc """
   Remove a cached entry for a JWKS URI.

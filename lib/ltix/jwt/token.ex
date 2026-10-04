@@ -23,7 +23,7 @@ defmodule Ltix.JWT.Token do
   3. Fetch the platform's public key by `kid` via `Ltix.JWT.KeySet`
   4. Verify the RS256 signature
   5. Validate `iss` matches the registration's issuer
-  6. Validate `aud` contains the tool's `client_id`
+  6. Validate `aud` is the tool's `client_id`, or a list containing only it
   7. Validate `azp` matches `client_id` (when present)
   8. Validate `exp` is not in the past (with configurable clock skew)
   9. Validate `iat` is a NumericDate

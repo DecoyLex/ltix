@@ -254,6 +254,15 @@ defmodule MyApp.Lti do
     Repo.all(from j in Jwk, where: j.active == true)
   end
 
+  # The platform left out client_id, so look up by issuer alone. An issuer
+  # with several registrations is ambiguous and needs the client_id.
+  def get_registration(issuer, nil) do
+    case Repo.all(from r in Registration, where: r.issuer == ^issuer, preload: :jwk) do
+      [registration] -> {:ok, registration}
+      _none_or_several -> {:error, :not_found}
+    end
+  end
+
   def get_registration(issuer, client_id) do
     registration =
       Repo.get_by(Registration, issuer: issuer, client_id: client_id)
@@ -335,8 +344,10 @@ end
 # config/config.exs
 config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
 
-# config/test.exs — use the in-memory adapter for tests
-config :ltix, storage_adapter: Ltix.Test.StorageAdapter
+# config/test.exs — use the in-memory adapter and Req.Test stubs for tests
+config :ltix,
+  storage_adapter: Ltix.Test.StorageAdapter,
+  req_options: [plug: {Req.Test, :ltix}]
 ```
 
 ## Technical Constraints
@@ -420,7 +431,7 @@ defmodule MyApp.Lti.StorageAdapterTest do
       registration_id: registration.id
     })
 
-    %{registration: registration, deployment: deployment}
+    %{jwk: jwk, registration: registration, deployment: deployment}
   end
 
   describe "get_registration/2" do
@@ -431,19 +442,24 @@ defmodule MyApp.Lti.StorageAdapterTest do
       assert found.id == registration.id
     end
 
+    test "finds by issuer alone when client_id is nil", %{registration: registration} do
+      assert {:ok, found} = StorageAdapter.get_registration(registration.issuer, nil)
+      assert found.id == registration.id
+    end
+
     test "returns :not_found for unknown issuer" do
       assert {:error, :not_found} = StorageAdapter.get_registration(
         "https://unknown.example.com", "client-123"
       )
     end
 
-    test "Registerable protocol produces a valid Ltix.Registration", %{registration: registration} do
+    test "Registerable protocol produces a valid Ltix.Registration", %{jwk: jwk, registration: registration} do
       {:ok, found} = StorageAdapter.get_registration(
         registration.issuer, registration.client_id
       )
       {:ok, %Ltix.Registration{} = resolved} = Ltix.Registerable.to_registration(found)
       assert resolved.issuer == registration.issuer
-      assert resolved.tool_jwk.kid == registration.jwk.kid
+      assert resolved.tool_jwk.kid == jwk.kid
     end
   end
 

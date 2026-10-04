@@ -27,8 +27,9 @@ Services are optional per-launch. **Always** handle `ServiceNotAvailable`:
 
 ```elixir
 case Ltix.GradeService.authenticate(context) do
-  {:ok, client} -> # use it
-  {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} -> # degrade gracefully
+  {:ok, client} -> Ltix.GradeService.post_score(client, score)
+  {:error, %Ltix.Errors.Invalid.ServiceNotAvailable{}} -> :ok
+  {:error, error} -> {:error, error}
 end
 ```
 
