@@ -8,12 +8,17 @@ avoids redundant authentication and handles mid-job expiry.
 ## Refreshing during a batch
 
 When processing many items in a single job, the token may expire before
-you finish. Check between batches with `expired?/1` and `refresh!/1`:
+you finish. Check between batches with `expired?/1` and `refresh!/1`. The endpoint is rebuilt
+from the URL and scopes saved during a launch, as in
+[Syncing Grades in the Background](background-grade-sync.md):
 
 ```elixir
+alias Ltix.LaunchClaims.AGSEndpoint
+
 def perform(%{args: %{"course_id" => course_id}}) do
   registration = MyApp.Courses.get_registration(course_id)
-  endpoint = MyApp.Courses.get_ags_endpoint(course_id)
+  stored = MyApp.Courses.get_ags_endpoint(course_id)
+  endpoint = AGSEndpoint.new!(line_item: stored.line_item_url, scopes: stored.scopes)
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint

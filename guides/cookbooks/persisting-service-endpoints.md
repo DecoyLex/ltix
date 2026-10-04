@@ -13,7 +13,7 @@ posts scores to it. It also syncs the roster so it can pair students'
 mobile accounts with their LMS identities using the LIS data from
 membership responses.
 
-Both URLs live on the course, since they're context-scoped.
+Both URLs are context-scoped, so store them on the course. The grade service also needs the scopes from the launch claim, and the line item URL the platform returns when the tool creates its line item.
 
 ### Migration
 
@@ -25,6 +25,8 @@ defmodule MyApp.Repo.Migrations.AddServiceEndpointsToCourses do
     alter table(:courses) do
       add :memberships_url, :string
       add :lineitems_url, :string
+      add :ags_scopes, {:array, :string}
+      add :attendance_line_item_url, :string
     end
   end
 end
@@ -43,13 +45,23 @@ defmodule MyApp.Course do
     field :title, :string
     field :memberships_url, :string
     field :lineitems_url, :string
+    field :ags_scopes, {:array, :string}
+    field :attendance_line_item_url, :string
     belongs_to :registration, MyApp.Lti.Registration
     timestamps()
   end
 
   def changeset(course, attrs) do
     course
-    |> cast(attrs, [:context_id, :title, :registration_id, :memberships_url, :lineitems_url])
+    |> cast(attrs, [
+      :context_id,
+      :title,
+      :registration_id,
+      :memberships_url,
+      :lineitems_url,
+      :ags_scopes,
+      :attendance_line_item_url
+    ])
     |> validate_required([:context_id, :registration_id])
     |> unique_constraint([:context_id, :registration_id])
   end
@@ -70,16 +82,39 @@ def create_course!(%Ltix.LaunchContext{claims: claims, registration: registratio
     registration_id: registration.id,
     title: claims.context.title,
     memberships_url: claims.memberships_endpoint && claims.memberships_endpoint.context_memberships_url,
-    lineitems_url: claims.ags_endpoint && claims.ags_endpoint.line_items
+    lineitems_url: claims.ags_endpoint && claims.ags_endpoint.line_items,
+    ags_scopes: claims.ags_endpoint && claims.ags_endpoint.scopes
   }
 
   %Course{}
   |> Course.changeset(attrs)
   |> Repo.insert!(
-    on_conflict: {:replace, [:title, :memberships_url, :lineitems_url, :updated_at]},
+    on_conflict: {:replace, [:title, :memberships_url, :lineitems_url, :ags_scopes, :updated_at]},
     conflict_target: [:context_id, :registration_id],
     returning: true
   )
+end
+```
+
+Create the attendance line item once, during the first launch, and store its URL.
+
+```elixir
+def ensure_attendance_line_item!(course, context) do
+  if course.attendance_line_item_url do
+    course
+  else
+    {:ok, client} = Ltix.GradeService.authenticate(context)
+
+    {:ok, item} = Ltix.GradeService.create_line_item(client,
+      label: "Attendance",
+      score_maximum: 1,
+      tag: "attendance"
+    )
+
+    course
+    |> Course.changeset(%{attendance_line_item_url: item.id})
+    |> Repo.update!()
+  end
 end
 ```
 
@@ -103,14 +138,16 @@ def sync_roster(course) do
 end
 ```
 
-Post a score to a line item the tool created earlier:
+Post a score to the line item the tool created earlier:
 
 ```elixir
 alias Ltix.LaunchClaims.AGSEndpoint
 
 def post_attendance(course, user_id) do
   registration = get_registration(course)
-  endpoint = %AGSEndpoint{line_items: course.lineitems_url}
+
+  endpoint =
+    AGSEndpoint.new!(line_items: course.lineitems_url, scopes: course.ags_scopes)
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint
@@ -124,7 +161,9 @@ def post_attendance(course, user_id) do
     grading_progress: :fully_graded
   )
 
-  :ok = Ltix.GradeService.post_score(client, score)
+  :ok = Ltix.GradeService.post_score(client, score,
+    line_item: course.attendance_line_item_url
+  )
 end
 ```
 
@@ -133,8 +172,8 @@ end
 Instead of creating line items programmatically, the instructor creates
 one tool placement per class session: "Week 1", "Week 2", etc. The
 platform pre-creates a grade column for each placement. The lineitem URL
-for that column is resource-link-scoped (different per session), so it
-needs its own schema.
+for that column and its scopes are resource-link-scoped (different per
+session), so store them in a separate schema.
 
 ### Migration
 
@@ -147,6 +186,7 @@ defmodule MyApp.Repo.Migrations.CreateClassSessions do
       add :resource_link_id, :string, null: false
       add :title, :string
       add :lineitem_url, :string
+      add :ags_scopes, {:array, :string}
       add :course_id, references(:courses), null: false
       timestamps()
     end
@@ -168,13 +208,14 @@ defmodule MyApp.ClassSession do
     field :resource_link_id, :string
     field :title, :string
     field :lineitem_url, :string
+    field :ags_scopes, {:array, :string}
     belongs_to :course, MyApp.Course
     timestamps()
   end
 
   def changeset(session, attrs) do
     session
-    |> cast(attrs, [:resource_link_id, :title, :lineitem_url, :course_id])
+    |> cast(attrs, [:resource_link_id, :title, :lineitem_url, :ags_scopes, :course_id])
     |> validate_required([:resource_link_id, :course_id])
     |> unique_constraint([:resource_link_id, :course_id])
   end
@@ -189,13 +230,14 @@ def create_class_session!(%Ltix.LaunchContext{claims: claims}, course) do
     resource_link_id: claims.resource_link.id,
     title: claims.resource_link.title,
     lineitem_url: claims.ags_endpoint && claims.ags_endpoint.line_item,
+    ags_scopes: claims.ags_endpoint && claims.ags_endpoint.scopes,
     course_id: course.id
   }
 
   %ClassSession{}
   |> ClassSession.changeset(attrs)
   |> Repo.insert!(
-    on_conflict: {:replace, [:title, :lineitem_url, :updated_at]},
+    on_conflict: {:replace, [:title, :lineitem_url, :ags_scopes, :updated_at]},
     conflict_target: [:resource_link_id, :course_id],
     returning: true
   )
@@ -213,7 +255,7 @@ alias Ltix.LaunchClaims.AGSEndpoint
 def post_check_in(session, user_id) do
   course = Repo.preload(session, :course).course
   registration = get_registration(course)
-  endpoint = %AGSEndpoint{line_item: session.lineitem_url}
+  endpoint = AGSEndpoint.new!(line_item: session.lineitem_url, scopes: session.ags_scopes)
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint

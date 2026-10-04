@@ -2,7 +2,9 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
   @moduledoc """
   Assignment and Grade Services (AGS) endpoint claim.
 
-  Provides URLs for managing line items and scores. All fields are optional. `:scopes` lists the grade service scopes the tool may request, `:line_items` is the URL of the line items container, and `:line_item` is the URL of the line item coupled to the resource link.
+  Provides URLs for managing line items and scores. `:scopes` lists the grade service scopes the tool may request, `:line_items` is the URL of the line items container, and `:line_item` is the URL of the line item coupled to the resource link.
+
+  Launches include this claim. To call the grade service outside a launch, build the endpoint with `new/1` from the URLs and scopes you saved.
 
   ## Examples
 
@@ -10,6 +12,8 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
       {:ok, %Ltix.LaunchClaims.AGSEndpoint{scopes: nil, line_items: "https://example.com/lineitems", line_item: nil}}
   """
 
+  alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.HTTP
   alias Ltix.LaunchClaims.ClaimHelpers
 
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
@@ -29,12 +33,64 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
             "lineitem" => :line_item
           })
 
+  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
+  @https_url Zoi.refine(Zoi.string(), {__MODULE__, :validate_url, []})
+
+  @new_schema Zoi.struct(
+                __MODULE__,
+                %{
+                  scopes: Zoi.list(Zoi.string()) |> Zoi.min(1),
+                  line_items: Zoi.optional(@https_url),
+                  line_item: Zoi.optional(@https_url)
+                },
+                coerce: true,
+                unrecognized_keys: :error,
+                empty_values: [nil]
+              )
+
   @doc false
   def schema, do: @schema
 
   @type t :: unquote(Zoi.type_spec(@struct_schema))
   @enforce_keys Zoi.Struct.enforce_keys(@struct_schema)
   defstruct Zoi.Struct.struct_fields(@struct_schema)
+
+  @doc """
+  Build an endpoint from a keyword list or a map.
+
+  `:scopes` is required. `:line_items` and `:line_item` are optional absolute HTTPS URLs that may be `nil`.
+
+  ## Examples
+
+      iex> Ltix.LaunchClaims.AGSEndpoint.new(
+      ...>   line_item: "https://lms.example.com/lineitems/1",
+      ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+      ...> )
+      {:ok, %Ltix.LaunchClaims.AGSEndpoint{scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"], line_items: nil, line_item: "https://lms.example.com/lineitems/1"}}
+
+      iex> {:error, error} = Ltix.LaunchClaims.AGSEndpoint.new(line_item: "https://lms.example.com/lineitems/1")
+      iex> Exception.message(error)
+      "Ltix.LaunchClaims.AGSEndpoint field :scopes is required [AGS §3.1]"
+  """
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
+  def new(attributes) when is_list(attributes) or is_map(attributes) do
+    InvalidField.parse(__MODULE__, @new_schema, Map.new(attributes), &spec_ref/1)
+  end
+
+  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
+  defp spec_ref(field) when field in [:line_items, :line_item], do: "Sec §3"
+  defp spec_ref(_field), do: "AGS §3.1"
+
+  @doc false
+  @spec validate_url(term(), keyword()) :: :ok | {:error, String.t()}
+  def validate_url(url, _opts) do
+    case HTTP.validate_url(url) do
+      {:ok, _uri} -> :ok
+      {:error, _error} -> {:error, "must be an absolute HTTPS URL"}
+    end
+  end
 
   @doc """
   Parse an AGS endpoint claim from a JSON map.

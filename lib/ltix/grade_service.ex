@@ -70,15 +70,16 @@ defmodule Ltix.GradeService do
   def endpoint_from_claims(_), do: :error
 
   @impl Ltix.AdvantageService
-  def validate_endpoint(%AGSEndpoint{}), do: :ok
+  def validate_endpoint(%AGSEndpoint{} = endpoint) do
+    with {:ok, _endpoint} <- AGSEndpoint.new(Map.from_struct(endpoint)), do: :ok
+  end
 
   def validate_endpoint(_),
     do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
 
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def scopes(%AGSEndpoint{scopes: scopes}) when is_list(scopes), do: scopes
-  def scopes(%AGSEndpoint{scopes: nil}), do: []
+  def scopes(%AGSEndpoint{scopes: scopes}), do: List.wrap(scopes)
 
   @context_auth_schema Zoi.keyword(
                          [
@@ -111,7 +112,8 @@ defmodule Ltix.GradeService do
   Accepts a `%LaunchContext{}` or any struct implementing `Ltix.Registerable`
   (including `Ltix.Registration`). With a launch context, the endpoint and
   scopes are extracted from the AGS claim. With a registration, pass the
-  endpoint via the `:endpoint` option.
+  endpoint via the `:endpoint` option, built with
+  `Ltix.LaunchClaims.AGSEndpoint.new/1`.
 
   ## From a launch context
 
@@ -119,12 +121,13 @@ defmodule Ltix.GradeService do
 
   ## From a registration
 
-      {:ok, client} = Ltix.GradeService.authenticate(registration,
-        endpoint: %AGSEndpoint{
+      {:ok, endpoint} =
+        AGSEndpoint.new(
           line_items: "https://lms.example.com/lineitems",
           scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
-        }
-      )
+        )
+
+      {:ok, client} = Ltix.GradeService.authenticate(registration, endpoint: endpoint)
 
   ## Options (launch context)
 

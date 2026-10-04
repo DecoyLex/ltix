@@ -80,6 +80,24 @@ def perform(%{args: %{"course_id" => course_id}}) do
 end
 ```
 
+The grade service endpoint also includes the scopes the platform allows, and authenticating requires them. Store them alongside the URLs and rebuild the endpoint with `Ltix.LaunchClaims.AGSEndpoint.new!/1`.
+
+```elixir
+alias Ltix.LaunchClaims.AGSEndpoint
+
+# During launch
+%AGSEndpoint{line_items: line_items, line_item: line_item, scopes: scopes} =
+  context.claims.ags_endpoint
+
+MyApp.Courses.store_ags_endpoint(course_id, line_items, line_item, scopes)
+
+# In an Oban worker
+{line_items, line_item, scopes} = MyApp.Courses.get_ags_endpoint(course_id)
+endpoint = AGSEndpoint.new!(line_items: line_items, line_item: line_item, scopes: scopes)
+
+{:ok, client} = Ltix.GradeService.authenticate(registration, endpoint: endpoint)
+```
+
 ## Managing tokens
 
 Tokens are not refreshed automatically. For a single request handler,

@@ -153,10 +153,6 @@ defmodule Ltix.GradeServiceTest do
       assert :error == GradeService.endpoint_from_claims(claims)
     end
 
-    test "validate_endpoint accepts AGSEndpoint" do
-      assert :ok == GradeService.validate_endpoint(%AGSEndpoint{})
-    end
-
     test "validate_endpoint rejects other values" do
       assert {:error, %InvalidEndpoint{}} =
                GradeService.validate_endpoint(:not_an_endpoint)
@@ -196,6 +192,16 @@ defmodule Ltix.GradeServiceTest do
       assert %AGSEndpoint{} = client.endpoints[GradeService]
     end
 
+    test "rejects a launch claim without scopes", ctx do
+      context =
+        Ltix.Test.build_launch_context(ctx.platform,
+          ags_endpoint: %AGSEndpoint{line_item: @line_item_url}
+        )
+
+      assert {:error, %InvalidField{struct: AGSEndpoint, field: :scopes, reason: :required}} =
+               GradeService.authenticate(context)
+    end
+
     test "errors when no AGS claim in launch", ctx do
       context = Ltix.Test.build_launch_context(ctx.platform)
 
@@ -220,6 +226,20 @@ defmodule Ltix.GradeServiceTest do
                )
 
       assert %AGSEndpoint{} = client.endpoints[GradeService]
+    end
+
+    test "rejects an endpoint without scopes", ctx do
+      endpoint = %AGSEndpoint{line_items: @line_items_url}
+
+      assert {:error, %InvalidField{struct: AGSEndpoint, field: :scopes, reason: :required}} =
+               GradeService.authenticate(ctx.platform.registration, endpoint: endpoint)
+    end
+
+    test "rejects an endpoint with an invalid URL", ctx do
+      endpoint = %AGSEndpoint{line_items: "http://platform.example.com", scopes: @all_scopes}
+
+      assert {:error, %InvalidField{struct: AGSEndpoint, field: :line_items}} =
+               GradeService.authenticate(ctx.platform.registration, endpoint: endpoint)
     end
 
     test "raises without endpoint option", ctx do
