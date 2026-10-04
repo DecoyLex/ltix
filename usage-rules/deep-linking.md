@@ -90,6 +90,7 @@ html(conn, """
 ## Errors
 
 - `InvalidMessageType` — `build_response/3` called on a non-deep-linking context
+- `InvalidContentItem` when an item is not a content item or the items are not a list
 - `ContentItemTypeNotAccepted` — item type not in `settings.accept_types`
 - `ContentItemsExceedLimit` — multiple items when `settings.accept_multiple` is `false`
 - `LineItemNotAccepted` — line item on content item when `settings.accept_line_item` is `false`

@@ -30,6 +30,7 @@ defmodule Ltix.DeepLinking do
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
+  alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
 
@@ -64,6 +65,9 @@ defmodule Ltix.DeepLinking do
 
     * `Ltix.Errors.Invalid.InvalidMessageType` — context is not a deep
       linking launch
+    * `Ltix.Errors.Invalid.InvalidContentItem` — an item is not a content
+      item, has no `"type"` or one that is not a string, or `items` is not a
+      list
     * `Ltix.Errors.Invalid.ContentItemTypeNotAccepted` — item type not
       in `accept_types`
     * `Ltix.Errors.Invalid.ContentItemsExceedLimit` — multiple items
@@ -91,41 +95,86 @@ defmodule Ltix.DeepLinking do
   @spec build_response(LaunchContext.t(), list(), keyword()) ::
           {:ok, Response.t()} | {:error, Exception.t()}
   def build_response(context, items \\ [], opts \\ []) do
-    build(context, items, Options.parse!(opts, @options_schema))
+    opts = Options.parse!(opts, @options_schema)
+    serialized = serialize_items(items)
+
+    metadata = %{
+      item_count: if(is_list(items), do: length(items), else: 0),
+      item_types: for({:ok, %{"type" => type}} <- serialized, uniq: true, do: type)
+    }
+
+    :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
+      {build(context, serialized, opts), metadata}
+    end)
   end
 
   defp build(
          %LaunchContext{claims: %{message_type: "LtiDeepLinkingRequest"}} = context,
-         items,
+         serialized,
          opts
        ) do
-    items_json = Enum.map(items, &ContentItem.to_map/1)
+    settings = context.claims.deep_linking_settings
 
-    metadata = %{
-      item_count: length(items_json),
-      item_types: Enum.uniq(Enum.map(items_json, & &1["type"]))
-    }
-
-    :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
-      settings = context.claims.deep_linking_settings
-
-      result =
-        with {:ok, registration} <- Registerable.to_registration(context.registration),
-             {:ok, deployment} <- Deployable.to_deployment(context.deployment),
-             :ok <- validate_item_types(items_json, settings.accept_types),
-             :ok <- validate_multiplicity(items_json, settings.accept_multiple),
-             :ok <- validate_line_items(items_json, settings.accept_line_item) do
-          claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
-          jwt = sign_jwt(claims, registration.tool_jwk)
-          {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
-        end
-
-      {result, metadata}
-    end)
+    with {:ok, registration} <- Registerable.to_registration(context.registration),
+         {:ok, deployment} <- Deployable.to_deployment(context.deployment),
+         {:ok, items_json} <- collect_items(serialized),
+         :ok <- validate_item_types(items_json, settings.accept_types),
+         :ok <- validate_multiplicity(items_json, settings.accept_multiple),
+         :ok <- validate_line_items(items_json, settings.accept_line_item) do
+      claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
+      jwt = sign_jwt(claims, registration.tool_jwk)
+      {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
+    end
   end
 
-  defp build(%LaunchContext{claims: %{message_type: mt}}, _items, _opts) do
+  defp build(%LaunchContext{claims: %{message_type: mt}}, _serialized, _opts) do
     {:error, InvalidMessageType.exception(message_type: mt, spec_ref: "DL §4.5")}
+  end
+
+  # --- Serialization ---
+
+  # [DL §4.5.6](https://www.imsglobal.org/spec/lti-dl/v2p0/#content-items)
+  defp serialize_items(items) when is_list(items) do
+    items
+    |> Enum.with_index()
+    |> Enum.map(fn {item, index} -> serialize_item(item, index) end)
+  end
+
+  defp serialize_items(items) do
+    [{:error, invalid_item(nil, items, "must be a list")}]
+  end
+
+  defp serialize_item(item, index) do
+    case ContentItem.impl_for(item) do
+      nil -> {:error, invalid_item(index, item, "is not a content item")}
+      impl -> check_type(impl.to_map(item), item, index)
+    end
+  end
+
+  # [DL §3.7](https://www.imsglobal.org/spec/lti-dl/v2p0/#defining-new-types)
+  defp check_type(%{"type" => type} = json, _item, _index) when is_binary(type), do: {:ok, json}
+
+  defp check_type(%{"type" => type}, _item, index) do
+    {:error, invalid_item(index, type, ~s(has a "type" that is not a string))}
+  end
+
+  defp check_type(_json, item, index),
+    do: {:error, invalid_item(index, item, ~s(has no "type"))}
+
+  defp invalid_item(index, value, reason) do
+    InvalidContentItem.exception(
+      index: index,
+      value: value,
+      reason: reason,
+      spec_ref: "DL §4.5.6"
+    )
+  end
+
+  defp collect_items(serialized) do
+    case for({:error, error} <- serialized, do: error) do
+      [] -> {:ok, for({:ok, json} <- serialized, do: json)}
+      errors -> {:error, Ltix.Errors.combine(errors)}
+    end
   end
 
   # --- Validation ---

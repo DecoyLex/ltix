@@ -397,30 +397,17 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "DL §4.4.1"
     end
 
-    test "InvalidContentItem with nil message shows value" do
+    test "InvalidContentItem names the item index and value" do
       error =
         InvalidContentItem.exception(
-          field: "url",
-          value: nil,
-          message: nil,
-          spec_ref: "DL §4.1"
+          index: 2,
+          value: "https://example.com",
+          reason: "is not a content item",
+          spec_ref: "DL §4.5.6"
         )
 
-      assert Exception.message(error) =~ "url"
-      assert Exception.message(error) =~ "nil"
-    end
-
-    test "InvalidContentItem with message shows message" do
-      error =
-        InvalidContentItem.exception(
-          field: "url",
-          value: "",
-          message: "must be a valid URL",
-          spec_ref: "DL §4.1"
-        )
-
-      assert Exception.message(error) =~ "must be a valid URL"
-      assert Exception.message(error) =~ "url"
+      assert Exception.message(error) ==
+               ~s(Content item at index 2 is not a content item, got "https://example.com" [DL §4.5.6])
     end
   end
 

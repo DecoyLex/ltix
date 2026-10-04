@@ -1,12 +1,19 @@
 defmodule Ltix.Errors.Invalid.InvalidContentItem do
-  @moduledoc "Content item field missing or invalid."
-  use Ltix.Errors, fields: [:field, :value, :message, :spec_ref], class: :invalid
+  @moduledoc """
+  An item passed to `Ltix.DeepLinking.build_response/3` is not a content item.
 
-  def message(%{field: field, message: nil, value: value, spec_ref: ref}) do
-    "Invalid content item field #{field}: got #{inspect(value)} [#{ref}]"
+  The following fields of this exception are public and can be accessed freely.
+
+    * `:index` (`t:non_neg_integer/0` or `nil`) - the item's position in the list, or `nil` when the items are not a list
+    * `:value` (`t:term/0`) - the item, or its `"type"` when that is invalid
+  """
+  use Ltix.Errors, fields: [:index, :value, :reason, :spec_ref], class: :invalid
+
+  def message(%{index: nil, value: value, reason: reason, spec_ref: ref}) do
+    "Content items #{reason}, got #{inspect(value)} [#{ref}]"
   end
 
-  def message(%{field: field, message: message, value: _value, spec_ref: ref}) do
-    "Invalid content item field #{field}: #{message} [#{ref}]"
+  def message(%{index: index, value: value, reason: reason, spec_ref: ref}) do
+    "Content item at index #{index} #{reason}, got #{inspect(value)} [#{ref}]"
   end
 end

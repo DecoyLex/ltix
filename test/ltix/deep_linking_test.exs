@@ -10,11 +10,17 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.DeepLinking.Response
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
+  alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
+
+  # Forwards events emitted by the test process, ignoring concurrent tests.
+  def forward_own_event(event, _measurements, metadata, {test_pid, ref}) do
+    if self() == test_pid, do: send(test_pid, {ref, List.last(event), metadata})
+  end
 
   setup do
     %{platform: Ltix.Test.setup_platform!()}
@@ -379,6 +385,103 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
+    end
+  end
+
+  describe "build_response/3 malformed items" do
+    test "returns an error for a map without a \"type\" key", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      item = %{url: "https://example.com", type: "link"}
+
+      assert {:error, %InvalidContentItem{index: 0, value: ^item} = error} =
+               DeepLinking.build_response(context, [item])
+
+      assert Exception.message(error) =~ "Content item at index 0 has no \"type\""
+    end
+
+    test "returns an error for a type that is not a string", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+
+      assert {:error, %InvalidContentItem{index: 0, value: :link} = error} =
+               DeepLinking.build_response(context, [%{"type" => :link}])
+
+      assert Exception.message(error) =~
+               "Content item at index 0 has a \"type\" that is not a string"
+    end
+
+    test "returns an error for a value that is not a content item", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      {:ok, link} = Link.new(url: "https://example.com")
+
+      assert {:error, %InvalidContentItem{index: 1, value: "https://example.com"} = error} =
+               DeepLinking.build_response(context, [link, "https://example.com"])
+
+      assert Exception.message(error) =~ "Content item at index 1 is not a content item"
+    end
+
+    test "returns an error for items that are not a list", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      {:ok, link} = Link.new(url: "https://example.com")
+
+      assert {:error, %InvalidContentItem{index: nil, value: ^link} = error} =
+               DeepLinking.build_response(context, link)
+
+      assert Exception.message(error) =~ "Content items must be a list"
+    end
+
+    test "groups every malformed item", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [
+                  %InvalidContentItem{index: 0},
+                  %InvalidContentItem{index: 1}
+                ]
+              }} = DeepLinking.build_response(context, [%{}, nil])
+    end
+  end
+
+  describe "build_response/3 telemetry" do
+    setup do
+      ref = make_ref()
+
+      :telemetry.attach_many(
+        ref,
+        [
+          [:ltix, :deep_linking, :build_response, :start],
+          [:ltix, :deep_linking, :build_response, :stop]
+        ],
+        &__MODULE__.forward_own_event/4,
+        {self(), ref}
+      )
+
+      on_exit(fn -> :telemetry.detach(ref) end)
+      %{ref: ref}
+    end
+
+    test "reports the item count and types", %{platform: p, ref: ref} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      {:ok, link} = Link.new(url: "https://example.com")
+      {:ok, image} = Image.new(url: "https://example.com/i.png")
+
+      {:ok, _} = DeepLinking.build_response(context, [link, image, link])
+
+      assert_received {^ref, :start, %{item_count: 3, item_types: ["link", "image"]}}
+      assert_received {^ref, :stop, %{item_count: 3, item_types: ["link", "image"]}}
+    end
+
+    test "brackets calls that return an error", %{platform: p, ref: ref} do
+      deep_linking = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      resource_link = Ltix.Test.build_launch_context(p)
+
+      {:error, _} = DeepLinking.build_response(deep_linking, :not_a_list)
+      assert_received {^ref, :start, %{item_count: 0, item_types: []}}
+      assert_received {^ref, :stop, _}
+
+      {:error, _} = DeepLinking.build_response(resource_link, [])
+      assert_received {^ref, :start, %{item_count: 0, item_types: []}}
+      assert_received {^ref, :stop, %{item_count: 0, item_types: []}}
     end
   end
 
