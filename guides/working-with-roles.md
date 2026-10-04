@@ -389,8 +389,8 @@ Supported atoms:
 
 Unknown atoms raise `ArgumentError`. For roles not covered here, use
 `Role.parse/1` with the full URI string, or construct the `%Role{}`
-struct directly. `Role.to_uri!/1` returns the URI of any role,
-converting a hand-built struct that has none.
+struct directly. `Role.to_uri/1` and `Role.to_uri!/1` return the URI a
+role has, converting a hand-built struct that has none.
 
 ## Parsing roles directly
 

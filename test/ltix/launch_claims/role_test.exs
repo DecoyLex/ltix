@@ -30,11 +30,24 @@ defmodule Ltix.LaunchClaims.RoleTest do
   end
 
   describe "parse/1 context roles [Core §A.2.3]" do
-    for role_name <-
-          ~w(Administrator ContentDeveloper Instructor Learner Mentor Manager Member Officer) do
-      test "parses #{role_name}" do
+    for {role_name, expected_name} <- [
+          {"Administrator", :administrator},
+          {"ContentDeveloper", :content_developer},
+          {"Instructor", :instructor},
+          {"Learner", :learner},
+          {"Mentor", :mentor},
+          {"Manager", :manager},
+          {"Member", :member},
+          {"Officer", :officer}
+        ] do
+      test "parses #{role_name} and converts it back" do
         uri = @context_base <> unquote(role_name)
-        assert {:ok, %Role{type: :context, uri: ^uri}} = Role.parse(uri)
+
+        assert {:ok,
+                %Role{type: :context, name: unquote(expected_name), sub_role: nil, uri: ^uri} =
+                  role} = Role.parse(uri)
+
+        assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
     end
 
@@ -131,7 +144,7 @@ defmodule Ltix.LaunchClaims.RoleTest do
     ]
 
     for {principal, sub, expected_name, expected_sub_role} <- @sub_role_cases do
-      test "parses #{principal}##{sub}" do
+      test "parses #{principal}##{sub} and converts it back" do
         uri = @sub_role_base <> unquote(principal) <> "#" <> unquote(sub)
 
         assert {:ok,
@@ -140,7 +153,9 @@ defmodule Ltix.LaunchClaims.RoleTest do
                   name: unquote(expected_name),
                   sub_role: unquote(expected_sub_role),
                   uri: ^uri
-                }} = Role.parse(uri)
+                } = role} = Role.parse(uri)
+
+        assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
     end
   end
@@ -150,11 +165,30 @@ defmodule Ltix.LaunchClaims.RoleTest do
   @institution_base "http://purl.imsglobal.org/vocab/lis/v2/institution/person#"
 
   describe "parse/1 institution roles [Core §A.2.2]" do
-    for role_name <-
-          ~w(Administrator Faculty Guest None Other Staff Student Alumni Instructor Learner Member Mentor Observer ProspectiveStudent) do
-      test "parses #{role_name}" do
+    for {role_name, expected_name} <- [
+          {"Administrator", :administrator},
+          {"Faculty", :faculty},
+          {"Guest", :guest},
+          {"None", :none},
+          {"Other", :other},
+          {"Staff", :staff},
+          {"Student", :student},
+          {"Alumni", :alumni},
+          {"Instructor", :instructor},
+          {"Learner", :learner},
+          {"Member", :member},
+          {"Mentor", :mentor},
+          {"Observer", :observer},
+          {"ProspectiveStudent", :prospective_student}
+        ] do
+      test "parses #{role_name} and converts it back" do
         uri = @institution_base <> unquote(role_name)
-        assert {:ok, %Role{type: :institution, uri: ^uri}} = Role.parse(uri)
+
+        assert {:ok,
+                %Role{type: :institution, name: unquote(expected_name), sub_role: nil, uri: ^uri} =
+                  role} = Role.parse(uri)
+
+        assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
     end
 
@@ -172,10 +206,23 @@ defmodule Ltix.LaunchClaims.RoleTest do
   @system_lis_base "http://purl.imsglobal.org/vocab/lis/v2/system/person#"
 
   describe "parse/1 system LIS roles [Core §A.2.1]" do
-    for role_name <- ~w(Administrator None AccountAdmin Creator SysAdmin SysSupport User) do
-      test "parses #{role_name}" do
+    for {role_name, expected_name} <- [
+          {"Administrator", :administrator},
+          {"None", :none},
+          {"AccountAdmin", :account_admin},
+          {"Creator", :creator},
+          {"SysAdmin", :sys_admin},
+          {"SysSupport", :sys_support},
+          {"User", :user}
+        ] do
+      test "parses #{role_name} and converts it back" do
         uri = @system_lis_base <> unquote(role_name)
-        assert {:ok, %Role{type: :system, uri: ^uri}} = Role.parse(uri)
+
+        assert {:ok,
+                %Role{type: :system, name: unquote(expected_name), sub_role: nil, uri: ^uri} =
+                  role} = Role.parse(uri)
+
+        assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
     end
 
@@ -266,6 +313,16 @@ defmodule Ltix.LaunchClaims.RoleTest do
 
     test "to_uri returns :error for unknown role type" do
       assert :error = Role.to_uri(%Role{type: :custom, name: :something})
+    end
+
+    test "to_uri returns the URI a role carries" do
+      role = %Role{
+        type: :custom,
+        name: :reviewer,
+        uri: "https://vendor.example.com/roles#Reviewer"
+      }
+
+      assert Role.to_uri(role) == {:ok, "https://vendor.example.com/roles#Reviewer"}
     end
 
     test "to_uri! returns the URI a role carries" do

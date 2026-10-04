@@ -171,8 +171,9 @@ defmodule Ltix.LaunchClaims.Role do
   @doc """
   Convert a `%Role{}` struct to its URI string.
 
-  Tries each registered parser's `to_uri/1` callback until one succeeds.
-  The LIS parser is tried by default.
+  Returns the URI a role carries, such as one parsed from a launch. Otherwise
+  tries each registered parser's `to_uri/1` callback until one succeeds. The
+  LIS parser is tried by default.
 
   ## Examples
 
@@ -184,7 +185,9 @@ defmodule Ltix.LaunchClaims.Role do
       iex> Ltix.LaunchClaims.Role.to_uri(role)
       {:ok, "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"}
   """
-  @spec to_uri(t_without_uri()) :: {:ok, String.t()} | :error
+  @spec to_uri(t() | t_without_uri()) :: {:ok, String.t()} | :error
+  def to_uri(%__MODULE__{uri: uri}) when is_binary(uri), do: {:ok, uri}
+
   def to_uri(%__MODULE__{} = role) do
     app_parsers = Map.values(AppConfig.role_parsers!())
 
@@ -210,9 +213,7 @@ defmodule Ltix.LaunchClaims.Role do
   end
 
   @doc """
-  Return a role's URI, converting it like `to_uri/1` when the role has none.
-
-  Roles parsed from a launch or a roster carry the URI they were parsed from. Raises `ArgumentError` when no role parser can convert the role.
+  Same as `to_uri/1` but raises `ArgumentError` when no role parser can convert the role.
 
   ## Examples
 
@@ -224,8 +225,6 @@ defmodule Ltix.LaunchClaims.Role do
       "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
   """
   @spec to_uri!(t() | t_without_uri()) :: String.t()
-  def to_uri!(%__MODULE__{uri: uri}) when is_binary(uri), do: uri
-
   def to_uri!(%__MODULE__{} = role) do
     case to_uri(role) do
       {:ok, uri} -> uri
