@@ -169,21 +169,25 @@ Then, in your template:
 
 `build_response/3` validates content items against the platform's
 `deep_linking_settings` and returns an error if constraints are
-violated:
+violated. Errors about a single item include its `index` in the list you
+passed:
 
 ```elixir
 case Ltix.DeepLinking.build_response(context, items) do
   {:ok, response} ->
     # deliver response
 
-  {:error, %Ltix.Errors.Invalid.ContentItemTypeNotAccepted{type: type}} ->
+  {:error, %Ltix.Errors.Invalid.ContentItemTypeNotAccepted{index: index, type: type}} ->
     # item type not in accept_types
 
   {:error, %Ltix.Errors.Invalid.ContentItemsExceedLimit{}} ->
     # multiple items when accept_multiple is false
 
-  {:error, %Ltix.Errors.Invalid.LineItemNotAccepted{}} ->
+  {:error, %Ltix.Errors.Invalid.LineItemNotAccepted{index: index}} ->
     # line_item present when accept_line_item is false
+
+  {:error, %Ltix.Errors.Invalid{errors: errors}} ->
+    # several of the above at once
 end
 ```
 

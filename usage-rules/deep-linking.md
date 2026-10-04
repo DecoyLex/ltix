@@ -39,8 +39,7 @@ settings.accept_multiple       # true or false
 settings.accept_line_item      # true or false
 ```
 
-`build_response/3` validates items against these constraints and returns errors if violated
-(`ContentItemTypeNotAccepted`, `ContentItemsExceedLimit`, `LineItemNotAccepted`).
+`build_response/3` validates items against these constraints and returns an error for each violation (see Errors below). Several violations are grouped in `Ltix.Errors.Invalid`.
 
 ## Building LTI Resource Links with Line Items
 
@@ -88,6 +87,8 @@ html(conn, """
 ```
 
 ## Errors
+
+Errors about one item include its `index` in the list you passed.
 
 - `InvalidMessageType` — `build_response/3` called on a non-deep-linking context
 - `InvalidContentItem` when an item is not a content item or the items are not a list

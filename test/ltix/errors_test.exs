@@ -346,13 +346,14 @@ defmodule Ltix.ErrorsTest do
     test "ContentItemTypeNotAccepted includes type and accept_types" do
       error =
         ContentItemTypeNotAccepted.exception(
+          index: 0,
           type: "link",
           accept_types: ["ltiResourceLink"],
           spec_ref: "DL §4.4.1"
         )
 
-      assert Exception.message(error) =~ "link"
-      assert Exception.message(error) =~ "ltiResourceLink"
+      assert Exception.message(error) =~ ~s(type "link" at index 0)
+      assert Exception.message(error) =~ ~s(["ltiResourceLink"])
       assert Exception.message(error) =~ "DL §4.4.1"
     end
 
@@ -389,11 +390,10 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "DL §4.4.1"
     end
 
-    test "LineItemNotAccepted includes spec ref" do
-      error =
-        LineItemNotAccepted.exception(spec_ref: "DL §4.4.1")
+    test "LineItemNotAccepted includes the item index" do
+      error = LineItemNotAccepted.exception(index: 2, spec_ref: "DL §4.4.1")
 
-      assert Exception.message(error) =~ "line_item"
+      assert Exception.message(error) =~ "index 2"
       assert Exception.message(error) =~ "DL §4.4.1"
     end
 

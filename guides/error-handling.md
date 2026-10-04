@@ -183,6 +183,18 @@ These indicate an unexpected failure outside the incoming request.
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
 | `Unknown` | `error` | Any other unexpected failure |
 
+## Deep linking errors
+
+These errors come from `Ltix.DeepLinking.build_response/3`. Content item constructors such as `Ltix.DeepLinking.ContentItem.Link.new/1` return `InvalidField`. Errors about one item in a response include its `index` in the list you passed.
+
+| Error | Fields | When |
+|---|---|---|
+| `InvalidContentItem` | `index`, `value`, `reason`, `spec_ref` | A response item is not a content item or has no valid type, or the items are not a list |
+| `InvalidMessageType` | `message_type`, `spec_ref` | The launch is not a deep linking request |
+| `ContentItemTypeNotAccepted` | `index`, `type`, `accept_types`, `spec_ref` | An item's type is not in `accept_types` |
+| `ContentItemsExceedLimit` | `count`, `spec_ref` | Several items when `accept_multiple` is `false` |
+| `LineItemNotAccepted` | `index`, `spec_ref` | A resource link has a line item when `accept_line_item` is `false` |
+
 ## Advantage service errors
 
 These errors apply to LTI Advantage service calls (memberships, AGS,

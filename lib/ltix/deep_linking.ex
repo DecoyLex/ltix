@@ -75,7 +75,9 @@ defmodule Ltix.DeepLinking do
     * `Ltix.Errors.Invalid.LineItemNotAccepted` — line item present
       when `accept_line_item` is `false`
 
-  Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+  Errors about one item include its `index` in `items`. Several failures at once
+  are grouped in `Ltix.Errors.Invalid`. Unknown or invalid options raise
+  `Ltix.Errors.Invalid.InvalidOption`.
 
   ## Examples
 
@@ -118,9 +120,7 @@ defmodule Ltix.DeepLinking do
     with {:ok, registration} <- Registerable.to_registration(context.registration),
          {:ok, deployment} <- Deployable.to_deployment(context.deployment),
          {:ok, items_json} <- collect_items(serialized),
-         :ok <- validate_item_types(items_json, settings.accept_types),
-         :ok <- validate_multiplicity(items_json, settings.accept_multiple),
-         :ok <- validate_line_items(items_json, settings.accept_line_item) do
+         :ok <- validate_items(items_json, settings) do
       claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
       jwt = sign_jwt(claims, registration.tool_jwk)
       {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
@@ -179,51 +179,51 @@ defmodule Ltix.DeepLinking do
 
   # --- Validation ---
 
-  defp validate_item_types(items, accept_types) do
-    Enum.reduce_while(items, :ok, fn item, :ok ->
-      type = item["type"]
-
-      if type in accept_types do
-        {:cont, :ok}
-      else
-        {:halt,
-         {:error,
-          ContentItemTypeNotAccepted.exception(
-            type: type,
-            accept_types: accept_types,
-            spec_ref: "DL §4.4.1"
-          )}}
-      end
-    end)
-  end
-
-  defp validate_multiplicity(items, accept_multiple) when accept_multiple == false do
-    count = length(items)
-
-    if count > 1 do
-      {:error, ContentItemsExceedLimit.exception(count: count, spec_ref: "DL §4.4.1")}
-    else
-      :ok
-    end
-  end
-
-  defp validate_multiplicity(_items, _accept_multiple), do: :ok
-
-  defp validate_line_items(items, accept_line_item) when accept_line_item == false do
-    has_line_item? =
-      Enum.any?(items, fn
-        %{"type" => "ltiResourceLink", "lineItem" => _} -> true
-        _ -> false
+  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  defp validate_items(items, settings) do
+    item_errors =
+      items
+      |> Enum.with_index()
+      |> Enum.flat_map(fn indexed ->
+        type_not_accepted(indexed, settings.accept_types) ++
+          line_item_not_accepted(indexed, settings.accept_line_item)
       end)
 
-    if has_line_item? do
-      {:error, LineItemNotAccepted.exception(spec_ref: "DL §4.4.1")}
-    else
-      :ok
+    case item_errors ++ exceeds_limit(items, settings.accept_multiple) do
+      [] -> :ok
+      errors -> {:error, Ltix.Errors.combine(errors)}
     end
   end
 
-  defp validate_line_items(_items, _accept_line_item), do: :ok
+  defp type_not_accepted({%{"type" => type}, index}, accept_types) do
+    if type in accept_types do
+      []
+    else
+      [
+        ContentItemTypeNotAccepted.exception(
+          index: index,
+          type: type,
+          accept_types: accept_types,
+          spec_ref: "DL §4.4.1"
+        )
+      ]
+    end
+  end
+
+  defp exceeds_limit(items, false = _accept_multiple) when length(items) > 1 do
+    [ContentItemsExceedLimit.exception(count: length(items), spec_ref: "DL §4.4.1")]
+  end
+
+  defp exceeds_limit(_items, _accept_multiple), do: []
+
+  defp line_item_not_accepted(
+         {%{"type" => "ltiResourceLink", "lineItem" => _}, index},
+         false = _accept_line_item
+       ) do
+    [LineItemNotAccepted.exception(index: index, spec_ref: "DL §4.4.1")]
+  end
+
+  defp line_item_not_accepted(_indexed_item, _accept_line_item), do: []
 
   # --- JWT Construction ---
 

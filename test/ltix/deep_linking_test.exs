@@ -230,7 +230,7 @@ defmodule Ltix.DeepLinkingTest do
 
       {:ok, link} = Link.new(url: "https://example.com")
 
-      assert {:error, %ContentItemTypeNotAccepted{type: "link"}} =
+      assert {:error, %ContentItemTypeNotAccepted{index: 0, type: "link"}} =
                DeepLinking.build_response(context, [link])
     end
 
@@ -359,7 +359,7 @@ defmodule Ltix.DeepLinkingTest do
 
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
 
-      assert {:error, %LineItemNotAccepted{}} =
+      assert {:error, %LineItemNotAccepted{index: 0}} =
                DeepLinking.build_response(context, [item])
     end
 
@@ -385,6 +385,40 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
+    end
+  end
+
+  describe "build_response/3 with several violations" do
+    test "returns every violation, naming each item", %{platform: p} do
+      context =
+        Ltix.Test.build_launch_context(p,
+          message_type: :deep_linking,
+          deep_linking_settings: %{
+            accept_types: ["ltiResourceLink"],
+            accept_multiple: false,
+            accept_line_item: false
+          }
+        )
+
+      {:ok, link} = Link.new(url: "https://example.com")
+      {:ok, resource} = LTIResourceLink.new(line_item: [score_maximum: 10])
+      {:ok, file} = File.new(url: "https://example.com/f.pdf")
+
+      assert {:error, %Ltix.Errors.Invalid{errors: errors} = error} =
+               DeepLinking.build_response(context, [link, resource, file])
+
+      assert [
+               %ContentItemTypeNotAccepted{
+                 index: 0,
+                 type: "link",
+                 accept_types: ["ltiResourceLink"]
+               },
+               %LineItemNotAccepted{index: 1},
+               %ContentItemTypeNotAccepted{index: 2, type: "file"},
+               %ContentItemsExceedLimit{count: 3}
+             ] = errors
+
+      assert Exception.message(error) =~ "Content item at index 1 includes a line_item"
     end
   end
 
