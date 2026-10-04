@@ -5,6 +5,7 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
@@ -547,13 +548,6 @@ defmodule Ltix.GradeServiceTest do
                GradeService.update_line_item(client, item)
     end
 
-    test "returns error when line item has no id", ctx do
-      client = build_client(ctx.platform)
-      item = %LineItem{label: "Quiz 1", score_maximum: 100}
-
-      assert {:error, _} = GradeService.update_line_item(client, item)
-    end
-
     test "returns InvalidField without sending an invalid line item", ctx do
       Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid line item") end)
       item = %LineItem{id: @line_item_url, label: " ", score_maximum: 100}
@@ -879,6 +873,31 @@ defmodule Ltix.GradeServiceTest do
       client = build_client(ctx.platform, endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.list_results(client)
+    end
+  end
+
+  describe "line items without an id" do
+    test "every operation returns MissingLineItemId", ctx do
+      Req.Test.stub(Ltix.GradeService, fn _conn ->
+        flunk("sent a request for a line item without an id")
+      end)
+
+      client = build_client(ctx.platform)
+      item = %LineItem{label: "Quiz", score_maximum: 10}
+
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      assert {:error, %MissingLineItemId{}} = GradeService.get_line_item(client, line_item: item)
+      assert {:error, %MissingLineItemId{}} = GradeService.update_line_item(client, item)
+
+      assert {:error, %MissingLineItemId{}} =
+               GradeService.delete_line_item(client, line_item: item)
+
+      assert {:error, %MissingLineItemId{}} =
+               GradeService.post_score(client, score, line_item: item)
+
+      assert {:error, %MissingLineItemId{}} = GradeService.list_results(client, line_item: item)
     end
   end
 end

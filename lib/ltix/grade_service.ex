@@ -44,6 +44,7 @@ defmodule Ltix.GradeService do
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.MalformedResponse
+  alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
@@ -358,14 +359,6 @@ defmodule Ltix.GradeService do
   # [AGS §3.2.6](https://www.imsglobal.org/spec/lti-ags/v2p0/#updating-a-line-item)
   @spec update_line_item(Client.t(), LineItem.t()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
-  def update_line_item(%Client{} = _client, %LineItem{id: nil}) do
-    {:error,
-     ServiceNotAvailable.exception(
-       service: __MODULE__,
-       spec_ref: "AGS §3.2.6"
-     )}
-  end
-
   def update_line_item(%Client{} = client, %LineItem{} = item) do
     metadata = span_metadata(client)
 
@@ -373,8 +366,8 @@ defmodule Ltix.GradeService do
       result =
         with :ok <- check_expiry(client),
              :ok <- Client.require_scope(client, @scope_lineitem),
+             {:ok, url} <- line_item_url(item, client),
              :ok <- LineItem.validate(item),
-             url = item.id,
              headers = auth_headers(client, nil),
              req_opts =
                build_request(
@@ -574,29 +567,26 @@ defmodule Ltix.GradeService do
   end
 
   defp resolve_line_item_url(%Client{} = client, opts) do
-    case Keyword.get(opts, :line_item) do
-      nil ->
-        endpoint = get_endpoint(client)
+    line_item_url(Keyword.get(opts, :line_item), client)
+  end
 
-        case endpoint.line_item do
-          nil ->
-            {:error,
-             ServiceNotAvailable.exception(
-               service: __MODULE__,
-               spec_ref: "AGS §3.1"
-             )}
+  defp line_item_url(nil, %Client{} = client) do
+    case get_endpoint(client) do
+      %AGSEndpoint{line_item: nil} ->
+        {:error, ServiceNotAvailable.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
 
-          url ->
-            {:ok, url}
-        end
-
-      %LineItem{id: id} when is_binary(id) ->
-        {:ok, id}
-
-      url when is_binary(url) ->
+      %AGSEndpoint{line_item: url} ->
         {:ok, url}
     end
   end
+
+  # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
+  defp line_item_url(%LineItem{id: nil} = item, _client) do
+    {:error, MissingLineItemId.exception(line_item: item, spec_ref: "AGS §3.2.3")}
+  end
+
+  defp line_item_url(%LineItem{id: id}, _client), do: {:ok, id}
+  defp line_item_url(url, _client) when is_binary(url), do: {:ok, url}
 
   # [AGS §3.3.1, §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
   defp derive_url(uri, suffix) do

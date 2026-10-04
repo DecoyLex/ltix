@@ -212,6 +212,7 @@ etc.) and OAuth authentication.
 | `RosterTooLarge` | `count`, `max`, `spec_ref` | `get_members/2` exceeded `max_members` limit |
 | `ScopeMismatch` | `scope`, `granted_scopes`, `spec_ref` | Client lacks the required OAuth scope |
 | `InvalidEndpoint` | `service`, `spec_ref` | Wrong endpoint struct passed to a service |
+| `MissingLineItemId` | `line_item`, `spec_ref` | A grade operation received a line item without an `id` |
 
 ### Security
 
