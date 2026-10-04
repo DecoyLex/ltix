@@ -25,29 +25,25 @@ defmodule Ltix.GradeService do
 
   @behaviour Ltix.AdvantageService
 
-  alias Ltix.GradeService.LineItem
-  alias Ltix.GradeService.Result
-  alias Ltix.GradeService.Score
-
+  alias Ltix.AdvantageService.Operation
   alias Ltix.AppConfig
-
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchContext
-
-  alias Ltix.OAuth
-  alias Ltix.OAuth.Client
-  alias Ltix.Options
-  alias Ltix.Pagination
-  alias Ltix.Registerable
-
-  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.Errors.Security.AccessTokenExpired
+  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService.Result
+  alias Ltix.GradeService.Score
+  alias Ltix.HTTP
+  alias Ltix.LaunchClaims
+  alias Ltix.LaunchClaims.AGSEndpoint
+  alias Ltix.LaunchContext
+  alias Ltix.OAuth
+  alias Ltix.OAuth.Client
+  alias Ltix.Options
+  alias Ltix.Pagination
+  alias Ltix.Registerable
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
   @scope_lineitem_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
@@ -207,7 +203,11 @@ defmodule Ltix.GradeService do
     {max, opts} = Keyword.pop(opts, :max_line_items)
 
     with_line_items(:list_line_items, client, opts, fn items ->
-      collect(items, max, :max_line_items, "AGS §3.2.4")
+      Operation.collect(items, max,
+        service: __MODULE__,
+        option: :max_line_items,
+        spec_ref: "AGS §3.2.4"
+      )
     end)
   end
 
@@ -239,7 +239,7 @@ defmodule Ltix.GradeService do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_line_items(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_line_items_schema)
-    with_line_items(:stream_line_items, client, opts, &{:ok, stream(&1)})
+    with_line_items(:stream_line_items, client, opts, &{:ok, Operation.stream(&1)})
   end
 
   @doc """
@@ -524,7 +524,11 @@ defmodule Ltix.GradeService do
     {max, opts} = Keyword.pop(opts, :max_results)
 
     with_results(:list_results, client, opts, fn results ->
-      collect(results, max, :max_results, "AGS §3.3.6")
+      Operation.collect(results, max,
+        service: __MODULE__,
+        option: :max_results,
+        spec_ref: "AGS §3.3.6"
+      )
     end)
   end
 
@@ -556,7 +560,7 @@ defmodule Ltix.GradeService do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_results(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_results_schema)
-    with_results(:stream_results, client, opts, &{:ok, stream(&1)})
+    with_results(:stream_results, client, opts, &{:ok, Operation.stream(&1)})
   end
 
   @doc """
@@ -582,37 +586,8 @@ defmodule Ltix.GradeService do
     end)
   end
 
-  # Telemetry metadata names the URL the operation requests, or `nil` when it
-  # cannot be resolved.
-  defp run(operation, %Client{} = client, scopes, url, request) do
-    metadata = %{endpoint: requested_url(url)}
-
-    :telemetry.span([:ltix, :grade_service, operation], metadata, fn ->
-      result =
-        with :ok <- check_expiry(client),
-             :ok <- Client.require_any_scope(client, scopes),
-             {:ok, url} <- url do
-          request.(url)
-        end
-
-      {result, metadata}
-    end)
-  end
-
-  defp requested_url({:ok, url}), do: url
-  defp requested_url({:error, _error}), do: nil
-
-  defp check_expiry(%Client{} = client) do
-    if Client.expired?(client) do
-      {:error,
-       AccessTokenExpired.exception(
-         expires_at: client.expires_at,
-         spec_ref: "Sec §7.1"
-       )}
-    else
-      :ok
-    end
-  end
+  defp run(operation, client, scopes, url, request),
+    do: Operation.run([:ltix, :grade_service, operation], client, scopes, url, request)
 
   defp endpoint(%Client{endpoints: endpoints}, opts) do
     Keyword.get_lazy(opts, :endpoint, fn -> Map.get(endpoints, __MODULE__) end)
@@ -653,7 +628,7 @@ defmodule Ltix.GradeService do
   # [AGS §3.3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service-endpoint)
   # [AGS §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#service-endpoint)
   defp derive_url({:ok, url}, suffix) do
-    with {:ok, uri} <- Ltix.HTTP.validate_url(url) do
+    with {:ok, uri} <- HTTP.validate_url(url) do
       path = String.trim_trailing(uri.path || "", "/") <> "/" <> suffix
       {:ok, URI.to_string(%{uri | path: path})}
     end
@@ -680,7 +655,7 @@ defmodule Ltix.GradeService do
   end
 
   defp req_options(%Client{} = client) do
-    Ltix.HTTP.req_options(client.req_options, __MODULE__)
+    HTTP.req_options(client.req_options, __MODULE__)
   end
 
   defp fetch_pages(%Client{} = client, url, accept, params) do
@@ -709,12 +684,12 @@ defmodule Ltix.GradeService do
         [method: method, url: url, headers: headers] ++ body_options
       )
 
-    case Ltix.HTTP.request(request_options) do
+    case HTTP.request(request_options) do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
         {:ok, body}
 
       {:ok, %Req.Response{} = response} ->
-        {:error, Ltix.HTTP.status_error(response, url)}
+        {:error, HTTP.status_error(response, url)}
 
       {:error, _exception} = error ->
         error
@@ -722,9 +697,7 @@ defmodule Ltix.GradeService do
   end
 
   defp list_line_items_params(opts) do
-    params = %{}
-
-    params
+    %{}
     |> maybe_put_param("resource_link_id", Keyword.get(opts, :resource_link_id))
     |> maybe_put_param("resource_id", Keyword.get(opts, :resource_id))
     |> maybe_put_param("tag", Keyword.get(opts, :tag))
@@ -732,9 +705,7 @@ defmodule Ltix.GradeService do
   end
 
   defp list_results_params(opts) do
-    params = %{}
-
-    params
+    %{}
     |> maybe_put_param("user_id", Keyword.get(opts, :user_id))
     |> maybe_put_limit(Keyword.get(opts, :per_page))
   end
@@ -787,41 +758,6 @@ defmodule Ltix.GradeService do
 
   defp malformed_response(reason, spec_ref) do
     MalformedResponse.exception(service: __MODULE__, reason: reason, spec_ref: spec_ref)
-  end
-
-  defp collect(items, max, option, spec_ref) do
-    collected =
-      Enum.reduce_while(items, {:ok, [], 0}, fn
-        {:ok, _item}, {:ok, _collected, count} when count == max ->
-          error =
-            CollectionTooLarge.exception(
-              service: __MODULE__,
-              option: option,
-              count: count + 1,
-              max: max,
-              spec_ref: spec_ref
-            )
-
-          {:halt, {:error, error}}
-
-        {:ok, item}, {:ok, collected, count} ->
-          {:cont, {:ok, [item | collected], count + 1}}
-
-        {:error, _error} = error, _accumulator ->
-          {:halt, error}
-      end)
-
-    case collected do
-      {:ok, items, _count} -> {:ok, Enum.reverse(items)}
-      {:error, _error} = error -> error
-    end
-  end
-
-  defp stream(items) do
-    Stream.map(items, fn
-      {:ok, item} -> item
-      {:error, error} -> raise error
-    end)
   end
 
   @doc false

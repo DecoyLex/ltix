@@ -36,24 +36,21 @@ defmodule Ltix.MembershipsService do
 
   @behaviour Ltix.AdvantageService
 
-  alias Ltix.MembershipsService.MembershipContainer
-
+  alias Ltix.AdvantageService.Operation
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.HTTP
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
-
+  alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Options
   alias Ltix.Pagination
   alias Ltix.Registerable
-
-  alias Ltix.Errors.Invalid.CollectionTooLarge
-  alias Ltix.Errors.Invalid.InvalidEndpoint
-  alias Ltix.Errors.Invalid.InvalidOption
-  alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.Errors.Security.AccessTokenExpired
 
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
   @media_type "application/vnd.ims.lti-nrps.v2.membershipcontainer+json"
@@ -203,18 +200,15 @@ defmodule Ltix.MembershipsService do
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
   def list_members(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @list_members_schema)
-    params = query_params(opts)
-    endpoint = resolve_endpoint(client, opts)
-    metadata = span_metadata(endpoint)
+    {max, opts} = Keyword.pop!(opts, :max_members)
 
-    :telemetry.span([:ltix, :memberships_service, :list_members], metadata, fn ->
-      result =
-        case fetch_pages(client, endpoint, params) do
-          {:ok, pages} -> collect_roster(pages, Keyword.fetch!(opts, :max_members))
-          {:error, _} = error -> error
-        end
+    with_pages(:list_members, client, opts, fn pages ->
+      limit_error = [service: __MODULE__, option: :max_members, spec_ref: "NRPS §2.4.2"]
 
-      {result, metadata}
+      with {:ok, [first | _] = containers} <-
+             Operation.collect(containers(pages), max, limit_error, &length(&1.members)) do
+        {:ok, %{first | members: Enum.flat_map(containers, & &1.members)}}
+      end
     end)
   end
 
@@ -249,18 +243,9 @@ defmodule Ltix.MembershipsService do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_members(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_members_schema)
-    params = query_params(opts)
-    endpoint = resolve_endpoint(client, opts)
-    metadata = span_metadata(endpoint)
 
-    :telemetry.span([:ltix, :memberships_service, :stream_members], metadata, fn ->
-      result =
-        case fetch_pages(client, endpoint, params) do
-          {:ok, pages} -> {:ok, Stream.flat_map(pages, &page_members!/1)}
-          {:error, _} = error -> error
-        end
-
-      {result, metadata}
+    with_pages(:stream_members, client, opts, fn pages ->
+      {:ok, Stream.flat_map(Operation.stream(containers(pages)), & &1.members)}
     end)
   end
 
@@ -275,15 +260,29 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  defp fetch_pages(%Client{} = client, endpoint, params) do
-    with {:ok, endpoint} <- endpoint,
-         :ok <- check_expiry(client),
-         :ok <- Client.require_scope(client, @nrps_scope) do
-      Pagination.stream_results(endpoint.context_memberships_url, request_headers(client),
-        params: params,
-        req_options: Ltix.HTTP.req_options(client.req_options, __MODULE__)
-      )
-    end
+  defp with_pages(operation, client, opts, consume) do
+    url =
+      with {:ok, endpoint} <- resolve_endpoint(client, opts),
+           do: {:ok, endpoint.context_memberships_url}
+
+    Operation.run([:ltix, :memberships_service, operation], client, [@nrps_scope], url, fn url ->
+      with {:ok, pages} <-
+             Pagination.stream_results(url, request_headers(client),
+               params: query_params(opts),
+               req_options: HTTP.req_options(client.req_options, __MODULE__)
+             ) do
+        consume.(pages)
+      end
+    end)
+  end
+
+  # Emits `{:ok, container}` or `{:error, error}` for each page, so consumers
+  # stop at the first failure without fetching later pages.
+  defp containers(pages) do
+    Stream.map(pages, fn
+      {:ok, body} -> MembershipContainer.from_json(body)
+      {:error, _error} = error -> error
+    end)
   end
 
   defp request_headers(%Client{access_token: token}) do
@@ -302,10 +301,7 @@ defmodule Ltix.MembershipsService do
   end
 
   defp validated(endpoint) do
-    case validate_endpoint(endpoint) do
-      :ok -> {:ok, endpoint}
-      {:error, _} = error -> error
-    end
+    with :ok <- validate_endpoint(endpoint), do: {:ok, endpoint}
   end
 
   defp client_endpoint(%Client{endpoints: %{__MODULE__ => endpoint}}), do: {:ok, endpoint}
@@ -314,78 +310,6 @@ defmodule Ltix.MembershipsService do
     not_available(
       "The client has no memberships service endpoint. Authenticate with one or pass the endpoint option"
     )
-  end
-
-  defp check_expiry(%Client{} = client) do
-    if Client.expired?(client) do
-      {:error,
-       AccessTokenExpired.exception(
-         expires_at: client.expires_at,
-         spec_ref: "Sec §7.1"
-       )}
-    else
-      :ok
-    end
-  end
-
-  defp collect_roster(pages, max) do
-    limit = if max == :infinity, do: :infinity, else: max + 1
-
-    pages
-    |> Enum.reduce_while({nil, [], 0}, &accumulate_page(&1, &2, limit))
-    |> finalize_roster(max)
-  end
-
-  defp accumulate_page({:error, _} = error, _accumulator, _limit), do: {:halt, error}
-
-  defp accumulate_page({:ok, body}, {first_container, chunks, count}, limit) do
-    case MembershipContainer.from_json(body) do
-      {:ok, container} ->
-        first_container = first_container || container
-        members = container.members
-        count = count + length(members)
-
-        if limit != :infinity and count >= limit do
-          {:halt, {first_container, [members | chunks], count}}
-        else
-          {:cont, {first_container, [members | chunks], count}}
-        end
-
-      {:error, _} = error ->
-        {:halt, error}
-    end
-  end
-
-  defp finalize_roster({:error, _} = error, _max), do: error
-
-  defp finalize_roster({_first_container, _chunks, count}, max)
-       when max != :infinity and count > max do
-    {:error,
-     CollectionTooLarge.exception(
-       service: __MODULE__,
-       option: :max_members,
-       count: count,
-       max: max,
-       spec_ref: "NRPS §2.4.2"
-     )}
-  end
-
-  defp finalize_roster({first_container, chunks, _count}, _max) do
-    members =
-      chunks
-      |> Enum.reverse()
-      |> List.flatten()
-
-    {:ok, %{first_container | members: members}}
-  end
-
-  defp page_members!({:error, error}), do: raise(error)
-
-  defp page_members!({:ok, body}) do
-    case MembershipContainer.from_json(body) do
-      {:ok, container} -> container.members
-      {:error, error} -> raise error
-    end
   end
 
   # [NRPS §2.4.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#role-query-parameter)
@@ -421,9 +345,6 @@ defmodule Ltix.MembershipsService do
               [key: :role, value: role, reason: "it is not a known role"],
               __STACKTRACE__
   end
-
-  defp span_metadata({:ok, endpoint}), do: %{endpoint: endpoint.context_memberships_url}
-  defp span_metadata({:error, _}), do: %{endpoint: nil}
 
   # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
   defp validate_service_version(%MembershipsEndpoint{service_versions: nil}), do: :ok
