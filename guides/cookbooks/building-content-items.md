@@ -6,7 +6,7 @@ shows a self-contained example you can adapt.
 ## LTI resource link
 
 The simplest content item. The platform creates a link that launches
-back into your tool:
+back into your tool.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -16,7 +16,7 @@ back into your tool:
 ```
 
 Omit `url` to use the tool's base launch URL configured in the
-platform:
+platform.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -27,7 +27,7 @@ platform:
 ## Resource link with a line item
 
 Include a `line_item` so the platform auto-creates a gradebook column.
-You can then post scores to it using the grade service:
+You can then post scores to it using the grade service.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -46,11 +46,13 @@ You can then post scores to it using the grade service:
 to the content item's title if omitted, and must not be blank when
 given.
 
+`line_item` also accepts an `Ltix.GradeService.LineItem`. Deep linking can only send `label`, `score_maximum`, `resource_id`, `tag`, and `grades_released`, so a line item that sets any other field, such as `id`, returns an error.
+
 ## Resource link with custom parameters
 
 Custom parameters are passed to your tool on every launch of the
 created link. Pass them as a keyword list or a map with string or atom
-keys. Values must be strings:
+keys. Values must be strings.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -66,7 +68,7 @@ keys. Values must be strings:
 
 ## Setting availability windows
 
-Control when the link is accessible and when submissions are accepted:
+Control when the link is accessible and when submissions are accepted.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -83,12 +85,12 @@ Control when the link is accessible and when submissions are accepted:
 ```
 
 Both fields in each window are optional. You can set just an end time
-to leave the start open.
+and leave the start unset.
 
 ## External link
 
-For URLs outside your tool. Use `Link` instead of `LTIResourceLink`
-when the resource isn't an LTI launch:
+For URLs outside your tool. Use `Link` when the resource isn't an LTI
+launch.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
@@ -98,7 +100,7 @@ when the resource isn't an LTI launch:
 )
 ```
 
-Control how the platform opens the link with `window` or `iframe`:
+Control how the platform opens the link with `window` or `iframe`.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
@@ -108,7 +110,7 @@ Control how the platform opens the link with `window` or `iframe`:
 )
 ```
 
-Include embeddable HTML with `embed`:
+Include embeddable HTML with `embed`.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
@@ -120,8 +122,8 @@ Include embeddable HTML with `embed`:
 
 ## File with expiry
 
-File URLs are expected to be short-lived. Set `expires_at` to tell the
-platform when the URL stops working:
+File URLs are expected to be short-lived. Set `expires_at` to send the
+platform the time the URL stops working.
 
 ```elixir
 {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(
@@ -134,7 +136,7 @@ platform when the URL stops working:
 
 ## HTML fragment
 
-Inline HTML the platform embeds directly in its page:
+Inline HTML the platform embeds directly in its page.
 
 ```elixir
 {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(
@@ -151,12 +153,12 @@ Inline HTML the platform embeds directly in its page:
 > #### Prefer Link with embed {: .tip}
 >
 > If your HTML renders a single resource that also has a direct URL,
-> use `Link` with an `embed` instead. This gives the platform both the
+> use `Link` with an `embed`. This gives the platform both the
 > embeddable HTML and a fallback URL.
 
 ## Image
 
-An image the platform renders directly with an `img` tag:
+An image the platform renders directly with an `img` tag.
 
 ```elixir
 {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(
@@ -167,7 +169,7 @@ An image the platform renders directly with an `img` tag:
 )
 ```
 
-Include a thumbnail for list views:
+Include a thumbnail for list views.
 
 ```elixir
 {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(
@@ -204,7 +206,7 @@ All five content item types support the `extensions` field.
 
 ## Returning multiple items
 
-Pass a list of mixed content item types to `build_response/3`:
+Pass a list of mixed content item types to `build_response/3`.
 
 ```elixir
 {:ok, quiz} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -230,7 +232,7 @@ Check `settings.accept_multiple` before offering multi-select. If
 ## Returning no items
 
 Return an empty list with a message when the user cancels or an error
-occurs:
+occurs.
 
 ```elixir
 # User cancelled

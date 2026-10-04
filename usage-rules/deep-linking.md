@@ -59,6 +59,7 @@ settings.accept_line_item      # true or false
 ```
 
 - `line_item.score_maximum` is required and must be positive. A `label` must not be blank.
+- `line_item` also accepts a map or a `%Ltix.GradeService.LineItem{}` without platform-assigned fields such as `id`.
 - Only include `line_item` if `settings.accept_line_item` is `true`.
 
 ## Building the Response

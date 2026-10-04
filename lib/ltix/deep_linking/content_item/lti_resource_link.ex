@@ -42,7 +42,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
                           |> Zoi.optional()
                       },
                       description:
-                        "Gradebook column for the platform to create, as a keyword list or map."
+                        "Gradebook column for the platform to create, as a keyword list, map, or `Ltix.GradeService.LineItem`."
                     )
 
   @time_window_schema object(%{
@@ -122,7 +122,22 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       "https://tool.example.com"
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.2")
+  def new(opts) do
+    opts =
+      Map.new(opts, fn
+        {:line_item, %LineItem{} = line_item} -> {:line_item, line_item_fields(line_item)}
+        option -> option
+      end)
+
+    ContentItemHelpers.new(@schema, opts, "DL §3.2")
+  end
+
+  # Returns every set field, so fields deep linking can't send are rejected as unknown.
+  defp line_item_fields(line_item) do
+    for {field, value} <- Map.from_struct(line_item), value not in [nil, %{}], into: %{} do
+      {field, value}
+    end
+  end
 
   defimpl ContentItem do
     def item_type(_item), do: "ltiResourceLink"

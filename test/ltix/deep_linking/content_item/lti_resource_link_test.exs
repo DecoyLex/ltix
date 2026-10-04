@@ -3,6 +3,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItem.LTIResourceLink
+  alias Ltix.GradeService.LineItem
 
   doctest LTIResourceLink
 
@@ -65,6 +66,37 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
 
       assert Exception.message(error) =~ "[:line_item, :score_maximum]"
       assert Exception.message(error) =~ "is required"
+    end
+
+    test "accepts a grade service line item" do
+      line_item = %LineItem{label: "Quiz 1", score_maximum: 10, tag: "grade"}
+
+      assert {:ok, link} = LTIResourceLink.new(line_item: line_item)
+
+      assert ContentItem.to_map(link)["lineItem"] == %{
+               "label" => "Quiz 1",
+               "scoreMaximum" => 10,
+               "tag" => "grade"
+             }
+    end
+
+    test "names the fields of a grade service line item that deep linking can't carry" do
+      line_item = %LineItem{
+        id: "https://lms.example.com/lineitems/1",
+        label: "Quiz 1",
+        score_maximum: 10,
+        resource_link_id: "link-1",
+        extensions: %{"https://vendor.example.com/weight" => 2}
+      }
+
+      assert {:error, %Ltix.Errors.Invalid{errors: errors}} =
+               LTIResourceLink.new(line_item: line_item)
+
+      assert Enum.sort(Enum.map(errors, & &1.field)) == [
+               [:line_item, :extensions],
+               [:line_item, :id],
+               [:line_item, :resource_link_id]
+             ]
     end
 
     test "rejects line item labels and maximum scores the grade service rejects" do
