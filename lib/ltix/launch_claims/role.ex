@@ -209,6 +209,30 @@ defmodule Ltix.LaunchClaims.Role do
     end)
   end
 
+  @doc """
+  Return a role's URI, converting it like `to_uri/1` when the role has none.
+
+  Roles parsed from a launch or a roster carry the URI they were parsed from. Raises `ArgumentError` when no role parser can convert the role.
+
+  ## Examples
+
+      iex> Ltix.LaunchClaims.Role.to_uri!(Ltix.LaunchClaims.Role.from_atom(:learner))
+      "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
+
+      iex> role = %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: nil}
+      iex> Ltix.LaunchClaims.Role.to_uri!(role)
+      "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
+  """
+  @spec to_uri!(t() | t_without_uri()) :: String.t()
+  def to_uri!(%__MODULE__{uri: uri}) when is_binary(uri), do: uri
+
+  def to_uri!(%__MODULE__{} = role) do
+    case to_uri(role) do
+      {:ok, uri} -> uri
+      :error -> raise ArgumentError, "no role parser can convert #{inspect(role)} to a URI"
+    end
+  end
+
   # --- Constructors ---
 
   @doc """

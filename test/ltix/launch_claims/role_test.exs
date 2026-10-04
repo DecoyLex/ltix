@@ -267,6 +267,22 @@ defmodule Ltix.LaunchClaims.RoleTest do
     test "to_uri returns :error for unknown role type" do
       assert :error = Role.to_uri(%Role{type: :custom, name: :something})
     end
+
+    test "to_uri! returns the URI a role carries" do
+      role = %Role{
+        type: :custom,
+        name: :reviewer,
+        uri: "https://vendor.example.com/roles#Reviewer"
+      }
+
+      assert Role.to_uri!(role) == "https://vendor.example.com/roles#Reviewer"
+    end
+
+    test "to_uri! raises for a role no parser can convert" do
+      assert_raise ArgumentError, ~r/no role parser can convert/, fn ->
+        Role.to_uri!(%Role{type: :custom, name: :something})
+      end
+    end
   end
 
   # --- Short Role Names [Cert §6.1.2] ---

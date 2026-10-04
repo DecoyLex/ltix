@@ -411,25 +411,15 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  defp resolve_role(atom) when is_atom(atom) do
-    Role.from_atom(atom).uri
+  defp resolve_role(uri) when is_binary(uri), do: uri
+
+  defp resolve_role(role) do
+    Role.to_uri!(if is_atom(role), do: Role.from_atom(role), else: role)
   rescue
-    ArgumentError -> raise_invalid_role(atom)
-  end
-
-  defp resolve_role(%Role{uri: uri}) when is_binary(uri), do: uri
-
-  defp resolve_role(%Role{} = role) do
-    case Role.to_uri(role) do
-      {:ok, uri} -> uri
-      :error -> raise_invalid_role(role)
-    end
-  end
-
-  defp resolve_role(string) when is_binary(string), do: string
-
-  defp raise_invalid_role(role) do
-    raise InvalidOption, key: :role, value: role, reason: "it is not a known role"
+    ArgumentError ->
+      reraise InvalidOption,
+              [key: :role, value: role, reason: "it is not a known role"],
+              __STACKTRACE__
   end
 
   defp span_metadata({:ok, endpoint}), do: %{endpoint: endpoint.context_memberships_url}

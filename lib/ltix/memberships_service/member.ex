@@ -186,7 +186,7 @@ defmodule Ltix.MembershipsService.Member do
   def to_map(%__MODULE__{} = member) do
     required = %{
       "user_id" => member.user_id,
-      "roles" => Enum.map(member.roles, &role_uri/1) ++ member.unrecognized_roles
+      "roles" => Enum.map(member.roles, &Role.to_uri!/1) ++ member.unrecognized_roles
     }
 
     fields =
@@ -197,15 +197,6 @@ defmodule Ltix.MembershipsService.Member do
           do: {key, value}
 
     Map.merge(member.extensions, put_status(fields, member.status))
-  end
-
-  defp role_uri(%Role{uri: uri}) when is_binary(uri), do: uri
-
-  defp role_uri(%Role{} = role) do
-    case Role.to_uri(role) do
-      {:ok, uri} -> uri
-      :error -> raise ArgumentError, "could not resolve role to URI: #{inspect(role)}"
-    end
   end
 
   defp put_status(map, nil), do: map
