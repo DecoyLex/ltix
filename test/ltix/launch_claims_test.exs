@@ -373,4 +373,18 @@ defmodule Ltix.LaunchClaimsTest do
       assert [%Role{name: :instructor}] = claims.roles
     end
   end
+
+  # --- Errors ---
+
+  describe "from_json/2 errors" do
+    test "several invalid claims are described without stack frames" do
+      assert {:error, %Ltix.Errors.Invalid{} = error} =
+               LaunchClaims.from_json(%{"iss" => 1, "sub" => 2})
+
+      message = Exception.message(error)
+      assert message =~ "launch.issuer"
+      assert message =~ "launch.subject"
+      refute message =~ ~r/\.exs?:\d+/
+    end
+  end
 end

@@ -32,24 +32,11 @@ defmodule Ltix.Errors do
     {status_code, opts} = Keyword.pop(opts, :status_code)
     {kind, opts} = Keyword.pop(opts, :type, :error)
 
-    macro =
-      case kind do
-        :error ->
-          Splode.Error
-
-        :error_class ->
-          Splode.ErrorClass
-
-        other ->
-          raise ArgumentError,
-                "invalid :type option #{inspect(other)} — expected :error or :error_class"
-      end
-
     class = Keyword.fetch!(opts, :class)
     status = status_code || default_status(class)
 
     quote do
-      use unquote(macro), unquote(opts)
+      unquote(error_definition(kind, opts))
 
       def __status_code__, do: unquote(status)
 
@@ -60,6 +47,32 @@ defmodule Ltix.Errors do
         end
       end
     end
+  end
+
+  defp error_definition(:error, opts) do
+    quote do
+      use Splode.Error, unquote(opts)
+    end
+  end
+
+  # Splode.ErrorClass messages include every error's stack frames, so classes
+  # are defined here with a message that lists only each error's message.
+  defp error_definition(:error_class, opts) do
+    opts = Keyword.merge(opts, fields: [errors: []], error_class?: true)
+
+    quote do
+      use Splode.Error, unquote(opts)
+
+      @impl Exception
+      def message(%{errors: errors}) do
+        Enum.map_join(errors, "\n", &"* #{Exception.message(&1)}")
+      end
+    end
+  end
+
+  defp error_definition(other, _opts) do
+    raise ArgumentError,
+          "invalid :type option #{inspect(other)} — expected :error or :error_class"
   end
 
   defp default_status(:invalid), do: 400
