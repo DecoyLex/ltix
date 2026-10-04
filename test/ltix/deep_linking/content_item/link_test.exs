@@ -103,7 +103,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
                Link.new(url: "https://example.com", extensions: [vendor_flag: true])
     end
 
-    test "names the problem with a nested option that is not a map or keyword list" do
+    test "describes the problem with a nested option that is not a map or keyword list" do
       assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :icon} = error} =
                Link.new(url: "https://example.com", icon: "https://example.com/icon.png")
 
@@ -116,6 +116,29 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
 
       assert Exception.message(error) =~ "[:icon, :url]"
       assert Exception.message(error) =~ "is required"
+    end
+
+    test "accepts nil for optional nested fields and leaves them out of the map" do
+      assert {:ok, %Link{icon: nil} = link} =
+               Link.new(
+                 url: "https://example.com",
+                 icon: nil,
+                 window: [target_name: "docs", width: nil],
+                 iframe: [src: "https://example.com/embed", height: nil]
+               )
+
+      assert ContentItem.to_map(link) == %{
+               "type" => "link",
+               "url" => "https://example.com",
+               "window" => %{"targetName" => "docs"},
+               "iframe" => %{"src" => "https://example.com/embed"}
+             }
+    end
+
+    test "requires a required nested field given nil" do
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{field: [:iframe, :src], reason: :required}} =
+               Link.new(url: "https://example.com", iframe: [src: nil, width: 640])
     end
   end
 
@@ -214,7 +237,7 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
       refute Map.has_key?(json, "iframe")
     end
 
-    test "keeps standard fields when extensions name the same keys" do
+    test "keeps standard fields when extensions have the same keys" do
       link = %Link{
         url: "https://example.com",
         extensions: %{"type" => "file", "url" => "https://other.example.com"}

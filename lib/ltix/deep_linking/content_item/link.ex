@@ -47,7 +47,8 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
               extensions: extensions_schema()
             },
             coerce: true,
-            unrecognized_keys: :error
+            unrecognized_keys: :error,
+            empty_values: [nil]
           )
 
   @moduledoc """
@@ -55,8 +56,7 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
 
   Use this for external URLs hosted outside your tool, such as articles,
   documentation, or third-party resources. For links that launch back
-  into your tool via LTI, use `Ltix.DeepLinking.ContentItem.LTIResourceLink`
-  instead.
+  into your tool via LTI, use `Ltix.DeepLinking.ContentItem.LTIResourceLink`.
 
   ## Examples
 

@@ -13,7 +13,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
                LTIResourceLink.new(%{title: "Quiz", line_item: %{score_maximum: 10}})
     end
 
-    test "rejects an iframe src, which only links carry" do
+    test "rejects an iframe src, which only links have" do
       assert {:error,
               %Ltix.Errors.Invalid.InvalidField{
                 field: [:iframe, :src],
@@ -32,7 +32,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
                LTIResourceLink.new(custom: %{:chapter => "12", "page" => "42"})
     end
 
-    test "names the problem with an invalid custom option" do
+    test "describes the problem with an invalid custom option" do
       assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :custom} = error} =
                LTIResourceLink.new(custom: "chapter=12")
 
@@ -80,7 +80,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
              }
     end
 
-    test "names the fields of a grade service line item that deep linking can't carry" do
+    test "returns an error for each grade service line item field that deep linking can't include" do
       line_item = %LineItem{
         id: "https://lms.example.com/lineitems/1",
         label: "Quiz 1",

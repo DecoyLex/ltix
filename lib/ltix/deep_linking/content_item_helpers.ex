@@ -1,17 +1,20 @@
 defmodule Ltix.DeepLinking.ContentItemHelpers do
   @moduledoc false
 
-  alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidField
 
   @not_a_map "invalid type: expected a map or keyword list"
 
   @doc """
-  Zoi schema for a nested object option that rejects unknown keys.
+  Zoi schema for a nested object option that rejects unknown keys and leaves
+  out fields given `nil`.
   """
   @spec object(map(), keyword()) :: Zoi.schema()
   def object(fields, opts \\ []) do
-    Zoi.map(fields, Keyword.merge(opts, unrecognized_keys: :error, error: @not_a_map))
+    Zoi.map(
+      fields,
+      Keyword.merge(opts, unrecognized_keys: :error, empty_values: [nil], error: @not_a_map)
+    )
   end
 
   @doc """
@@ -42,6 +45,7 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   def extensions_schema do
     Zoi.any()
     |> string_keyed_map(description: "Vendor-specific extension properties.")
+    |> Zoi.nullable()
     |> Zoi.default(%{})
   end
 
@@ -81,30 +85,31 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   @doc """
   Build a content item struct from a keyword list or map of fields.
 
-  Validates against the item's schema, which must reject unknown keys. Nested
-  options may be keyword lists. A single invalid field returns its error, and
-  several are grouped in `Ltix.Errors.Invalid`.
+  Validates against the item's schema, which must reject unknown keys and treat
+  `nil` as empty. Nested options may be keyword lists. A single invalid field
+  returns its error, and several are grouped in `Ltix.Errors.Invalid`.
   """
   @spec new(Zoi.schema(), keyword() | map(), String.t()) ::
           {:ok, struct()} | {:error, Exception.t()}
-  def new(%Zoi.Types.Struct{unrecognized_keys: :error} = schema, fields, spec_ref)
+  def new(
+        %Zoi.Types.Struct{module: module, unrecognized_keys: :error, empty_values: [nil]} =
+          schema,
+        fields,
+        spec_ref
+      )
       when is_list(fields) or is_map(fields) do
     fields = Map.new(fields, fn {key, value} -> {key, keyword_to_map(value)} end)
-    result = Zoi.parse(schema, fields)
+    conflicts = extension_conflicts(module, fields[:extensions], spec_ref)
 
-    case parse_errors(result, schema.module, fields, spec_ref) ++
-           extension_conflicts(schema.module, fields[:extensions], spec_ref) do
-      [] -> result
-      errors -> {:error, Errors.combine(errors)}
-    end
+    InvalidField.parse(module, schema, fields, fn _field -> spec_ref end, conflicts)
   end
 
   @doc """
   Serialize a content item struct to a JSON map with camelCase keys.
 
-  `nil` fields are omitted. Caller-chosen keys, such as those of `custom`, are
-  kept as given. Standard fields take precedence over extensions with the same
-  key.
+  `nil` fields are omitted, including nested ones. Caller-chosen keys, such as
+  those of `custom`, are not camelized. Standard fields take precedence over
+  extensions with the same key.
   """
   @spec to_map(struct(), String.t()) :: map()
   def to_map(%{extensions: extensions} = item, item_type) do
@@ -114,11 +119,14 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
           into: %{"type" => item_type},
           do: {camelize(field), to_json(value)}
 
-    Map.merge(extensions, standard)
+    Map.merge(extensions || %{}, standard)
   end
 
   defp to_json(%DateTime{} = date_time), do: DateTime.to_iso8601(date_time)
-  defp to_json(map) when is_map(map), do: Map.new(map, fn {k, v} -> {json_key(k), to_json(v)} end)
+
+  defp to_json(map) when is_map(map),
+    do: for({key, value} <- map, value != nil, into: %{}, do: {json_key(key), to_json(value)})
+
   defp to_json(value), do: value
 
   defp json_key(key) when is_atom(key), do: camelize(key)
@@ -154,9 +162,4 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   end
 
   defp extension_conflicts(_module, _extensions, _spec_ref), do: []
-
-  defp parse_errors({:ok, _}, _module, _fields, _spec_ref), do: []
-
-  defp parse_errors({:error, errors}, module, fields, spec_ref),
-    do: InvalidField.from_zoi(module, errors, fields, fn _field -> spec_ref end)
 end

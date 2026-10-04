@@ -14,7 +14,8 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
               extensions: extensions_schema()
             },
             coerce: true,
-            unrecognized_keys: :error
+            unrecognized_keys: :error,
+            empty_values: [nil]
           )
 
   @moduledoc """

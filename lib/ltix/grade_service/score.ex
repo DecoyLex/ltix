@@ -108,6 +108,7 @@ defmodule Ltix.GradeService.Score do
                     submitted_at: Zoi.datetime() |> Zoi.optional()
                   },
                   unrecognized_keys: :error,
+                  empty_values: [nil],
                   description:
                     "Keyword list or map with optional `:started_at` and `:submitted_at` " <>
                       "`DateTime` values. `submitted_at` must not precede `started_at`."
@@ -117,10 +118,12 @@ defmodule Ltix.GradeService.Score do
                 Zoi.map(Zoi.string(), Zoi.any(),
                   description: "Extension properties keyed by fully qualified URLs."
                 )
+                |> Zoi.nullable()
                 |> Zoi.default(%{})
             },
             coerce: true,
-            unrecognized_keys: :error
+            unrecognized_keys: :error,
+            empty_values: [nil]
           )
 
   @type t :: unquote(Zoi.type_spec(@schema))
@@ -167,12 +170,17 @@ defmodule Ltix.GradeService.Score do
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(attributes) when is_list(attributes) or is_map(attributes) do
-    attributes = normalize(attributes)
+    attributes =
+      attributes
+      |> Map.new()
+      |> Map.put_new_lazy(:timestamp, &DateTime.utc_now/0)
+      |> normalize_submission()
 
     with {:ok, score} <- InvalidField.parse(__MODULE__, @schema, attributes, &spec_ref/1),
+         :ok <- validate_timestamp(score),
          :ok <- validate_score_pair(score),
          :ok <- validate_submission_order(score.submission) do
-      {:ok, %{score | timestamp: score.timestamp || DateTime.utc_now()}}
+      {:ok, score}
     end
   end
 
@@ -212,20 +220,12 @@ defmodule Ltix.GradeService.Score do
     |> maybe_put("scoringUserId", score.scoring_user_id)
     |> maybe_put("comment", score.comment)
     |> maybe_put_submission(score.submission)
-    |> Map.merge(score.extensions)
+    |> Map.merge(score.extensions || %{})
   end
 
   # --- Private ---
 
-  # Absent and nil attributes are equivalent, and a keyword list submission
-  # reads like a map.
-  defp normalize(attributes) do
-    attributes
-    |> Map.new()
-    |> Map.reject(fn {_key, value} -> is_nil(value) end)
-    |> normalize_submission()
-  end
-
+  # A keyword list submission reads like a map.
   defp normalize_submission(%{submission: submission} = attributes) when is_list(submission) do
     if Keyword.keyword?(submission),
       do: %{attributes | submission: Map.new(submission)},
@@ -233,6 +233,12 @@ defmodule Ltix.GradeService.Score do
   end
 
   defp normalize_submission(attributes), do: attributes
+
+  # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
+  defp validate_timestamp(%__MODULE__{timestamp: nil}),
+    do: {:error, InvalidField.required(__MODULE__, :timestamp, spec_ref(:timestamp))}
+
+  defp validate_timestamp(%__MODULE__{}), do: :ok
 
   # [AGS §3.4.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoregiven-and-scoremaximum)
   defp validate_score_pair(%__MODULE__{score_given: given, score_maximum: nil})

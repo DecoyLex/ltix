@@ -72,6 +72,51 @@ defmodule Ltix.GradeService.ScoreTest do
       assert {:ok, %Score{timestamp: ^ts}} = Score.new(attrs)
     end
 
+    test "accepts nil for optional fields" do
+      attrs =
+        @valid_attrs ++ [score_given: nil, score_maximum: nil, comment: nil, submission: nil]
+
+      assert {:ok, %Score{score_given: nil, score_maximum: nil, comment: nil, submission: nil}} =
+               Score.new(attrs)
+    end
+
+    test "sets extensions given nil to nil instead of the empty default" do
+      assert {:ok, %Score{extensions: nil} = score} = Score.new(@valid_attrs ++ [extensions: nil])
+      assert encode_decode!(score) == encode_decode!(%{score | extensions: %{}})
+    end
+
+    test "accepts nil for a submission time" do
+      submitted_at = ~U[2024-01-15 10:00:00.000Z]
+
+      assert {:ok, %Score{submission: submission} = score} =
+               Score.new(
+                 @valid_attrs ++ [submission: [started_at: nil, submitted_at: submitted_at]]
+               )
+
+      assert submission == %{submitted_at: submitted_at}
+
+      assert encode_decode!(score)["submission"] == %{
+               "submittedAt" => "2024-01-15T10:00:00.000000Z"
+             }
+    end
+
+    test "requires a timestamp given nil instead of using the current time" do
+      assert {:error, %InvalidField{field: :timestamp, reason: :required}} =
+               Score.new(@valid_attrs ++ [timestamp: nil])
+    end
+
+    test "requires a required field given nil" do
+      for field <- Keyword.keys(@valid_attrs) do
+        assert {:error, %InvalidField{field: ^field, reason: :required}} =
+                 Score.new(Keyword.put(@valid_attrs, field, nil))
+      end
+    end
+
+    test "rejects an unknown field given nil" do
+      assert {:error, %InvalidField{field: :score, reason: :unknown}} =
+               Score.new(@valid_attrs ++ [score: nil])
+    end
+
     test "accepts submission as a keyword list or a map" do
       started_at = ~U[2024-01-15 09:00:00.000Z]
       submitted_at = ~U[2024-01-15 10:00:00.000Z]

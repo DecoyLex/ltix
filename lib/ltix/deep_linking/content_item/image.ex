@@ -22,7 +22,8 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
               extensions: extensions_schema()
             },
             coerce: true,
-            unrecognized_keys: :error
+            unrecognized_keys: :error,
+            empty_values: [nil]
           )
 
   @moduledoc """
@@ -30,7 +31,7 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
 
   The platform renders the image directly using an HTML `img` tag.
   For images that are part of a larger resource, consider using
-  `Ltix.DeepLinking.ContentItem.Link` with an `embed` instead.
+  `Ltix.DeepLinking.ContentItem.Link` with an `embed`.
 
   ## Examples
 

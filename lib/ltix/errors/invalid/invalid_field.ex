@@ -2,7 +2,7 @@ defmodule Ltix.Errors.Invalid.InvalidField do
   @moduledoc """
   A field given to a constructor, such as `Ltix.Registration.new/1`, is unknown, missing, or has an invalid value.
 
-  The following fields of this exception are public and can be accessed freely:
+  The following fields of this exception are public and can be accessed freely.
 
     * `:field` (`t:atom/0` or `t:list/0`) - the field's name, or a list of keys for a field nested inside another, such as `[:icon, :url]`
     * `:reason` (`t:atom/0` or `t:String.t/0`) - `:unknown`, `:required`, or a description of the invalid value
@@ -36,14 +36,26 @@ defmodule Ltix.Errors.Invalid.InvalidField do
     exception(struct: struct, field: field, value: value, reason: reason, spec_ref: spec_ref)
   end
 
-  # Parses `input` with `schema`, returning the errors for `struct` combined.
-  # `spec_ref` gives the spec reference for a field.
+  # Parses `input` with `schema`, returning the errors for `struct` combined
+  # with `other_errors`. `spec_ref` gives the spec reference for a field. A
+  # schema with `empty_values: [nil]` treats a field given `nil` as omitted, so
+  # a required one is reported missing, and a field with a default is `nil`
+  # when given `nil`.
   @doc false
-  @spec parse(module(), Zoi.schema(), map(), (atom() | list() -> String.t())) ::
+  @spec parse(module(), Zoi.schema(), map(), (atom() | list() -> String.t()), [Exception.t()]) ::
           {:ok, term()} | {:error, Exception.t()}
-  def parse(struct, schema, input, spec_ref) do
-    with {:error, errors} <- Zoi.parse(schema, input),
-         do: {:error, Errors.combine(from_zoi(struct, errors, input, spec_ref))}
+  def parse(struct, schema, input, spec_ref, other_errors \\ []) do
+    case {Zoi.parse(schema, input), other_errors} do
+      {{:ok, parsed}, []} ->
+        nils = for {key, nil} <- input, Map.has_key?(parsed, key), into: %{}, do: {key, nil}
+        {:ok, Map.merge(parsed, nils)}
+
+      {{:ok, _parsed}, _other_errors} ->
+        {:error, Errors.combine(other_errors)}
+
+      {{:error, errors}, other_errors} ->
+        {:error, Errors.combine(from_zoi(struct, errors, input, spec_ref) ++ other_errors)}
+    end
   end
 
   # Converts the Zoi errors from parsing `input` into errors for `struct`.
