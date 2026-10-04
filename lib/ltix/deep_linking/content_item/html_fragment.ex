@@ -1,5 +1,5 @@
 defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
-  import Ltix.DeepLinking.ContentItemHelpers, only: [put_fields: 3]
+  import Ltix.DeepLinking.ContentItemHelpers, only: [extensions_schema: 0, put_fields: 3]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -11,13 +11,10 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
               html: Zoi.string(description: "HTML markup to embed."),
               title: Zoi.string(description: "Title for the content item.") |> Zoi.optional(),
               text: Zoi.string(description: "Plain-text description.") |> Zoi.optional(),
-              extensions:
-                Zoi.map(Zoi.string(), Zoi.any(),
-                  description: "Vendor-specific extension properties."
-                )
-                |> Zoi.default(%{})
+              extensions: extensions_schema()
             },
-            coerce: true
+            coerce: true,
+            unrecognized_keys: :error
           )
 
   @moduledoc """
@@ -43,6 +40,9 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
   @doc """
   Create a new HTML fragment content item.
 
+  Takes the module's options as a keyword list or map. Unknown or invalid options return
+  an `Ltix.Errors.Invalid.InvalidField` error.
+
   ## Examples
 
       iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
@@ -53,7 +53,7 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
       iex> Exception.message(error)
       "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required [DL §3.4]"
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.4")
 
   defimpl ContentItem do

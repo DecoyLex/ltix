@@ -1,6 +1,6 @@
 defmodule Ltix.DeepLinking.ContentItem.File do
   import Ltix.DeepLinking.ContentItemHelpers,
-    only: [put_fields: 3, put_sub_map: 3, icon_schema: 1]
+    only: [extensions_schema: 0, put_fields: 3, put_sub_map: 3, icon_schema: 1]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -22,13 +22,10 @@ defmodule Ltix.DeepLinking.ContentItem.File do
               expires_at:
                 Zoi.string(description: "ISO 8601 timestamp when the download URL expires.")
                 |> Zoi.optional(),
-              extensions:
-                Zoi.map(Zoi.string(), Zoi.any(),
-                  description: "Vendor-specific extension properties."
-                )
-                |> Zoi.default(%{})
+              extensions: extensions_schema()
             },
-            coerce: true
+            coerce: true,
+            unrecognized_keys: :error
           )
 
   @moduledoc """
@@ -59,6 +56,10 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   @doc """
   Create a new file content item.
 
+  Takes the module's options as a keyword list or map, and nested options such as
+  `icon` may also be keyword lists. Unknown or invalid options return an
+  `Ltix.Errors.Invalid.InvalidField` error.
+
   ## Examples
 
       iex> {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(url: "https://example.com/doc.pdf")
@@ -69,7 +70,7 @@ defmodule Ltix.DeepLinking.ContentItem.File do
       iex> Exception.message(error)
       "Ltix.DeepLinking.ContentItem.File field :url is required [DL §3.3]"
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.3")
 
   defimpl ContentItem do

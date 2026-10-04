@@ -1,6 +1,14 @@
 defmodule Ltix.DeepLinking.ContentItem.Link do
   import Ltix.DeepLinking.ContentItemHelpers,
-    only: [put_fields: 3, put_sub_map: 3, icon_schema: 1, window_schema: 1]
+    only: [
+      extensions_schema: 0,
+      put_fields: 3,
+      put_sub_map: 3,
+      icon_schema: 1,
+      object: 1,
+      object: 2,
+      window_schema: 1
+    ]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -8,13 +16,13 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   # [DL §3.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#link)
   @icon_schema icon_schema(description: "Icon or thumbnail for the link.")
 
-  @embed_schema Zoi.map(%{
+  @embed_schema object(%{
                   html: Zoi.string(description: "HTML embed code.")
                 })
 
   @window_schema window_schema(description: "Window presentation for the link.")
 
-  @iframe_schema Zoi.map(
+  @iframe_schema object(
                    %{
                      src: Zoi.string(description: "URL to load in the iframe."),
                      width:
@@ -38,13 +46,10 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
               embed: @embed_schema |> Zoi.optional(),
               window: @window_schema |> Zoi.optional(),
               iframe: @iframe_schema |> Zoi.optional(),
-              extensions:
-                Zoi.map(Zoi.string(), Zoi.any(),
-                  description: "Vendor-specific extension properties."
-                )
-                |> Zoi.default(%{})
+              extensions: extensions_schema()
             },
-            coerce: true
+            coerce: true,
+            unrecognized_keys: :error
           )
 
   @moduledoc """
@@ -76,6 +81,10 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   @doc """
   Create a new link content item.
 
+  Takes the module's options as a keyword list or map, and nested options such as
+  `icon` may also be keyword lists. Unknown or invalid options return an
+  `Ltix.Errors.Invalid.InvalidField` error.
+
   ## Examples
 
       iex> {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(url: "https://example.com")
@@ -86,7 +95,7 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
       iex> Exception.message(error)
       "Ltix.DeepLinking.ContentItem.Link field :url is required [DL §3.1]"
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.1")
 
   defimpl ContentItem do

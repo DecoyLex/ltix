@@ -1,6 +1,15 @@
 defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   import Ltix.DeepLinking.ContentItemHelpers,
-    only: [put_fields: 3, put_sub_map: 3, put_passthrough: 3, icon_schema: 1, window_schema: 1]
+    only: [
+      extensions_schema: 0,
+      put_fields: 3,
+      put_sub_map: 3,
+      put_passthrough: 3,
+      string_keyed_map: 2,
+      icon_schema: 1,
+      object: 1,
+      window_schema: 1
+    ]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -10,7 +19,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
 
   @window_schema window_schema(description: "Window presentation for the LTI resource link.")
 
-  @iframe_schema Zoi.map(%{
+  @iframe_schema object(%{
                    width:
                      Zoi.integer(description: "Suggested iframe width in pixels.")
                      |> Zoi.optional(),
@@ -19,7 +28,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
                      |> Zoi.optional()
                  })
 
-  @line_item_schema Zoi.map(%{
+  @line_item_schema object(%{
                       score_maximum:
                         Zoi.number(
                           description: "Maximum score for the line item; must be positive."
@@ -38,7 +47,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
                         |> Zoi.optional()
                     })
 
-  @time_window_schema Zoi.map(%{
+  @time_window_schema object(%{
                         start_date_time:
                           Zoi.string(description: "ISO 8601 start timestamp.") |> Zoi.optional(),
                         end_date_time:
@@ -56,20 +65,16 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
               window: @window_schema |> Zoi.optional(),
               iframe: @iframe_schema |> Zoi.optional(),
               custom:
-                Zoi.map(Zoi.string(), Zoi.string(),
-                  description: "Custom parameter key-value pairs."
-                )
+                Zoi.string()
+                |> string_keyed_map(description: "Custom parameter key-value pairs.")
                 |> Zoi.optional(),
               line_item: @line_item_schema |> Zoi.optional(),
               available: @time_window_schema |> Zoi.optional(),
               submission: @time_window_schema |> Zoi.optional(),
-              extensions:
-                Zoi.map(Zoi.string(), Zoi.any(),
-                  description: "Vendor-specific extension properties."
-                )
-                |> Zoi.default(%{})
+              extensions: extensions_schema()
             },
-            coerce: true
+            coerce: true,
+            unrecognized_keys: :error
           )
 
   @moduledoc """
@@ -104,6 +109,10 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   @doc """
   Create a new LTI resource link content item.
 
+  Takes the module's options as a keyword list or map, and nested options such as
+  `icon` may also be keyword lists. Unknown or invalid options return an
+  `Ltix.Errors.Invalid.InvalidField` error.
+
   ## Examples
 
       iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new([])
@@ -114,7 +123,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       iex> link.url
       "https://tool.example.com"
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.2")
 
   defimpl ContentItem do

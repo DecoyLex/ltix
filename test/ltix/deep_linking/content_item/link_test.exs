@@ -18,6 +18,22 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
                Link.new([])
     end
 
+    test "accepts a map" do
+      assert {:ok, %Link{url: "https://example.com", window: %{target_name: "docs"}}} =
+               Link.new(%{url: "https://example.com", window: %{target_name: "docs"}})
+    end
+
+    test "rejects unknown fields" do
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [
+                  %Ltix.Errors.Invalid.InvalidField{field: [:window, :target]},
+                  %Ltix.Errors.Invalid.InvalidField{field: :titel, value: "Docs"}
+                ]
+              }} =
+               Link.new(url: "https://example.com", titel: "Docs", window: [target: "docs"])
+    end
+
     test "succeeds with all sub-structures" do
       assert {:ok, link} =
                Link.new(
@@ -56,6 +72,18 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
       assert link.embed.html == "<iframe></iframe>"
       assert link.window.target_name == "example"
       assert link.iframe.src == "https://example.com/embed"
+    end
+
+    test "accepts extensions as a keyword list" do
+      assert {:ok, %Link{extensions: %{"vendor_flag" => true}}} =
+               Link.new(url: "https://example.com", extensions: [vendor_flag: true])
+    end
+
+    test "names the problem with a nested option that is not a map or keyword list" do
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :icon} = error} =
+               Link.new(url: "https://example.com", icon: "https://example.com/icon.png")
+
+      assert Exception.message(error) =~ "expected a map or keyword list"
     end
 
     test "validates keyword list sub-structures (missing required field)" do

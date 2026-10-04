@@ -7,6 +7,42 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
   doctest LTIResourceLink
 
   describe "new/1" do
+    test "accepts a map" do
+      assert {:ok, %LTIResourceLink{title: "Quiz", line_item: %{score_maximum: 10}}} =
+               LTIResourceLink.new(%{title: "Quiz", line_item: %{score_maximum: 10}})
+    end
+
+    test "rejects an iframe src, which only links carry" do
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{
+                field: [:iframe, :src],
+                value: "https://tool.example.com/embed"
+              }} =
+               LTIResourceLink.new(iframe: [src: "https://tool.example.com/embed", width: 640])
+    end
+
+    test "accepts custom as a keyword list or a map with atom or string keys" do
+      expected = %{"chapter" => "12", "page" => "42"}
+
+      assert {:ok, %LTIResourceLink{custom: ^expected}} =
+               LTIResourceLink.new(custom: [chapter: "12", page: "42"])
+
+      assert {:ok, %LTIResourceLink{custom: ^expected}} =
+               LTIResourceLink.new(custom: %{:chapter => "12", "page" => "42"})
+    end
+
+    test "names the problem with an invalid custom option" do
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :custom} = error} =
+               LTIResourceLink.new(custom: "chapter=12")
+
+      assert Exception.message(error) =~ "expected a map or keyword list"
+
+      assert {:error, %Ltix.Errors.Invalid.InvalidField{field: [:custom, 12]} = error} =
+               LTIResourceLink.new(custom: %{12 => "chapter"})
+
+      assert Exception.message(error) =~ "invalid key: expected a string or atom"
+    end
+
     test "returns error when custom contains non-string values" do
       assert {:error,
               %Ltix.Errors.Invalid.InvalidField{

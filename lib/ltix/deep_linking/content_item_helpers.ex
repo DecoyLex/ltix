@@ -3,12 +3,53 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
 
   alias Ltix.Errors.Invalid.InvalidField
 
+  @not_a_map "invalid type: expected a map or keyword list"
+
+  @doc """
+  Zoi schema for a nested object option that rejects unknown keys.
+  """
+  @spec object(map(), keyword()) :: Zoi.schema()
+  def object(fields, opts \\ []) do
+    Zoi.map(fields, Keyword.merge(opts, unrecognized_keys: :error, error: @not_a_map))
+  end
+
+  @doc """
+  Zoi schema for a map option with caller-chosen keys, given as strings or atoms
+  and kept as strings.
+  """
+  @spec string_keyed_map(Zoi.schema(), keyword()) :: Zoi.schema()
+  def string_keyed_map(value_schema, opts) do
+    key_schema =
+      [Zoi.string(), Zoi.atom()]
+      |> Zoi.union(error: "invalid key: expected a string or atom")
+      |> Zoi.transform({__MODULE__, :key_to_string, []})
+
+    Zoi.map(
+      key_schema,
+      value_schema,
+      Keyword.put(opts, :error, @not_a_map)
+    )
+  end
+
+  @doc false
+  def key_to_string(key, _opts), do: {:ok, to_string(key)}
+
+  @doc """
+  Zoi schema for vendor-specific extension properties.
+  """
+  @spec extensions_schema() :: Zoi.schema()
+  def extensions_schema do
+    Zoi.any()
+    |> string_keyed_map(description: "Vendor-specific extension properties.")
+    |> Zoi.default(%{})
+  end
+
   @doc """
   Zoi schema for an icon or thumbnail sub-structure.
   """
   @spec icon_schema(keyword()) :: Zoi.schema()
-  def icon_schema(opts \\ []) do
-    Zoi.map(
+  def icon_schema(opts) do
+    object(
       %{
         url: Zoi.string(description: "URL of the icon image."),
         width: Zoi.integer(description: "Width in pixels.") |> Zoi.optional(),
@@ -22,8 +63,8 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   Zoi schema for a window presentation sub-structure.
   """
   @spec window_schema(keyword()) :: Zoi.schema()
-  def window_schema(opts \\ []) do
-    Zoi.map(
+  def window_schema(opts) do
+    object(
       %{
         target_name: Zoi.string(description: "Name of the window or tab.") |> Zoi.optional(),
         width: Zoi.integer(description: "Suggested window width in pixels.") |> Zoi.optional(),
@@ -37,21 +78,21 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   end
 
   @doc """
-  Build a content item struct from keyword options.
+  Build a content item struct from a keyword list or map of fields.
 
-  Validates against the item's schema. A single invalid field returns its
-  error, and several are grouped in `Ltix.Errors.Invalid`.
+  Validates against the item's schema, which must reject unknown keys. Nested
+  options may be keyword lists. A single invalid field returns its error, and
+  several are grouped in `Ltix.Errors.Invalid`.
   """
-  @spec new(Zoi.schema(), keyword(), String.t()) ::
+  @spec new(Zoi.schema(), keyword() | map(), String.t()) ::
           {:ok, struct()} | {:error, Exception.t()}
-  def new(schema, opts, spec_ref) do
-    schema =
-      schema
-      |> Zoi.Schema.traverse(&make_maps_accept_keywords/1)
+  def new(%Zoi.Types.Struct{unrecognized_keys: :error} = schema, fields, spec_ref)
+      when is_list(fields) or is_map(fields) do
+    fields = Map.new(fields, fn {key, value} -> {key, keyword_to_map(value)} end)
 
-    case Zoi.parse(schema, Map.new(opts), coerce: true) do
+    case Zoi.parse(schema, fields) do
       {:ok, _} = ok -> ok
-      {:error, errors} -> {:error, to_error(errors, schema.module, opts, spec_ref)}
+      {:error, errors} -> {:error, to_error(errors, schema.module, fields, spec_ref)}
     end
   end
 
@@ -92,13 +133,7 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   defp camelize(atom) when is_atom(atom), do: Recase.to_camel(Atom.to_string(atom))
   defp camelize(binary) when is_binary(binary), do: Recase.to_camel(binary)
 
-  defp to_error(errors, module, opts, spec_ref) do
-    input = Map.new(opts, fn {key, value} -> {key, keyword_to_map(value)} end)
-
-    module
-    |> InvalidField.from_zoi(errors, input, fn _field -> spec_ref end)
-    |> Ltix.Errors.combine()
-  end
+  defp keyword_to_map([]), do: %{}
 
   defp keyword_to_map([{key, _} | _] = list) when is_atom(key) do
     if Keyword.keyword?(list), do: Map.new(list), else: list
@@ -106,44 +141,9 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
 
   defp keyword_to_map(value), do: value
 
-  # HERE BE DRAGONS
-  #
-  # This function rewrites Zoi's schema tree at runtime to work around two
-  # separate issues. Think carefully before changing it — the interaction
-  # between Zoi.Schema.traverse, union backtracking, and nested transforms
-  # is subtle, and earlier attempts that looked correct broke error reporting
-  # in ways that only surfaced for specific content item types.
-  #
-  # Zoi's map schemas only accept maps, but our public API accepts keyword
-  # lists at the top level (via Map.new/1 in new/4). Without this, nested
-  # map fields like `line_item` and `icon` silently drop keyword list values
-  # because they never match the inner Zoi.map schema — the field parses as
-  # nil with no error, and the problem only surfaces later in build_response
-  # as a confusing "expected map, got nil" on a value the caller definitely
-  # provided.
-  #
-  # The obvious fix (wrapping each map schema in a Zoi.union of the original
-  # map and a keyword variant) runs into Zoi's union backtracking behavior:
-  # when the winning branch's downstream transform fails (e.g. a missing
-  # required field), the union retries with the next branch instead of
-  # surfacing that error. This swallows field-level validation messages and
-  # replaces them with a generic "expected map" type error.
-  #
-  # So instead we bypass Zoi's type dispatch entirely. Zoi.any() accepts the
-  # value unconditionally, a first transform coerces keyword lists to maps,
-  # and a second transform re-parses against the original map schema for
-  # validation. No union means no backtracking, and validation errors
-  # propagate with their full paths intact.
-  defp make_maps_accept_keywords(%Zoi.Types.Map{} = schema) do
-    Zoi.any()
-    |> Zoi.transform(fn
-      value when is_list(value) -> {:ok, Map.new(value)}
-      other -> {:ok, other}
-    end)
-    |> Zoi.transform(fn value ->
-      Zoi.parse(schema, value, coerce: true)
-    end)
+  defp to_error(errors, module, fields, spec_ref) do
+    module
+    |> InvalidField.from_zoi(errors, fields, fn _field -> spec_ref end)
+    |> Ltix.Errors.combine()
   end
-
-  defp make_maps_accept_keywords(other), do: other
 end

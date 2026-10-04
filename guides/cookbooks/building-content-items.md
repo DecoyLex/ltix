@@ -48,17 +48,18 @@ to the content item's title if omitted.
 ## Resource link with custom parameters
 
 Custom parameters are passed to your tool on every launch of the
-created link. Both keys and values must be strings:
+created link. Pass them as a keyword list or a map with string or atom
+keys. Values must be strings:
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
   url: "https://tool.example.com/assignments",
   title: "Essay Submission",
-  custom: %{
-    "assignment_id" => "essay-3",
-    "rubric" => "standard",
-    "allow_late" => "true"
-  }
+  custom: [
+    assignment_id: "essay-3",
+    rubric: "standard",
+    allow_late: "true"
+  ]
 )
 ```
 

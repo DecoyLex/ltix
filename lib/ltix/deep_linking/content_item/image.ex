@@ -1,6 +1,6 @@
 defmodule Ltix.DeepLinking.ContentItem.Image do
   import Ltix.DeepLinking.ContentItemHelpers,
-    only: [put_fields: 3, put_sub_map: 3, icon_schema: 1]
+    only: [extensions_schema: 0, put_fields: 3, put_sub_map: 3, icon_schema: 1]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
@@ -19,13 +19,10 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
               width: Zoi.integer(description: "Width of the image in pixels.") |> Zoi.optional(),
               height:
                 Zoi.integer(description: "Height of the image in pixels.") |> Zoi.optional(),
-              extensions:
-                Zoi.map(Zoi.string(), Zoi.any(),
-                  description: "Vendor-specific extension properties."
-                )
-                |> Zoi.default(%{})
+              extensions: extensions_schema()
             },
-            coerce: true
+            coerce: true,
+            unrecognized_keys: :error
           )
 
   @moduledoc """
@@ -56,6 +53,10 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
   @doc """
   Create a new image content item.
 
+  Takes the module's options as a keyword list or map, and nested options such as
+  `icon` may also be keyword lists. Unknown or invalid options return an
+  `Ltix.Errors.Invalid.InvalidField` error.
+
   ## Examples
 
       iex> {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(url: "https://example.com/photo.png")
@@ -66,7 +67,7 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
       iex> Exception.message(error)
       "Ltix.DeepLinking.ContentItem.Image field :url is required [DL §3.5]"
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.5")
 
   defimpl ContentItem do
