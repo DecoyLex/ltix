@@ -25,10 +25,10 @@ defmodule Ltix.MembershipsMessageClaimsTest do
       page = unquote(page)
 
       messages = [
-        {%{"https://purl.imsglobal.org/spec/lti/claim/message_type" => 123},
-         "launch.message_type", 123, "Core §5.3"},
-        {%{"aud" => [123]}, "launch.audience.0", 123, "Core §5.3"},
-        {%{"exp" => "invalid"}, "launch.expires_at", "invalid", "Core §5.3"},
+        {%{"https://purl.imsglobal.org/spec/lti/claim/message_type" => 123}, "message_type", 123,
+         "Core §5.3"},
+        {%{"aud" => [123]}, "aud.0", 123, "Core §5.3"},
+        {%{"exp" => "invalid"}, "exp", "invalid", "Core §5.3"},
         {%{"https://purl.imsglobal.org/spec/lti/claim/resource_link" => []}, "resource_link", [],
          "Core §5.3.5"},
         {%{"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => 123},
@@ -472,7 +472,7 @@ defmodule Ltix.MembershipsMessageClaimsTest do
       test "declared #{field} message types are validated on page #{page}", %{client: client} do
         page = unquote(page)
         key = unquote(key)
-        claim = "launch." <> Atom.to_string(unquote(field))
+        claim = String.replace_prefix(key, "https://purl.imsglobal.org/spec/lti/claim/", "")
         invalid_values = unquote(Macro.escape(invalid_values))
 
         for {value, suffix} <- invalid_values do

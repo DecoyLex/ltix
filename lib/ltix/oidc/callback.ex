@@ -2,6 +2,7 @@ defmodule Ltix.OIDC.Callback do
   @moduledoc false
 
   alias Ltix.Deployable
+  alias Ltix.Errors
   alias Ltix.JWT.Token
   alias Ltix.LaunchClaims
   alias Ltix.LaunchContext
@@ -140,125 +141,147 @@ defmodule Ltix.OIDC.Callback do
     end
   end
 
+  # Every missing or invalid required claim is reported.
+  #
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
   defp validate_required_lti_claims(claims, opts) do
-    with {:ok, message_type} <- validate_message_type(claims),
-         :ok <- validate_version(claims),
-         :ok <- validate_present(claims, @lti <> "deployment_id", "deployment_id", "Core §5.3.3"),
-         :ok <-
-           validate_present(
-             claims,
-             @lti <> "target_link_uri",
-             "target_link_uri",
-             "Core §5.3.4"
-           ) do
-      validate_message_specific_claims(message_type, claims, opts)
-    end
+    message_type = claims[@lti <> "message_type"]
+
+    Errors.collect([
+      validate_message_type(message_type),
+      validate_version(claims[@lti <> "version"]),
+      # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+      validate_string(claims, @lti <> "deployment_id", "deployment_id", "Core §5.3.3"),
+      # [Core §5.3.4](https://www.imsglobal.org/spec/lti/v1p3/#target-link-uri)
+      validate_string(claims, @lti <> "target_link_uri", "target_link_uri", "Core §5.3.4")
+      | validate_message_specific_claims(message_type, claims, opts)
+    ])
   end
 
   defp validate_message_specific_claims("LtiResourceLinkRequest", claims, opts) do
-    with :ok <- validate_resource_link(claims),
-         :ok <- validate_roles_present(claims) do
+    [
+      validate_resource_link(claims[@lti <> "resource_link"]),
+      validate_roles(claims[@lti <> "roles"]),
       validate_sub(claims, opts)
-    end
+    ]
   end
 
   # [DL §4.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-request-message)
   defp validate_message_specific_claims("LtiDeepLinkingRequest", claims, _opts) do
-    validate_deep_linking_settings_present(claims)
+    [validate_deep_linking_settings(claims[@dl_settings_key])]
   end
+
+  defp validate_message_specific_claims(_message_type, _claims, _opts), do: []
 
   # [Core §5.3.1](https://www.imsglobal.org/spec/lti/v1p3/#message-type-claim)
-  defp validate_message_type(claims) do
-    case claims[@lti <> "message_type"] do
-      "LtiResourceLinkRequest" ->
-        {:ok, "LtiResourceLinkRequest"}
+  # [DL §4.4.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#message-type)
+  defp validate_message_type(message_type)
+       when message_type in ["LtiResourceLinkRequest", "LtiDeepLinkingRequest"],
+       do: nil
 
-      # [DL §4.4.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#message-type)
-      "LtiDeepLinkingRequest" ->
-        {:ok, "LtiDeepLinkingRequest"}
-
-      nil ->
-        {:error, MissingClaim.exception(claim: "message_type", spec_ref: "Core §5.3.1")}
-
-      other ->
-        {:error,
-         InvalidClaim.exception(
-           claim: "message_type",
-           message: "unrecognized message_type",
-           value: other,
-           spec_ref: "Core §5.3.1"
-         )}
-    end
+  defp validate_message_type(nil) do
+    MissingClaim.exception(claim: "message_type", spec_ref: "Core §5.3.1")
   end
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
-  defp validate_deep_linking_settings_present(claims) do
-    case claims[@dl_settings_key] do
-      %{} -> :ok
-      _ -> {:error, MissingClaim.exception(claim: "deep_linking_settings", spec_ref: "DL §4.4.1")}
-    end
+  defp validate_message_type(message_type) do
+    InvalidClaim.exception(
+      claim: "message_type",
+      message: "unrecognized message_type",
+      value: message_type,
+      spec_ref: "Core §5.3.1"
+    )
   end
 
   # [Core §5.3.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-version-claim)
-  defp validate_version(claims) do
-    case claims[@lti <> "version"] do
-      "1.3.0" ->
-        :ok
+  defp validate_version("1.3.0"), do: nil
 
-      nil ->
-        {:error, MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")}
+  defp validate_version(nil),
+    do: MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")
 
-      other ->
-        {:error,
-         InvalidClaim.exception(
-           claim: "version",
-           message: "unrecognized LTI version",
-           value: other,
-           spec_ref: "Core §5.3.2"
-         )}
-    end
+  defp validate_version(version) do
+    InvalidClaim.exception(
+      claim: "version",
+      message: "unrecognized LTI version",
+      value: version,
+      spec_ref: "Core §5.3.2"
+    )
   end
 
-  defp validate_present(claims, full_key, display_name, spec_ref) do
-    case claims[full_key] do
-      value when is_binary(value) and byte_size(value) > 0 -> :ok
-      _ -> {:error, MissingClaim.exception(claim: display_name, spec_ref: spec_ref)}
+  defp validate_string(claims, key, claim, spec_ref) do
+    case claims[key] do
+      value when is_binary(value) and byte_size(value) > 0 ->
+        nil
+
+      nil ->
+        MissingClaim.exception(claim: claim, spec_ref: spec_ref)
+
+      value ->
+        InvalidClaim.exception(
+          claim: claim,
+          value: value,
+          message: "must be a non-empty string",
+          spec_ref: spec_ref
+        )
     end
   end
 
   # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
-  defp validate_resource_link(claims) do
-    case claims[@lti <> "resource_link"] do
-      %{"id" => id} when is_binary(id) and byte_size(id) > 0 ->
-        :ok
+  defp validate_resource_link(resource_link) when is_map(resource_link) do
+    validate_string(resource_link, "id", "resource_link.id", "Core §5.3.5")
+  end
 
-      %{} ->
-        {:error, MissingClaim.exception(claim: "resource_link.id", spec_ref: "Core §5.3.5")}
+  defp validate_resource_link(nil) do
+    MissingClaim.exception(claim: "resource_link", spec_ref: "Core §5.3.5")
+  end
 
-      _ ->
-        {:error, MissingClaim.exception(claim: "resource_link", spec_ref: "Core §5.3.5")}
-    end
+  defp validate_resource_link(resource_link) do
+    invalid_object("resource_link", resource_link, "Core §5.3.5")
   end
 
   # [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim)
-  defp validate_roles_present(claims) do
-    case claims[@lti <> "roles"] do
-      roles when is_list(roles) -> :ok
-      _ -> {:error, MissingClaim.exception(claim: "roles", spec_ref: "Core §5.3.7")}
+  defp validate_roles(nil), do: MissingClaim.exception(claim: "roles", spec_ref: "Core §5.3.7")
+
+  defp validate_roles(roles) do
+    if is_list(roles) and Enum.all?(roles, &is_binary/1) do
+      nil
+    else
+      InvalidClaim.exception(
+        claim: "roles",
+        value: roles,
+        message: "must be an array of strings",
+        spec_ref: "Core §5.3.7"
+      )
     end
   end
 
   # [Core §5.3.6](https://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims)
   # [Core §5.3.6.1](https://www.imsglobal.org/spec/lti/v1p3/#anonymous-launch-case)
-  defp validate_sub(%{"sub" => sub}, _opts) when is_binary(sub) and byte_size(sub) > 0, do: :ok
-
   defp validate_sub(claims, opts) do
     if Keyword.get(opts, :allow_anonymous, false) and not Map.has_key?(claims, "sub") do
-      :ok
+      nil
     else
-      {:error, MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3.6")}
+      validate_string(claims, "sub", "sub", "Core §5.3.6")
     end
+  end
+
+  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  defp validate_deep_linking_settings(settings) when is_map(settings), do: nil
+
+  defp validate_deep_linking_settings(nil) do
+    MissingClaim.exception(claim: "deep_linking_settings", spec_ref: "DL §4.4.1")
+  end
+
+  defp validate_deep_linking_settings(settings) do
+    invalid_object("deep_linking_settings", settings, "DL §4.4.1")
+  end
+
+  defp invalid_object(claim, value, spec_ref) do
+    InvalidClaim.exception(
+      claim: claim,
+      value: value,
+      message: "must be an object",
+      spec_ref: spec_ref
+    )
   end
 
   # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)

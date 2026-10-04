@@ -32,6 +32,9 @@ defmodule Ltix.Errors do
     ],
     unknown_error: Ltix.Errors.Unknown.Unknown
 
+  alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.MissingClaim
+
   defmacro __using__(opts) do
     {status_code, opts} = Keyword.pop(opts, :status_code)
     {kind, opts} = Keyword.pop(opts, :type, :error)
@@ -91,6 +94,59 @@ defmodule Ltix.Errors do
   @spec ltix_error?(term()) :: boolean()
   def ltix_error?(%module{}), do: function_exported?(module, :__status_code__, 0)
   def ltix_error?(_value), do: false
+
+  # Returns `:ok` when every validation passed (returned `nil`), otherwise the
+  # combined errors.
+  @doc false
+  @spec collect([Exception.t() | nil]) :: :ok | {:error, Exception.t()}
+  def collect(results) do
+    case Enum.reject(results, &is_nil/1) do
+      [] -> :ok
+      errors -> {:error, combine(errors)}
+    end
+  end
+
+  # Converts Zoi validation errors for `input` into claim errors whose claim is
+  # `prefix` (when given) followed by the path.
+  @doc false
+  @spec from_zoi([Zoi.Error.t(), ...], term(), String.t() | nil, String.t()) :: Exception.t()
+  def from_zoi(errors, input, prefix, spec_ref) do
+    errors
+    |> Enum.map(&from_zoi_error(&1, input, prefix, spec_ref))
+    |> combine()
+  end
+
+  defp from_zoi_error(%{code: :required} = error, _input, prefix, spec_ref) do
+    MissingClaim.exception(claim: claim_path(prefix, error.path), spec_ref: spec_ref)
+  end
+
+  defp from_zoi_error(error, input, prefix, spec_ref) do
+    InvalidClaim.exception(
+      claim: claim_path(prefix, error.path),
+      value: lookup_value(input, error.path),
+      message: error.message,
+      spec_ref: spec_ref
+    )
+  end
+
+  defp claim_path(nil, path), do: Enum.join(path, ".")
+  defp claim_path(prefix, path), do: Enum.join([prefix | path], ".")
+
+  defp lookup_value(input, path) do
+    Enum.reduce(path, input, fn
+      key, value when is_atom(key) and is_map(value) ->
+        Map.get(value, Atom.to_string(key), Map.get(value, key))
+
+      key, value when is_binary(key) and is_map(value) ->
+        Map.get(value, key)
+
+      index, value when is_integer(index) and is_list(value) ->
+        Enum.at(value, index)
+
+      _key, _value ->
+        nil
+    end)
+  end
 
   defp default_status(:invalid), do: 400
   defp default_status(:security), do: 401

@@ -160,6 +160,14 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
 
+    test "non-object deep_linking_settings returns InvalidClaim error", ctx do
+      claims = Map.put(ctx.claims, @dl_settings_key, "settings")
+      params = mint_and_params(claims, ctx)
+
+      assert {:error, %InvalidClaim{claim: "deep_linking_settings", value: "settings"}} =
+               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
+    end
+
     test "missing deep_link_return_url in settings returns error", ctx do
       settings = Map.delete(ctx.claims[@dl_settings_key], "deep_link_return_url")
       claims = Map.put(ctx.claims, @dl_settings_key, settings)

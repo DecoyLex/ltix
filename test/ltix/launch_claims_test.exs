@@ -443,8 +443,13 @@ defmodule Ltix.LaunchClaimsTest do
     end
 
     test "a single invalid claim is returned on its own" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "launch.issuer", value: 1}} =
+      assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "iss", value: 1}} =
                LaunchClaims.from_json(%{"iss" => 1})
+
+      assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "message_type", value: 1}} =
+               LaunchClaims.from_json(%{
+                 "https://purl.imsglobal.org/spec/lti/claim/message_type" => 1
+               })
     end
 
     test "several invalid claims are described without stack frames" do
@@ -452,8 +457,8 @@ defmodule Ltix.LaunchClaimsTest do
                LaunchClaims.from_json(%{"iss" => 1, "sub" => 2})
 
       message = Exception.message(error)
-      assert message =~ "launch.issuer"
-      assert message =~ "launch.subject"
+      assert message =~ "Invalid LTI claim iss"
+      assert message =~ "Invalid LTI claim sub"
       refute message =~ ~r/\.exs?:\d+/
     end
   end

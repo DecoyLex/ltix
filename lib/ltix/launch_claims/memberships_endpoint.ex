@@ -54,6 +54,11 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "memberships_endpoint", "NRPS §3.6.1.1")
+    ClaimHelpers.from_json(
+      @schema,
+      json,
+      "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice",
+      "NRPS §3.6.1.1"
+    )
   end
 end

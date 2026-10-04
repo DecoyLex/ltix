@@ -46,6 +46,11 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "ags_endpoint", "AGS §3.1")
+    ClaimHelpers.from_json(
+      @schema,
+      json,
+      "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint",
+      "AGS §3.1"
+    )
   end
 end

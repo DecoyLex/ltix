@@ -2,7 +2,6 @@ defmodule Ltix.Integration.LaunchMetadataTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.InvalidClaim
-  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security.NonceReused
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.Role
@@ -181,19 +180,20 @@ defmodule Ltix.Integration.LaunchMetadataTest do
     end
   end
 
-  test "malformed identity and essential resource launch fields still fail", context do
-    for {overrides, claim} <- [
-          {%{"sub" => 123}, "sub"},
-          {%{(@lti <> "resource_link") => %{"id" => 123}}, "resource_link.id"},
-          {%{(@lti <> "target_link_uri") => false}, "target_link_uri"},
-          {%{(@lti <> "deployment_id") => []}, "deployment_id"}
+  test "malformed identity and essential resource launch fields are invalid", context do
+    for {overrides, claim, value} <- [
+          {%{"sub" => 123}, "sub", 123},
+          {%{"sub" => ""}, "sub", ""},
+          {%{(@lti <> "resource_link") => %{"id" => 123}}, "resource_link.id", 123},
+          {%{(@lti <> "resource_link") => 123}, "resource_link", 123},
+          {%{(@lti <> "target_link_uri") => false}, "target_link_uri", false},
+          {%{(@lti <> "deployment_id") => []}, "deployment_id", []},
+          {%{(@lti <> "roles") => "Instructor"}, "roles", "Instructor"},
+          {%{(@lti <> "roles") => [123]}, "roles", [123]}
         ] do
       {login, params} = begin_launch(context.platform, overrides)
-      assert {:error, %MissingClaim{claim: ^claim}} = callback(login, params)
+      assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} = callback(login, params)
     end
-
-    {login, params} = begin_launch(context.platform, %{(@lti <> "roles") => [123]})
-    assert {:error, %InvalidClaim{claim: "roles", value: [123]}} = callback(login, params)
   end
 
   test "deep linking required settings remain validated despite a message type parser", context do

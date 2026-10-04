@@ -1,6 +1,7 @@
 defmodule Ltix.LaunchClaims.MembershipsEndpointTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.LaunchClaims.MembershipsEndpoint
 
   doctest Ltix.LaunchClaims.MembershipsEndpoint
@@ -21,6 +22,13 @@ defmodule Ltix.LaunchClaims.MembershipsEndpointTest do
     test "parses empty map" do
       assert {:ok, %MembershipsEndpoint{context_memberships_url: nil, service_versions: nil}} =
                MembershipsEndpoint.from_json(%{})
+    end
+
+    test "names the claim by its key when the claim is not an object" do
+      assert {:error,
+              %InvalidClaim{
+                claim: "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice"
+              }} = MembershipsEndpoint.from_json("https://platform.example.com/api/memberships")
     end
   end
 

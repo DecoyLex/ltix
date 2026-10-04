@@ -1,6 +1,7 @@
 defmodule Ltix.LaunchClaims.AGSEndpointTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.LaunchClaims.AGSEndpoint
 
   doctest Ltix.LaunchClaims.AGSEndpoint
@@ -26,6 +27,12 @@ defmodule Ltix.LaunchClaims.AGSEndpointTest do
 
       assert ags.line_items == "https://platform.example.com/api/lineitems"
       assert ags.line_item == "https://platform.example.com/api/lineitems/123"
+    end
+
+    test "names the claim by its key when the claim is not an object" do
+      assert {:error,
+              %InvalidClaim{claim: "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"}} =
+               AGSEndpoint.from_json("https://platform.example.com/api/lineitems")
     end
 
     test "ignores claim names the specification does not define" do

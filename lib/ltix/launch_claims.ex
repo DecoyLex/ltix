@@ -98,45 +98,6 @@ defmodule Ltix.LaunchClaims do
   alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchClaims.ToolPlatform
 
-  # [standard-claims]:
-  # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
-  # [required-message-claims]:
-  # https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims
-  # [role-scope-mentor-claim]:
-  # https://www.imsglobal.org/spec/lti/v1p3/#role-scope-mentor-claim
-  #
-  # [OIDC §2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
-  # [OIDC §5.1][standard-claims]
-  # [Core §5.3][required-message-claims]
-  # [Core §5.4.3][role-scope-mentor-claim]
-  # [JWT §2](https://www.rfc-editor.org/rfc/rfc7519.html#section-2)
-  @scalar_schema Zoi.struct(
-                   __MODULE__,
-                   %{
-                     issuer: Zoi.string() |> Zoi.nullish(),
-                     subject: Zoi.string() |> Zoi.nullish(),
-                     audience: Zoi.union([Zoi.string(), Zoi.list(Zoi.string())]) |> Zoi.nullish(),
-                     expires_at: Zoi.number() |> Zoi.nullish(),
-                     issued_at: Zoi.number() |> Zoi.nullish(),
-                     nonce: Zoi.string() |> Zoi.nullish(),
-                     authorized_party: Zoi.string() |> Zoi.nullish(),
-                     email: Zoi.string() |> ClaimHelpers.optional(),
-                     name: Zoi.string() |> ClaimHelpers.optional(),
-                     given_name: Zoi.string() |> ClaimHelpers.optional(),
-                     family_name: Zoi.string() |> ClaimHelpers.optional(),
-                     middle_name: Zoi.string() |> ClaimHelpers.optional(),
-                     picture: Zoi.string() |> ClaimHelpers.optional(),
-                     locale: Zoi.string() |> ClaimHelpers.optional(),
-                     message_type: Zoi.string() |> Zoi.nullish(),
-                     version: Zoi.string() |> Zoi.nullish(),
-                     deployment_id: Zoi.string() |> Zoi.nullish(),
-                     target_link_uri: Zoi.string() |> Zoi.nullish(),
-                     role_scope_mentor: Zoi.list(Zoi.string()) |> ClaimHelpers.optional()
-                   },
-                   coerce: true
-                 )
-  @scalar_fields Zoi.Struct.struct_fields(@scalar_schema)
-
   defstruct [
     # OIDC Standard Claims [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
     :issuer,
@@ -251,6 +212,46 @@ defmodule Ltix.LaunchClaims do
     "lis" => :lis
   }
 
+  # Scalar claims are keyed by claim name, so errors include the claim name.
+  #
+  # [standard-claims]:
+  # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+  # [required-message-claims]:
+  # https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims
+  # [role-scope-mentor-claim]:
+  # https://www.imsglobal.org/spec/lti/v1p3/#role-scope-mentor-claim
+  #
+  # [OIDC §2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)
+  # [OIDC §5.1][standard-claims]
+  # [Core §5.3][required-message-claims]
+  # [Core §5.4.3][role-scope-mentor-claim]
+  # [JWT §2](https://www.rfc-editor.org/rfc/rfc7519.html#section-2)
+  @scalar_claim_schemas %{
+    "iss" => Zoi.string() |> Zoi.nullish(),
+    "sub" => Zoi.string() |> Zoi.nullish(),
+    "aud" => Zoi.union([Zoi.string(), Zoi.list(Zoi.string())]) |> Zoi.nullish(),
+    "exp" => Zoi.number() |> Zoi.nullish(),
+    "iat" => Zoi.number() |> Zoi.nullish(),
+    "nonce" => Zoi.string() |> Zoi.nullish(),
+    "azp" => Zoi.string() |> Zoi.nullish(),
+    "email" => Zoi.string() |> ClaimHelpers.optional(),
+    "name" => Zoi.string() |> ClaimHelpers.optional(),
+    "given_name" => Zoi.string() |> ClaimHelpers.optional(),
+    "family_name" => Zoi.string() |> ClaimHelpers.optional(),
+    "middle_name" => Zoi.string() |> ClaimHelpers.optional(),
+    "picture" => Zoi.string() |> ClaimHelpers.optional(),
+    "locale" => Zoi.string() |> ClaimHelpers.optional(),
+    "message_type" => Zoi.string() |> Zoi.nullish(),
+    "version" => Zoi.string() |> Zoi.nullish(),
+    "deployment_id" => Zoi.string() |> Zoi.nullish(),
+    "target_link_uri" => Zoi.string() |> Zoi.nullish(),
+    "role_scope_mentor" => Zoi.list(Zoi.string()) |> ClaimHelpers.optional()
+  }
+  @scalar_schema Zoi.map(@scalar_claim_schemas)
+  @scalar_claims @oidc_keys
+                 |> Map.merge(@lti_keys)
+                 |> Map.take(Map.keys(@scalar_claim_schemas))
+
   # Table 3: Service endpoint claims [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
   @service_keys %{
     "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" => :ags_endpoint,
@@ -273,10 +274,12 @@ defmodule Ltix.LaunchClaims do
       {ClaimHelpers.optional(LaunchPresentation.schema()), "launch_presentation", "Core §5.4.4"},
     tool_platform: {ClaimHelpers.optional(ToolPlatform.schema()), "tool_platform", "Core §5.4.2"},
     lis: {ClaimHelpers.optional(LIS.schema()), "lis", "Core §5.4.5"},
-    ags_endpoint: {ClaimHelpers.optional(AGSEndpoint.schema()), "ags_endpoint", "AGS §3.1"},
+    ags_endpoint:
+      {ClaimHelpers.optional(AGSEndpoint.schema()),
+       "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint", "AGS §3.1"},
     memberships_endpoint:
-      {ClaimHelpers.optional(MembershipsEndpoint.schema()), "memberships_endpoint",
-       "NRPS §3.6.1.1"},
+      {ClaimHelpers.optional(MembershipsEndpoint.schema()),
+       "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice", "NRPS §3.6.1.1"},
     deep_linking_settings: {DeepLinkingSettings.schema(), "deep_linking_settings", "DL §4.4.1"}
   }
 
@@ -366,21 +369,20 @@ defmodule Ltix.LaunchClaims do
   end
 
   defp parse_scalar_claims(fields) do
-    case ClaimHelpers.from_json(
-           @scalar_schema,
-           Map.take(fields, @scalar_fields),
-           "launch",
-           "Core §5.3"
-         ) do
-      {:ok, scalars} ->
-        parsed =
-          scalars
-          |> Map.from_struct()
-          |> Map.take(@scalar_fields)
+    scalars =
+      for {claim, field} <- @scalar_claims, Map.has_key?(fields, field), into: %{} do
+        {claim, Map.fetch!(fields, field)}
+      end
 
-        {:ok, Map.merge(fields, parsed)}
+    case ClaimHelpers.from_json(@scalar_schema, scalars, nil, "Core §5.3") do
+      {:ok, parsed} ->
+        {:ok,
+         Map.merge(
+           fields,
+           Map.new(parsed, fn {claim, value} -> {@scalar_claims[claim], value} end)
+         )}
 
-      {:error, _} = error ->
+      {:error, _error} = error ->
         error
     end
   end

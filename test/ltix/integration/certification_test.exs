@@ -118,7 +118,14 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:error, %MissingClaim{}} = handle_callback(params, ctx.state)
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [
+                  %MissingClaim{claim: "message_type"},
+                  %MissingClaim{claim: "version"},
+                  %MissingClaim{claim: "deployment_id"}
+                ]
+              }} = handle_callback(params, ctx.state)
     end
 
     test "Timestamps Incorrect", ctx do
