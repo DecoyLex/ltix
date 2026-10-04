@@ -35,6 +35,15 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
   For images that are part of a larger resource, consider using
   `Ltix.DeepLinking.ContentItem.Link` with an `embed` instead.
 
+  ## Examples
+
+      iex> {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(
+      ...>   url: "https://example.com/diagram.png",
+      ...>   width: 800
+      ...> )
+      iex> Ltix.DeepLinking.ContentItem.to_map(image)
+      %{"type" => "image", "url" => "https://example.com/diagram.png", "width" => 800}
+
   ## Options
 
   #{Zoi.describe(@schema)}
@@ -63,16 +72,6 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
   defimpl ContentItem do
     def item_type(_item), do: "image"
 
-    @doc """
-    Serialize an image to a map.
-
-    ## Examples
-
-        iex> {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(url: "https://example.com/photo.png")
-        iex> json = Ltix.DeepLinking.ContentItem.Image.to_map(image)
-        iex> json["type"]
-        "image"
-    """
     def to_map(item) do
       %{"type" => "image"}
       |> put_fields(item, [:url, :title, :text, :width, :height])

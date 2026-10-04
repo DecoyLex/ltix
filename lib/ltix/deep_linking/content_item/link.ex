@@ -55,6 +55,15 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   into your tool via LTI, use `Ltix.DeepLinking.ContentItem.LTIResourceLink`
   instead.
 
+  ## Examples
+
+      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
+      ...>   url: "https://example.com/article",
+      ...>   window: [target_name: "articles"]
+      ...> )
+      iex> Ltix.DeepLinking.ContentItem.to_map(link)
+      %{"type" => "link", "url" => "https://example.com/article", "window" => %{"targetName" => "articles"}}
+
   ## Options
 
   #{Zoi.describe(@schema)}
@@ -83,16 +92,6 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
   defimpl ContentItem do
     def item_type(_item), do: "link"
 
-    @doc """
-    Serialize a link to a map.
-
-    ## Examples
-
-        iex> {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(url: "https://example.com")
-        iex> json = Ltix.DeepLinking.ContentItem.Link.to_map(link)
-        iex> json["type"]
-        "link"
-    """
     def to_map(item) do
       %{"type" => "link"}
       |> put_fields(item, [:url, :title, :text])

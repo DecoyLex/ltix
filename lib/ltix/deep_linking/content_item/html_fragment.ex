@@ -25,6 +25,12 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
 
   Represents a chunk of HTML that the platform embeds directly.
 
+  ## Examples
+
+      iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
+      iex> Ltix.DeepLinking.ContentItem.to_map(fragment)
+      %{"type" => "html", "html" => "<p>Hello</p>"}
+
   ## Options
 
   #{Zoi.describe(@schema)}
@@ -53,18 +59,6 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
   defimpl ContentItem do
     def item_type(_item), do: "html"
 
-    @doc """
-    Serialize an HTML fragment to a map.
-
-    ## Examples
-
-        iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
-        iex> json = Ltix.DeepLinking.ContentItem.HTMLFragment.to_map(fragment)
-        iex> json["type"]
-        "html"
-        iex> json["html"]
-        "<p>Hello</p>"
-    """
     def to_map(item) do
       %{"type" => "html"}
       |> put_fields(item, [:html, :title, :text])

@@ -38,6 +38,15 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   after receiving the response, so the URL only needs to remain valid
   for a few minutes.
 
+  ## Examples
+
+      iex> {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(
+      ...>   url: "https://example.com/syllabus.pdf",
+      ...>   media_type: "application/pdf"
+      ...> )
+      iex> Ltix.DeepLinking.ContentItem.to_map(file)
+      %{"type" => "file", "url" => "https://example.com/syllabus.pdf", "mediaType" => "application/pdf"}
+
   ## Options
 
   #{Zoi.describe(@schema)}
@@ -66,16 +75,6 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   defimpl ContentItem do
     def item_type(_item), do: "file"
 
-    @doc """
-    Serialize a file to a map.
-
-    ## Examples
-
-        iex> {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(url: "https://example.com/doc.pdf")
-        iex> json = Ltix.DeepLinking.ContentItem.File.to_map(file)
-        iex> json["type"]
-        "file"
-    """
     def to_map(item) do
       %{"type" => "file"}
       |> put_fields(item, [:url, :title, :text, :media_type, :expires_at])

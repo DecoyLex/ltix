@@ -83,6 +83,15 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   common patterns including line items, custom parameters, and
   availability windows.
 
+  ## Examples
+
+      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+      ...>   url: "https://tool.example.com/quizzes/7",
+      ...>   line_item: [score_maximum: 100]
+      ...> )
+      iex> Ltix.DeepLinking.ContentItem.to_map(link)
+      %{"type" => "ltiResourceLink", "url" => "https://tool.example.com/quizzes/7", "lineItem" => %{"scoreMaximum" => 100}}
+
   ## Options
 
   #{Zoi.describe(@schema)}
@@ -111,16 +120,6 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   defimpl ContentItem do
     def item_type(_item), do: "ltiResourceLink"
 
-    @doc """
-    Serialize an LTI resource link to a map.
-
-    ## Examples
-
-        iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(url: "https://tool.example.com")
-        iex> json = Ltix.DeepLinking.ContentItem.LTIResourceLink.to_map(link)
-        iex> json["type"]
-        "ltiResourceLink"
-    """
     def to_map(item) do
       %{"type" => "ltiResourceLink"}
       |> put_fields(item, [:url, :title, :text])

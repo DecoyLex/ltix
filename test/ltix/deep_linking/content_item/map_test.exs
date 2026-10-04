@@ -3,6 +3,8 @@ defmodule Ltix.DeepLinking.ContentItem.MapTest do
 
   alias Ltix.DeepLinking.ContentItem
 
+  doctest ContentItem
+
   describe "item_type/1" do
     test "returns the type field" do
       assert "link" = ContentItem.item_type(%{"type" => "link", "url" => "https://a.com"})

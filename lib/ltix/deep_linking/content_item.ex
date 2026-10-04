@@ -31,7 +31,16 @@ defprotocol Ltix.DeepLinking.ContentItem do
   @spec item_type(t) :: String.t()
   def item_type(content_item)
 
-  @doc "Serialize the content item to a JSON-compatible map."
+  @doc """
+  Serialize the content item to a JSON-compatible map.
+
+  Plain maps with a `"type"` key serialize as they are.
+
+  ## Examples
+
+      iex> Ltix.DeepLinking.ContentItem.to_map(%{"type" => "https://vendor.example.com/poll", "question" => "Ready?"})
+      %{"type" => "https://vendor.example.com/poll", "question" => "Ready?"}
+  """
   @spec to_map(t) :: %{String.t() => any()}
   def to_map(content_item)
 end
