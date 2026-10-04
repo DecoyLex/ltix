@@ -225,12 +225,18 @@ defmodule Ltix.LaunchClaims.Role do
       iex> Ltix.LaunchClaims.Role.from_atom(:learner)
       %Ltix.LaunchClaims.Role{type: :context, name: :learner, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"}
 
+      iex> Ltix.LaunchClaims.Role.from_atom(:context_administrator)
+      %Ltix.LaunchClaims.Role{type: :context, name: :administrator, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Administrator"}
+
   ## Sub-roles
 
       iex> Ltix.LaunchClaims.Role.from_atom(:teaching_assistant)
       %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: :teaching_assistant, uri: "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"}
 
   ## Institution roles
+
+      iex> Ltix.LaunchClaims.Role.from_atom(:administrator)
+      %Ltix.LaunchClaims.Role{type: :institution, name: :administrator, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator"}
 
       iex> Ltix.LaunchClaims.Role.from_atom(:faculty)
       %Ltix.LaunchClaims.Role{type: :institution, name: :faculty, sub_role: nil, uri: "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"}
@@ -272,6 +278,14 @@ defmodule Ltix.LaunchClaims.Role do
       name: :mentor,
       sub_role: nil,
       uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Mentor"
+    }
+
+  def from_atom(:context_administrator),
+    do: %__MODULE__{
+      type: :context,
+      name: :administrator,
+      sub_role: nil,
+      uri: "http://purl.imsglobal.org/vocab/lis/v2/membership#Administrator"
     }
 
   # Context sub-roles
@@ -351,9 +365,13 @@ defmodule Ltix.LaunchClaims.Role do
   @spec learner?([t()]) :: boolean()
   def learner?(roles), do: has_name?(roles, :context, :learner)
 
-  @doc "Check if any role is a context Administrator, including sub-roles."
+  @doc "Check if any role is an institution Administrator, including sub-roles."
   @spec administrator?([t()]) :: boolean()
-  def administrator?(roles), do: has_name?(roles, :context, :administrator)
+  def administrator?(roles), do: has_name?(roles, :institution, :administrator)
+
+  @doc "Check if any role is a context Administrator, including sub-roles."
+  @spec context_administrator?([t()]) :: boolean()
+  def context_administrator?(roles), do: has_name?(roles, :context, :administrator)
 
   @doc "Check if any role is a context ContentDeveloper, including sub-roles."
   @spec content_developer?([t()]) :: boolean()

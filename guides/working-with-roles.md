@@ -15,6 +15,7 @@ alias Ltix.LaunchClaims.Role
 Role.instructor?(context.claims.roles)
 Role.learner?(context.claims.roles)
 Role.administrator?(context.claims.roles)
+Role.context_administrator?(context.claims.roles)
 Role.content_developer?(context.claims.roles)
 Role.mentor?(context.claims.roles)
 Role.teaching_assistant?(context.claims.roles)
@@ -25,9 +26,7 @@ Predicates match on the role **name**, including sub-roles. So
 an Instructor#TeachingAssistant. To check for only the principal role,
 see [Sub-roles](#sub-roles) below.
 
-These check **context** roles only. An institution-level
-`:administrator` won't match `Role.administrator?/1`. Use
-`has_role?/4` for [cross-type checks](#generic-checks-with-has_role-4).
+`administrator?/1` checks for the **institution** administrator. The other predicates, including `context_administrator?/1`, check **context** roles. Use `has_role?/4` for [other checks](#generic-checks-with-has_role-4).
 
 ## Roles in launch claims
 
@@ -100,8 +99,10 @@ depends on what your tool does:
   describe the user's role at the organization or on the platform itself.
 
 The convenience predicates (`instructor?/1`, `learner?/1`, etc.) check
-context roles because that's what most tools need. For institution or
-system role checks, use [`has_role?/4`](#generic-checks-with-has_role-4).
+context roles because that's what most tools need, except
+`administrator?/1`, which checks the institution administrator. For
+other institution or system role checks, use
+[`has_role?/4`](#generic-checks-with-has_role-4).
 
 ### Context roles
 
@@ -373,6 +374,7 @@ Supported atoms:
 | `:content_developer` | context | Course designer |
 | `:mentor` | context | Observer / mentor |
 | `:teaching_assistant` | context sub-role | Resolves to Instructor#TeachingAssistant |
+| `:context_administrator` | context | Course administrator |
 | `:administrator` | institution | Institution-level admin |
 | `:faculty` | institution | Institution faculty member |
 | `:student` | institution | Enrolled at the institution (not course-specific, unlike `:learner`) |

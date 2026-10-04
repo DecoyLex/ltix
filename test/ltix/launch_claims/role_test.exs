@@ -400,7 +400,17 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert Role.learner?(roles)
     end
 
-    test "administrator?/1 returns false when not present", %{roles: roles} do
+    test "administrator?/1 means the institution administrator" do
+      refute Role.administrator?([Role.from_atom(:context_administrator)])
+      assert Role.administrator?([Role.from_atom(:administrator)])
+    end
+
+    test "context_administrator?/1 means the context administrator" do
+      refute Role.context_administrator?([Role.from_atom(:administrator)])
+      assert Role.context_administrator?([Role.from_atom(:context_administrator)])
+
+      {roles, []} = Role.parse_all([@context_base <> "Administrator", "Administrator"])
+      assert Role.context_administrator?(roles)
       refute Role.administrator?(roles)
     end
 
@@ -528,6 +538,15 @@ defmodule Ltix.LaunchClaims.RoleTest do
                uri: @sub_role_base <> "Instructor#TeachingAssistant"
              } =
                Role.from_atom(:teaching_assistant)
+    end
+
+    test "context: context_administrator" do
+      assert %Role{
+               type: :context,
+               name: :administrator,
+               sub_role: nil,
+               uri: @context_base <> "Administrator"
+             } = Role.from_atom(:context_administrator)
     end
 
     test "institution: administrator" do

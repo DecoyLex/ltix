@@ -114,7 +114,8 @@ end
 
 - `Role.instructor?/1`, `Role.learner?/1`, `Role.teaching_assistant?/1` etc. check
   **context roles only** (course-level).
-- For institution or system roles, use `Role.has_role?/4`.
+- `Role.administrator?/1` checks the **institution** administrator role. Use `Role.context_administrator?/1` for course administrators.
+- For other institution or system roles, use `Role.has_role?/4`.
 - Platform granularity varies wildly:
   - Canvas: sends sub-roles (e.g., `Instructor#TeachingAssistant`)
   - Moodle: only `Instructor` or `Learner` (no sub-roles)
