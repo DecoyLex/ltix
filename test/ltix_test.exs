@@ -281,6 +281,20 @@ defmodule LtixTest do
       assert_received {:jwks_cache, :put, ^jwks_uri}
     end
 
+    test "reports the registration's client_id in callback telemetry", ctx do
+      ref = :telemetry_test.attach_event_handlers(self(), [[:ltix, :callback, :stop]])
+
+      claims = Map.put(ctx.claims, "aud", ["tool-client-id"])
+      id_token = JWTHelper.mint_id_token(claims, ctx.private, kid: ctx.kid)
+      params = %{"id_token" => id_token, "state" => ctx.state}
+
+      assert {:ok, %LaunchContext{}} =
+               Ltix.handle_callback(params, ctx.state, req_options: req_options())
+
+      assert_received {[:ltix, :callback, :stop], ^ref, _measurements,
+                       %{client_id: "tool-client-id", issuer: "https://platform.example.com"}}
+    end
+
     test "reads storage_adapter from application config", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
 

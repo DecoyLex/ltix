@@ -8,6 +8,7 @@ defmodule Ltix.OIDC.Callback do
   alias Ltix.LaunchContext
   alias Ltix.OIDC.State
   alias Ltix.Registerable
+  alias Ltix.Registration
   alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -25,6 +26,16 @@ defmodule Ltix.OIDC.Callback do
   @spec call(map(), String.t(), module(), keyword()) ::
           {:ok, LaunchContext.t()} | {:error, Exception.t()}
   def call(params, expected_state, callback_module, opts \\ []) do
+    case launch(params, expected_state, callback_module, opts) do
+      {:ok, context, _registration} -> {:ok, context}
+      {:error, _error} = error -> error
+    end
+  end
+
+  # Same as `call/4`, and also returns the resolved registration.
+  @spec launch(map(), String.t(), module(), keyword()) ::
+          {:ok, LaunchContext.t(), Registration.t()} | {:error, Exception.t()}
+  def launch(params, expected_state, callback_module, opts) do
     with :ok <- check_error_response(params),
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
@@ -50,12 +61,13 @@ defmodule Ltix.OIDC.Callback do
          {:ok, _deployment} <- Deployable.to_deployment(user_deployment),
          {:ok, claims} <-
            LaunchClaims.from_json(raw_claims, Keyword.take(opts, [:claim_parsers, :role_parsers])) do
-      {:ok,
-       %LaunchContext{
-         claims: claims,
-         registration: user_registration,
-         deployment: user_deployment
-       }}
+      context = %LaunchContext{
+        claims: claims,
+        registration: user_registration,
+        deployment: user_deployment
+      }
+
+      {:ok, context, registration}
     end
   end
 
