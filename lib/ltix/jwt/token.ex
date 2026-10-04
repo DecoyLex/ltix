@@ -37,7 +37,9 @@ defmodule Ltix.JWT.Token do
     * `:jwks_cache` — cache module passed through to `Ltix.JWT.KeySet`
   """
 
+  alias Ltix.AppConfig
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security.AlgorithmNotAllowed
   alias Ltix.Errors.Security.AudienceMismatch
@@ -89,21 +91,41 @@ defmodule Ltix.JWT.Token do
     end
   end
 
+  @doc false
+  # Returns an ID token's claims without verifying it, so its registration can
+  # be found before verification.
+  @spec peek_claims(String.t()) :: {:ok, map()} | {:error, Exception.t()}
+  def peek_claims(token_string) do
+    with {:ok, payload} <- segment(token_string, 1), do: decode_object(payload)
+  end
+
   # [RFC 7515 §5.2](https://www.rfc-editor.org/rfc/rfc7515#section-5.2)
-  defp peek_header(token_string) when is_binary(token_string) do
-    with [encoded_header, _payload, _signature] <- String.split(token_string, "."),
-         {:ok, header_json} <- Base.url_decode64(encoded_header, padding: false),
-         {:ok, %{"alg" => algorithm} = header} when is_binary(algorithm) <-
-           Ltix.AppConfig.json_library!().decode(header_json) do
-      {:ok, Map.put_new(header, "kid", nil)}
-    else
-      _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
+  defp peek_header(token_string) do
+    with {:ok, json} <- segment(token_string, 0),
+         {:ok, header} <- decode_object(json) do
+      header_with_algorithm(header)
     end
   end
 
-  defp peek_header(_token) do
-    {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
+  defp header_with_algorithm(%{"alg" => algorithm} = header) when is_binary(algorithm),
+    do: {:ok, Map.put_new(header, "kid", nil)}
+
+  defp header_with_algorithm(_header),
+    do: {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
+
+  # Returns the base64url-decoded header (index 0) or payload (index 1) of a
+  # compact JWT.
+  # [RFC 7519 §7.2](https://www.rfc-editor.org/rfc/rfc7519#section-7.2)
+  defp segment(token_string, index) when is_binary(token_string) do
+    with [_header, _payload, _signature] = segments <- String.split(token_string, "."),
+         {:ok, json} <- Base.url_decode64(Enum.at(segments, index), padding: false) do
+      {:ok, json}
+    else
+      _invalid -> {:error, invalid_json()}
+    end
   end
+
+  defp segment(_token, _index), do: {:error, invalid_json()}
 
   # [Sec §5.1.3 step 6; Cert §4.2] Only RS256 is permitted.
   defp validate_algorithm(%{"alg" => "RS256"}), do: :ok
@@ -138,14 +160,21 @@ defmodule Ltix.JWT.Token do
 
   # [Sec §5.1.3 step 1] Verify the signature using the platform's public key.
   defp verify_signature(token_string, jwk) do
-    case JOSE.JWT.verify_strict(jwk, ["RS256"], token_string) do
-      {true, %JOSE.JWT{fields: claims}, _jws} when is_map(claims) ->
-        {:ok, claims}
-
-      _invalid ->
-        {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")}
+    case JOSE.JWS.verify_strict(jwk, ["RS256"], token_string) do
+      {true, payload, _jws} -> decode_object(payload)
+      _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")}
     end
   end
+
+  # [RFC 7519 §7.2 step 10](https://www.rfc-editor.org/rfc/rfc7519#section-7.2)
+  defp decode_object(json) do
+    case AppConfig.json_library!().decode(json) do
+      {:ok, object} when is_map(object) -> {:ok, object}
+      _invalid -> {:error, invalid_json()}
+    end
+  end
+
+  defp invalid_json, do: InvalidJSON.exception(spec_ref: "RFC 7519 §7.2")
 
   # Validate claims per [Sec §5.1.3] steps 2-5, 7-9.
   defp validate_claims(claims, registration, opts) do

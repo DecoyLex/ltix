@@ -3,6 +3,7 @@ defmodule Ltix.Integration.CertificationTest do
 
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security
   alias Ltix.LaunchClaims
@@ -108,7 +109,7 @@ defmodule Ltix.Integration.CertificationTest do
     test "Invalid LTI message", ctx do
       params = %{"id_token" => "not-a-jwt", "state" => ctx.state}
 
-      assert {:error, _} = handle_callback(params, ctx.state)
+      assert {:error, %InvalidJSON{}} = handle_callback(params, ctx.state)
     end
 
     test "Missing LTI Claims", ctx do

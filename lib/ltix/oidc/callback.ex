@@ -106,20 +106,14 @@ defmodule Ltix.OIDC.Callback do
   # Safe because Token.verify/3 validates iss and aud against the registration
   # after signature verification.
   defp peek_issuer_and_audience(id_token) do
-    %JOSE.JWT{fields: fields} = JOSE.JWT.peek_payload(id_token)
-    iss = fields["iss"]
-
-    client_id =
-      case fields["aud"] do
-        id when is_binary(id) -> id
-        [id | _] -> id
-        _ -> nil
-      end
-
-    {:ok, iss, client_id}
-  rescue
-    _ -> {:error, MissingParameter.exception(parameter: "id_token", spec_ref: "Sec §5.1.1.3")}
+    with {:ok, claims} <- Token.peek_claims(id_token) do
+      {:ok, claims["iss"], audience(claims["aud"])}
+    end
   end
+
+  defp audience(client_id) when is_binary(client_id), do: client_id
+  defp audience([client_id | _]), do: client_id
+  defp audience(_audience), do: nil
 
   # [nonce-validation]:
   # https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation

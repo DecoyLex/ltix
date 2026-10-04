@@ -149,7 +149,7 @@ These indicate problems with the incoming data or the calling code:
 | `InvalidClaim` | `claim`, `value`, `message`, `spec_ref` | A claim in a JWT or platform response has an invalid value, or a custom claim parser returned an error |
 | `InvalidField` | `struct`, `field`, `value`, `reason`, `spec_ref` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
 | `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
-| `InvalidJSON` | `spec_ref` | JWT body isn't valid JSON |
+| `InvalidJSON` | `spec_ref` | The ID token is not a JWT whose header and payload are JSON objects |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |
 | `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment_id |
 

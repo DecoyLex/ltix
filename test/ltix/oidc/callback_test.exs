@@ -145,13 +145,6 @@ defmodule Ltix.OIDC.CallbackTest do
       assert {:error, %Security.StateMismatch{}} =
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
-
-    test "malformed id_token returns error", ctx do
-      params = Map.put(ctx.params, "id_token", "not-a-jwt")
-
-      assert {:error, _} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
   end
 
   describe "registration lookup" do
