@@ -68,10 +68,12 @@ defmodule Ltix.MembershipsService do
   def endpoint_from_claims(_claims), do: :error
 
   @impl Ltix.AdvantageService
+  def validate_endpoint(%MembershipsEndpoint{context_memberships_url: url}) when url in [nil, ""],
+    do: not_available("The endpoint has no context memberships URL")
+
   def validate_endpoint(%MembershipsEndpoint{} = endpoint) do
-    with :ok <- MembershipsEndpoint.validate_url(endpoint) do
-      validate_service_version(endpoint)
-    end
+    with :ok <- MembershipsEndpoint.validate_url(endpoint),
+         do: validate_service_version(endpoint)
   end
 
   def validate_endpoint(_),
@@ -201,16 +203,15 @@ defmodule Ltix.MembershipsService do
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
   def list_members(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @list_members_schema)
-    {max, query_opts} = Keyword.pop(opts, :max_members)
-    metadata = span_metadata(client, opts)
+    params = query_params(opts)
+    endpoint = resolve_endpoint(client, opts)
+    metadata = span_metadata(endpoint)
 
     :telemetry.span([:ltix, :memberships_service, :list_members], metadata, fn ->
       result =
-        with :ok <- validate_override(opts),
-             :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @nrps_scope),
-             {:ok, pages} <- fetch_pages(client, query_opts) do
-          collect_roster(pages, max)
+        case fetch_pages(client, endpoint, params) do
+          {:ok, pages} -> collect_roster(pages, Keyword.fetch!(opts, :max_members))
+          {:error, _} = error -> error
         end
 
       {result, metadata}
@@ -248,19 +249,15 @@ defmodule Ltix.MembershipsService do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_members(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_members_schema)
-    metadata = span_metadata(client, opts)
+    params = query_params(opts)
+    endpoint = resolve_endpoint(client, opts)
+    metadata = span_metadata(endpoint)
 
     :telemetry.span([:ltix, :memberships_service, :stream_members], metadata, fn ->
       result =
-        with :ok <- validate_override(opts),
-             :ok <- check_expiry(client),
-             :ok <- Client.require_scope(client, @nrps_scope),
-             {:ok, pages} <- fetch_pages(client, opts) do
-          {:ok,
-           Stream.flat_map(pages, fn
-             {:ok, body} -> parse_members!(body)
-             {:error, error} -> raise error
-           end)}
+        case fetch_pages(client, endpoint, params) do
+          {:ok, pages} -> {:ok, Stream.flat_map(pages, &page_members!/1)}
+          {:error, _} = error -> error
         end
 
       {result, metadata}
@@ -278,17 +275,15 @@ defmodule Ltix.MembershipsService do
     end
   end
 
-  defp fetch_pages(%Client{} = client, opts) do
-    {url, headers, params} = prepare_request(client, opts)
-    req_options = Ltix.HTTP.req_options(client.req_options, __MODULE__)
-    Pagination.stream_results(url, headers, params: params, req_options: req_options)
-  end
-
-  defp prepare_request(%Client{} = client, opts) do
-    endpoint = Keyword.get(opts, :endpoint) || get_endpoint(client)
-    url = endpoint.context_memberships_url
-    params = query_params(opts)
-    {url, request_headers(client), params}
+  defp fetch_pages(%Client{} = client, endpoint, params) do
+    with {:ok, endpoint} <- endpoint,
+         :ok <- check_expiry(client),
+         :ok <- Client.require_scope(client, @nrps_scope) do
+      Pagination.stream_results(endpoint.context_memberships_url, request_headers(client),
+        params: params,
+        req_options: Ltix.HTTP.req_options(client.req_options, __MODULE__)
+      )
+    end
   end
 
   defp request_headers(%Client{access_token: token}) do
@@ -298,15 +293,27 @@ defmodule Ltix.MembershipsService do
     ]
   end
 
-  defp get_endpoint(%Client{endpoints: endpoints}) do
-    Map.fetch!(endpoints, __MODULE__)
+  # The `:endpoint` option overrides the client's endpoint and is validated like it.
+  defp resolve_endpoint(%Client{} = client, opts) do
+    case Keyword.fetch(opts, :endpoint) do
+      {:ok, endpoint} -> validated(endpoint)
+      :error -> client_endpoint(client)
+    end
   end
 
-  defp validate_override(opts) do
-    case Keyword.fetch(opts, :endpoint) do
-      {:ok, endpoint} -> validate_endpoint(endpoint)
-      :error -> :ok
+  defp validated(endpoint) do
+    case validate_endpoint(endpoint) do
+      :ok -> {:ok, endpoint}
+      {:error, _} = error -> error
     end
+  end
+
+  defp client_endpoint(%Client{endpoints: %{__MODULE__ => endpoint}}), do: {:ok, endpoint}
+
+  defp client_endpoint(_client) do
+    not_available(
+      "The client has no memberships service endpoint. Authenticate with one or pass the endpoint option"
+    )
   end
 
   defp check_expiry(%Client{} = client) do
@@ -372,10 +379,12 @@ defmodule Ltix.MembershipsService do
     {:ok, %{first_container | members: members}}
   end
 
-  defp parse_members!(body) do
+  defp page_members!({:error, error}), do: raise(error)
+
+  defp page_members!({:ok, body}) do
     case MembershipContainer.from_json(body) do
       {:ok, container} -> container.members
-      {:error, reason} -> raise reason
+      {:error, error} -> raise error
     end
   end
 
@@ -423,10 +432,8 @@ defmodule Ltix.MembershipsService do
     raise InvalidOption, key: :role, value: role, reason: "it is not a known role"
   end
 
-  defp span_metadata(%Client{} = client, opts) do
-    endpoint = Keyword.get(opts, :endpoint) || get_endpoint(client)
-    %{endpoint: endpoint.context_memberships_url}
-  end
+  defp span_metadata({:ok, endpoint}), do: %{endpoint: endpoint.context_memberships_url}
+  defp span_metadata({:error, _}), do: %{endpoint: nil}
 
   # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
   defp validate_service_version(%MembershipsEndpoint{service_versions: nil}), do: :ok
@@ -435,11 +442,12 @@ defmodule Ltix.MembershipsService do
     if "2.0" in versions do
       :ok
     else
-      {:error,
-       ServiceNotAvailable.exception(
-         service: __MODULE__,
-         spec_ref: "NRPS §3.6.1"
-       )}
+      not_available("The endpoint does not support NRPS version 2.0")
     end
+  end
+
+  defp not_available(reason) do
+    {:error,
+     ServiceNotAvailable.exception(service: __MODULE__, reason: reason, spec_ref: "NRPS §3.6.1")}
   end
 end

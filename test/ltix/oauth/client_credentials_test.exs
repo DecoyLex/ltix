@@ -251,8 +251,10 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
           tool_jwk: tool_jwk
         })
 
-      assert {:error, %ServiceNotAvailable{}} =
+      assert {:error, %ServiceNotAvailable{} = error} =
                ClientCredentials.request_token(registration, @scopes)
+
+      assert Exception.message(error) =~ "The registration has no token endpoint"
     end
 
     test "falls back to requested scopes when response omits scope", ctx do

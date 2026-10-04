@@ -28,6 +28,7 @@ defmodule Ltix.OAuth.ClientCredentials do
     {:error,
      ServiceNotAvailable.exception(
        service: :oauth,
+       reason: "The registration has no token endpoint",
        spec_ref: "Sec §4.1"
      )}
   end

@@ -176,8 +176,10 @@ defmodule Ltix.MembershipsServiceTest do
     test "errors when no NRPS claim in launch", ctx do
       context = Ltix.Test.build_launch_context(ctx.platform)
 
-      assert {:error, %ServiceNotAvailable{}} =
+      assert {:error, %ServiceNotAvailable{} = error} =
                MembershipsService.authenticate(context)
+
+      assert Exception.message(error) =~ "The launch has no endpoint claim for this service"
     end
 
     test "validates service_versions includes 2.0", ctx do
@@ -191,8 +193,10 @@ defmodule Ltix.MembershipsServiceTest do
           memberships_endpoint: endpoint
         )
 
-      assert {:error, %ServiceNotAvailable{}} =
+      assert {:error, %ServiceNotAvailable{} = error} =
                MembershipsService.authenticate(context)
+
+      assert Exception.message(error) =~ "The endpoint does not support NRPS version 2.0"
     end
 
     test "accepts nil service_versions (allows any)", ctx do
@@ -382,6 +386,17 @@ defmodule Ltix.MembershipsServiceTest do
                MembershipsService.list_members(client, max_members: :infinity)
 
       assert length(roster.members) == 5
+    end
+
+    test "returns ServiceNotAvailable for a client without a memberships endpoint", ctx do
+      client = %{build_client(ctx.platform) | endpoints: %{}}
+
+      for call <- [&MembershipsService.list_members/1, &MembershipsService.stream_members/1] do
+        assert {:error, %ServiceNotAvailable{service: MembershipsService} = error} = call.(client)
+
+        assert Exception.message(error) =~
+                 "The client has no memberships service endpoint. Authenticate with one or pass the endpoint option"
+      end
     end
 
     test "validates an endpoint override like the client's endpoint", ctx do
@@ -689,8 +704,10 @@ defmodule Ltix.MembershipsServiceTest do
       missing = %MembershipsEndpoint{context_memberships_url: nil, service_versions: ["2.0"]}
       insecure = %{missing | context_memberships_url: "http://platform.example.com/memberships"}
 
-      assert {:error, %InvalidField{struct: MembershipsEndpoint, field: :context_memberships_url}} =
+      assert {:error, %ServiceNotAvailable{} = error} =
                MembershipsService.validate_endpoint(missing)
+
+      assert Exception.message(error) =~ "The endpoint has no context memberships URL"
 
       assert {:error, %InvalidField{struct: MembershipsEndpoint, field: :context_memberships_url}} =
                MembershipsService.validate_endpoint(insecure)

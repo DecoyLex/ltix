@@ -535,8 +535,10 @@ defmodule Ltix.OAuthTest do
     test "returns ServiceNotAvailable for each service missing from the launch", ctx do
       context = launch_context(ctx.registration, %{})
 
-      assert {:error, %ServiceNotAvailable{service: TestService}} =
+      assert {:error, %ServiceNotAvailable{service: TestService} = error} =
                OAuth.authenticate(context, services: [TestService])
+
+      assert Exception.message(error) =~ "The launch has no endpoint claim for this service"
 
       assert {:error,
               %Invalid{
