@@ -215,6 +215,7 @@ defmodule Ltix.MixProject do
         ],
         "Launch Claims": [
           Ltix.LaunchClaims,
+          Ltix.LaunchClaims.Parser,
           Ltix.LaunchClaims.Role,
           Ltix.LaunchClaims.Role.LIS,
           Ltix.LaunchClaims.Role.Parser,

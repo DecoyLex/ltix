@@ -286,7 +286,8 @@ defmodule Ltix.LaunchClaims do
 
   ## Options
 
-  - `:claim_parsers` - Map of claim keys to parser functions. Standard
+  - `:claim_parsers` - Map of claim keys to parsers, each a module
+    implementing `Ltix.LaunchClaims.Parser` or a 1-arity function. Standard
     claim keys replace built-in parsers. Each parser receives the raw value
     and must return `{:ok, parsed}` or `{:error, reason}`. Per-call parsers
     override application config.
@@ -445,9 +446,7 @@ defmodule Ltix.LaunchClaims do
 
   defp parse_configured_claims(claims, parsers) do
     Enum.reduce_while(claims, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
-      parser = Map.fetch!(parsers, key)
-
-      case parser.(value) do
+      case Map.fetch!(parsers, key).(value) do
         {:ok, parsed} -> {:cont, {:ok, Map.put(acc, key, parsed)}}
         {:error, _} = error -> {:halt, error}
       end
@@ -455,8 +454,10 @@ defmodule Ltix.LaunchClaims do
   end
 
   defp resolve_claim_parsers(opts) do
-    config_parsers = AppConfig.claims_parsers!()
+    configured_parsers = AppConfig.claims_parsers!()
 
-    Map.merge(config_parsers, Keyword.get(opts, :claim_parsers, %{}))
+    configured_parsers
+    |> Map.merge(Keyword.get(opts, :claim_parsers, %{}))
+    |> Map.new(fn {key, parser} -> {key, Options.parser_function!(parser, :claim_parsers)} end)
   end
 end

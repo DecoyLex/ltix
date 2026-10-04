@@ -16,14 +16,15 @@ structured data.
 
 ## Writing a claim parser
 
-A claim parser is any function that takes a raw claim value and returns
-`{:ok, parsed}` or `{:error, reason}`. There is no behaviour to
-implement:
+A claim parser is a module implementing the `Ltix.LaunchClaims.Parser` behavior. Its `parse/1` callback takes the raw claim value and returns `{:ok, parsed}` or `{:error, reason}`.
 
 ```elixir
 defmodule MyApp.Lti.AnalyticsClaim do
+  use Ltix.LaunchClaims.Parser
+
   defstruct [:session_id, :tracking_enabled]
 
+  @impl Ltix.LaunchClaims.Parser
   def parse(%{"session_id" => session_id} = raw) do
     {:ok,
      %__MODULE__{
@@ -36,11 +37,13 @@ defmodule MyApp.Lti.AnalyticsClaim do
 end
 ```
 
+A 1-arity function with the same contract works too, such as `fn raw -> {:ok, raw} end`.
+
 ## Registering parsers
 
-Claim parsers are registered as a map of claim key to parser function.
-The key is the full claim name as it appears in the JWT (usually a
-namespaced URI for extension claims).
+Claim parsers are registered as a map of claim key to parser module or
+function. The key is the full claim name as it appears in the JWT
+(usually a namespaced URI for extension claims).
 
 **Via application config** (recommended for parsers that apply globally):
 
@@ -48,8 +51,7 @@ namespaced URI for extension claims).
 # config/config.exs
 config :ltix, Ltix.LaunchClaims,
   claim_parsers: %{
-    "https://myplatform.example.com/claim/analytics" =>
-      &MyApp.Lti.AnalyticsClaim.parse/1
+    "https://myplatform.example.com/claim/analytics" => MyApp.Lti.AnalyticsClaim
   }
 ```
 
@@ -58,8 +60,7 @@ config :ltix, Ltix.LaunchClaims,
 ```elixir
 Ltix.handle_callback(params, state,
   claim_parsers: %{
-    "https://myplatform.example.com/claim/analytics" =>
-      &MyApp.Lti.AnalyticsClaim.parse/1
+    "https://myplatform.example.com/claim/analytics" => MyApp.Lti.AnalyticsClaim
   }
 )
 ```
@@ -69,8 +70,7 @@ Ltix.handle_callback(params, state,
 ```elixir
 Ltix.LaunchClaims.from_json(claims,
   claim_parsers: %{
-    "https://myplatform.example.com/claim/analytics" =>
-      &MyApp.Lti.AnalyticsClaim.parse/1
+    "https://myplatform.example.com/claim/analytics" => MyApp.Lti.AnalyticsClaim
   }
 )
 ```
@@ -116,10 +116,8 @@ config :ltix, Ltix.LaunchClaims,
     "https://myplatform.example.com/roles/" => MyApp.Lti.PlatformRoleParser
   },
   claim_parsers: %{
-    "https://myplatform.example.com/claim/analytics" =>
-      &MyApp.Lti.AnalyticsClaim.parse/1,
-    "https://myplatform.example.com/claim/proctoring" =>
-      &MyApp.Lti.ProctoringClaim.parse/1
+    "https://myplatform.example.com/claim/analytics" => MyApp.Lti.AnalyticsClaim,
+    "https://myplatform.example.com/claim/proctoring" => MyApp.Lti.ProctoringClaim
   }
 ```
 

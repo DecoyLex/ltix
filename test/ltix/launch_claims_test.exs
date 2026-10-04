@@ -15,6 +15,13 @@ defmodule Ltix.LaunchClaimsTest do
 
   doctest Ltix.LaunchClaims
 
+  defmodule AnalyticsClaimParser do
+    use Ltix.LaunchClaims.Parser
+
+    @impl Ltix.LaunchClaims.Parser
+    def parse(%{"session_id" => session_id}), do: {:ok, {:analytics, session_id}}
+  end
+
   # --- OIDC Claims [Sec §5.1.2] ---
 
   describe "from_json/2 OIDC claims [Sec §5.1.2]" do
@@ -343,6 +350,25 @@ defmodule Ltix.LaunchClaimsTest do
                )
 
       assert extensions["https://example.com/custom"] == %{"raw" => "data", "parsed" => true}
+    end
+
+    test "extension parsers can be modules implementing the claim parser behaviour" do
+      json = %{"https://example.com/analytics" => %{"session_id" => "abc"}}
+
+      assert {:ok, %LaunchClaims{extensions: extensions}} =
+               LaunchClaims.from_json(json,
+                 claim_parsers: %{"https://example.com/analytics" => AnalyticsClaimParser}
+               )
+
+      assert extensions["https://example.com/analytics"] == {:analytics, "abc"}
+    end
+
+    test "raises when a claim parser is not a parser module or 1-arity function" do
+      for parser <- [Enum, "parser", fn _value, _other -> {:ok, nil} end] do
+        assert_raise Ltix.Errors.Invalid.InvalidOption,
+                     ~r/Option :claim_parsers is invalid, parsers must be modules/,
+                     fn -> LaunchClaims.from_json(%{}, claim_parsers: %{"name" => parser}) end
+      end
     end
 
     test "extension parser error halts pipeline" do
