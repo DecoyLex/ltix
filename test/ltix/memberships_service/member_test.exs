@@ -1,6 +1,7 @@
 defmodule Ltix.MembershipsService.MemberTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService.Member
@@ -93,9 +94,10 @@ defmodule Ltix.MembershipsService.MemberTest do
     end
 
     test "returns error for invalid status string [NRPS §2.3]" do
-      json = %{"user_id" => "user-1", "roles" => [], "status" => "Unknown"}
-      assert {:error, error} = Member.from_json(json)
-      assert Exception.message(error) =~ "status"
+      json = %{"user_id" => "user-1", "roles" => [], "status" => " unknown "}
+
+      assert {:error, %InvalidClaim{claim: "member.status", value: " unknown "}} =
+               Member.from_json(json)
     end
 
     test "parses roles into Role structs [NRPS §2.2]" do

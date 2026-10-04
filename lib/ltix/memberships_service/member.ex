@@ -231,15 +231,15 @@ defmodule Ltix.MembershipsService.Member do
   # [NRPS §2.3](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-status)
   defp parse_status(nil), do: {:ok, :active}
 
-  defp parse_status(status_string) when is_binary(status_string) do
+  defp parse_status(status) when is_binary(status) do
     # Allow minor platform variations in status formatting.
-    status_string =
-      status_string
+    normalized =
+      status
       |> String.trim()
       |> String.downcase()
       |> String.capitalize()
 
-    case Map.fetch(@status_map, status_string) do
+    case Map.fetch(@status_map, normalized) do
       {:ok, atom} ->
         {:ok, atom}
 
@@ -247,7 +247,7 @@ defmodule Ltix.MembershipsService.Member do
         {:error,
          InvalidClaim.exception(
            claim: "member.status",
-           value: status_string,
+           value: status,
            message: "must be Active, Inactive, or Deleted",
            spec_ref: "NRPS §2.3"
          )}
@@ -259,7 +259,6 @@ defmodule Ltix.MembershipsService.Member do
 
   # [NRPS §3.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#message-section)
   defp parse_message(nil), do: {:ok, nil}
-  defp parse_message([]), do: {:ok, []}
 
   defp parse_message(messages) when is_list(messages) do
     messages
