@@ -67,4 +67,21 @@ defmodule Ltix.LaunchClaims.ContextTest do
       assert {:ok, %Context{type: ["CourseSection"]}} = Context.from_json(json)
     end
   end
+
+  describe "to_map/1" do
+    test "round-trips through from_json/1" do
+      for json <- [
+            %{"id" => "ctx-1"},
+            %{
+              "id" => "ctx-1",
+              "label" => "CS101",
+              "title" => "Intro",
+              "type" => ["CourseSection"]
+            }
+          ] do
+        {:ok, context} = Context.from_json(json)
+        assert Context.to_map(context) == json
+      end
+    end
+  end
 end

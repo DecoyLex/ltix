@@ -5,6 +5,8 @@ defmodule Ltix.MembershipsService.MemberTest do
   alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService.Member
 
+  doctest Member
+
   describe "from_json/1" do
     test "parses member with all fields populated" do
       json = %{
@@ -185,6 +187,37 @@ defmodule Ltix.MembershipsService.MemberTest do
                "https://canvas.instructure.com/lti/sis_user_id" => "sis-1",
                "nickname" => "JJ"
              }
+    end
+  end
+
+  describe "to_map/1" do
+    test "leaves out the message section" do
+      member = %Member{user_id: "user-1", roles: [], message: [%Ltix.LaunchClaims{}]}
+
+      refute Map.has_key?(Member.to_map(member), "message")
+    end
+
+    test "round-trips every field except message through from_json/1" do
+      json = %{
+        "user_id" => "user-1",
+        "status" => "Inactive",
+        "name" => "Jane Q. Public",
+        "picture" => "https://platform.example.edu/jane.jpg",
+        "given_name" => "Jane",
+        "family_name" => "Public",
+        "middle_name" => "Q",
+        "email" => "jane@platform.example.edu",
+        "lis_person_sourcedid" => "59254-6782-12ab",
+        "lti11_legacy_user_id" => "668321221-2879",
+        "roles" => [
+          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
+          "http://example.com/custom/role"
+        ],
+        "https://lms.example.com/student_number" => "s-42"
+      }
+
+      {:ok, member} = Member.from_json(json)
+      assert Member.to_map(member) == json
     end
   end
 end

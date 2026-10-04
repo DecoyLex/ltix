@@ -72,6 +72,25 @@ defmodule Ltix.GradeService.Result do
     {:ok, struct!(__MODULE__, Map.put(fields, :extensions, extensions))}
   end
 
+  @doc """
+  Serialize a result to a map with camelCase string keys.
+
+  ## Examples
+
+      iex> result = %Ltix.GradeService.Result{user_id: "123", result_score: 0.5}
+      iex> Ltix.GradeService.Result.to_map(result)
+      %{"userId" => "123", "resultScore" => 0.5}
+  """
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = result) do
+    fields =
+      Map.new(@known_keys, fn {json_key, field} -> {json_key, Map.fetch!(result, field)} end)
+
+    fields
+    |> Map.reject(fn {_json_key, value} -> is_nil(value) end)
+    |> Map.merge(result.extensions)
+  end
+
   defp classify_keys(json) do
     Ltix.GradeService.classify_keys(json, @known_keys)
   end

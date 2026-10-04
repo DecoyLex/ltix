@@ -68,13 +68,26 @@ defmodule Ltix.MembershipsService.Member do
         }
 
   # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data)
-  @known_keys ~w(user_id roles status message name picture given_name family_name middle_name email lis_person_sourcedid lti11_legacy_user_id)
+  @profile_json_keys %{
+    name: "name",
+    picture: "picture",
+    given_name: "given_name",
+    family_name: "family_name",
+    middle_name: "middle_name",
+    email: "email",
+    lis_person_source_id: "lis_person_sourcedid",
+    lti_1_1_legacy_user_id: "lti11_legacy_user_id"
+  }
+
+  @known_keys ~w(user_id roles status message) ++ Map.values(@profile_json_keys)
 
   @status_map %{
     "Active" => :active,
     "Inactive" => :inactive,
     "Deleted" => :deleted
   }
+
+  @status_strings Map.new(@status_map, fn {string, status} -> {status, string} end)
 
   # [standard-claims]:
   # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
@@ -95,10 +108,15 @@ defmodule Ltix.MembershipsService.Member do
                            coerce: true
                          )
 
-  @profile_schema ClaimHelpers.rename_claims(@profile_struct_schema, %{
-                    "lis_person_sourcedid" => :lis_person_source_id,
-                    "lti11_legacy_user_id" => :lti_1_1_legacy_user_id
-                  })
+  @profile_schema ClaimHelpers.rename_claims(
+                    @profile_struct_schema,
+                    for(
+                      {field, key} <- @profile_json_keys,
+                      key != Atom.to_string(field),
+                      into: %{},
+                      do: {key, field}
+                    )
+                  )
 
   @doc """
   Parse a member from a JSON map in a membership container response.
@@ -142,6 +160,57 @@ defmodule Ltix.MembershipsService.Member do
     {:error,
      MissingClaim.exception(claim: "member.user_id and member.roles", spec_ref: "NRPS §2.2")}
   end
+
+  @doc """
+  Serialize a member to a map with the JSON keys of a membership container response.
+
+  Fields that are `nil` are omitted, and `extensions` are merged in. The `message` section is not included.
+
+  ## Examples
+
+      iex> member = %Ltix.MembershipsService.Member{
+      ...>   user_id: "user-1",
+      ...>   status: :active,
+      ...>   name: "Jane Doe",
+      ...>   roles: [Ltix.LaunchClaims.Role.from_atom(:learner)]
+      ...> }
+      iex> Ltix.MembershipsService.Member.to_map(member)
+      %{
+        "user_id" => "user-1",
+        "status" => "Active",
+        "name" => "Jane Doe",
+        "roles" => ["http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"]
+      }
+  """
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = member) do
+    required = %{
+      "user_id" => member.user_id,
+      "roles" => Enum.map(member.roles, &role_uri/1) ++ member.unrecognized_roles
+    }
+
+    fields =
+      for {field, key} <- @profile_json_keys,
+          value = Map.fetch!(member, field),
+          not is_nil(value),
+          into: required,
+          do: {key, value}
+
+    Map.merge(member.extensions, put_status(fields, member.status))
+  end
+
+  defp role_uri(%Role{uri: uri}) when is_binary(uri), do: uri
+
+  defp role_uri(%Role{} = role) do
+    case Role.to_uri(role) do
+      {:ok, uri} -> uri
+      :error -> raise ArgumentError, "could not resolve role to URI: #{inspect(role)}"
+    end
+  end
+
+  defp put_status(map, nil), do: map
+
+  defp put_status(map, status), do: Map.put(map, "status", Map.fetch!(@status_strings, status))
 
   defp validate_user_id(user_id) when is_binary(user_id), do: :ok
 

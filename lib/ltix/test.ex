@@ -618,7 +618,7 @@ defmodule Ltix.Test do
   def stub_list_results(results) when is_list(results) do
     require_plug!()
 
-    json = Enum.map(results, &result_to_json/1)
+    json = Enum.map(results, &Result.to_map/1)
 
     Req.Test.stub(Ltix.GradeService, fn conn ->
       Req.Test.json(conn, json)
@@ -650,8 +650,8 @@ defmodule Ltix.Test do
 
     json =
       %{
-        "context" => context_to_json(context),
-        "members" => Enum.map(members, &member_to_json/1)
+        "context" => Context.to_map(context),
+        "members" => Enum.map(members, &Member.to_map/1)
       }
       |> maybe_put("id", container_id)
 
@@ -659,51 +659,6 @@ defmodule Ltix.Test do
       Req.Test.json(conn, json)
     end)
   end
-
-  # --- Struct Serialization (test only) ---
-
-  defp result_to_json(%Result{} = result) do
-    %{}
-    |> maybe_put("id", result.id)
-    |> maybe_put("scoreOf", result.score_of)
-    |> maybe_put("userId", result.user_id)
-    |> maybe_put("resultScore", result.result_score)
-    |> maybe_put("resultMaximum", result.result_maximum)
-    |> maybe_put("scoringUserId", result.scoring_user_id)
-    |> maybe_put("comment", result.comment)
-    |> Map.merge(result.extensions)
-  end
-
-  defp member_to_json(%Member{} = member) do
-    role_uris =
-      Enum.map(member.roles, fn role ->
-        {:ok, uri} = Role.to_uri(role)
-        uri
-      end) ++ member.unrecognized_roles
-
-    %{"user_id" => member.user_id, "roles" => role_uris}
-    |> maybe_put("status", status_to_string(member.status))
-    |> maybe_put("name", member.name)
-    |> maybe_put("picture", member.picture)
-    |> maybe_put("given_name", member.given_name)
-    |> maybe_put("family_name", member.family_name)
-    |> maybe_put("middle_name", member.middle_name)
-    |> maybe_put("email", member.email)
-    |> maybe_put("lis_person_sourcedid", member.lis_person_source_id)
-    |> maybe_put("lti11_legacy_user_id", member.lti_1_1_legacy_user_id)
-  end
-
-  defp context_to_json(%Context{} = ctx) do
-    %{"id" => ctx.id}
-    |> maybe_put("label", ctx.label)
-    |> maybe_put("title", ctx.title)
-    |> maybe_put("type", ctx.type)
-  end
-
-  defp status_to_string(:active), do: "Active"
-  defp status_to_string(:inactive), do: "Inactive"
-  defp status_to_string(:deleted), do: "Deleted"
-  defp status_to_string(nil), do: nil
 
   # --- Lower-Level Helpers ---
 

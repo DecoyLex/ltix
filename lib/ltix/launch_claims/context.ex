@@ -43,4 +43,19 @@ defmodule Ltix.LaunchClaims.Context do
   def from_json(json) do
     ClaimHelpers.from_json(@schema, json, "context", "Core §5.4.1")
   end
+
+  @doc """
+  Serialize a context to a map with the claim's JSON keys, omitting fields that are `nil`.
+
+  ## Examples
+
+      iex> Ltix.LaunchClaims.Context.to_map(%Ltix.LaunchClaims.Context{id: "ctx-1", label: "CS101"})
+      %{"id" => "ctx-1", "label" => "CS101"}
+  """
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = context) do
+    for {field, value} <- Map.from_struct(context), not is_nil(value), into: %{} do
+      {Atom.to_string(field), value}
+    end
+  end
 end

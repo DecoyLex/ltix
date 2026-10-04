@@ -3,6 +3,8 @@ defmodule Ltix.GradeService.ResultTest do
 
   alias Ltix.GradeService.Result
 
+  doctest Result
+
   describe "from_json/1" do
     test "parses result with all fields" do
       json = %{
@@ -64,6 +66,24 @@ defmodule Ltix.GradeService.ResultTest do
                "https://platform.example.com/extra" => %{"key" => "value"},
                "customField" => 42
              }
+    end
+  end
+
+  describe "to_map/1" do
+    test "round-trips a parsed result with camelCase keys and extensions" do
+      json = %{
+        "id" => "https://lms.example.com/lineitems/1/results/5",
+        "scoreOf" => "https://lms.example.com/lineitems/1",
+        "userId" => "5",
+        "resultScore" => 0.83,
+        "resultMaximum" => 1,
+        "scoringUserId" => "instructor-1",
+        "comment" => "Nice",
+        "https://platform.example.com/extra" => true
+      }
+
+      assert {:ok, result} = Result.from_json(json)
+      assert Result.to_map(result) == json
     end
   end
 end
