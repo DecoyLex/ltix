@@ -285,6 +285,35 @@ defmodule Ltix.OAuth.ClientTest do
     end
   end
 
+  describe "to_access_token/1" do
+    test "carries the client's token, expiry, and granted scopes" do
+      client = build_client()
+
+      assert %AccessToken{
+               access_token: "test-token",
+               token_type: "bearer",
+               granted_scopes: granted_scopes,
+               expires_at: expires_at
+             } = Client.to_access_token(client)
+
+      assert granted_scopes == MapSet.new([@test_scope])
+      assert expires_at == client.expires_at
+    end
+
+    test "returns a token that from_access_token/2 turns back into the same client" do
+      registration = build_registration()
+      client = build_client(%{registration: registration, endpoints: both_endpoints()})
+
+      assert {:ok, ^client} =
+               client
+               |> Client.to_access_token()
+               |> Client.from_access_token(
+                 registration: registration,
+                 endpoints: both_endpoints()
+               )
+    end
+  end
+
   describe "with_endpoints/3" do
     test "swaps endpoints keeping same token" do
       client = build_client()

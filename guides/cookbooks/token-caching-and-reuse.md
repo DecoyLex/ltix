@@ -114,7 +114,7 @@ defmodule MyApp.LTI.TokenCache do
 
     case :ets.lookup(@table, key) do
       [{^key, token}] ->
-        if token_expired?(token) do
+        if AccessToken.expired?(token) do
           authenticate_and_cache(key, registration, service, endpoint)
         else
           Client.from_access_token(token,
@@ -131,19 +131,8 @@ defmodule MyApp.LTI.TokenCache do
   defp authenticate_and_cache(key, registration, service, endpoint) do
     {:ok, client} = service.authenticate(registration, endpoint: endpoint)
 
-    token = %AccessToken{
-      access_token: client.access_token,
-      token_type: "bearer",
-      granted_scopes: client.scopes,
-      expires_at: client.expires_at
-    }
-
-    :ets.insert(@table, {key, token})
+    :ets.insert(@table, {key, Client.to_access_token(client)})
     {:ok, client}
-  end
-
-  defp token_expired?(%{expires_at: expires_at}) do
-    DateTime.compare(DateTime.utc_now(), DateTime.add(expires_at, -60)) != :lt
   end
 
   defp ensure_table do

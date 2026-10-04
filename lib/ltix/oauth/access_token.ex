@@ -38,6 +38,8 @@ defmodule Ltix.OAuth.AccessToken do
                     unrecognized_keys: :error
                   )
 
+  @expiry_buffer_seconds 60
+
   defstruct [:access_token, :token_type, :granted_scopes, :expires_at]
 
   @type t :: %__MODULE__{
@@ -63,6 +65,24 @@ defmodule Ltix.OAuth.AccessToken do
   @spec from_response(term(), keyword()) :: {:ok, t()} | {:error, Exception.t()}
   def from_response(body, opts \\ []) do
     parse_response(body, Options.parse!(opts, @options_schema))
+  end
+
+  @doc """
+  Check whether the token has expired.
+
+  Uses a 60-second buffer to avoid using a token that is about to expire.
+
+  ## Examples
+
+      iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+      iex> Ltix.OAuth.AccessToken.expired?(token)
+      false
+  """
+  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
+  @spec expired?(t()) :: boolean()
+  def expired?(%__MODULE__{expires_at: expires_at}) do
+    buffered = DateTime.add(expires_at, -@expiry_buffer_seconds)
+    DateTime.compare(DateTime.utc_now(), buffered) != :lt
   end
 
   defp parse_response(

@@ -96,4 +96,17 @@ defmodule Ltix.OAuth.AccessTokenTest do
       assert {:error, _error} = AccessToken.from_response(response, now: @now)
     end
   end
+
+  describe "expired?/1" do
+    test "returns false when the token is fresh" do
+      refute AccessToken.expired?(%AccessToken{
+               expires_at: DateTime.add(DateTime.utc_now(), 3600)
+             })
+    end
+
+    test "returns true within 60 seconds of expiry" do
+      assert AccessToken.expired?(%AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 59)})
+      refute AccessToken.expired?(%AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 62)})
+    end
+  end
 end

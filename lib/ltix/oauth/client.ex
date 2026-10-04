@@ -19,7 +19,7 @@ defmodule Ltix.OAuth.Client do
         Ltix.MembershipsService => course_b_endpoint
       })
 
-  Or build from a previously cached `AccessToken`:
+  Or cache the token with `to_access_token/1` and build a client from it later:
 
       {:ok, client} = Ltix.OAuth.Client.from_access_token(cached_token,
         registration: registration,
@@ -44,8 +44,6 @@ defmodule Ltix.OAuth.Client do
           req_options: keyword(),
           endpoints: %{module() => term()}
         }
-
-  @expiry_buffer_seconds 60
 
   @option_fields [
     req_options:
@@ -102,10 +100,7 @@ defmodule Ltix.OAuth.Client do
   """
   # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
   @spec expired?(t()) :: boolean()
-  def expired?(%__MODULE__{expires_at: expires_at}) do
-    buffered = DateTime.add(expires_at, -@expiry_buffer_seconds)
-    DateTime.compare(DateTime.utc_now(), buffered) != :lt
-  end
+  def expired?(%__MODULE__{} = client), do: AccessToken.expired?(to_access_token(client))
 
   @doc """
   Check whether the client was granted a specific scope.
@@ -255,6 +250,38 @@ defmodule Ltix.OAuth.Client do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
+  end
+
+  @doc """
+  Return the client's token as a cacheable `AccessToken`.
+
+  Rebuild a client from it later with `from_access_token/2`.
+
+  ## Examples
+
+      iex> client = %Ltix.OAuth.Client{
+      ...>   access_token: "tok",
+      ...>   expires_at: ~U[2025-01-01 01:00:00Z],
+      ...>   scopes: MapSet.new(["scope:read"]),
+      ...>   registration: nil,
+      ...>   req_options: []
+      ...> }
+      iex> Ltix.OAuth.Client.to_access_token(client)
+      %Ltix.OAuth.AccessToken{
+        access_token: "tok",
+        token_type: "bearer",
+        granted_scopes: MapSet.new(["scope:read"]),
+        expires_at: ~U[2025-01-01 01:00:00Z]
+      }
+  """
+  @spec to_access_token(t()) :: AccessToken.t()
+  def to_access_token(%__MODULE__{} = client) do
+    %AccessToken{
+      access_token: client.access_token,
+      token_type: "bearer",
+      granted_scopes: client.scopes,
+      expires_at: client.expires_at
+    }
   end
 
   @doc """
