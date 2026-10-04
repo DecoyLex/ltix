@@ -186,6 +186,12 @@ case Ltix.DeepLinking.build_response(context, items) do
   {:error, %Ltix.Errors.Invalid.LineItemNotAccepted{index: index}} ->
     # line_item present when accept_line_item is false
 
+  {:error, %Ltix.Errors.Invalid.PresentationTargetNotAccepted{index: index, target: target}} ->
+    # the item has an iframe, window, or embed not in accept_presentation_document_targets
+
+  {:error, %Ltix.Errors.Invalid.MediaTypeNotAccepted{index: index, media_type: media_type}} ->
+    # the file's media_type does not match accept_media_types, such as "image/*"
+
   {:error, %Ltix.Errors.Invalid{errors: errors}} ->
     # several of the above at once
 end

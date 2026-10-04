@@ -37,6 +37,8 @@ settings = context.claims.deep_linking_settings
 settings.accept_types          # ["ltiResourceLink", "link", ...]
 settings.accept_multiple       # true or false
 settings.accept_line_item      # true or false
+settings.accept_presentation_document_targets  # ["iframe", "window", ...]
+settings.accept_media_types    # "image/*,application/pdf" or nil
 ```
 
 `build_response/3` validates items against these constraints and returns an error for each violation (see Errors below). Several violations are grouped in `Ltix.Errors.Invalid`.
@@ -95,3 +97,5 @@ Errors about one item include its `index` in the list you passed.
 - `ContentItemTypeNotAccepted` — item type not in `settings.accept_types`
 - `ContentItemsExceedLimit` — multiple items when `settings.accept_multiple` is `false`
 - `LineItemNotAccepted` — line item on content item when `settings.accept_line_item` is `false`
+- `PresentationTargetNotAccepted` when an item's `iframe`, `window`, or `embed` is not in `settings.accept_presentation_document_targets`
+- `MediaTypeNotAccepted` when a file's `media_type` does not match `settings.accept_media_types`

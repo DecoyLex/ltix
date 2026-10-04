@@ -194,6 +194,8 @@ These errors come from `Ltix.DeepLinking.build_response/3`. Content item constru
 | `ContentItemTypeNotAccepted` | `index`, `type`, `accept_types`, `spec_ref` | An item's type is not in `accept_types` |
 | `ContentItemsExceedLimit` | `count`, `spec_ref` | Several items when `accept_multiple` is `false` |
 | `LineItemNotAccepted` | `index`, `spec_ref` | A resource link has a line item when `accept_line_item` is `false` |
+| `PresentationTargetNotAccepted` | `index`, `target`, `accept_presentation_document_targets`, `spec_ref` | An item's `iframe`, `window`, or `embed` is not in `accept_presentation_document_targets` |
+| `MediaTypeNotAccepted` | `index`, `media_type`, `accept_media_types`, `spec_ref` | A file's media type does not match `accept_media_types` |
 
 ## Advantage service errors
 

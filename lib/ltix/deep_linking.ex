@@ -33,9 +33,16 @@ defmodule Ltix.DeepLinking do
   alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
+  alias Ltix.Errors.Invalid.MediaTypeNotAccepted
+  alias Ltix.Errors.Invalid.PresentationTargetNotAccepted
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
+
+  # [DL §3.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#link)
+  # [DL §3.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#lti-resource-link)
+  @presentable_types ["link", "ltiResourceLink"]
+  @presentation_targets ["embed", "iframe", "window"]
 
   @options_schema Zoi.keyword(
                     [
@@ -74,6 +81,11 @@ defmodule Ltix.DeepLinking do
       when `accept_multiple` is `false`
     * `Ltix.Errors.Invalid.LineItemNotAccepted` — line item present
       when `accept_line_item` is `false`
+    * `Ltix.Errors.Invalid.PresentationTargetNotAccepted` — an item is
+      presented in an `iframe`, `window`, or `embed` that is not in
+      `accept_presentation_document_targets`
+    * `Ltix.Errors.Invalid.MediaTypeNotAccepted` — a file's `media_type`
+      does not match `accept_media_types`
 
   Errors about one item include its `index` in `items`. Several failures at once
   are grouped in `Ltix.Errors.Invalid`. Unknown or invalid options raise
@@ -186,7 +198,9 @@ defmodule Ltix.DeepLinking do
       |> Enum.with_index()
       |> Enum.flat_map(fn indexed ->
         type_not_accepted(indexed, settings.accept_types) ++
-          line_item_not_accepted(indexed, settings.accept_line_item)
+          line_item_not_accepted(indexed, settings.accept_line_item) ++
+          presentation_not_accepted(indexed, settings.accept_presentation_document_targets) ++
+          media_type_not_accepted(indexed, settings.accept_media_types)
       end)
 
     case item_errors ++ exceeds_limit(items, settings.accept_multiple) do
@@ -224,6 +238,65 @@ defmodule Ltix.DeepLinking do
   end
 
   defp line_item_not_accepted(_indexed_item, _accept_line_item), do: []
+
+  defp presentation_not_accepted(_indexed_item, nil = _accepted_targets), do: []
+
+  defp presentation_not_accepted({%{"type" => type} = item, index}, accepted_targets)
+       when type in @presentable_types do
+    for target <- @presentation_targets,
+        Map.has_key?(item, target),
+        target not in accepted_targets do
+      PresentationTargetNotAccepted.exception(
+        index: index,
+        target: target,
+        accept_presentation_document_targets: accepted_targets,
+        spec_ref: "DL §4.4.1"
+      )
+    end
+  end
+
+  defp presentation_not_accepted(_indexed_item, _accepted_targets), do: []
+
+  defp media_type_not_accepted(
+         {%{"type" => "file", "mediaType" => media_type}, index},
+         accept_media_types
+       )
+       when is_binary(media_type) and is_binary(accept_media_types) do
+    if media_type_accepted?(media_type, accept_media_types) do
+      []
+    else
+      [
+        MediaTypeNotAccepted.exception(
+          index: index,
+          media_type: media_type,
+          accept_media_types: accept_media_types,
+          spec_ref: "DL §4.4.1"
+        )
+      ]
+    end
+  end
+
+  defp media_type_not_accepted(_indexed_item, _accept_media_types), do: []
+
+  # [RFC 7231 §5.3.2](https://www.rfc-editor.org/rfc/rfc7231#section-5.3.2)
+  defp media_type_accepted?(media_type, accept_media_types) do
+    [type | _subtype] = essence = media_type_essence(media_type)
+
+    accept_media_types
+    |> String.split(",")
+    |> Enum.map(&media_type_essence/1)
+    |> Enum.any?(&(&1 in [essence, [type, "*"], ["*", "*"]]))
+  end
+
+  # The lowercase type and subtype, without parameters.
+  defp media_type_essence(media_type) do
+    [essence | _parameters] = String.split(media_type, ";")
+
+    essence
+    |> String.trim()
+    |> String.downcase()
+    |> String.split("/", parts: 2)
+  end
 
   # --- JWT Construction ---
 

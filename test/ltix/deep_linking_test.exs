@@ -13,6 +13,8 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
+  alias Ltix.Errors.Invalid.MediaTypeNotAccepted
+  alias Ltix.Errors.Invalid.PresentationTargetNotAccepted
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
@@ -385,6 +387,107 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
+    end
+  end
+
+  describe "build_response/3 presentation target validation" do
+    test "rejects presentations not in accept_presentation_document_targets", %{platform: p} do
+      context =
+        Ltix.Test.build_launch_context(p,
+          message_type: :deep_linking,
+          deep_linking_settings: %{accept_presentation_document_targets: ["iframe"]}
+        )
+
+      {:ok, link} =
+        Link.new(
+          url: "https://example.com",
+          iframe: [src: "https://example.com/embed"],
+          embed: [html: "<p>Hi</p>"]
+        )
+
+      {:ok, resource} = LTIResourceLink.new(window: [target_name: "quiz"])
+
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [
+                  %PresentationTargetNotAccepted{
+                    index: 0,
+                    target: "embed",
+                    accept_presentation_document_targets: ["iframe"]
+                  },
+                  %PresentationTargetNotAccepted{index: 1, target: "window"} = error
+                ]
+              }} = DeepLinking.build_response(context, [link, resource])
+
+      assert Exception.message(error) =~ ~s(index 1 uses presentation target "window")
+    end
+
+    test "accepts items without a presentation when no targets are accepted", %{platform: p} do
+      context =
+        Ltix.Test.build_launch_context(p,
+          message_type: :deep_linking,
+          deep_linking_settings: %{
+            accept_types: ["link", "https://vendor.example.com/poll"],
+            accept_presentation_document_targets: []
+          }
+        )
+
+      {:ok, link} = Link.new(url: "https://example.com")
+      custom = %{"type" => "https://vendor.example.com/poll", "window" => "not a presentation"}
+
+      assert {:ok, %Response{}} =
+               DeepLinking.build_response(context, [link, custom])
+    end
+  end
+
+  describe "build_response/3 media type validation" do
+    setup %{platform: p} do
+      context =
+        Ltix.Test.build_launch_context(p,
+          message_type: :deep_linking,
+          deep_linking_settings: %{accept_media_types: "image/*, text/html"}
+        )
+
+      %{context: context}
+    end
+
+    test "accepts files whose media type matches, including wildcards", %{context: context} do
+      files =
+        for opts <- [
+              [url: "https://example.com/a.png", media_type: "image/png"],
+              [url: "https://example.com/b.html", media_type: "Text/HTML; charset=utf-8"],
+              [url: "https://example.com/c"]
+            ] do
+          {:ok, file} = File.new(opts)
+          file
+        end
+
+      assert {:ok, %Response{}} = DeepLinking.build_response(context, files)
+    end
+
+    test "rejects files whose media type is not accepted", %{context: context} do
+      {:ok, file} = File.new(url: "https://example.com/f.pdf", media_type: "application/pdf")
+      raw = %{"type" => "file", "url" => "https://example.com/v.mp4", "mediaType" => "video/mp4"}
+
+      assert {:error,
+              %Ltix.Errors.Invalid{
+                errors: [
+                  %MediaTypeNotAccepted{
+                    index: 0,
+                    media_type: "application/pdf",
+                    accept_media_types: "image/*, text/html"
+                  } = error,
+                  %MediaTypeNotAccepted{index: 1, media_type: "video/mp4"}
+                ]
+              }} = DeepLinking.build_response(context, [file, raw])
+
+      assert Exception.message(error) =~ ~s(index 0 has media type "application/pdf")
+    end
+
+    test "only applies to files", %{context: context} do
+      raw = %{"type" => "link", "url" => "https://example.com", "mediaType" => "video/mp4"}
+
+      assert {:ok, %Response{}} = DeepLinking.build_response(context, [raw])
     end
   end
 
