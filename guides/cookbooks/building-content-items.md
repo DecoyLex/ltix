@@ -43,7 +43,8 @@ You can then post scores to it using the grade service:
 ```
 
 `score_maximum` is required and must be positive. The `label` defaults
-to the content item's title if omitted.
+to the content item's title if omitted, and must not be blank when
+given.
 
 ## Resource link with custom parameters
 

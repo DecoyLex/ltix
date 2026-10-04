@@ -58,7 +58,7 @@ settings.accept_line_item      # true or false
 )
 ```
 
-- `line_item.score_maximum` is required and must be positive.
+- `line_item.score_maximum` is required and must be positive. A `label` must not be blank.
 - Only include `line_item` if `settings.accept_line_item` is `true`.
 
 ## Building the Response

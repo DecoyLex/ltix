@@ -2,14 +2,16 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   import Ltix.DeepLinking.ContentItemHelpers,
     only: [
       extensions_schema: 0,
-      string_keyed_map: 2,
       icon_schema: 1,
       object: 1,
+      object: 2,
+      string_keyed_map: 2,
       window_schema: 1
     ]
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemHelpers
+  alias Ltix.GradeService.LineItem
 
   # [DL §3.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#lti-resource-link)
   @icon_schema icon_schema(description: "Icon or thumbnail for the LTI resource link.")
@@ -25,24 +27,23 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
                      |> Zoi.optional()
                  })
 
-  @line_item_schema object(%{
-                      score_maximum:
-                        Zoi.number(
-                          description: "Maximum score for the line item; must be positive."
-                        )
-                        |> Zoi.positive(),
-                      label:
-                        Zoi.string(description: "Label for the gradebook column.")
-                        |> Zoi.optional(),
-                      resource_id:
-                        Zoi.string(description: "Tool-defined identifier for the resource.")
-                        |> Zoi.optional(),
-                      tag:
-                        Zoi.string(description: "Tag for grouping line items.") |> Zoi.optional(),
-                      grades_released:
-                        Zoi.boolean(description: "Whether grades are released to students.")
-                        |> Zoi.optional()
-                    })
+  @line_item_schema object(
+                      %{
+                        score_maximum: LineItem.score_maximum_schema(),
+                        label: Zoi.optional(LineItem.label_schema()),
+                        resource_id:
+                          Zoi.string(description: "Tool-defined identifier for the resource.")
+                          |> Zoi.optional(),
+                        tag:
+                          Zoi.string(description: "Tag for grouping line items.")
+                          |> Zoi.optional(),
+                        grades_released:
+                          Zoi.boolean(description: "Whether grades are released to students.")
+                          |> Zoi.optional()
+                      },
+                      description:
+                        "Gradebook column for the platform to create, as a keyword list or map."
+                    )
 
   @time_window_schema object(%{
                         start_date_time:

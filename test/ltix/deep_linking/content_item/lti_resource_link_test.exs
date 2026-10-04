@@ -67,6 +67,19 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
       assert Exception.message(error) =~ "is required"
     end
 
+    test "rejects line item labels and maximum scores the grade service rejects" do
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{
+                field: [:line_item, :label],
+                value: " ",
+                reason: "must not be blank"
+              }} = LTIResourceLink.new(line_item: [label: " ", score_maximum: 10])
+
+      assert {:error,
+              %Ltix.Errors.Invalid.InvalidField{field: [:line_item, :score_maximum], value: 0}} =
+               LTIResourceLink.new(line_item: [label: "Quiz", score_maximum: 0])
+    end
+
     test "rejects time windows given as strings" do
       assert {:error,
               %Ltix.Errors.Invalid.InvalidField{
