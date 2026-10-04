@@ -78,6 +78,17 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
     InvalidField.parse(__MODULE__, @new_schema, Map.new(attributes), &spec_ref/1)
   end
 
+  @doc """
+  Same as `new/1` but raises on error.
+  """
+  @spec new!(keyword() | map()) :: t()
+  def new!(attributes) do
+    case new(attributes) do
+      {:ok, endpoint} -> endpoint
+      {:error, error} -> raise error
+    end
+  end
+
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   defp spec_ref(field) when field in [:line_items, :line_item], do: "Sec §3"

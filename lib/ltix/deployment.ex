@@ -20,9 +20,9 @@ defmodule Ltix.Deployment do
 
   ## Validation rules
 
-  - `deployment_id` — non-empty string
-  - `deployment_id` — 255 ASCII characters max
-  - `deployment_id` — ASCII characters only
+  - `deployment_id` - non-empty string
+  - `deployment_id` - 255 ASCII characters max
+  - `deployment_id` - ASCII characters only
 
   ## Examples
 
@@ -57,6 +57,22 @@ defmodule Ltix.Deployment do
   end
 
   def new(deployment_id), do: invalid(deployment_id, "must be a non-empty string", "Core §5.3.3")
+
+  @doc """
+  Same as `new/1`, but returns the deployment or raises the error.
+
+  ## Examples
+
+      iex> Ltix.Deployment.new!("deploy-001")
+      %Ltix.Deployment{deployment_id: "deploy-001"}
+  """
+  @spec new!(String.t() | nil) :: t()
+  def new!(deployment_id) do
+    case new(deployment_id) do
+      {:ok, deployment} -> deployment
+      {:error, error} -> raise error
+    end
+  end
 
   defp ascii?(string), do: String.printable?(string) and string =~ ~r/\A[\x00-\x7F]*\z/
 

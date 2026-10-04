@@ -65,7 +65,8 @@ structured data, and confirmed the deployment exists.
 >
 > `handle_login/3` and `handle_callback/3` are the only two functions
 > you call. Everything else — storage lookups, key fetching, token
-> validation — happens behind them.
+> validation — happens behind them. `handle_login!/3` and
+> `handle_callback!/3` do the same and raise on error.
 
 ## What Ltix handles vs. what you handle
 

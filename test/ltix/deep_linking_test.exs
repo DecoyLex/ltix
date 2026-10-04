@@ -452,21 +452,17 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "accepts files whose media type matches, including wildcards", %{context: context} do
-      files =
-        for opts <- [
-              [url: "https://example.com/a.png", media_type: "image/png"],
-              [url: "https://example.com/b.html", media_type: "Text/HTML; charset=utf-8"],
-              [url: "https://example.com/c"]
-            ] do
-          {:ok, file} = File.new(opts)
-          file
-        end
+      files = [
+        File.new!(url: "https://example.com/a.png", media_type: "image/png"),
+        File.new!(url: "https://example.com/b.html", media_type: "Text/HTML; charset=utf-8"),
+        File.new!(url: "https://example.com/c")
+      ]
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, files)
     end
 
     test "rejects files whose media type is not accepted", %{context: context} do
-      {:ok, file} = File.new(url: "https://example.com/f.pdf", media_type: "application/pdf")
+      file = File.new!(url: "https://example.com/f.pdf", media_type: "application/pdf")
       raw = %{"type" => "file", "url" => "https://example.com/v.mp4", "mediaType" => "video/mp4"}
 
       assert {:error,
@@ -619,6 +615,21 @@ defmodule Ltix.DeepLinkingTest do
       {:error, _} = DeepLinking.build_response(resource_link, [])
       assert_received {^ref, :start, %{item_count: 0, item_types: []}}
       assert_received {^ref, :stop, %{item_count: 0, item_types: []}}
+    end
+  end
+
+  describe "build_response!/3" do
+    test "returns the response", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+
+      assert %Response{return_url: "https://platform.example.com/deep_links"} =
+               DeepLinking.build_response!(context, [], message: "Done")
+    end
+
+    test "raises the error build_response/3 returns", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p)
+
+      assert_raise InvalidMessageType, fn -> DeepLinking.build_response!(context) end
     end
   end
 

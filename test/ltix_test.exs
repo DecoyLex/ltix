@@ -228,6 +228,32 @@ defmodule LtixTest do
     end
   end
 
+  describe "handle_login!/3" do
+    test "returns the redirect or raises the error" do
+      assert %{redirect_uri: "https://platform.example.com/auth?" <> _, state: _state} =
+               Ltix.handle_login!(login_params(), @redirect_uri, storage_adapter: StorageAdapter)
+
+      assert_raise RegistrationNotFound, fn ->
+        Ltix.handle_login!(login_params(), @redirect_uri,
+          storage_adapter: UnregisteredStorageAdapter
+        )
+      end
+    end
+  end
+
+  describe "handle_callback!/3" do
+    test "returns the launch context or raises the error", ctx do
+      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
+
+      assert %LaunchContext{} =
+               Ltix.handle_callback!(params, ctx.state, req_options: req_options())
+
+      assert_raise MissingParameter, fn ->
+        Ltix.handle_callback!(%{"state" => ctx.state}, ctx.state, req_options: req_options())
+      end
+    end
+  end
+
   describe "handle_callback/3" do
     test "raises on unknown and invalid options", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}

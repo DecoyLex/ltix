@@ -119,6 +119,12 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
     end
   end
 
+  describe "new!/1" do
+    test "raises the error new/1 returns" do
+      assert_raise Ltix.Errors.Invalid.InvalidField, ~r/field :url /, fn -> Link.new!([]) end
+    end
+  end
+
   describe "to_map/1" do
     test "includes type and url" do
       {:ok, link} = Link.new(url: "https://example.com")

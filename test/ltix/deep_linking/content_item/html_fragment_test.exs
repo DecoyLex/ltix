@@ -6,6 +6,14 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragmentTest do
 
   doctest HTMLFragment
 
+  describe "new!/1" do
+    test "raises the error new/1 returns" do
+      assert_raise Ltix.Errors.Invalid.InvalidField, ~r/field :html /, fn ->
+        HTMLFragment.new!([])
+      end
+    end
+  end
+
   describe "to_map/1" do
     test "merges extensions at top level" do
       {:ok, fragment} =

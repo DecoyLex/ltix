@@ -17,7 +17,8 @@ The entire OIDC launch flow is two functions:
    and deployment.
 
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use
-  the two public functions.
+  the two public functions, or their raising variants `handle_login!/3` and
+  `handle_callback!/3`.
 - `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:jwks_cache`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 ## Required Configuration
@@ -37,8 +38,8 @@ preferred structure before creating modules.
 
 ## Registrations & Deployments
 
-- Construct with `Registration.new/1` and `Deployment.new/1` (validated).
-  `Registration.new/1` takes a keyword list or map and returns
+- Construct with `Registration.new/1` and `Deployment.new/1` (validated), or their raising
+  variants `new!/1`. `Registration.new/1` takes a keyword list or map and returns
   `Ltix.Errors.Invalid.InvalidField` for unknown, missing, or invalid fields. **Never**
   build `%Registration{}` or `%Deployment{}` structs directly — always go through `new/1`.
 - Storage adapters return structs implementing `Ltix.Registerable` and `Ltix.Deployable`

@@ -30,7 +30,7 @@ defmodule Ltix.LaunchClaims.AGSEndpointTest do
       assert ags.line_item == "https://platform.example.com/api/lineitems/123"
     end
 
-    test "names the claim by its key when the claim is not an object" do
+    test "returns an error with the claim's key when the claim is not an object" do
       assert {:error,
               %InvalidClaim{claim: "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"}} =
                AGSEndpoint.from_json("https://platform.example.com/api/lineitems")
@@ -90,6 +90,11 @@ defmodule Ltix.LaunchClaims.AGSEndpointTest do
 
       assert {:error, %InvalidField{field: :lineitems, reason: :unknown}} =
                AGSEndpoint.new(scopes: @scopes, lineitems: nil)
+    end
+
+    test "new! returns the endpoint or raises the error" do
+      assert %AGSEndpoint{scopes: @scopes} = AGSEndpoint.new!(scopes: @scopes)
+      assert_raise InvalidField, fn -> AGSEndpoint.new!(line_item: @line_item) end
     end
   end
 end

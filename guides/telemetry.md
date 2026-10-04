@@ -19,6 +19,8 @@ suffixes with `system_time` and `duration` measurements provided by
 
 - `[:ltix, :deep_linking, :build_response, :start | :stop | :exception]` — wraps `Ltix.DeepLinking.build_response/3`. Use `item_count` and `item_types` metadata to break down measurements.
 
+Bang variants such as `list_members!/2` emit the same events as their non-bang functions.
+
 ## OAuth
 
 - `[:ltix, :oauth, :authenticate, :start | :stop | :exception]` — wraps token acquisition via client credentials. Use `scopes_requested` metadata (start and stop) to break down measurements. `scopes_granted` and `expires_in` are available on stop (`nil` on error).

@@ -914,6 +914,77 @@ defmodule Ltix.GradeServiceTest do
     end
   end
 
+  # --- bang variants ---
+
+  describe "bang variants" do
+    setup ctx do
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      item_json = build_line_item_json(id: "#{@line_items_url}/7")
+
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        case {conn.method, conn.request_path} do
+          {"DELETE", "/context/2923/lineitems/7"} ->
+            Plug.Conn.send_resp(conn, 204, "")
+
+          {"POST", "/context/2923/lineitems/1/lineitem/scores"} ->
+            Plug.Conn.send_resp(conn, 204, "")
+
+          {"GET", "/context/2923/lineitems"} ->
+            Req.Test.json(conn, [item_json])
+
+          {"GET", "/context/2923/lineitems/1/lineitem/results"} ->
+            Req.Test.json(conn, [build_result_json("u1", [])])
+
+          {"GET", "/context/2923/lineitems/1/lineitem"} ->
+            Req.Test.json(conn, item_json)
+
+          {"POST", "/context/2923/lineitems"} ->
+            Req.Test.json(conn, item_json)
+
+          {"PUT", "/context/2923/lineitems/7"} ->
+            Req.Test.json(conn, item_json)
+
+          _ ->
+            Plug.Conn.send_resp(conn, 404, "")
+        end
+      end)
+
+      item = %LineItem{id: "#{@line_items_url}/7", label: "Quiz", score_maximum: 10}
+      %{client: build_client(ctx.platform), score: score, item: item}
+    end
+
+    test "return the unwrapped value on success", ctx do
+      assert [%LineItem{}] = GradeService.list_line_items!(ctx.client)
+      assert %LineItem{} = GradeService.get_line_item!(ctx.client)
+
+      assert %LineItem{} =
+               GradeService.create_line_item!(ctx.client, label: "Quiz", score_maximum: 10)
+
+      assert %LineItem{} = GradeService.update_line_item!(ctx.client, ctx.item)
+      assert :ok = GradeService.delete_line_item!(ctx.client, line_item: ctx.item)
+      assert :ok = GradeService.post_score!(ctx.client, ctx.score)
+      assert [%Result{user_id: "u1"}] = GradeService.list_results!(ctx.client)
+    end
+
+    test "raise the error on failure", ctx do
+      client = build_client(ctx.platform, scopes: [])
+
+      for call <- [
+            fn -> GradeService.list_line_items!(client) end,
+            fn -> GradeService.get_line_item!(client) end,
+            fn -> GradeService.create_line_item!(client, label: "Quiz", score_maximum: 10) end,
+            fn -> GradeService.update_line_item!(client, ctx.item) end,
+            fn -> GradeService.delete_line_item!(client, line_item: ctx.item) end,
+            fn -> GradeService.post_score!(client, ctx.score) end,
+            fn -> GradeService.list_results!(client) end
+          ] do
+        assert_raise ScopeMismatch, call
+      end
+    end
+  end
+
   describe "line items without an id" do
     test "every operation returns MissingLineItemId", ctx do
       Req.Test.stub(Ltix.GradeService, fn _conn ->
@@ -1202,6 +1273,15 @@ defmodule Ltix.GradeServiceTest do
 
       assert {:error, %ScopeMismatch{}} = GradeService.stream_line_items(client)
       assert {:error, %ScopeMismatch{}} = GradeService.stream_results(client)
+      assert_raise ScopeMismatch, fn -> GradeService.stream_line_items!(client) end
+      assert_raise ScopeMismatch, fn -> GradeService.stream_results!(client) end
+    end
+
+    test "bang variants return the stream", ctx do
+      assert [%LineItem{} | _] = Enum.to_list(GradeService.stream_line_items!(ctx.client))
+
+      assert [%Result{user_id: "user-1"}, %Result{user_id: "user-2"}] =
+               Enum.to_list(GradeService.stream_results!(ctx.client))
     end
 
     test "stream options reject the eager limits", ctx do

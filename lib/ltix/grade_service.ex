@@ -140,13 +140,13 @@ defmodule Ltix.GradeService do
 
   ## From a registration
 
-      {:ok, endpoint} =
-        AGSEndpoint.new(
-          line_items: "https://lms.example.com/lineitems",
-          scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
-        )
-
-      {:ok, client} = Ltix.GradeService.authenticate(registration, endpoint: endpoint)
+      {:ok, client} = Ltix.GradeService.authenticate(registration,
+        endpoint:
+          AGSEndpoint.new!(
+            line_items: "https://lms.example.com/lineitems",
+            scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+          )
+      )
 
   ## Options (launch context)
 
@@ -242,6 +242,17 @@ defmodule Ltix.GradeService do
   end
 
   @doc """
+  Same as `list_line_items/2` but raises on error.
+  """
+  @spec list_line_items!(Client.t(), keyword()) :: [LineItem.t()]
+  def list_line_items!(%Client{} = client, opts \\ []) do
+    case list_line_items(client, opts) do
+      {:ok, items} -> items
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Fetch line items as a lazy stream.
 
   Returns `{:ok, stream}` where each element is a `%LineItem{}`. Use this
@@ -259,6 +270,17 @@ defmodule Ltix.GradeService do
   def stream_line_items(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_line_items_schema)
     with_line_items(:stream_line_items, client, opts, &{:ok, stream(&1)})
+  end
+
+  @doc """
+  Same as `stream_line_items/2` but raises on error.
+  """
+  @spec stream_line_items!(Client.t(), keyword()) :: Enumerable.t()
+  def stream_line_items!(%Client{} = client, opts \\ []) do
+    case stream_line_items(client, opts) do
+      {:ok, stream} -> stream
+      {:error, error} -> raise error
+    end
   end
 
   defp with_line_items(operation, client, opts, consume) do
@@ -297,6 +319,17 @@ defmodule Ltix.GradeService do
         LineItem.from_json(body)
       end
     end)
+  end
+
+  @doc """
+  Same as `get_line_item/2` but raises on error.
+  """
+  @spec get_line_item!(Client.t(), keyword()) :: LineItem.t()
+  def get_line_item!(%Client{} = client, opts \\ []) do
+    case get_line_item(client, opts) do
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end
   end
 
   @create_line_item_schema Zoi.keyword(
@@ -357,6 +390,17 @@ defmodule Ltix.GradeService do
   end
 
   @doc """
+  Same as `create_line_item/2` but raises on error.
+  """
+  @spec create_line_item!(Client.t(), keyword()) :: LineItem.t()
+  def create_line_item!(%Client{} = client, opts) do
+    case create_line_item(client, opts) do
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Update a line item.
 
   PUTs the full line item to its `id` URL. Callers should GET first to
@@ -372,6 +416,17 @@ defmodule Ltix.GradeService do
         LineItem.from_json(body)
       end
     end)
+  end
+
+  @doc """
+  Same as `update_line_item/2` but raises on error.
+  """
+  @spec update_line_item!(Client.t(), LineItem.t()) :: LineItem.t()
+  def update_line_item!(%Client{} = client, %LineItem{} = item) do
+    case update_line_item(client, item) do
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end
   end
 
   @delete_line_item_schema Zoi.keyword(
@@ -416,6 +471,17 @@ defmodule Ltix.GradeService do
     end)
   end
 
+  @doc """
+  Same as `delete_line_item/2` but raises on error.
+  """
+  @spec delete_line_item!(Client.t(), keyword()) :: :ok
+  def delete_line_item!(%Client{} = client, opts \\ []) do
+    case delete_line_item(client, opts) do
+      :ok -> :ok
+      {:error, error} -> raise error
+    end
+  end
+
   @post_score_schema Zoi.keyword(
                        [endpoint: @endpoint_option, line_item: @line_item_option],
                        unrecognized_keys: :error
@@ -443,6 +509,17 @@ defmodule Ltix.GradeService do
         :ok
       end
     end)
+  end
+
+  @doc """
+  Same as `post_score/3` but raises on error.
+  """
+  @spec post_score!(Client.t(), Score.t(), keyword()) :: :ok
+  def post_score!(%Client{} = client, %Score{} = score, opts \\ []) do
+    case post_score(client, score, opts) do
+      :ok -> :ok
+      {:error, error} -> raise error
+    end
   end
 
   @results_query_fields [
@@ -482,6 +559,17 @@ defmodule Ltix.GradeService do
   end
 
   @doc """
+  Same as `list_results/2` but raises on error.
+  """
+  @spec list_results!(Client.t(), keyword()) :: [Result.t()]
+  def list_results!(%Client{} = client, opts \\ []) do
+    case list_results(client, opts) do
+      {:ok, results} -> results
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Fetch results for a line item as a lazy stream.
 
   Returns `{:ok, stream}` where each element is a `%Result{}`. Use this
@@ -499,6 +587,17 @@ defmodule Ltix.GradeService do
   def stream_results(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_results_schema)
     with_results(:stream_results, client, opts, &{:ok, stream(&1)})
+  end
+
+  @doc """
+  Same as `stream_results/2` but raises on error.
+  """
+  @spec stream_results!(Client.t(), keyword()) :: Enumerable.t()
+  def stream_results!(%Client{} = client, opts \\ []) do
+    case stream_results(client, opts) do
+      {:ok, stream} -> stream
+      {:error, error} -> raise error
+    end
   end
 
   defp with_results(operation, client, opts, consume) do

@@ -206,6 +206,22 @@ defmodule Ltix do
   end
 
   @doc """
+  Same as `handle_login/3`, but returns the redirect or raises the error.
+
+  Takes the same options as `handle_login/3`.
+
+      %{redirect_uri: url, state: state} = Ltix.handle_login!(params, launch_url)
+  """
+  @spec handle_login!(params :: map(), redirect_uri :: String.t(), opts :: keyword()) ::
+          %{redirect_uri: String.t(), state: String.t()}
+  def handle_login!(params, redirect_uri, opts \\ []) do
+    case handle_login(params, redirect_uri, opts) do
+      {:ok, result} -> result
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Handle an authentication response and validate the ID Token.
 
   Returns `{:ok, %LaunchContext{}}` on success with parsed claims, registration,
@@ -246,6 +262,23 @@ defmodule Ltix do
           {error, %{issuer: nil, client_id: nil, deployment_id: nil, message_type: nil}}
       end
     end)
+  end
+
+  @doc """
+  Same as `handle_callback/3`, but returns the launch context or raises
+  the error.
+
+  Takes the same options as `handle_callback/3`.
+
+      context = Ltix.handle_callback!(params, state)
+  """
+  @spec handle_callback!(params :: map(), state :: String.t(), opts :: keyword()) ::
+          LaunchContext.t()
+  def handle_callback!(params, state, opts \\ []) do
+    case handle_callback(params, state, opts) do
+      {:ok, context} -> context
+      {:error, error} -> raise error
+    end
   end
 
   defp login_metadata(params) do

@@ -103,6 +103,15 @@ defmodule Ltix.RegistrationTest do
               }} = Registration.new(attrs)
     end
 
+    test "new!/1 returns the registration or raises the error" do
+      assert %Registration{issuer: "https://platform.example.com"} =
+               Registration.new!(@valid_attrs)
+
+      assert_raise InvalidField, "Ltix.Registration field :issuer is required", fn ->
+        Registration.new!(Map.delete(@valid_attrs, :issuer))
+      end
+    end
+
     test "describes the field, the problem, and the value" do
       assert {:error, error} = Registration.new(%{@valid_attrs | client_id: ""})
 

@@ -112,6 +112,21 @@ defmodule Ltix.JWK do
   end
 
   @doc """
+  Same as `new/1`, but returns the JWK or raises the error.
+
+  ## Examples
+
+      jwk = Ltix.JWK.new!(private_key_pem: pem, kid: "my-key-id")
+  """
+  @spec new!(keyword() | map()) :: t()
+  def new!(attrs) do
+    case new(attrs) do
+      {:ok, jwk} -> jwk
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Build a JWKS (JSON Web Key Set) map from one or more JWKs.
 
   Strips private key material, so the output is safe for public endpoints.

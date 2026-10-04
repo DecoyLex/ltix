@@ -122,6 +122,15 @@ defmodule Ltix.JWKTest do
                JWK.new(private_key_pem: 123, kid: ctx.kid)
     end
 
+    test "new!/1 returns the JWK or raises the error", ctx do
+      assert %JWK{kid: kid} = JWK.new!(private_key_pem: ctx.pem, kid: ctx.kid)
+      assert kid == ctx.kid
+
+      assert_raise InvalidField, "Ltix.JWK field :kid is required", fn ->
+        JWK.new!(private_key_pem: ctx.pem)
+      end
+    end
+
     test "reports every invalid field together" do
       assert {:error,
               %Ltix.Errors.Invalid{

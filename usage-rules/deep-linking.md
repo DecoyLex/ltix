@@ -18,7 +18,7 @@ end
 
 ## Content Item Types
 
-Build items with `ContentItem.*.new/1`, which takes a keyword list or map. Unknown or invalid fields return `Ltix.Errors.Invalid.InvalidField` naming the item struct.
+Build items with `ContentItem.*.new/1`, which takes a keyword list or map, or with the raising `new!/1`. Unknown or invalid fields return `Ltix.Errors.Invalid.InvalidField`.
 
 - `Ltix.DeepLinking.ContentItem.LTIResourceLink` — activity that launches back into your tool
 - `Ltix.DeepLinking.ContentItem.Link` — external URL (article, docs page)
@@ -73,6 +73,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 
 - Pass a list of items (or `[]` for cancellation).
 - Options: `:message`, `:log`, `:error_message`, `:error_log`. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `build_response!/3` raises on error.
 - Returns `%Response{jwt: signed_jwt, return_url: platform_url}`.
 
 ## Delivering the Response

@@ -122,6 +122,21 @@ defmodule Ltix.DeepLinking do
     end)
   end
 
+  @doc """
+  Same as `build_response/3` but raises on error.
+
+  ## Examples
+
+      response = Ltix.DeepLinking.build_response!(context, [link], message: "Selected 1 item")
+  """
+  @spec build_response!(LaunchContext.t(), list(), keyword()) :: Response.t()
+  def build_response!(context, items \\ [], opts \\ []) do
+    case build_response(context, items, opts) do
+      {:ok, response} -> response
+      {:error, error} -> raise error
+    end
+  end
+
   defp build(
          %LaunchContext{claims: %{message_type: "LtiDeepLinkingRequest"}} = context,
          serialized,

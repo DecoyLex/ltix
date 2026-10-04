@@ -132,6 +132,22 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
     ContentItemHelpers.new(@schema, opts, "DL §3.2")
   end
 
+  @doc """
+  Same as `new/1` but raises on error.
+
+  ## Examples
+
+      iex> Ltix.DeepLinking.ContentItem.LTIResourceLink.new!(title: "Quiz 1").title
+      "Quiz 1"
+  """
+  @spec new!(keyword() | map()) :: t()
+  def new!(opts) do
+    case new(opts) do
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end
+  end
+
   # Returns every set field, so fields deep linking can't send are rejected as unknown.
   defp line_item_fields(line_item) do
     for {field, value} <- Map.from_struct(line_item), value not in [nil, %{}], into: %{} do

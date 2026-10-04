@@ -97,6 +97,29 @@ defmodule Ltix.Registration do
     end
   end
 
+  @doc """
+  Same as `new/1`, but returns the registration or raises the error.
+
+  ## Examples
+
+      iex> registration = Ltix.Registration.new!(
+      ...>   issuer: "https://platform.example.com",
+      ...>   client_id: "tool-123",
+      ...>   auth_endpoint: "https://platform.example.com/auth",
+      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+      ...>   tool_jwk: Ltix.JWK.generate()
+      ...> )
+      iex> registration.client_id
+      "tool-123"
+  """
+  @spec new!(keyword() | map()) :: t()
+  def new!(attrs) do
+    case new(attrs) do
+      {:ok, registration} -> registration
+      {:error, error} -> raise error
+    end
+  end
+
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token):
   # "The `iss` value is a case-sensitive URL using the HTTPS scheme that contains:
   # scheme, host; and, optionally, port number, and path components; and, no query

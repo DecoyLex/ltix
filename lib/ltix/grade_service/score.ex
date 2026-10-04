@@ -177,6 +177,17 @@ defmodule Ltix.GradeService.Score do
   end
 
   @doc """
+  Same as `new/1` but raises on error.
+  """
+  @spec new!(keyword() | map()) :: t()
+  def new!(attributes) do
+    case new(attributes) do
+      {:ok, score} -> score
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Serialize a score to a map with camelCase string keys.
 
   ## Examples

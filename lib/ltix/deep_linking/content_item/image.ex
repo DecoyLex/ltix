@@ -70,6 +70,22 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.5")
 
+  @doc """
+  Same as `new/1` but raises on error.
+
+  ## Examples
+
+      iex> Ltix.DeepLinking.ContentItem.Image.new!(url: "https://example.com/photo.png").url
+      "https://example.com/photo.png"
+  """
+  @spec new!(keyword() | map()) :: t()
+  def new!(opts) do
+    case new(opts) do
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end
+  end
+
   defimpl ContentItem do
     def to_map(item), do: ContentItemHelpers.to_map(item, "image")
   end

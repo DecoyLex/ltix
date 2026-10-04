@@ -220,6 +220,13 @@ defmodule Ltix.GradeService.ScoreTest do
     end
   end
 
+  describe "new!/1" do
+    test "returns the score or raises the error" do
+      assert %Score{user_id: "12345"} = Score.new!(@valid_attrs)
+      assert_raise InvalidField, fn -> Score.new!(Keyword.delete(@valid_attrs, :user_id)) end
+    end
+  end
+
   describe "JSON encoding" do
     test "serializes enums to PascalCase strings" do
       {:ok, score} = Score.new(@valid_attrs)

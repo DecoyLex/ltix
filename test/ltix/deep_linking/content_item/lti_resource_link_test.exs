@@ -122,6 +122,14 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
     end
   end
 
+  describe "new!/1" do
+    test "raises the error new/1 returns" do
+      assert_raise Ltix.Errors.Invalid.InvalidField, ~r/field :title /, fn ->
+        LTIResourceLink.new!(title: 1)
+      end
+    end
+  end
+
   describe "to_map/1" do
     test "serializes lineItem with camelCase keys" do
       {:ok, link} =

@@ -47,6 +47,14 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
     end
   end
 
+  describe "new!/1" do
+    test "raises the error new/1 returns" do
+      assert_raise Ltix.Errors.Invalid.InvalidField, ~r/field :url /, fn ->
+        ContentFile.new!([])
+      end
+    end
+  end
+
   describe "to_map/1" do
     test "includes type and url" do
       {:ok, file} = ContentFile.new(url: "https://example.com/doc.pdf")
