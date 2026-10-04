@@ -10,16 +10,18 @@ common pitfalls.
 
 | Callback | When it's called | What it does |
 |---|---|---|
-| `get_registration/2` | Login initiation | Look up a platform by issuer and optional client_id |
+| `get_registration/2` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
 | `get_deployment/2` | Launch validation | Look up a deployment by registration and deployment_id |
 | `store_nonce/2` | Login initiation | Persist a nonce for later verification |
 | `validate_nonce/2` | Launch validation | Verify a nonce was issued by us, then consume it |
+
+When storage fails, return `{:error, reason}` from any callback. The login or launch then returns `{:error, %Ltix.Errors.Unknown.StorageError{}}`, whose `result` is what the callback returned. A `reason` that is already an Ltix error is returned unchanged. Any other unexpected return value is also reported as a `StorageError`.
 
 ## Registration lookups
 
 ```elixir
 @callback get_registration(issuer :: String.t(), client_id :: String.t() | nil) ::
-            {:ok, Registerable.t()} | {:error, :not_found}
+            {:ok, Registerable.t()} | {:error, :not_found | term()}
 ```
 
 Return any struct that implements `Ltix.Registerable`. The library
@@ -28,6 +30,9 @@ your original struct is preserved in the `Ltix.LaunchContext` — so
 you can access your own fields (database IDs, tenant info, etc.)
 after a successful launch without an extra query.
 
+Ltix calls `get_registration/2` during login initiation with the login
+request's issuer and client_id, and again during launch validation
+with the ID Token's issuer and audience.
 The `client_id` may be `nil` — some platforms don't include it in the
 login initiation request. Your adapter must handle both cases:
 
@@ -75,7 +80,7 @@ end
 
 ```elixir
 @callback get_deployment(registration :: Registration.t(), deployment_id :: String.t()) ::
-            {:ok, Deployable.t()} | {:error, :not_found}
+            {:ok, Deployable.t()} | {:error, :not_found | term()}
 ```
 
 Return any struct that implements `Ltix.Deployable`. Like registrations,
@@ -159,11 +164,12 @@ create unique_index(:lti_nonces, [:nonce, :issuer])
 ```elixir
 @impl true
 def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-  %LtiNonce{}
-  |> LtiNonce.changeset(%{nonce: nonce, issuer: issuer})
-  |> Repo.insert!()
+  changeset = LtiNonce.changeset(%LtiNonce{}, %{nonce: nonce, issuer: issuer})
 
-  :ok
+  case Repo.insert(changeset) do
+    {:ok, _nonce} -> :ok
+    {:error, changeset} -> {:error, changeset}
+  end
 end
 
 @impl true
@@ -236,8 +242,10 @@ defmodule MyApp.LtiStorage do
 
   @impl true
   def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    Repo.insert!(%LtiNonce{nonce: nonce, issuer: issuer})
-    :ok
+    case Repo.insert(%LtiNonce{nonce: nonce, issuer: issuer}) do
+      {:ok, _nonce} -> :ok
+      {:error, changeset} -> {:error, changeset}
+    end
   end
 
   @impl true

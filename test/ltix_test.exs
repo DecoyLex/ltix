@@ -2,10 +2,12 @@ defmodule LtixTest do
   use ExUnit.Case
 
   alias Ltix.Deployment
+  alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
+  alias Ltix.Errors.Unknown.StorageError
   alias Ltix.LaunchContext
   alias Ltix.Registration
   alias Ltix.Test.JWTHelper
@@ -48,6 +50,42 @@ defmodule LtixTest do
 
     @impl Ltix.JWT.KeySet.Cache
     def delete(_jwks_uri), do: :ok
+  end
+
+  # Returns a result sent by the test for a callback, otherwise delegates.
+  defmodule ScriptedStorageAdapter do
+    @moduledoc false
+    @behaviour Ltix.StorageAdapter
+
+    @impl Ltix.StorageAdapter
+    def get_registration(issuer, client_id) do
+      scripted(:get_registration, fn -> StorageAdapter.get_registration(issuer, client_id) end)
+    end
+
+    @impl Ltix.StorageAdapter
+    def get_deployment(registration, deployment_id) do
+      scripted(:get_deployment, fn ->
+        StorageAdapter.get_deployment(registration, deployment_id)
+      end)
+    end
+
+    @impl Ltix.StorageAdapter
+    def store_nonce(nonce, registration) do
+      scripted(:store_nonce, fn -> StorageAdapter.store_nonce(nonce, registration) end)
+    end
+
+    @impl Ltix.StorageAdapter
+    def validate_nonce(nonce, registration) do
+      scripted(:validate_nonce, fn -> StorageAdapter.validate_nonce(nonce, registration) end)
+    end
+
+    defp scripted(callback, default) do
+      receive do
+        {:storage_result, ^callback, result} -> result
+      after
+        0 -> default.()
+      end
+    end
   end
 
   setup do
@@ -529,6 +567,53 @@ defmodule LtixTest do
       assert {:error, %MissingParameter{parameter: "id_token"}} =
                Ltix.handle_callback(params, "some-state",
                  storage_adapter: StorageAdapter,
+                 req_options: req_options()
+               )
+    end
+  end
+
+  describe "storage adapter failures" do
+    for callback <- [:get_registration, :store_nonce],
+        result <- [{:error, :timeout}, :unexpected] do
+      test "handle_login returns StorageError when #{callback} returns #{inspect(result)}" do
+        callback = unquote(callback)
+        result = unquote(result)
+        send(self(), {:storage_result, callback, result})
+
+        assert {:error, %StorageError{callback: ^callback, result: ^result}} =
+                 Ltix.handle_login(login_params(), @redirect_uri,
+                   storage_adapter: ScriptedStorageAdapter
+                 )
+      end
+    end
+
+    for callback <- [:get_registration, :validate_nonce, :get_deployment],
+        result <- [{:error, :timeout}, :unexpected] do
+      test "handle_callback returns StorageError when #{callback} returns #{inspect(result)}",
+           ctx do
+        callback = unquote(callback)
+        result = unquote(result)
+        send(self(), {:storage_result, callback, result})
+
+        assert {:error, %StorageError{callback: ^callback, result: ^result}} =
+                 Ltix.handle_callback(
+                   %{"id_token" => ctx.id_token, "state" => ctx.state},
+                   ctx.state,
+                   storage_adapter: ScriptedStorageAdapter,
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    test "Ltix errors returned by the storage adapter are returned unchanged", ctx do
+      error = DeploymentNotFound.exception(deployment_id: "deployment-001")
+      send(self(), {:storage_result, :get_deployment, {:error, error}})
+
+      assert {:error, ^error} =
+               Ltix.handle_callback(
+                 %{"id_token" => ctx.id_token, "state" => ctx.state},
+                 ctx.state,
+                 storage_adapter: ScriptedStorageAdapter,
                  req_options: req_options()
                )
     end

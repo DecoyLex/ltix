@@ -14,10 +14,12 @@ The storage adapter has 4 callbacks:
 
 | Callback | Called During | Returns |
 |---|---|---|
-| `get_registration/2` | Login initiation | `{:ok, Registerable.t()} \| {:error, :not_found}` |
-| `get_deployment/2` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found}` |
-| `store_nonce/2` | Login initiation | `:ok` |
-| `validate_nonce/2` | Callback validation | `:ok \| {:error, :nonce_already_used \| :nonce_not_found}` |
+| `get_registration/2` | Login initiation and callback validation | `{:ok, Registerable.t()} \| {:error, :not_found \| term()}` |
+| `get_deployment/2` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found \| term()}` |
+| `store_nonce/2` | Login initiation | `:ok \| {:error, term()}` |
+| `validate_nonce/2` | Callback validation | `:ok \| {:error, :nonce_already_used \| :nonce_not_found \| term()}` |
+
+Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 
 `get_registration/2` and `get_deployment/2` can return any struct that implements
 the `Ltix.Registerable` or `Ltix.Deployable` protocol. This means you return your
@@ -278,8 +280,10 @@ defmodule MyApp.Lti do
   end
 
   def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    Repo.insert!(%Nonce{nonce: nonce, issuer: issuer})
-    :ok
+    case Repo.insert(%Nonce{nonce: nonce, issuer: issuer}) do
+      {:ok, _nonce} -> :ok
+      {:error, changeset} -> {:error, changeset}
+    end
   end
 
   def validate_nonce(nonce, %Ltix.Registration{issuer: issuer}) do

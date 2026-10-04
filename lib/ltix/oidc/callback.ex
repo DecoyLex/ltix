@@ -8,16 +8,14 @@ defmodule Ltix.OIDC.Callback do
   alias Ltix.LaunchContext
   alias Ltix.OIDC.State
   alias Ltix.Registerable
+  alias Ltix.StorageAdapter
 
-  alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.MissingParameter
-  alias Ltix.Errors.Invalid.RegistrationNotFound
 
   alias Ltix.Errors.Security.AuthenticationFailed
   alias Ltix.Errors.Security.NonceNotFound
-  alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Security.StateMismatch
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
@@ -31,7 +29,8 @@ defmodule Ltix.OIDC.Callback do
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
          {:ok, iss, client_id} <- peek_issuer_and_audience(id_token),
-         {:ok, user_registration} <- lookup_registration(iss, client_id, callback_module),
+         {:ok, user_registration} <-
+           StorageAdapter.get_registration(callback_module, iss, client_id),
          {:ok, registration} <- Registerable.to_registration(user_registration),
          {:ok, raw_claims} <-
            Token.verify(
@@ -40,9 +39,14 @@ defmodule Ltix.OIDC.Callback do
              Keyword.take(opts, [:clock_skew, :req_options, :jwks_cache])
            ),
          :ok <- verify_nonce_binding(raw_claims, expected_state),
-         :ok <- validate_nonce(raw_claims, registration, callback_module),
+         :ok <- StorageAdapter.validate_nonce(callback_module, raw_claims["nonce"], registration),
          :ok <- validate_required_lti_claims(raw_claims, opts),
-         {:ok, user_deployment} <- lookup_deployment(raw_claims, registration, callback_module),
+         {:ok, user_deployment} <-
+           StorageAdapter.get_deployment(
+             callback_module,
+             registration,
+             raw_claims[@lti <> "deployment_id"]
+           ),
          {:ok, _deployment} <- Deployable.to_deployment(user_deployment),
          {:ok, claims} <-
            LaunchClaims.from_json(raw_claims, Keyword.take(opts, [:claim_parsers, :role_parsers])) do
@@ -105,16 +109,6 @@ defmodule Ltix.OIDC.Callback do
     _ -> {:error, MissingParameter.exception(parameter: "id_token", spec_ref: "Sec §5.1.1.3")}
   end
 
-  defp lookup_registration(iss, client_id, callback_module) do
-    case callback_module.get_registration(iss, client_id) do
-      {:ok, registration} ->
-        {:ok, registration}
-
-      {:error, :not_found} ->
-        {:error, RegistrationNotFound.exception(issuer: iss, client_id: client_id)}
-    end
-  end
-
   # [nonce-validation]:
   # https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation
   #
@@ -124,20 +118,6 @@ defmodule Ltix.OIDC.Callback do
       :ok
     else
       {:error, NonceNotFound.exception(spec_ref: "OIDC §3.2.2.11")}
-    end
-  end
-
-  # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-  defp validate_nonce(%{"nonce" => nonce}, registration, callback_module) do
-    case callback_module.validate_nonce(nonce, registration) do
-      :ok ->
-        :ok
-
-      {:error, :nonce_already_used} ->
-        {:error, NonceReused.exception(spec_ref: "Sec §5.1.3 step 9")}
-
-      {:error, :nonce_not_found} ->
-        {:error, NonceNotFound.exception(spec_ref: "Sec §5.1.3 step 9")}
     end
   end
 
@@ -282,18 +262,5 @@ defmodule Ltix.OIDC.Callback do
       message: "must be an object",
       spec_ref: spec_ref
     )
-  end
-
-  # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)
-  defp lookup_deployment(claims, registration, callback_module) do
-    deployment_id = claims[@lti <> "deployment_id"]
-
-    case callback_module.get_deployment(registration, deployment_id) do
-      {:ok, deployment} ->
-        {:ok, deployment}
-
-      {:error, :not_found} ->
-        {:error, DeploymentNotFound.exception(deployment_id: deployment_id)}
-    end
   end
 end

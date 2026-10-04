@@ -171,6 +171,17 @@ These indicate the launch failed a security check:
 | `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's JWKS |
 | `AuthenticationFailed` | `error`, `error_description`, `spec_ref` | Platform returned an error response |
 
+## Unknown errors
+
+These indicate an unexpected failure outside the incoming request.
+
+| Error | Fields | When |
+|---|---|---|
+| `StorageError` | `callback`, `result` | A storage adapter callback returned `{:error, reason}` or an unexpected value |
+| `TransportError` | `status`, `body`, `url`, `spec_ref` | An HTTP request to the platform failed |
+| `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
+| `Unknown` | `error` | Any other unexpected failure |
+
 ## Advantage service errors
 
 These errors apply to LTI Advantage service calls (memberships, AGS,

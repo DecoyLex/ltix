@@ -4,9 +4,9 @@ defmodule Ltix.OIDC.LoginInitiation do
   alias Ltix.OIDC.AuthenticationRequest
   alias Ltix.OIDC.State
   alias Ltix.Registerable
+  alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.MissingParameter
-  alias Ltix.Errors.Invalid.RegistrationNotFound
 
   @required_params ~w(iss login_hint target_link_uri)
   @optional_params ~w(client_id lti_message_hint)
@@ -16,12 +16,11 @@ defmodule Ltix.OIDC.LoginInitiation do
           {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Exception.t()}
   def call(params, callback_module, redirect_uri) do
     with :ok <- validate_login_params(params),
-         {:ok, user_registration} <- lookup_registration(params, callback_module),
-         {:ok, registration} <- Registerable.to_registration(user_registration) do
-      {state, nonce} = State.generate()
-
-      callback_module.store_nonce(nonce, registration)
-
+         {:ok, user_registration} <-
+           StorageAdapter.get_registration(callback_module, params["iss"], params["client_id"]),
+         {:ok, registration} <- Registerable.to_registration(user_registration),
+         {state, nonce} = State.generate(),
+         :ok <- StorageAdapter.store_nonce(callback_module, nonce, registration) do
       auth_redirect =
         AuthenticationRequest.build(registration, %{
           redirect_uri: redirect_uri,
@@ -53,22 +52,5 @@ defmodule Ltix.OIDC.LoginInitiation do
            )}
       end
     end)
-  end
-
-  defp lookup_registration(params, callback_module) do
-    iss = params["iss"]
-    client_id = params["client_id"]
-
-    case callback_module.get_registration(iss, client_id) do
-      {:ok, registration} ->
-        {:ok, registration}
-
-      {:error, :not_found} ->
-        {:error,
-         RegistrationNotFound.exception(
-           issuer: iss,
-           client_id: client_id
-         )}
-    end
   end
 end

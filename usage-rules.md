@@ -71,6 +71,8 @@ Return types:
 - `store_nonce/2`: `:ok`
 - `validate_nonce/2`: `:ok | {:error, :nonce_already_used | :nonce_not_found}`
 
+Any other `{:error, reason}` from a callback fails the login or launch with `Ltix.Errors.Unknown.StorageError`.
+
 **Nonce is consumed on callback.** `handle_callback/3` consumes the nonce as part of
 validation. If the callback fails for a non-security reason (e.g., `DeploymentNotFound`),
 you cannot retry `handle_callback/3` with the same params — the nonce is already gone.
