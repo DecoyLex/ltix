@@ -1,21 +1,21 @@
 # Custom Role Parsers
 
-Ltix parses standard LIS role URIs out of the box, but some platforms
+Ltix parses standard LIS role URIs by default, but some platforms
 send proprietary role vocabularies with their own URI namespaces. Without
-a custom parser, those URIs end up as raw strings in `unrecognized_roles`:
+a custom parser, those URIs are left as raw strings in `unrecognized_roles`.
 
 ```elixir
 context.claims.unrecognized_roles
 #=> ["https://myplatform.example.com/roles/CourseAdmin"]
 ```
 
-Register a custom role parser to teach Ltix how to handle them.
+Register a custom role parser to parse them.
 
 ## Implementing the behaviour
 
 A role parser is a module that implements `Ltix.LaunchClaims.Role.Parser`.
 The only required callback is `parse/1`, which receives a role URI string
-and returns `{:ok, %Role{}}` or `:error`:
+and returns `{:ok, %Role{}}` or `:error`.
 
 ```elixir
 defmodule MyApp.Lti.PlatformRoleParser do
@@ -54,7 +54,9 @@ the prefix yourself.
 
 If you need to convert `%Role{}` structs back to URI strings (e.g. for
 building NRPS responses or test fixtures), implement the optional
-`to_uri/1` callback:
+`to_uri/1` callback. For a role without a URI, `Role.to_uri/2`
+and `Role.to_uri!/2` try the same parsers `Role.parse/2` would, in the
+same order, and take the same `:role_parsers` option.
 
 ```elixir
 @roles_inverse Map.new(@roles, fn {k, v} -> {v, k} end)
@@ -73,11 +75,11 @@ def to_uri(_), do: :error
 ## Registering parsers
 
 Role parsers are registered as a map of URI prefix to parser module. The
-prefix determines which URIs are routed to your parser. Ltix tries each
-registered parser whose prefix matches the URI, then falls back to the
-built-in LIS parser.
+prefix determines which URIs are passed to your parser. Ltix tries each
+registered parser whose prefix matches the URI, longest prefix first,
+then the built-in LIS parser.
 
-**Via application config** (recommended for parsers that apply globally):
+**Via application config** (recommended for parsers that apply globally)
 
 ```elixir
 # config/config.exs
@@ -87,7 +89,7 @@ config :ltix, Ltix.LaunchClaims,
   }
 ```
 
-**Via `handle_callback/3`** (for per-call control):
+**Via `handle_callback/3`** (for per-call control)
 
 ```elixir
 Ltix.handle_callback(params, state,
@@ -97,7 +99,7 @@ Ltix.handle_callback(params, state,
 )
 ```
 
-**Via `LaunchClaims.from_json/2`** (for direct parsing):
+**Via `LaunchClaims.from_json/2`** (for direct parsing)
 
 ```elixir
 Ltix.LaunchClaims.from_json(claims,
@@ -107,7 +109,7 @@ Ltix.LaunchClaims.from_json(claims,
 )
 ```
 
-**Via `Role.parse/2`** (for parsing individual URIs):
+**Via `Role.parse/2`** (for parsing individual URIs)
 
 ```elixir
 Role.parse(uri,
@@ -118,13 +120,13 @@ Role.parse(uri,
 ```
 
 Per-call parsers merge with application config, with per-call taking
-priority for overlapping prefixes. The LIS parser is always included
-as a fallback.
+priority for overlapping prefixes. Registered parsers, including ones
+under an LIS prefix, take precedence over the built-in LIS parser.
 
 ## Using function parsers
 
 For a one-off parser in a single call, you can pass an anonymous
-function or captured function instead of a module:
+function or captured function as the parser.
 
 ```elixir
 Role.parse(uri,
@@ -146,15 +148,15 @@ Register parsers in application configuration as modules, because a release can'
 
 > #### Function parsers can't convert back to URIs {: .warning}
 >
-> `Role.to_uri/1` only works with module-based parsers that implement
-> the `to_uri/1` callback. Function parsers are skipped during URI
-> conversion.
+> For a role without a URI, `Role.to_uri/2` and `Role.to_uri!/2`
+> only use module-based parsers that implement the `to_uri/1` callback.
+> Function parsers are skipped during URI conversion.
 
 ## Working with custom roles
 
 Once registered, custom roles are parsed into `%Role{}` structs just
 like standard LIS roles. They appear in `context.claims.roles` and work
-with all the filtering and checking functions:
+with all the filtering and checking functions.
 
 ```elixir
 Role.context_roles(context.claims.roles)

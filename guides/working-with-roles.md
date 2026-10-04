@@ -30,7 +30,7 @@ see [Sub-roles](#sub-roles) below.
 
 ## Roles in launch claims
 
-After a successful launch, roles are available on the claims struct:
+After a successful launch, roles are available on the claims struct.
 
 ```elixir
 {:ok, context} = Ltix.handle_callback(params, state)
@@ -47,7 +47,7 @@ doesn't recognize goes into `unrecognized_roles` as raw URI strings.
 
 ## Building authorization logic
 
-A typical pattern for an LTI tool:
+The following is a typical pattern for an LTI tool.
 
 ```elixir
 defmodule MyAppWeb.LtiAuth do
@@ -67,7 +67,7 @@ defmodule MyAppWeb.LtiAuth do
 end
 ```
 
-Use the result to gate access in your controller:
+Use the result to control access in your controller.
 
 ```elixir
 def launch(conn, params) do
@@ -89,13 +89,13 @@ defp dashboard_path(_), do: ~p"/learn"
 
 Every role has a **type** that determines its scope. A single launch can
 include roles from any combination of these types. Which types matter
-depends on what your tool does:
+depends on what your tool does.
 
 - A **course-level tool** (quiz engine, assignment viewer, coding
-  sandbox) primarily cares about **context roles**, which describe the
+  sandbox) primarily uses **context roles**, which describe the
   user's role in the specific course being launched.
 - A **platform-level tool** (analytics dashboard, account provisioning,
-  admin console) cares about **institution** or **system roles**, which
+  admin console) uses **institution** or **system roles**, which
   describe the user's role at the organization or on the platform itself.
 
 The convenience predicates (`instructor?/1`, `learner?/1`, etc.) check
@@ -109,19 +109,19 @@ other institution or system role checks, use
 Context roles describe what the user does **in the specific course or
 activity** being launched.
 
-A person can have different context roles in different courses: an
+A person can have different context roles in different courses. An
 instructor in CS101 might be a learner in MATH201. The platform sends
-whichever context roles apply to the course that triggered the launch.
+whichever context roles apply to the course being launched.
 
 Context roles can have **sub-roles** that refine the principal role.
 For example, `Instructor#TeachingAssistant` is an instructor-type role
 with teaching assistant privileges. See [Sub-roles](#sub-roles) for
 details on how predicates handle these.
 
-Common context roles: `:instructor`, `:learner`, `:content_developer`,
-`:mentor`. All major platforms send at least `:instructor` and
-`:learner`. Canvas also sends `:content_developer` and `:mentor`;
-other platforms may or may not depending on configuration.
+Common context roles are `:instructor`, `:learner`, `:content_developer`,
+and `:mentor`. All major platforms send at least `:instructor` and
+`:learner`. Canvas also sends `:content_developer` and `:mentor`.
+Other platforms may or may not depending on configuration.
 
 ### Institution roles
 
@@ -135,37 +135,37 @@ hierarchy. For example, a Canvas account admin gets
 `institution#Administrator` because Canvas maps its account-level admins
 to institution roles, not system roles.
 
-Common institution roles: `:administrator`, `:faculty`, `:student`,
-`:staff`. Note that only Canvas reliably sends institution roles by
+Common institution roles are `:administrator`, `:faculty`, `:student`,
+and `:staff`. Only Canvas reliably sends institution roles by
 default. Blackboard and Brightspace can be configured to send them,
 while Moodle and Sakai generally do not.
 
 ### System roles
 
-System roles describe the person's role **on the LMS platform itself**,
-the people who manage the software, not just an organization within it.
+System roles describe the person's role **on the LMS platform itself**.
+They apply to the people who manage the software.
 
-Common system roles: `:test_user`, `:user`, `:sys_admin`. In practice,
-only Canvas sends system roles: `system#User` as a baseline for all
-users, `system#SysAdmin` for Instructure Site Admin users, and
-`system#TestUser` for Student View launches.
+Common system roles are `:test_user`, `:user`, and `:sys_admin`. In
+practice, only Canvas sends system roles, which are `system#User` as a
+baseline for all users, `system#SysAdmin` for Instructure Site Admin
+users, and `system#TestUser` for Student View launches.
 
 ## Institution vs. system boundary
 
-Each platform draws the line between institution and system roles
+Each platform divides institution and system roles
 differently, and most platforms don't send both types. Canvas is the
 only major platform that reliably sends institution and system roles.
 A root admin on a cloud-hosted Canvas instance gets
 `institution#Administrator`, not `system#Administrator`.
 
-If your tool needs to check for admin access, check both levels:
+If your tool needs to check for admin access, check both levels.
 
 ```elixir
 Role.has_role?(roles, :institution, :administrator) or
   Role.has_role?(roles, :system, :administrator)
 ```
 
-Keep in mind that on Moodle, admins may just show up as plain
+On Moodle, admins may be sent as plain
 `context#Instructor`, so role-based admin detection across platforms
 may require platform-specific logic or custom parameters.
 
@@ -177,12 +177,12 @@ are both instructor-type roles with different privileges.
 
 Platforms *should* send the principal role alongside a sub-role (e.g.
 both `Instructor` and `Instructor#TeachingAssistant`), but this is
-not guaranteed. The predicates handle this correctly: `instructor?/1`
+not guaranteed. The predicates handle this correctly, so `instructor?/1`
 matches any instructor, whether or not the principal role was sent
 separately.
 
 If your tool needs to distinguish between instructors and TAs, check
-the sub-role first:
+the sub-role first.
 
 ```elixir
 cond do
@@ -204,7 +204,7 @@ end
 
 ## Generic checks with `has_role?/4`
 
-For checks beyond context-role predicates, use `has_role?/4`:
+For checks beyond context-role predicates, use `has_role?/4`.
 
 ```elixir
 # Institution faculty
@@ -223,8 +223,7 @@ Role.has_role?(roles, :context, :instructor, :teaching_assistant)
 ## Platform differences
 
 Platforms vary significantly in which roles they send and how granular
-they are. The table below shows what each platform sends by default
-(not what's possible with admin configuration).
+they are. The table below shows what each platform sends by default.
 
 | Behavior | Canvas | Moodle | Blackboard | Brightspace | Sakai |
 |---|---|---|---|---|---|
@@ -239,7 +238,7 @@ they are. The table below shows what each platform sends by default
 
 [Full mapping](https://developerdocs.instructure.com/services/canvas/external-tools/file.canvas_roles)
 
-Canvas has **hardcoded** role mappings that admins cannot change:
+Canvas has **hardcoded** role mappings that admins cannot change.
 
 - TeacherEnrollment becomes `membership#Instructor`
 - TaEnrollment sends **both** `membership#Instructor` and the
@@ -253,7 +252,7 @@ Canvas has **hardcoded** role mappings that admins cannot change:
   `membership#Member` plus `membership#Manager`
 
 Canvas also sends **institution roles** based on account-level
-permissions: account admins get `institution#Administrator`, users with
+permissions. Account admins get `institution#Administrator`, and users with
 a "teacher" base role get `institution#Instructor`. A root admin may
 receive multiple institution roles. For system roles, ordinary users
 get `system#User`, Instructure Site Admin users get `system#SysAdmin`.
@@ -264,7 +263,7 @@ over-rely on roles that other platforms don't send.
 ### Moodle
 
 Moodle is the **least granular** platform. It sends only two context
-roles:
+roles.
 
 - `membership#Instructor` for anyone with the
   `moodle/course:manageactivities` capability (teachers, TAs, course
@@ -309,7 +308,7 @@ institution configured their mapping.
 ### Sakai
 
 Sakai has explicit default mappings that are configurable via
-`lti.outbound.role.map` in `sakai.properties`:
+`lti.outbound.role.map` in `sakai.properties`.
 
 - admin and maintain roles become `membership#Instructor`
 - access role becomes `membership#Learner`
@@ -321,23 +320,23 @@ Per-tool overrides are also possible.
 
 ### Practical takeaways
 
-**Don't rely on sub-roles for critical authorization.** A TA arrives as
+**Don't rely on sub-roles for critical authorization.** A TA is sent as
 `Instructor#TeachingAssistant` from Canvas and Sakai, but as plain
 `Instructor` from Moodle, Blackboard, and Brightspace. If you need to
 distinguish TAs from instructors, use platform-specific custom
 parameters or your own role management.
 
-**Design for the lowest common denominator.** If your tool needs to work
+**Design for the roles every platform sends.** If your tool needs to work
 across platforms, assume you'll only reliably get `Instructor` vs
-`Learner`. Everything else is a bonus.
+`Learner`. Treat every other role as optional.
 
-**Blackboard and Brightspace are wildcards.** Their role mappings are
+**Blackboard and Brightspace roles are unpredictable.** Their role mappings are
 admin-configurable, so you might receive any valid IMS role depending on
 how the institution set things up.
 
 ## Filtering by type
 
-Split roles into their three categories:
+Split roles into their three categories.
 
 ```elixir
 Role.context_roles(roles)       #=> [%Role{type: :context, ...}, ...]
@@ -349,7 +348,7 @@ Role.system_roles(roles)        #=> [%Role{type: :system, ...}, ...]
 
 `Role.from_atom/1` builds a `%Role{}` from a well-known atom. This is
 handy in test helpers and anywhere you need a role struct without
-spelling out a full URI:
+writing a full URI.
 
 ```elixir
 Role.from_atom(:instructor)
@@ -365,7 +364,7 @@ Role.from_atom(:test_user)
 #=> %Role{type: :system, name: :test_user, uri: "http://...#TestUser"}
 ```
 
-Supported atoms:
+The supported atoms are listed below.
 
 | Atom | Type | Notes |
 |------|------|-------|
@@ -381,7 +380,7 @@ Supported atoms:
 | `:staff` | institution | Institution staff |
 | `:test_user` | system | Synthetic test user (e.g. Canvas Student View) |
 
-> **`:learner` vs `:student`:** `:learner` is a context role, meaning the
+> **`:learner` vs `:student`.** `:learner` is a context role, meaning the
 > person is enrolled in a specific course. `:student` is an institution
 > role, meaning the person is enrolled at the institution. A user can be
 > a `:student` at an institution without being a `:learner` in any
@@ -389,13 +388,13 @@ Supported atoms:
 
 Unknown atoms raise `ArgumentError`. For roles not covered here, use
 `Role.parse/1` with the full URI string, or construct the `%Role{}`
-struct directly. `Role.to_uri/1` and `Role.to_uri!/1` return the URI a
+struct directly. `Role.to_uri/2` and `Role.to_uri!/2` return the URI a
 role has, converting a hand-built struct that has none.
 
 ## Parsing roles directly
 
-If you need to parse role URIs outside of a launch (e.g. from a Names
-and Roles Provisioning Service response):
+To parse role URIs outside of a launch (e.g. from a Names and Roles
+Provisioning Service response), use `Role.parse/1`.
 
 ```elixir
 {:ok, role} = Role.parse("http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor")

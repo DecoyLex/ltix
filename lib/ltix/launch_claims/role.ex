@@ -2,35 +2,35 @@ defmodule Ltix.LaunchClaims.Role do
   @moduledoc """
   A parsed LTI role with type, name, and optional sub-role.
 
-  Roles arrive in launch claims as URI strings. Use `parse/1` to convert
+  Launch claims include roles as URI strings. Use `parse/1` to convert
   a single URI, or access them pre-parsed via `context.claims.roles`.
 
   ## Checking Roles
 
   Predicate helpers like `instructor?/1` and `learner?/1` match on the
   role name regardless of sub-role. This means `instructor?/1` returns
-  `true` for both a principal Instructor and an Instructor#TeachingAssistant:
+  `true` for both a principal Instructor and an Instructor#TeachingAssistant.
 
       Role.instructor?(launch.claims.roles)
 
   To check for a specific sub-role, use `teaching_assistant?/1` or
-  `has_role?/4`:
+  `has_role?/4`.
 
       Role.teaching_assistant?(roles)
       Role.has_role?(roles, :context, :instructor, :teaching_assistant)
 
   To check for _only_ the principal role (excluding sub-roles), pass
-  `nil` as the sub-role:
+  `nil` as the sub-role.
 
       Role.has_role?(roles, :context, :instructor, nil)
 
   ## Role Types
 
-    * `:context` — course-level roles (Instructor, Learner, etc.)
-    * `:institution` — institution-level roles (Faculty, Student, etc.)
-    * `:system` — system-level roles (Administrator, SysAdmin, etc.)
+    * `:context` - course-level roles (Instructor, Learner, etc.)
+    * `:institution` - institution-level roles (Faculty, Student, etc.)
+    * `:system` - system-level roles (Administrator, SysAdmin, etc.)
 
-  Use the filter helpers to narrow by type:
+  Use the filter helpers to narrow by type.
 
       Role.context_roles(roles)
       Role.institution_roles(roles)
@@ -46,8 +46,6 @@ defmodule Ltix.LaunchClaims.Role do
       iex> Ltix.LaunchClaims.Role.parse("http://example.com/unknown")
       :error
   """
-
-  require Logger
 
   alias Ltix.AppConfig
   alias Ltix.LaunchClaims.Role.LIS
@@ -82,6 +80,8 @@ defmodule Ltix.LaunchClaims.Role do
     "Officer" => :officer
   }
 
+  @lis_prefix "http://purl.imsglobal.org/vocab/"
+
   @options_schema Zoi.keyword([role_parsers: Zoi.map(Zoi.string(), Zoi.any())],
                     unrecognized_keys: :error
                   )
@@ -91,15 +91,16 @@ defmodule Ltix.LaunchClaims.Role do
   @doc """
   Parse a single role URI into a `%Role{}` struct.
 
-  Tries registered parsers by URI prefix, then falls back to short
-  context role names. The LIS vocabulary parser is registered by default.
+  Tries parsers whose URI prefix matches, then the built-in LIS parser, then
+  short context role names.
 
   Returns `{:ok, %Role{}}` for recognized roles, `:error` for unknown URIs.
 
   ## Options
 
-    * `:role_parsers` — map of URI prefix to parser module or function
-      (defaults to application config, with LIS as a fallback)
+    * `:role_parsers` - map of URI prefix to parser module or function,
+      merged over the application configuration. These parsers are tried
+      longest prefix first, before the built-in LIS parser.
 
   ## Examples
 
@@ -111,31 +112,27 @@ defmodule Ltix.LaunchClaims.Role do
   """
   @spec parse(String.t(), keyword()) :: {:ok, t()} | :error
   def parse(uri, opts \\ []) when is_binary(uri) do
-    parse_with(uri, resolve_parsers(opts))
+    parse_with(uri, parsers(opts))
   end
 
   defp parse_with(uri, parsers) do
-    case try_parsers(uri, parsers) do
-      :error -> parse_short_name(uri)
-      parsed -> parsed
-    end
+    Enum.find_value(parsers, &try_parser(uri, &1)) || parse_short_name(uri)
   end
 
-  defp resolve_parsers(opts) do
+  # Returns the role parsers for `opts`, to parse many roles with
+  # `parse_all_with/2`. Configured and per-call parsers come longest prefix
+  # first, then the built-in LIS parser. Each is `{prefix, parser, parse}`.
+  @doc false
+  @spec parsers(keyword()) :: [{String.t(), module() | function(), function()}]
+  def parsers(opts) do
     opts = Options.parse!(opts, @options_schema)
+    parsers = Map.merge(AppConfig.role_parsers!(), Keyword.get(opts, :role_parsers, %{}))
 
-    parsers =
-      opts
-      |> Keyword.get(:role_parsers, %{})
-      |> Map.put_new("http://purl.imsglobal.org/vocab/", LIS)
+    by_specificity =
+      Enum.sort_by(parsers, fn {prefix, _parser} -> {-byte_size(prefix), prefix} end)
 
-    application_parsers = AppConfig.role_parsers!()
-
-    application_parsers
-    |> Map.merge(parsers)
-    |> Map.new(fn {prefix, parser} ->
-      {prefix, Options.parser_function!(parser, :role_parsers)}
-    end)
+    for {prefix, parser} <- by_specificity ++ [{@lis_prefix, LIS}],
+        do: {prefix, parser, Options.parser_function!(parser, :role_parsers)}
   end
 
   @doc """
@@ -145,8 +142,9 @@ defmodule Ltix.LaunchClaims.Role do
 
   ## Options
 
-    * `:role_parsers` — map of URI prefix to parser module or function
-      (defaults to application config, with LIS as a fallback)
+    * `:role_parsers` - map of URI prefix to parser module or function,
+      merged over the application configuration. These parsers are tried
+      longest prefix first, before the built-in LIS parser.
 
   ## Examples
 
@@ -154,9 +152,12 @@ defmodule Ltix.LaunchClaims.Role do
       {[], []}
   """
   @spec parse_all([String.t()], keyword()) :: {[t()], [String.t()]}
-  def parse_all(uris, opts \\ []) when is_list(uris) do
-    parsers = resolve_parsers(opts)
+  def parse_all(uris, opts \\ []) when is_list(uris), do: parse_all_with(uris, parsers(opts))
 
+  # Same as `parse_all/2`, with parsers from `parsers/1`.
+  @doc false
+  @spec parse_all_with([String.t()], list()) :: {[t()], [String.t()]}
+  def parse_all_with(uris, parsers) when is_list(uris) do
     {parsed, unrecognized} =
       Enum.reduce(uris, {[], []}, fn uri, {parsed, unrecognized} ->
         case parse_with(uri, parsers) do
@@ -171,9 +172,14 @@ defmodule Ltix.LaunchClaims.Role do
   @doc """
   Convert a `%Role{}` struct to its URI string.
 
-  Returns the URI a role carries, such as one parsed from a launch. Otherwise
-  tries each registered parser's `to_uri/1` callback until one succeeds. The
-  LIS parser is tried by default.
+  Returns the role's URI, such as one parsed from a launch. For a role
+  without one, returns the URI from a role parser module that implements
+  `to_uri/1`, or `:error` when none can convert the role.
+
+  ## Options
+
+    * `:role_parsers` - map of URI prefix to parser module or function,
+      merged over the application configuration, as for `parse/2`
 
   ## Examples
 
@@ -185,48 +191,35 @@ defmodule Ltix.LaunchClaims.Role do
       iex> Ltix.LaunchClaims.Role.to_uri(role)
       {:ok, "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"}
   """
-  @spec to_uri(t() | t_without_uri()) :: {:ok, String.t()} | :error
-  def to_uri(%__MODULE__{uri: uri}) when is_binary(uri), do: {:ok, uri}
+  @spec to_uri(t() | t_without_uri(), keyword()) :: {:ok, String.t()} | :error
+  def to_uri(%__MODULE__{} = role, opts \\ []), do: convert(role, parsers(opts))
 
-  def to_uri(%__MODULE__{} = role) do
-    app_parsers = Map.values(AppConfig.role_parsers!())
+  defp convert(%__MODULE__{uri: uri}, _parsers) when is_binary(uri), do: {:ok, uri}
+  defp convert(role, parsers), do: Enum.find_value(parsers, :error, &parser_to_uri(&1, role))
 
-    [LIS | app_parsers]
-    |> Enum.filter(fn
-      parser when is_atom(parser) ->
-        Code.ensure_loaded?(parser) and function_exported?(parser, :to_uri, 1)
-
-      parser when is_function(parser) ->
-        Logger.warning("""
-        Ignoring function parser #{inspect(parser)}. Replace this with a module that
-        implements Ltix.LaunchClaims.Role.Parser behaviour for full functionality.
-        """)
-
-        false
-    end)
-    |> Enum.find_value(:error, fn parser ->
+  defp parser_to_uri({_prefix, parser, _parse}, role) when is_atom(parser) do
+    if function_exported?(parser, :to_uri, 1) do
       case parser.to_uri(role) do
-        {:ok, _} = ok -> ok
+        {:ok, _uri} = converted -> converted
         :error -> nil
       end
-    end)
+    end
   end
 
+  defp parser_to_uri(_function_parser, _role), do: nil
+
   @doc """
-  Same as `to_uri/1` but raises `ArgumentError` when no role parser can convert the role.
+  Same as `to_uri/2` but raises `ArgumentError` when no role parser can convert the role.
 
   ## Examples
-
-      iex> Ltix.LaunchClaims.Role.to_uri!(Ltix.LaunchClaims.Role.from_atom(:learner))
-      "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
 
       iex> role = %Ltix.LaunchClaims.Role{type: :context, name: :instructor, sub_role: nil}
       iex> Ltix.LaunchClaims.Role.to_uri!(role)
       "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
   """
-  @spec to_uri!(t() | t_without_uri()) :: String.t()
-  def to_uri!(%__MODULE__{} = role) do
-    case to_uri(role) do
+  @spec to_uri!(t() | t_without_uri(), keyword()) :: String.t()
+  def to_uri!(%__MODULE__{} = role, opts \\ []) do
+    case to_uri(role, opts) do
       {:ok, uri} -> uri
       :error -> raise ArgumentError, "no role parser can convert #{inspect(role)} to a URI"
     end
@@ -237,7 +230,7 @@ defmodule Ltix.LaunchClaims.Role do
   @doc """
   Build a role from a well-known atom.
 
-  Supports common context roles, one sub-role, and a handful of
+  Supports common context roles, one sub-role, and a few
   institution and system roles. Raises `ArgumentError` for unknown atoms.
 
   ## Context roles
@@ -450,12 +443,15 @@ defmodule Ltix.LaunchClaims.Role do
     end)
   end
 
-  defp try_parsers(uri, parsers) do
-    Enum.find_value(parsers, :error, &try_parser(uri, &1))
-  end
-
-  defp try_parser(uri, {prefix, parser}) do
-    if String.starts_with?(uri, prefix), do: parser.(uri)
+  # Returns the parsed role, or `nil` when the parser's prefix doesn't match or
+  # it doesn't recognize the URI.
+  defp try_parser(uri, {prefix, _parser, parse}) do
+    if String.starts_with?(uri, prefix) do
+      case parse.(uri) do
+        {:ok, _role} = parsed -> parsed
+        :error -> nil
+      end
+    end
   end
 
   defp parse_short_name(uri) do

@@ -3,6 +3,28 @@ defmodule Ltix.LaunchClaims.RoleTest do
 
   alias Ltix.LaunchClaims.Role
 
+  defmodule VendorParser do
+    @moduledoc false
+    use Ltix.LaunchClaims.Role.Parser
+
+    @base "https://vendor.example.com/roles#"
+
+    @impl Ltix.LaunchClaims.Role.Parser
+    def parse(@base <> "Reviewer" = uri),
+      do: {:ok, %Role{type: :context, name: :reviewer, uri: uri}}
+
+    def parse(_uri), do: :error
+
+    @impl Ltix.LaunchClaims.Role.Parser
+    def to_uri(%Role{type: :context, name: :reviewer, sub_role: nil}),
+      do: {:ok, @base <> "Reviewer"}
+
+    def to_uri(%Role{type: :context, name: :instructor, sub_role: nil}),
+      do: {:ok, @base <> "Teacher"}
+
+    def to_uri(_role), do: :error
+  end
+
   doctest Ltix.LaunchClaims.Role
 
   # --- Context Roles [Core §A.2.3] ---
@@ -340,6 +362,30 @@ defmodule Ltix.LaunchClaims.RoleTest do
         Role.to_uri!(%Role{type: :custom, name: :something})
       end
     end
+
+    test "to_uri converts a role back with the role parsers parse uses" do
+      parsers = %{"https://vendor.example.com/roles#" => VendorParser}
+      uri = "https://vendor.example.com/roles#Reviewer"
+
+      assert {:ok, role} = Role.parse(uri, role_parsers: parsers)
+      assert Role.to_uri(%{role | uri: nil}, role_parsers: parsers) == {:ok, uri}
+      assert Role.to_uri!(%{role | uri: nil}, role_parsers: parsers) == uri
+      assert Role.to_uri(%{role | uri: nil}) == :error
+    end
+
+    test "to_uri tries custom role parsers before the built-in LIS parser" do
+      instructor = %Role{type: :context, name: :instructor, sub_role: nil}
+      parsers = %{"https://vendor.example.com/roles#" => VendorParser}
+
+      assert Role.to_uri(instructor, role_parsers: parsers) ==
+               {:ok, "https://vendor.example.com/roles#Teacher"}
+    end
+
+    test "to_uri raises on invalid role parsers" do
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :role_parsers is invalid/, fn ->
+        Role.to_uri(%Role{type: :context, name: :reviewer}, role_parsers: [VendorParser])
+      end
+    end
   end
 
   # --- Short Role Names [Cert §6.1.2] ---
@@ -393,6 +439,19 @@ defmodule Ltix.LaunchClaims.RoleTest do
                    "http://example.com" => custom_parser
                  }
                )
+    end
+
+    test "tries overlapping parser prefixes longest first" do
+      uri = "https://example.com/roles/Reviewer"
+      general = fn uri -> {:ok, %Role{type: :context, name: :general, uri: uri}} end
+      specific = fn uri -> {:ok, %Role{type: :context, name: :specific, uri: uri}} end
+
+      for parsers <- [
+            %{"https://example.com/" => general, "https://example.com/roles/" => specific},
+            %{"https://example.com/roles/" => specific, "https://example.com/" => general}
+          ] do
+        assert {:ok, %Role{name: :specific}} = Role.parse(uri, role_parsers: parsers)
+      end
     end
 
     test "parse/2 only calls custom parser when prefix matches" do
