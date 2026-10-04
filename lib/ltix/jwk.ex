@@ -40,7 +40,6 @@ defmodule Ltix.JWK do
                            """
                          )
                          |> Zoi.min(2048)
-                         |> Zoi.default(AppConfig.default_key_size())
                      ],
                      unrecognized_keys: :error
                    )
@@ -77,7 +76,8 @@ defmodule Ltix.JWK do
   def generate(opts \\ []) do
     opts = Options.parse!(opts, @generate_schema)
 
-    jose_jwk = JOSE.JWK.generate_key({:rsa, opts[:key_size]})
+    key_size = Keyword.get_lazy(opts, :key_size, &AppConfig.default_key_size/0)
+    jose_jwk = JOSE.JWK.generate_key({:rsa, key_size})
     kid = JOSE.JWK.thumbprint(jose_jwk)
     {_kty, pem} = JOSE.JWK.to_pem(jose_jwk)
 

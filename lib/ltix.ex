@@ -54,6 +54,9 @@ defmodule Ltix do
     * `:cachex_cache_name` — Cachex cache name when using
       `Ltix.JWT.KeySet.CachexCache`. Defaults to `:ltix_jwks`.
 
+    * `:default_key_size` — RSA key size in bits for `Ltix.JWK.generate/1`
+      when no `:key_size` is given. Defaults to `4096`.
+
   ### Launch claim parsers
 
   Custom claim and role parsers are configured under the
