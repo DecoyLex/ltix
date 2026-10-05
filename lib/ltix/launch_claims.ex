@@ -4,7 +4,7 @@ defmodule Ltix.LaunchClaims do
 
   Standard OIDC and LTI claims are mapped to named fields, while any
   unrecognized claims are available in `extensions`. Access claims through
-  `context.claims` after a successful launch:
+  `context.claims` after a successful launch.
 
       {:ok, context} = Ltix.handle_callback(params, state)
       context.claims.issuer          #=> "https://platform.example.com"
@@ -15,63 +15,63 @@ defmodule Ltix.LaunchClaims do
 
   ### Identity
 
-    * `:issuer` — platform identifier (matches `iss` in the JWT)
-    * `:subject` — user identifier on the platform (matches `sub`)
-    * `:audience` — tool's `client_id` (string or list of strings)
-    * `:nonce` — replay prevention token
-    * `:authorized_party` — `azp` claim, present when audience is a list
-    * `:expires_at` — JWT expiration as a Unix timestamp
-    * `:issued_at` — JWT issue time as a Unix timestamp
+    * `:issuer` - platform identifier (matches `iss` in the JWT)
+    * `:subject` - user identifier on the platform (matches `sub`)
+    * `:audience` - tool's `client_id` (string or list of strings)
+    * `:nonce` - replay prevention token
+    * `:authorized_party` - `azp` claim, present when audience is a list
+    * `:expires_at` - JWT expiration as a Unix timestamp
+    * `:issued_at` - JWT issue time as a Unix timestamp
 
   ### User profile
 
   Profile fields depend on platform consent and privacy settings.
   Any may be `nil`.
 
-    * `:name` — full display name
-    * `:given_name`, `:family_name`, `:middle_name` — name parts
-    * `:email` — email address
-    * `:picture` — profile image URL
-    * `:locale` — user's locale (e.g., `"en"`)
+    * `:name` - full display name
+    * `:given_name`, `:family_name`, `:middle_name` - name parts
+    * `:email` - email address
+    * `:picture` - profile image URL
+    * `:locale` - user's locale (e.g., `"en"`)
 
   ### LTI launch
 
-    * `:message_type` — launch type (e.g., `"LtiResourceLinkRequest"`,
+    * `:message_type` - launch type (e.g., `"LtiResourceLinkRequest"`,
       `"LtiDeepLinkingRequest"`)
-    * `:version` — LTI version (e.g., `"1.3.0"`)
-    * `:deployment_id` — identifies the specific tool installation
-    * `:target_link_uri` — URL the tool should load
-    * `:roles` — list of parsed `t:Ltix.LaunchClaims.Role.t/0` structs
-    * `:unrecognized_roles` — role URIs that could not be parsed
-    * `:role_scope_mentor` — list of user IDs this user mentors
-    * `:custom` — custom parameters set by the platform administrator
+    * `:version` - LTI version (e.g., `"1.3.0"`)
+    * `:deployment_id` - identifies the specific tool installation
+    * `:target_link_uri` - URL the tool should load
+    * `:roles` - list of parsed `t:Ltix.LaunchClaims.Role.t/0` structs
+    * `:unrecognized_roles` - role URIs that could not be parsed
+    * `:role_scope_mentor` - list of user IDs this user mentors
+    * `:custom` - custom parameters set by the platform administrator
 
   ### Nested claims
 
-    * `:context` — course or section (`t:Ltix.LaunchClaims.Context.t/0`)
-    * `:resource_link` — the specific placement
+    * `:context` - course or section (`t:Ltix.LaunchClaims.Context.t/0`)
+    * `:resource_link` - the specific placement
       (`t:Ltix.LaunchClaims.ResourceLink.t/0`)
-    * `:launch_presentation` — display preferences
+    * `:launch_presentation` - display preferences
       (`t:Ltix.LaunchClaims.LaunchPresentation.t/0`)
-    * `:tool_platform` — platform instance info
+    * `:tool_platform` - platform instance info
       (`t:Ltix.LaunchClaims.ToolPlatform.t/0`)
-    * `:lis` — SIS integration identifiers (`t:Ltix.LaunchClaims.LIS.t/0`)
+    * `:lis` - SIS integration identifiers (`t:Ltix.LaunchClaims.LIS.t/0`)
 
   ### Advantage service endpoints
 
   Present when the platform supports the corresponding service.
   Pass the parent `%LaunchContext{}` to the service's `authenticate/2`.
 
-    * `:ags_endpoint` — Assignment and Grade Services
+    * `:ags_endpoint` - Assignment and Grade Services
       (`t:Ltix.LaunchClaims.AGSEndpoint.t/0`)
-    * `:memberships_endpoint` — Names and Roles Provisioning
+    * `:memberships_endpoint` - Names and Roles Provisioning
       (`t:Ltix.LaunchClaims.MembershipsEndpoint.t/0`)
-    * `:deep_linking_settings` — Deep Linking
+    * `:deep_linking_settings` - Deep Linking
       (`t:Ltix.LaunchClaims.DeepLinkingSettings.t/0`)
 
   ### Extensions
 
-    * `:extensions` — map of unrecognized claim keys to their raw values.
+    * `:extensions` - map of unrecognized claim keys to their raw values.
       Register custom parsers via the `:claim_parsers` option in `from_json/2`
       or application config (`:ltix, Ltix.LaunchClaims, :claim_parsers`).
 
@@ -85,6 +85,7 @@ defmodule Ltix.LaunchClaims do
   alias Ltix.AppConfig
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Unknown.Unknown
   alias Ltix.Options
 
   alias Ltix.LaunchClaims.AGSEndpoint
@@ -174,7 +175,7 @@ defmodule Ltix.LaunchClaims do
 
   # --- Key Classification Tables ---
 
-  # Table 1: OIDC standard claims [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
+  # Table 1. OIDC standard claims [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   @oidc_keys %{
     "iss" => :issuer,
     "sub" => :subject,
@@ -192,7 +193,7 @@ defmodule Ltix.LaunchClaims do
     "locale" => :locale
   }
 
-  # Table 2: LTI-namespaced claims
+  # Table 2. LTI-namespaced claims
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims),
   # [Core §5.4](https://www.imsglobal.org/spec/lti/v1p3/#optional-message-claims)
   @lti_claim_prefix "https://purl.imsglobal.org/spec/lti/claim/"
@@ -252,7 +253,7 @@ defmodule Ltix.LaunchClaims do
                  |> Map.merge(@lti_keys)
                  |> Map.take(Map.keys(@scalar_claim_schemas))
 
-  # Table 3: Service endpoint claims [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
+  # Table 3. Service endpoint claims [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
   @service_keys %{
     "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" => :ags_endpoint,
     "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" => :memberships_endpoint,
@@ -297,7 +298,7 @@ defmodule Ltix.LaunchClaims do
     `{:error, reason}` is returned as `Ltix.Errors.Invalid.InvalidClaim`,
     unless `reason` is already an Ltix error. Per-call parsers override
     application config.
-  - `:role_parsers` — Map of role URI prefixes to parser functions for
+  - `:role_parsers` - Map of role URI prefixes to parser functions for
     parsing the `roles` claim. Each parser receives a role URI and must
     return a `{:ok, t:Ltix.LaunchClaims.Role.t/0}` struct or `:error`. Per-call
     parsers override application config.
@@ -452,8 +453,20 @@ defmodule Ltix.LaunchClaims do
   defp parse_configured_claims(claims, parsers) do
     Enum.reduce_while(claims, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
       case Map.fetch!(parsers, key).(value) do
-        {:ok, parsed} -> {:cont, {:ok, Map.put(acc, key, parsed)}}
-        {:error, reason} -> {:halt, {:error, claim_parser_error(key, value, reason)}}
+        {:ok, parsed} ->
+          {:cont, {:ok, Map.put(acc, key, parsed)}}
+
+        {:error, reason} ->
+          {:halt, {:error, claim_parser_error(key, value, reason)}}
+
+        other ->
+          {:halt,
+           {:error,
+            Unknown.exception(
+              error:
+                "Claim parser for #{key} returned #{inspect(other)}, " <>
+                  "expected {:ok, value} or {:error, reason}"
+            )}}
       end
     end)
   end

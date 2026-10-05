@@ -568,6 +568,16 @@ defmodule LtixTest do
       end
     end
 
+    test "a claim parser that returns neither {:ok, value} nor {:error, reason} fails the launch",
+         ctx do
+      parser = fn _value -> "overridden name" end
+
+      assert {:error, %Ltix.Errors.Unknown.Unknown{} = error} =
+               callback_with_claim(ctx, "name", "Jane", claim_parsers: %{"name" => parser})
+
+      assert Exception.message(error) =~ ~s(returned "overridden name")
+    end
+
     test "per-call standard claim parsers override configured builtin parsers", ctx do
       key = "https://purl.imsglobal.org/spec/lti/claim/context"
 
