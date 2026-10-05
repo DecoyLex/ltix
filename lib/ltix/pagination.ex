@@ -20,7 +20,8 @@ defmodule Ltix.Pagination do
                        |> Zoi.default(%{}),
                      req_options:
                        Zoi.keyword(Zoi.any(),
-                         description: "Additional HTTP request options."
+                         description:
+                           "HTTP request options, merged over `config :ltix, req_options`."
                        )
                        |> Zoi.default([])
                    ],
@@ -276,6 +277,6 @@ defmodule Ltix.Pagination do
   defp trim_whitespace(input), do: input
 
   defp req_options(opts) do
-    Keyword.get(opts, :req_options, [])
+    Keyword.merge(Ltix.HTTP.req_options([], __MODULE__), Keyword.get(opts, :req_options, []))
   end
 end
