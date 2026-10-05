@@ -212,4 +212,44 @@ defmodule Ltix.PaginationTest do
       assert Enum.to_list(stream) == [%{"items" => [1, 2]}, %{"items" => [3]}]
     end
   end
+
+  describe "repeated pages" do
+    test "returns an error for a next link to the page that returned it" do
+      owner = self()
+
+      Req.Test.stub(__MODULE__, fn conn ->
+        send(owner, {:requested, conn.request_path})
+
+        conn
+        |> Plug.Conn.put_resp_header("link", "<https://example.com/api?limit=2>; rel=\"next\"")
+        |> Req.Test.json(%{"members" => []})
+      end)
+
+      assert {:error, %Ltix.Errors.Unknown.TransportError{body: body}} =
+               Pagination.stream_results("https://example.com/api", [],
+                 params: %{"limit" => "2"},
+                 req_options: req_options()
+               )
+
+      assert body =~ "already fetched"
+      assert_receive {:requested, "/api"}
+      refute_receive {:requested, _}
+    end
+
+    test "ends the stream with an error when next links return to an earlier page" do
+      Req.Test.stub(__MODULE__, fn conn ->
+        next = if conn.request_path == "/a", do: "/b", else: "/a"
+
+        conn
+        |> Plug.Conn.put_resp_header("link", "<#{next}>; rel=\"next\"")
+        |> Req.Test.json(%{"page" => conn.request_path})
+      end)
+
+      assert {:ok, stream} =
+               Pagination.stream_results("https://example.com/a", [], req_options: req_options())
+
+      assert [{:ok, %{"page" => "/a"}}, {:error, %Ltix.Errors.Unknown.TransportError{}}] =
+               Enum.take(stream, 5)
+    end
+  end
 end

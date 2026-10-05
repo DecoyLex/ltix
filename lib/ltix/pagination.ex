@@ -4,7 +4,8 @@ defmodule Ltix.Pagination do
 
   LTI Advantage services use RFC 8288 `Link` headers with `rel="next"` for
   pagination. This module handles link parsing and builds a lazy stream that
-  fetches pages on demand.
+  fetches pages on demand. A next link back to a page already fetched is a
+  `Ltix.Errors.Unknown.TransportError`.
   """
 
   alias Ltix.Errors.Unknown.TransportError
@@ -75,32 +76,35 @@ defmodule Ltix.Pagination do
     req_options = req_options(opts)
 
     with {:ok, base_uri} <- Ltix.HTTP.validate_url(url),
-         {:ok, first_body, next_url} <- fetch_page(url, headers, params, req_options, base_uri) do
+         {:ok, first_body, next_url, fetched} <-
+           fetch_page(url, headers, params, req_options, base_uri, MapSet.new()) do
       {:ok,
        Stream.resource(
-         fn -> {:first, first_body, next_url} end,
+         fn -> {:first, first_body, next_url, fetched} end,
          &next_page(&1, headers, req_options, base_uri),
          fn _ -> :ok end
        )}
     end
   end
 
-  defp next_page({:first, body, next_url}, _headers, _req_options, _base_uri) do
-    {[{:ok, body}], next_url}
+  defp next_page({:first, body, next_url, fetched}, _headers, _req_options, _base_uri) do
+    {[{:ok, body}], {next_url, fetched}}
   end
 
-  defp next_page(nil, _headers, _req_options, _base_uri) do
-    {:halt, :done}
-  end
+  defp next_page(:done, _headers, _req_options, _base_uri), do: {:halt, :done}
+  defp next_page({nil, _fetched}, _headers, _req_options, _base_uri), do: {:halt, :done}
 
-  defp next_page(url, headers, req_options, base_uri) do
-    case fetch_page(url, headers, %{}, Keyword.delete(req_options, :params), base_uri) do
-      {:ok, body, next_url} -> {[{:ok, body}], next_url}
-      {:error, reason} -> {[{:error, reason}], nil}
+  defp next_page({url, fetched}, headers, req_options, base_uri) do
+    req_options = Keyword.delete(req_options, :params)
+
+    case fetch_page(url, headers, %{}, req_options, base_uri, fetched) do
+      {:ok, body, next_url, fetched} -> {[{:ok, body}], {next_url, fetched}}
+      {:error, reason} -> {[{:error, reason}], :done}
     end
   end
 
-  defp fetch_page(url, headers, params, req_options, base_uri) do
+  # `fetched` holds the URLs of the pages fetched so far.
+  defp fetch_page(url, headers, params, req_options, base_uri, fetched) do
     params = if params == %{}, do: Keyword.get(req_options, :params, []), else: params
 
     request_url =
@@ -118,15 +122,34 @@ defmodule Ltix.Pagination do
     with {:ok, %Req.Response{status: 200, body: body, headers: resp_headers} = response} <-
            Ltix.HTTP.request(Keyword.put(req_opts, :method, :get)),
          response_url = Req.Response.get_private(response, :ltix_response_url, request_url),
+         fetched = MapSet.union(fetched, MapSet.new([request_url, response_url], &page_key/1)),
          {:ok, next_url} <-
-           validate_next_url(parse_next_link(resp_headers, response_url), base_uri) do
-      {:ok, body, next_url}
+           validate_next_url(parse_next_link(resp_headers, response_url), base_uri),
+         :ok <- validate_not_fetched(next_url, fetched) do
+      {:ok, body, next_url, fetched}
     else
       {:ok, %Req.Response{} = response} ->
         {:error, Ltix.HTTP.status_error(response, request_url)}
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  # Fragments are not sent, so URLs that differ only by fragment are one page.
+  defp page_key(url), do: URI.to_string(%{URI.parse(url) | fragment: nil})
+
+  defp validate_not_fetched(nil, _fetched), do: :ok
+
+  defp validate_not_fetched(next_url, fetched) do
+    if MapSet.member?(fetched, page_key(next_url)) do
+      {:error,
+       TransportError.exception(
+         body: "Next page URL #{next_url} returns to a page already fetched",
+         url: next_url
+       )}
+    else
+      :ok
     end
   end
 

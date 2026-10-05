@@ -70,7 +70,7 @@ defmodule Ltix.PaginationLinkTest do
     end
   end
 
-  test "does not mistake other parameters or quoted attribute text for next relations" do
+  test "does not treat other parameters or quoted attribute text as next relations" do
     Req.Test.expect(__MODULE__, fn conn ->
       conn
       |> Plug.Conn.put_resp_header(
@@ -138,7 +138,7 @@ defmodule Ltix.PaginationLinkTest do
     Req.Test.verify!(__MODULE__)
   end
 
-  test "empty and fragment targets retain the fully parameterized first response URL" do
+  test "empty and fragment targets resolve to the fully parameterized first page" do
     Enum.each(["<>; rel=next", "<#page-two>; rel=next"], fn link ->
       Req.Test.expect(__MODULE__, fn conn ->
         assert conn.query_string == "source=a%2Fb&tag=new+quiz"
@@ -148,19 +148,15 @@ defmodule Ltix.PaginationLinkTest do
         |> Req.Test.json(%{"page" => 1})
       end)
 
-      Req.Test.expect(__MODULE__, fn conn ->
-        assert conn.request_path == "/items"
-        assert conn.query_string == "source=a%2Fb&tag=new+quiz"
-        Req.Test.json(conn, %{"page" => 2})
-      end)
-
-      assert {:ok, stream} =
+      assert {:error,
+              %Ltix.Errors.Unknown.TransportError{
+                url: "https://example.com/items?source=a%2Fb&tag=new+quiz" <> _fragment
+              }} =
                Pagination.stream("https://example.com/items?source=a%2Fb&tag=old", [],
                  params: %{"tag" => "new quiz"},
                  req_options: req_options()
                )
 
-      assert Enum.to_list(stream) == [%{"page" => 1}, %{"page" => 2}]
       Req.Test.verify!(__MODULE__)
     end)
   end
@@ -170,21 +166,13 @@ defmodule Ltix.PaginationLinkTest do
       assert conn.query_string == "source=launch&tag=quiz"
 
       conn
-      |> Plug.Conn.put_resp_header("link", "<#page-two>; rel=next")
+      |> Plug.Conn.put_resp_header("link", "<?cursor=two>; rel=next")
       |> Req.Test.json(%{"page" => 1})
     end)
 
     Req.Test.expect(__MODULE__, fn conn ->
-      assert conn.query_string == "source=launch&tag=quiz"
-
-      conn
-      |> Plug.Conn.put_resp_header("link", "<?cursor=three>; rel=next")
-      |> Req.Test.json(%{"page" => 2})
-    end)
-
-    Req.Test.expect(__MODULE__, fn conn ->
-      assert conn.query_string == "cursor=three"
-      Req.Test.json(conn, %{"page" => 3})
+      assert conn.query_string == "cursor=two"
+      Req.Test.json(conn, %{"page" => 2})
     end)
 
     assert {:ok, stream} =
@@ -192,7 +180,7 @@ defmodule Ltix.PaginationLinkTest do
                req_options: Keyword.put(req_options(), :params, tag: "quiz")
              )
 
-    assert Enum.to_list(stream) == [%{"page" => 1}, %{"page" => 2}, %{"page" => 3}]
+    assert Enum.to_list(stream) == [%{"page" => 1}, %{"page" => 2}]
     Req.Test.verify!(__MODULE__)
   end
 
@@ -218,7 +206,6 @@ defmodule Ltix.PaginationLinkTest do
       {"/moved/pages/two", "cursor=2", "<../three?cursor=3>"},
       {"/moved/three", "cursor=3", "<?cursor=4>"},
       {"/moved/three", "cursor=4", "<//example.com/final?cursor=5>"},
-      {"/final", "cursor=5", "<>"},
       {"/final", "cursor=5", nil}
     ]
 
@@ -243,7 +230,6 @@ defmodule Ltix.PaginationLinkTest do
              %{"location" => "/moved/pages/two?cursor=2"},
              %{"location" => "/moved/three?cursor=3"},
              %{"location" => "/moved/three?cursor=4"},
-             %{"location" => "/final?cursor=5"},
              %{"location" => "/final?cursor=5"}
            ]
 
