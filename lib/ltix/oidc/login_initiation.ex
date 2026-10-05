@@ -3,7 +3,6 @@ defmodule Ltix.OIDC.LoginInitiation do
 
   alias Ltix.OIDC.AuthenticationRequest
   alias Ltix.OIDC.State
-  alias Ltix.Registerable
   alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.MissingParameter
@@ -16,9 +15,8 @@ defmodule Ltix.OIDC.LoginInitiation do
           {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Exception.t()}
   def call(params, callback_module, redirect_uri) do
     with :ok <- validate_login_params(params),
-         {:ok, user_registration} <-
+         {:ok, _user_registration, registration} <-
            StorageAdapter.get_registration(callback_module, params["iss"], params["client_id"]),
-         {:ok, registration} <- Registerable.to_registration(user_registration),
          {state, nonce} = State.generate(),
          :ok <- StorageAdapter.store_nonce(callback_module, nonce, registration) do
       auth_redirect =

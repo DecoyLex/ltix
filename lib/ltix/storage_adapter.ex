@@ -28,7 +28,8 @@ defmodule Ltix.StorageAdapter do
   Return `{:error, reason}` when storage fails. The login or launch then
   returns `Ltix.Errors.Unknown.StorageError` with that value in `result`. Ltix
   errors are returned unchanged. A callback that returns any other
-  unexpected value also produces a `StorageError`.
+  unexpected value, or a record that does not implement `Ltix.Registerable` or
+  `Ltix.Deployable`, also produces a `StorageError`.
   """
 
   alias Ltix.Deployable
@@ -116,13 +117,23 @@ defmodule Ltix.StorageAdapter do
   # The functions below call an adapter's callback and return an Ltix error
   # for any result other than success.
 
+  # Returns the adapter's record and the `Ltix.Registration` converted from it.
   @doc false
   @spec get_registration(module(), String.t(), String.t() | nil) ::
-          {:ok, Registerable.t()} | {:error, Exception.t()}
+          {:ok, Registerable.t(), Registration.t()} | {:error, Exception.t()}
   def get_registration(adapter, issuer, client_id) do
     case adapter.get_registration(issuer, client_id) do
       {:ok, registration} ->
-        {:ok, registration}
+        with {:ok, resolved} <-
+               convert(
+                 :get_registration,
+                 registration,
+                 Registerable,
+                 &Registerable.to_registration/1,
+                 Registration
+               ) do
+          {:ok, registration, resolved}
+        end
 
       {:error, :not_found} ->
         {:error, RegistrationNotFound.exception(issuer: issuer, client_id: client_id)}
@@ -150,7 +161,13 @@ defmodule Ltix.StorageAdapter do
 
   # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
   defp check_deployment_id(deployment, deployment_id) do
-    case Deployable.to_deployment(deployment) do
+    case convert(
+           :get_deployment,
+           deployment,
+           Deployable,
+           &Deployable.to_deployment/1,
+           Deployment
+         ) do
       {:ok, %Deployment{deployment_id: ^deployment_id}} ->
         {:ok, deployment}
 
@@ -167,6 +184,39 @@ defmodule Ltix.StorageAdapter do
       {:error, _error} = error ->
         error
     end
+  end
+
+  # Converts a record returned by `callback` with `protocol`. A record without
+  # an implementation, or an implementation that returns something other than
+  # `{:ok, %struct{}}` or `{:error, exception}`, is a storage error.
+  defp convert(callback, record, protocol, conversion, struct) do
+    if protocol.impl_for(record) do
+      case conversion.(record) do
+        {:ok, %^struct{}} = converted ->
+          converted
+
+        {:error, error} = failed when is_exception(error) ->
+          failed
+
+        _other ->
+          conversion_error(
+            callback,
+            record,
+            "returned a record whose #{inspect(protocol)} implementation " <>
+              "did not return {:ok, %#{inspect(struct)}{}} or {:error, exception}"
+          )
+      end
+    else
+      conversion_error(
+        callback,
+        record,
+        "returned a value that does not implement #{inspect(protocol)}"
+      )
+    end
+  end
+
+  defp conversion_error(callback, record, reason) do
+    {:error, StorageError.exception(callback: callback, result: {:ok, record}, reason: reason)}
   end
 
   @doc false

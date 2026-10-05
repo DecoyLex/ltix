@@ -685,6 +685,40 @@ defmodule LtixTest do
       end
     end
 
+    test "a registration that is not Registerable fails the login and launch", ctx do
+      for record <- [nil, %{}, %BareRegistration{registration: ctx.registration}] do
+        send(self(), {:storage_result, :get_registration, {:ok, record}})
+
+        assert {:error, %StorageError{callback: :get_registration, result: {:ok, ^record}}} =
+                 Ltix.handle_login(login_params(), @redirect_uri,
+                   storage_adapter: ScriptedStorageAdapter
+                 )
+
+        send(self(), {:storage_result, :get_registration, {:ok, record}})
+
+        assert {:error, %StorageError{callback: :get_registration, result: {:ok, ^record}}} =
+                 Ltix.handle_callback(
+                   %{"id_token" => ctx.id_token, "state" => ctx.state},
+                   ctx.state,
+                   storage_adapter: ScriptedStorageAdapter,
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    test "a deployment that is not Deployable fails the launch", ctx do
+      for record <- [nil, %{}] do
+        send(self(), {:storage_result, :get_deployment, {:ok, record}})
+
+        assert {:error, %StorageError{callback: :get_deployment, result: {:ok, ^record}} = error} =
+                 callback_with_claim(ctx, "sub", ctx.claims["sub"],
+                   storage_adapter: ScriptedStorageAdapter
+                 )
+
+        assert Exception.message(error) =~ "Ltix.Deployable"
+      end
+    end
+
     test "handle_callback returns StorageError when get_deployment returns another deployment",
          ctx do
       other_deployment = Deployment.new!("other-deployment")

@@ -6,7 +6,6 @@ defmodule Ltix.OIDC.Callback do
   alias Ltix.LaunchClaims
   alias Ltix.LaunchContext
   alias Ltix.OIDC.State
-  alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.StorageAdapter
 
@@ -39,9 +38,8 @@ defmodule Ltix.OIDC.Callback do
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
          {:ok, iss, client_id} <- peek_issuer_and_audience(id_token),
-         {:ok, user_registration} <-
+         {:ok, user_registration, registration} <-
            StorageAdapter.get_registration(callback_module, iss, client_id),
-         {:ok, registration} <- Registerable.to_registration(user_registration),
          {:ok, raw_claims} <-
            Token.verify(
              id_token,
