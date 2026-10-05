@@ -194,6 +194,7 @@ defmodule Ltix.Test do
   alias Ltix.Registration
   alias Ltix.Test.Platform
   alias Ltix.Test.ServiceStub
+  alias Ltix.Test.StorageAdapterContract
 
   @default_issuer "https://platform.example.com"
   @default_client_id "tool-client-id"
@@ -458,6 +459,61 @@ defmodule Ltix.Test do
 
     platform
   end
+
+  @doc """
+  Assert that a storage adapter satisfies `Ltix.StorageAdapter`.
+
+  Checks registration and deployment lookups, returned records, and nonce
+  replay prevention. Returns `:ok` or raises `ExUnit.AssertionError` with
+  the failing contract check.
+
+  Use isolated test storage and your application's normal test cleanup.
+
+  ## Options
+
+    * `:registration` is a required 1-arity factory. Receives a valid
+      `Ltix.Registration` and returns your stored record implementing
+      `Ltix.Registerable`. Preserve the supplied issuer and client ID.
+    * `:deployment` is a required 2-arity factory. Receives an
+      `Ltix.Deployment` and your registration record. Returns the stored
+      record implementing `Ltix.Deployable`. Preserve the supplied deployment
+      ID. Lookups must return the same stored record.
+    * `:registration_identity` and `:deployment_identity` are optional 1-arity
+      functions that return a record's storage identity, such as `& &1.id`.
+      By default, the complete factory and lookup records must match. Use
+      these functions when lookups preload associations or change metadata.
+      Protocol-converted fields must still match.
+    * `:prepare_process` is a 0-arity function called in each concurrent
+      callback process. Use it to allow database sandbox access or set
+      process-local adapter state. Defaults to a no-op.
+    * `:auto_create_deployments` defaults to `false`, requiring missing
+      deployments to return `{:error, :not_found}`. Set to `true` for adapters
+      that create a deployment when none exists. Return distinct storage
+      identities to check ownership of automatically created deployments.
+    * `:timeout` is the positive timeout in milliseconds for concurrent
+      process preparation and validation. Defaults to `5000`.
+
+      test "storage adapter satisfies the contract" do
+        parent = self()
+
+        :ok = Ltix.Test.assert_storage_adapter!(MyApp.LtiStorage,
+          registration: fn registration ->
+            MyApp.Lti.create_registration!(Map.from_struct(registration))
+          end,
+          deployment: fn deployment, registration ->
+            MyApp.Lti.create_deployment!(%{
+              deployment_id: deployment.deployment_id,
+              registration_id: registration.id
+            })
+          end,
+          prepare_process: fn ->
+            Ecto.Adapters.SQL.Sandbox.allow(MyApp.Repo, parent, self())
+          end
+        )
+      end
+  """
+  @spec assert_storage_adapter!(module(), keyword()) :: :ok
+  def assert_storage_adapter!(adapter, opts), do: StorageAdapterContract.verify!(adapter, opts)
 
   # --- Request Builders ---
 

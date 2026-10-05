@@ -42,6 +42,107 @@ defmodule Ltix.Integration.ConsumerBuildTest do
 
       File.write!(Path.join(project, "verify.exs"), """
       ExUnit.start()
+      defmodule ConsumerStorage do
+        @moduledoc false
+        @behaviour Ltix.StorageAdapter
+        use Agent
+
+        def start_link(_opts) do
+          Agent.start_link(fn -> %{registrations: %{}, deployments: %{}, nonces: MapSet.new()} end,
+            name: __MODULE__)
+        end
+
+        def create_registration(registration) do
+          key = {registration.issuer, registration.client_id}
+          Agent.update(__MODULE__, &%{&1 | registrations: Map.put(&1.registrations, key, registration)})
+          registration
+        end
+
+        def create_deployment(deployment, registration) do
+          key = {registration.issuer, registration.client_id, deployment.deployment_id}
+          Agent.update(__MODULE__, &%{&1 | deployments: Map.put(&1.deployments, key, deployment)})
+          deployment
+        end
+
+        @impl Ltix.StorageAdapter
+        def get_registration(issuer, nil) do
+          Agent.get(__MODULE__, fn state ->
+            case Enum.find(Map.values(state.registrations), &(&1.issuer == issuer)) do
+              nil -> {:error, :not_found}
+              registration -> {:ok, registration}
+            end
+          end)
+        end
+
+        def get_registration(issuer, client_id) do
+          result = Agent.get(__MODULE__, &Map.fetch(&1.registrations, {issuer, client_id}))
+          case result do
+            :error -> {:error, :not_found}
+            result -> result
+          end
+        end
+
+        @impl Ltix.StorageAdapter
+        def get_deployment(registration, deployment_id) do
+          key = {registration.issuer, registration.client_id, deployment_id}
+          Agent.get_and_update(__MODULE__, fn state ->
+            case Map.fetch(state.deployments, key) do
+              {:ok, _} = found -> {found, state}
+              :error -> create_missing_deployment(state, key, deployment_id)
+            end
+          end)
+        end
+
+        defp create_missing_deployment(%{auto_create: true} = state, key, deployment_id) do
+          deployment = Ltix.Deployment.new!(deployment_id)
+          {{:ok, deployment}, %{state | deployments: Map.put(state.deployments, key, deployment)}}
+        end
+
+        defp create_missing_deployment(state, _key, _deployment_id) do
+          {{:error, :not_found}, state}
+        end
+
+        @impl Ltix.StorageAdapter
+        def store_nonce(nonce, _registration) do
+          Agent.update(__MODULE__, &%{&1 | nonces: MapSet.put(&1.nonces, nonce)})
+        end
+
+        @impl Ltix.StorageAdapter
+        def validate_nonce(nonce, _registration) do
+          Agent.get_and_update(__MODULE__, fn state ->
+            if MapSet.member?(state.nonces, nonce) do
+              {:ok, %{state | nonces: MapSet.delete(state.nonces, nonce)}}
+            else
+              {{:error, :nonce_not_found}, state}
+            end
+          end)
+        end
+      end
+
+      defmodule ConsumerUnscopedStorage do
+        @moduledoc false
+        @behaviour Ltix.StorageAdapter
+        @impl Ltix.StorageAdapter
+        defdelegate get_registration(issuer, client_id), to: ConsumerStorage
+        @impl Ltix.StorageAdapter
+        defdelegate store_nonce(nonce, registration), to: ConsumerStorage
+        @impl Ltix.StorageAdapter
+        defdelegate validate_nonce(nonce, registration), to: ConsumerStorage
+
+        @impl Ltix.StorageAdapter
+        def get_deployment(registration, deployment_id) do
+          Agent.get(ConsumerStorage, fn state ->
+            found = Enum.find(state.deployments, fn {{_issuer, client_id, identifier}, _} ->
+              client_id == registration.client_id and identifier == deployment_id
+            end)
+            case found do
+              nil -> {:error, :not_found}
+              {_key, deployment} -> {:ok, deployment}
+            end
+          end)
+        end
+      end
+
       defmodule ConsumerTest do
         use ExUnit.Case
         test "core parsing and signing work without HTTP stubs" do
@@ -75,6 +176,20 @@ defmodule Ltix.Integration.ConsumerBuildTest do
           assert_raise RuntimeError, ~r/HTTP test helpers require Plug/, fn ->
             Ltix.Test.stub_post_score()
           end
+          start_supervised!(ConsumerStorage)
+          assert :ok = Ltix.Test.assert_storage_adapter!(ConsumerStorage,
+            registration: &ConsumerStorage.create_registration/1,
+            deployment: &ConsumerStorage.create_deployment/2)
+          assert_raise ExUnit.AssertionError, ~r/get_deployment\\/2.*scoped.*issuer/s, fn ->
+            Ltix.Test.assert_storage_adapter!(ConsumerUnscopedStorage,
+              registration: &ConsumerStorage.create_registration/1,
+              deployment: &ConsumerStorage.create_deployment/2)
+          end
+          Agent.update(ConsumerStorage, &Map.put(&1, :auto_create, true))
+          assert :ok = Ltix.Test.assert_storage_adapter!(ConsumerStorage,
+            registration: &ConsumerStorage.create_registration/1,
+            deployment: &ConsumerStorage.create_deployment/2,
+            auto_create_deployments: true)
         end
       end
       """)

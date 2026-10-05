@@ -298,6 +298,37 @@ context.registration.tenant_id   #=> 7
 context.deployment.id            #=> 99
 ```
 
+## Testing your adapter
+
+Use `Ltix.Test.assert_storage_adapter!/2` to check registration and deployment lookups, returned records, and nonce replay prevention. It returns `:ok` or raises `ExUnit.AssertionError` with the failing contract check.
+
+Pass factories that persist the supplied registration and deployment details and return your application structs. Run against isolated test storage and clean up through your normal test setup.
+
+```elixir
+test "storage adapter satisfies the contract" do
+  parent = self()
+
+  assert :ok = Ltix.Test.assert_storage_adapter!(MyApp.LtiStorage,
+    registration: fn registration ->
+      MyApp.Lti.create_registration!(Map.from_struct(registration))
+    end,
+    deployment: fn deployment, registration ->
+      MyApp.Lti.create_deployment!(%{
+        deployment_id: deployment.deployment_id,
+        registration_id: registration.id
+      })
+    end,
+    prepare_process: fn ->
+      Ecto.Adapters.SQL.Sandbox.allow(MyApp.Repo, parent, self())
+    end
+  )
+end
+```
+
+Preserve the lookup identifiers supplied to your factories. If lookups preload associations or change metadata, pass `registration_identity: & &1.id` and `deployment_identity: & &1.id`, or projections suited to your records.
+
+Omit `:prepare_process` when your adapter needs neither database sandbox access nor process-local setup. For adapters that [auto-create deployments](auto-create-deployments.md), pass `auto_create_deployments: true` and return distinct storage identities to check deployment ownership. See `Ltix.Test.assert_storage_adapter!/2` for all options.
+
 ## Per-call override
 
 You can bypass the configured adapter for a specific call by passing

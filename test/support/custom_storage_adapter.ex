@@ -41,13 +41,23 @@ defmodule CustomStorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def get_deployment(_registration, deployment_id) do
+  def get_deployment(registration, deployment_id) do
     Agent.get(get_pid(), fn state ->
-      state.deployments
-      |> Enum.find(fn dep -> dep.platform_deployment_id == deployment_id end)
-      |> case do
+      owner =
+        Enum.find(state.registrations, fn stored ->
+          stored.platform_issuer == registration.issuer and
+            stored.oauth_client_id == registration.client_id
+        end)
+
+      deployment =
+        Enum.find(state.deployments, fn deployment ->
+          owner != nil and deployment.registration_id == owner.id and
+            deployment.platform_deployment_id == deployment_id
+        end)
+
+      case deployment do
         nil -> {:error, :not_found}
-        dep -> {:ok, dep}
+        deployment -> {:ok, deployment}
       end
     end)
   end
