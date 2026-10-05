@@ -216,8 +216,8 @@ defmodule Ltix.JWK do
     invalid(:private_key_pem, "[redacted]", "must be a binary", "Sec §6.1 (RSA key)")
   end
 
-  defp validate_pem_entry(entry) do
-    case :public_key.pem_entry_decode(entry) do
+  defp validate_pem_entry({_type, _der, :not_encrypted} = entry) do
+    case decode_pem_entry(entry) do
       {:RSAPrivateKey, _, _, _, _, _, _, _, _, _, _} ->
         nil
 
@@ -229,6 +229,17 @@ defmodule Ltix.JWK do
           "Sec §6.1 (RSA key)"
         )
     end
+  end
+
+  defp validate_pem_entry(_encrypted_entry) do
+    invalid(:private_key_pem, "[redacted]", "must not be encrypted", "Sec §6.1 (RSA key)")
+  end
+
+  # Malformed key data raises inside `:public_key`.
+  defp decode_pem_entry(entry) do
+    :public_key.pem_entry_decode(entry)
+  rescue
+    _error -> :error
   end
 
   defp required(field), do: InvalidField.required(__MODULE__, field)

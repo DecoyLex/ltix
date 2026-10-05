@@ -107,10 +107,21 @@ defmodule Ltix.JWKTest do
       ec_pem = :public_key.pem_encode([:public_key.pem_entry_encode(:ECPrivateKey, ec_key)])
       public_pem = JWK.to_public_key(JWK.generate())
 
+      [rsa_entry] = :public_key.pem_decode(ctx.pem)
+      rsa_key = :public_key.pem_entry_decode(rsa_entry)
+      cipher = {{~c"AES-128-CBC", :crypto.strong_rand_bytes(16)}, ~c"passphrase"}
+
+      encrypted_pem =
+        :public_key.pem_encode([:public_key.pem_entry_encode(:RSAPrivateKey, rsa_key, cipher)])
+
+      garbage_pem = "-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----\n"
+
       for {pem, reason} <- [
             {"not-a-pem", "must be a PEM"},
             {ec_pem, "expected an RSA private key"},
-            {public_pem, "expected an RSA private key"}
+            {public_pem, "expected an RSA private key"},
+            {encrypted_pem, "must not be encrypted"},
+            {garbage_pem, "expected an RSA private key"}
           ] do
         assert {:error, %InvalidField{field: :private_key_pem, value: "[redacted]"} = error} =
                  JWK.new(private_key_pem: pem, kid: ctx.kid)
