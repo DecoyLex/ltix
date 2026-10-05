@@ -137,9 +137,7 @@ defmodule Ltix.JWT.KeySet do
 
     case result do
       {:ok, %Req.Response{status: 200, body: body, headers: headers}} ->
-        max_age = parse_max_age(headers)
-        keys = parse_jwks(body)
-        {:ok, keys, max_age}
+        {:ok, parse_jwks(body), parse_max_age(headers)}
 
       {:ok, %Req.Response{} = response} ->
         {:error, HTTP.status_error(response, jwks_uri, "Sec §6.3")}
@@ -149,15 +147,22 @@ defmodule Ltix.JWT.KeySet do
     end
   end
 
+  # Keys that aren't valid JWKs with a key ID are left out, so one malformed
+  # key doesn't stop the platform's other keys from being used.
   defp parse_jwks(%{"keys" => keys}) when is_list(keys) do
-    Map.new(keys, fn key_map ->
-      jwk = JOSE.JWK.from_map(key_map)
-      kid = Map.get(key_map, "kid")
-      {kid, jwk}
-    end)
+    for %{"kid" => kid} = key_map when is_binary(kid) <- keys,
+        {:ok, jwk} <- [parse_key(key_map)],
+        into: %{},
+        do: {kid, jwk}
   end
 
-  defp parse_jwks(_body), do: %{}
+  defp parse_jwks(_jwks), do: %{}
+
+  defp parse_key(key_map) do
+    {:ok, JOSE.JWK.from_map(key_map)}
+  rescue
+    _error -> :error
+  end
 
   defp parse_max_age(headers) do
     headers

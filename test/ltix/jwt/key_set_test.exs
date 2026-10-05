@@ -173,6 +173,23 @@ defmodule Ltix.JWT.KeySetTest do
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
     end
 
+    test "skips malformed keys in the key set", ctx do
+      [platform_key] = ctx.jwks["keys"]
+      keys = [123, "key", %{"kid" => "no-type"}, %{"kty" => "RSA", "kid" => "bad", "n" => 1}]
+      stub_jwks(%{"keys" => keys ++ [platform_key]})
+
+      kid = ctx.platform_jwk.kid
+      opts = [req_options: req_options()]
+
+      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+               KeySet.get_key(ctx.registration, kid, opts)
+
+      for kid <- ["no-type", "bad"] do
+        assert {:error, %Ltix.Errors.Security.KidNotFound{kid: ^kid}} =
+                 KeySet.get_key(ctx.registration, kid, opts)
+      end
+    end
+
     test "returns TransportError on network failure", ctx do
       Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
         Req.Test.transport_error(conn, :timeout)
