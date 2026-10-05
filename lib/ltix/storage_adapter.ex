@@ -32,6 +32,7 @@ defmodule Ltix.StorageAdapter do
   """
 
   alias Ltix.Deployable
+  alias Ltix.Deployment
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.RegistrationNotFound
@@ -70,7 +71,8 @@ defmodule Ltix.StorageAdapter do
 
   Return any struct that implements `Ltix.Deployable`. The library
   validates it via the protocol and preserves your original struct
-  in the `Ltix.LaunchContext`.
+  in the `Ltix.LaunchContext`. A deployment with a different
+  `deployment_id` fails the launch with `Ltix.Errors.Unknown.StorageError`.
 
   Return `{:error, :not_found}` when no deployment matches, and the launch
   returns `Ltix.Errors.Invalid.DeploymentNotFound`.
@@ -136,13 +138,34 @@ defmodule Ltix.StorageAdapter do
   def get_deployment(adapter, registration, deployment_id) do
     case adapter.get_deployment(registration, deployment_id) do
       {:ok, deployment} ->
-        {:ok, deployment}
+        check_deployment_id(deployment, deployment_id)
 
       {:error, :not_found} ->
         {:error, DeploymentNotFound.exception(deployment_id: deployment_id)}
 
       result ->
         {:error, storage_error(:get_deployment, result)}
+    end
+  end
+
+  # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+  defp check_deployment_id(deployment, deployment_id) do
+    case Deployable.to_deployment(deployment) do
+      {:ok, %Deployment{deployment_id: ^deployment_id}} ->
+        {:ok, deployment}
+
+      {:ok, %Deployment{deployment_id: other_deployment_id}} ->
+        {:error,
+         StorageError.exception(
+           callback: :get_deployment,
+           result: {:ok, deployment},
+           reason:
+             "returned deployment #{inspect(other_deployment_id)} " <>
+               "for deployment_id #{inspect(deployment_id)}"
+         )}
+
+      {:error, _error} = error ->
+        error
     end
   end
 

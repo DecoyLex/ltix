@@ -685,6 +685,25 @@ defmodule LtixTest do
       end
     end
 
+    test "handle_callback returns StorageError when get_deployment returns another deployment",
+         ctx do
+      other_deployment = Deployment.new!("other-deployment")
+      send(self(), {:storage_result, :get_deployment, {:ok, other_deployment}})
+
+      assert {:error,
+              %StorageError{callback: :get_deployment, result: {:ok, ^other_deployment}} = error} =
+               Ltix.handle_callback(
+                 %{"id_token" => ctx.id_token, "state" => ctx.state},
+                 ctx.state,
+                 storage_adapter: ScriptedStorageAdapter,
+                 req_options: req_options()
+               )
+
+      assert Exception.message(error) ==
+               ~s(Storage adapter callback get_deployment returned deployment "other-deployment" ) <>
+                 ~s(for deployment_id "deployment-001")
+    end
+
     test "an invalid registration struct from the storage adapter fails the login", ctx do
       registration = %{ctx.registration | jwks_uri: "http://platform.example.com/jwks"}
       send(self(), {:storage_result, :get_registration, {:ok, registration}})

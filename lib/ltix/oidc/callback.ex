@@ -1,7 +1,6 @@
 defmodule Ltix.OIDC.Callback do
   @moduledoc false
 
-  alias Ltix.Deployable
   alias Ltix.Errors
   alias Ltix.JWT.Token
   alias Ltix.LaunchClaims
@@ -58,7 +57,6 @@ defmodule Ltix.OIDC.Callback do
              registration,
              raw_claims[@lti <> "deployment_id"]
            ),
-         {:ok, _deployment} <- Deployable.to_deployment(user_deployment),
          {:ok, claims} <-
            LaunchClaims.from_json(raw_claims, Keyword.take(opts, [:claim_parsers, :role_parsers])) do
       context = %LaunchContext{

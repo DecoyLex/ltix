@@ -178,7 +178,7 @@ These indicate an unexpected failure outside the incoming request.
 
 | Error | Fields | When |
 |---|---|---|
-| `StorageError` | `callback`, `result` | A storage adapter callback returned `{:error, reason}` or an unexpected value |
+| `StorageError` | `callback`, `result`, `reason` | A storage adapter callback returned `{:error, reason}`, an unexpected value, or a deployment for a different `deployment_id` |
 | `TransportError` | `status`, `body`, `url`, `spec_ref` | An HTTP request to the platform failed |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
 | `KeySetCacheNotStarted` | `cache`, `child_spec` | Raised when a launch needs a key set cache that is not started in the supervision tree |
