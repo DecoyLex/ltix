@@ -21,6 +21,8 @@ defmodule Ltix.GradeService.Result do
       #=> 0.83
   """
 
+  alias Ltix.LaunchClaims.ClaimHelpers
+
   defstruct [
     :id,
     :score_of,
@@ -54,11 +56,28 @@ defmodule Ltix.GradeService.Result do
     "comment" => :comment
   }
 
+  @json_schema ClaimHelpers.rename_claims(
+                 Zoi.struct(
+                   __MODULE__,
+                   %{
+                     id: Zoi.string() |> ClaimHelpers.optional(),
+                     score_of: Zoi.string() |> ClaimHelpers.optional(),
+                     user_id: Zoi.string() |> ClaimHelpers.optional(),
+                     result_score: Zoi.number() |> ClaimHelpers.optional(),
+                     result_maximum: Zoi.number() |> ClaimHelpers.optional(),
+                     scoring_user_id: Zoi.string() |> ClaimHelpers.optional(),
+                     comment: Zoi.string() |> ClaimHelpers.optional()
+                   },
+                   coerce: true
+                 ),
+                 Map.reject(@known_keys, fn {key, field} -> key == Atom.to_string(field) end)
+               )
+
   @doc """
   Parse a result from a decoded JSON map.
 
-  Accepts any map and extracts known fields. Unrecognized keys are
-  captured in `extensions`.
+  Accepts any map and extracts known fields. Fields with the wrong type are
+  `nil`. Unrecognized keys are captured in `extensions`.
 
   ## Examples
 
@@ -66,10 +85,11 @@ defmodule Ltix.GradeService.Result do
       iex> {result.user_id, result.result_score}
       {"123", 0.5}
   """
-  @spec from_json(map()) :: {:ok, t()}
+  @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    {fields, extensions} = classify_keys(json)
-    {:ok, struct!(__MODULE__, Map.put(fields, :extensions, extensions))}
+    with {:ok, result} <- ClaimHelpers.from_json(@json_schema, json, nil, "AGS §3.3.4") do
+      {:ok, %{result | extensions: Map.drop(json, Map.keys(@known_keys))}}
+    end
   end
 
   @doc """
@@ -89,9 +109,5 @@ defmodule Ltix.GradeService.Result do
     fields
     |> Map.reject(fn {_json_key, value} -> is_nil(value) end)
     |> Map.merge(result.extensions)
-  end
-
-  defp classify_keys(json) do
-    Ltix.GradeService.classify_keys(json, @known_keys)
   end
 end

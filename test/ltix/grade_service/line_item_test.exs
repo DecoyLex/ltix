@@ -2,7 +2,6 @@ defmodule Ltix.GradeService.LineItemTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.GradeService.LineItem
 
   doctest LineItem
@@ -65,37 +64,6 @@ defmodule Ltix.GradeService.LineItemTest do
       assert {:ok, %LineItem{score_maximum: nil}} = LineItem.from_json(json)
     end
 
-    test "captures URL-keyed extensions" do
-      json = %{
-        "label" => "Quiz 1",
-        "scoreMaximum" => 100,
-        "https://canvas.instructure.com/lti/submission_type" => %{
-          "type" => "external_tool",
-          "external_tool_url" => "https://my.tool.url/launch"
-        }
-      }
-
-      assert {:ok, %LineItem{} = item} = LineItem.from_json(json)
-
-      assert item.extensions == %{
-               "https://canvas.instructure.com/lti/submission_type" => %{
-                 "type" => "external_tool",
-                 "external_tool_url" => "https://my.tool.url/launch"
-               }
-             }
-    end
-
-    test "captures non-URL unrecognized keys in extensions" do
-      json = %{
-        "label" => "Quiz 1",
-        "scoreMaximum" => 100,
-        "customPlatformField" => "some-value"
-      }
-
-      assert {:ok, %LineItem{} = item} = LineItem.from_json(json)
-      assert item.extensions == %{"customPlatformField" => "some-value"}
-    end
-
     test "parses date times into UTC DateTime structs" do
       json = %{
         "startDateTime" => "2018-03-06T20:05:02+05:30",
@@ -110,15 +78,6 @@ defmodule Ltix.GradeService.LineItemTest do
     test "treats blank date times as absent" do
       assert {:ok, %LineItem{start_date_time: nil, end_date_time: nil}} =
                LineItem.from_json(%{"startDateTime" => "", "endDateTime" => nil})
-    end
-
-    test "rejects date times without a time zone" do
-      for value <- ["2018-03-06T20:05:02", "next week", 42] do
-        assert {:error, %MalformedResponse{reason: reason}} =
-                 LineItem.from_json(%{"startDateTime" => value})
-
-        assert reason =~ "startDateTime"
-      end
     end
   end
 

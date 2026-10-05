@@ -776,15 +776,4 @@ defmodule Ltix.GradeService do
   def media_type(:line_item_container), do: @line_item_container_media_type
   def media_type(:result_container), do: @result_container_media_type
   def media_type(:score), do: @score_media_type
-
-  @doc false
-  @spec classify_keys(map(), %{String.t() => atom()}) :: {map(), map()}
-  def classify_keys(json, known_keys) do
-    Enum.reduce(json, {%{}, %{}}, fn {key, value}, {fields, extensions} ->
-      case Map.fetch(known_keys, key) do
-        {:ok, field} -> {Map.put(fields, field, value), extensions}
-        :error -> {fields, Map.put(extensions, key, value)}
-      end
-    end)
-  end
 end

@@ -404,6 +404,44 @@ defmodule Ltix.GradeServiceTest do
       Req.Test.verify!(Ltix.GradeService)
     end
 
+    test "omits line item fields the platform sends with the wrong type", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
+        |> Req.Test.json([
+          %{
+            "id" => 5,
+            "label" => 7,
+            "scoreMaximum" => "x",
+            "resourceLinkId" => ["link"],
+            "resourceId" => %{},
+            "tag" => false,
+            "startDateTime" => "2018-03-06T20:05:02",
+            "endDateTime" => 42,
+            "gradesReleased" => "yes"
+          }
+        ])
+      end)
+
+      client = build_client(ctx.platform)
+
+      assert {:ok,
+              [
+                %LineItem{
+                  id: nil,
+                  label: nil,
+                  score_maximum: nil,
+                  resource_link_id: nil,
+                  resource_id: nil,
+                  tag: nil,
+                  start_date_time: nil,
+                  end_date_time: nil,
+                  grades_released: nil,
+                  extensions: %{}
+                }
+              ]} = GradeService.list_line_items(client)
+    end
+
     test "returns error when line_items URL not available", ctx do
       endpoint = %AGSEndpoint{line_items: nil, line_item: @line_item_url, scopes: @all_scopes}
       client = build_client(ctx.platform, endpoint: endpoint)
@@ -945,6 +983,40 @@ defmodule Ltix.GradeServiceTest do
 
       assert {:ok, _results} =
                GradeService.list_results(client, user_id: "user-123")
+    end
+
+    test "omits result fields the platform sends with the wrong type", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type(@result_container_media_type)
+        |> Req.Test.json([
+          %{
+            "id" => 5,
+            "scoreOf" => [],
+            "userId" => 1,
+            "resultScore" => "abc",
+            "resultMaximum" => true,
+            "scoringUserId" => 2,
+            "comment" => %{}
+          }
+        ])
+      end)
+
+      client = build_client(ctx.platform)
+
+      assert {:ok,
+              [
+                %Result{
+                  id: nil,
+                  score_of: nil,
+                  user_id: nil,
+                  result_score: nil,
+                  result_maximum: nil,
+                  scoring_user_id: nil,
+                  comment: nil,
+                  extensions: %{}
+                }
+              ]} = GradeService.list_results(client)
     end
 
     test "follows relative result links with multiple relation types", ctx do

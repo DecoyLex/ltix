@@ -23,9 +23,8 @@ defmodule Ltix.GradeService.LineItem do
   """
 
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Extensions
-  alias Ltix.GradeService
+  alias Ltix.LaunchClaims.ClaimHelpers
 
   defstruct [
     :id,
@@ -63,6 +62,8 @@ defmodule Ltix.GradeService.LineItem do
 
   # [AGS §3.2.12](https://www.imsglobal.org/spec/lti-ags/v2p0/#startdatetime)
   # [AGS §3.2.13](https://www.imsglobal.org/spec/lti-ags/v2p0/#enddatetime)
+  @date_time_schema Zoi.string() |> Zoi.transform({__MODULE__, :parse_date_time, []})
+
   @validation_schema Zoi.map(%{
                        label: @label_schema,
                        score_maximum: @score_maximum_schema,
@@ -92,12 +93,32 @@ defmodule Ltix.GradeService.LineItem do
     "gradesReleased" => :grades_released
   }
 
+  @json_schema ClaimHelpers.rename_claims(
+                 Zoi.struct(
+                   __MODULE__,
+                   %{
+                     id: Zoi.string() |> ClaimHelpers.optional(),
+                     label: Zoi.string() |> ClaimHelpers.optional(),
+                     score_maximum: Zoi.number() |> ClaimHelpers.optional(),
+                     resource_link_id: Zoi.string() |> ClaimHelpers.optional(),
+                     resource_id: Zoi.string() |> ClaimHelpers.optional(),
+                     tag: Zoi.string() |> ClaimHelpers.optional(),
+                     start_date_time: ClaimHelpers.optional(@date_time_schema),
+                     end_date_time: ClaimHelpers.optional(@date_time_schema),
+                     grades_released: Zoi.boolean() |> ClaimHelpers.optional()
+                   },
+                   coerce: true
+                 ),
+                 Map.reject(@known_keys, fn {key, field} -> key == Atom.to_string(field) end)
+               )
+
   @doc """
   Parse a line item from a decoded JSON map.
 
-  Accepts any map and extracts known fields. Unrecognized keys are
-  captured in `extensions` for lossless round-trips. `startDateTime` and
-  `endDateTime` become `DateTime` structs in UTC.
+  Accepts any map and extracts known fields. Fields with the wrong type are
+  `nil`. Unrecognized keys are kept in `extensions` for lossless
+  round-trips. `startDateTime` and `endDateTime` become `DateTime` structs in
+  UTC.
 
   ## Examples
 
@@ -107,22 +128,8 @@ defmodule Ltix.GradeService.LineItem do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    {fields, extensions} = classify_keys(json)
-
-    # [AGS §3.2.12](https://www.imsglobal.org/spec/lti-ags/v2p0/#startdatetime)
-    # [AGS §3.2.13](https://www.imsglobal.org/spec/lti-ags/v2p0/#enddatetime)
-    with {:ok, start_date_time} <-
-           parse_date_time(fields[:start_date_time], "startDateTime", "AGS §3.2.12"),
-         {:ok, end_date_time} <-
-           parse_date_time(fields[:end_date_time], "endDateTime", "AGS §3.2.13") do
-      fields =
-        Map.merge(fields, %{
-          start_date_time: start_date_time,
-          end_date_time: end_date_time,
-          extensions: extensions
-        })
-
-      {:ok, struct!(__MODULE__, fields)}
+    with {:ok, item} <- ClaimHelpers.from_json(@json_schema, json, nil, "AGS §3.2") do
+      {:ok, %{item | extensions: Map.drop(json, Map.keys(@known_keys))}}
     end
   end
 
@@ -199,36 +206,21 @@ defmodule Ltix.GradeService.LineItem do
     |> Extensions.merge(item.extensions)
   end
 
-  defp classify_keys(json) do
-    GradeService.classify_keys(json, @known_keys)
-  end
-
   # [AGS §4.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#datetime-values)
   defp to_json(%DateTime{} = date_time),
     do: DateTime.to_iso8601(DateTime.shift_zone!(date_time, "Etc/UTC"))
 
   defp to_json(value), do: value
 
-  defp parse_date_time(value, _key, _spec_ref) when value in [nil, ""], do: {:ok, nil}
-
-  defp parse_date_time(value, key, spec_ref) when is_binary(value) do
+  @doc false
+  @spec parse_date_time(String.t(), keyword()) :: {:ok, DateTime.t()} | {:error, String.t()}
+  def parse_date_time(value, _opts) do
     with {:error, _reason} <- DateTime.from_iso8601(value),
          {:error, _reason} <- DateTime.from_iso8601(value, :basic) do
-      malformed_date_time(key, spec_ref)
+      {:error, "must be an ISO 8601 date and time with a time zone"}
     else
       {:ok, date_time, _offset} -> {:ok, date_time}
     end
-  end
-
-  defp parse_date_time(_value, key, spec_ref), do: malformed_date_time(key, spec_ref)
-
-  defp malformed_date_time(key, spec_ref) do
-    {:error,
-     MalformedResponse.exception(
-       service: Ltix.GradeService,
-       reason: "#{key} must be an ISO 8601 date and time with a time zone",
-       spec_ref: spec_ref
-     )}
   end
 end
 
