@@ -20,11 +20,11 @@ def launch(conn, params) do
 
   case context.claims.message_type do
     "LtiDeepLinkingRequest" ->
-      settings = context.claims.deep_linking_settings
+      context_id = MyApp.LaunchContexts.put(context)
 
       conn
-      |> assign(:context, context)
-      |> assign(:settings, settings)
+      |> put_session(:deep_linking_context_id, context_id)
+      |> assign(:settings, context.claims.deep_linking_settings)
       |> render(:content_picker)
 
     "LtiResourceLinkRequest" ->
@@ -34,6 +34,8 @@ def launch(conn, params) do
   end
 end
 ```
+
+Sending the response later needs the launch context, so keep it on the server and put only its ID in the session. `MyApp.LaunchContexts` stands for any server-side store with an expiry, such as an ETS table, Cachex, or a database table. Don't put the context itself in the session. It includes your registration, which can hold the tool's private key, and Phoenix session cookies are signed, not encrypted.
 
 The `deep_linking_settings` struct tells you what the platform accepts:
 
@@ -142,7 +144,7 @@ Once you have your content items, call `build_response/3` to create the signed J
 
 ```elixir
 def submit_selection(conn, %{"selected_ids" => ids}) do
-  context = get_session(conn, :dl_context)
+  {:ok, context} = MyApp.LaunchContexts.fetch(get_session(conn, :deep_linking_context_id))
   items = build_items_from_selection(ids)
 
   {:ok, response} = Ltix.DeepLinking.build_response(context, items,
