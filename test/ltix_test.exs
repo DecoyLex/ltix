@@ -178,6 +178,16 @@ defmodule LtixTest do
       assert query["state"] == result.state
     end
 
+    test "looks up the registration by issuer alone when client_id is empty" do
+      assert {:ok, result} =
+               Ltix.handle_login(Map.put(login_params(), "client_id", ""), @redirect_uri,
+                 storage_adapter: StorageAdapter
+               )
+
+      assert URI.decode_query(URI.parse(result.redirect_uri).query)["client_id"] ==
+               "tool-client-id"
+    end
+
     test "reads storage_adapter from application config" do
       assert {:ok, %{redirect_uri: redirect_uri, state: state}} =
                Ltix.handle_login(login_params(), @redirect_uri)

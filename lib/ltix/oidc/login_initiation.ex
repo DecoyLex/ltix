@@ -16,7 +16,7 @@ defmodule Ltix.OIDC.LoginInitiation do
   def call(params, callback_module, redirect_uri) do
     with :ok <- validate_login_params(params),
          {:ok, _user_registration, registration} <-
-           StorageAdapter.get_registration(callback_module, params["iss"], params["client_id"]),
+           StorageAdapter.get_registration(callback_module, params["iss"], client_id(params)),
          {state, nonce} = State.generate(),
          :ok <- StorageAdapter.store_nonce(callback_module, nonce, registration) do
       auth_redirect =
@@ -31,6 +31,11 @@ defmodule Ltix.OIDC.LoginInitiation do
       {:ok, %{redirect_uri: auth_redirect, state: state}}
     end
   end
+
+  # An empty client_id is treated as absent.
+  # [Core §4.1.3](https://www.imsglobal.org/spec/lti/v1p3/#client_id-login-parameter)
+  defp client_id(%{"client_id" => ""}), do: nil
+  defp client_id(params), do: params["client_id"]
 
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
   defp validate_login_params(params) do
