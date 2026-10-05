@@ -51,10 +51,10 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:headers, [{"content-type", "application/x-www-form-urlencoded"}])
       |> Keyword.put(:body, body)
       |> Keyword.put(:retry, false)
-      |> Keyword.put(:decode_body, false)
+      |> Keyword.merge(method: :post, service: :oauth, spec_ref: "RFC 6749 §5.1")
 
-    with {:ok, response} <- HTTP.request(Keyword.put(req_opts, :method, :post)) do
-      parse_response(decode_response(response), scopes)
+    with {:ok, response} <- HTTP.request(req_opts) do
+      parse_response(response, scopes)
     end
   end
 
@@ -79,19 +79,6 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   defp stop_metadata({:error, _}), do: %{scopes_granted: nil, expires_in: nil}
-
-  defp decode_response(%Req.Response{body: body} = response) when is_binary(body) do
-    with [content_type] <- Req.Response.get_header(response, "content-type"),
-         [media_type | _parameters] <- String.split(content_type, ";", parts: 2),
-         "application/json" <- String.downcase(String.trim(media_type)),
-         {:ok, decoded_body} <- Ltix.AppConfig.json_library!().decode(body) do
-      %{response | body: decoded_body}
-    else
-      _ -> response
-    end
-  end
-
-  defp decode_response(response), do: response
 
   # [RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1)
   defp parse_response(%Req.Response{status: 200, body: body}, scopes) do

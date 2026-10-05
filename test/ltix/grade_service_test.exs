@@ -1209,6 +1209,45 @@ defmodule Ltix.GradeServiceTest do
     end
   end
 
+  describe "platform responses the tool can't use" do
+    setup ctx do
+      {:ok, score} =
+        Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+
+      %{client: build_client(ctx.platform), score: score}
+    end
+
+    test "invalid JSON in a successful response returns MalformedResponse", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
+        |> Plug.Conn.send_resp(200, "{not json")
+      end)
+
+      for result <- [
+            GradeService.list_line_items(ctx.client),
+            GradeService.get_line_item(ctx.client)
+          ] do
+        assert {:error, %MalformedResponse{}} = result
+      end
+    end
+
+    test "an error status keeps its status and raw body", ctx do
+      Req.Test.stub(Ltix.GradeService, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(503, "<html>maintenance</html>")
+      end)
+
+      for result <- [
+            GradeService.post_score(ctx.client, ctx.score),
+            GradeService.list_line_items(ctx.client)
+          ] do
+        assert {:error, %TransportError{status: 503, body: "<html>maintenance</html>"}} = result
+      end
+    end
+  end
+
   describe "line items without an id" do
     test "every operation returns MissingLineItemId", ctx do
       Req.Test.stub(Ltix.GradeService, fn _conn ->

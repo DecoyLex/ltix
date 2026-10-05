@@ -1,7 +1,9 @@
 defmodule Ltix.HTTP do
   @moduledoc false
 
+  alias Ltix.AppConfig
   alias Ltix.Errors
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Security.AccessDenied
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
@@ -29,9 +31,15 @@ defmodule Ltix.HTTP do
   Send a request only to an absolute HTTPS URL without a userinfo component (RFC 3986 §3.2.1).
 
   A request that cannot connect to the platform returns `Ltix.Errors.Unknown.TransportError`.
+  A JSON body is decoded unless `decode_body: false` is given. Invalid JSON in a
+  successful response returns `Ltix.Errors.Invalid.MalformedResponse`, labeled
+  with the `:service` and `:spec_ref` options, and in an error response is left
+  as the raw body.
   """
   @spec request(keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
   def request(opts) do
+    {labels, opts} = Keyword.split(opts, [:service, :spec_ref])
+    {decode?, opts} = Keyword.pop(opts, :decode_body, true)
     url = Keyword.get(opts, :url)
 
     with {:ok, uri} <- validate_url(url),
@@ -41,14 +49,49 @@ defmodule Ltix.HTTP do
         url: uri,
         redirect: true,
         redirect_log_level: false,
-        max_redirects: max_redirects(opts)
+        max_redirects: max_redirects(opts),
+        decode_body: false
       )
       |> Keyword.delete(:follow_redirects)
       |> Req.new()
       |> Req.Request.prepend_response_steps(ltix_redirect: &guard_redirect(&1, uri))
       |> Req.request()
       |> to_ltix_error(url)
+      |> decode_json(decode?, url, labels)
     end
+  end
+
+  defp decode_json({:ok, %Req.Response{status: status, body: body} = response}, true, url, labels)
+       when is_binary(body) and body != "" do
+    if json_content_type?(response) do
+      case AppConfig.json_library!().decode(body) do
+        {:ok, decoded} ->
+          {:ok, %{response | body: decoded}}
+
+        {:error, _reason} when status in 200..299 ->
+          {:error,
+           MalformedResponse.exception(
+             [reason: "response from #{url} is not valid JSON"] ++ labels
+           )}
+
+        {:error, _reason} ->
+          {:ok, response}
+      end
+    else
+      {:ok, response}
+    end
+  end
+
+  defp decode_json(result, _decode?, _url, _labels), do: result
+
+  defp json_content_type?(response) do
+    response
+    |> Req.Response.get_header("content-type")
+    |> Enum.any?(fn content_type ->
+      [media_type | _parameters] = String.split(content_type, ";")
+      media_type = String.downcase(String.trim(media_type), :ascii)
+      media_type == "application/json" or String.ends_with?(media_type, "+json")
+    end)
   end
 
   defp to_ltix_error({:error, error}, url) do

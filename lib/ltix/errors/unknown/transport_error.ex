@@ -1,5 +1,13 @@
 defmodule Ltix.Errors.Unknown.TransportError do
-  @moduledoc "HTTP or connection error from a platform endpoint."
+  @moduledoc """
+  HTTP or connection error from a platform endpoint.
+
+  The following fields of this exception are public and can be accessed freely:
+
+    * `:status` (`t:integer/0` or `nil`) - the HTTP status, or `nil` when no response arrived
+    * `:body` (`t:term/0`) - the response body, or a description of the connection error
+    * `:url` (`t:String.t/0` or `nil`) - the requested URL
+  """
   use Ltix.Errors, fields: [:status, :body, :url, :spec_ref], class: :unknown
 
   def message(%{status: status} = error) when not is_nil(status) do
