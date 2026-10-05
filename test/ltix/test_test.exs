@@ -421,6 +421,29 @@ defmodule Ltix.TestTest do
       assert platform.registration.client_id == "my-tool"
       assert platform.deployment.deployment_id == "dep-99"
     end
+
+    test "launches with each new platform's key when platforms share a key set URL" do
+      registration =
+        Ltix.Registration.new!(%{
+          issuer: "https://platform.example.com",
+          client_id: "tool-client-id",
+          auth_endpoint: "https://platform.example.com/auth",
+          jwks_uri:
+            "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
+          tool_jwk: Ltix.JWK.generate(key_size: 2048)
+        })
+
+      for _platform <- 1..2 do
+        platform = Ltix.Test.setup_platform!(registration: registration)
+        {:ok, pid} = StorageAdapter.start_link(platforms: [platform])
+        StorageAdapter.set_pid(pid)
+
+        {:ok, login_result} = do_login(platform)
+        nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+
+        assert {:ok, %LaunchContext{}} = do_callback(platform, login_result, nonce, [])
+      end
+    end
   end
 
   describe "setup_platform!/1 validation" do

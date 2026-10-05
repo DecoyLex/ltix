@@ -18,10 +18,7 @@ defmodule Ltix.JWT.KeySet.Cache do
         def get(jwks_uri), do: ...
 
         @impl true
-        def put(jwks_uri, keys, max_age), do: ...
-
-        @impl true
-        def delete(jwks_uri), do: ...
+        def put(jwks_uri, entry, max_age), do: ...
       end
 
   Then configure it:
@@ -34,27 +31,21 @@ defmodule Ltix.JWT.KeySet.Cache do
   """
 
   @doc """
-  Look up cached keys for a JWKS URI.
+  Look up the cached entry for a JWKS URI.
 
-  Returns `{:ok, keys}` where `keys` is `%{kid => JOSE.JWK.t()}`,
-  or `:miss` if the entry is absent or expired.
+  Returns `{:ok, entry}` with the `entry` given to `c:put/3`, or `:miss` if
+  the entry is absent or expired.
   """
-  @callback get(jwks_uri :: String.t()) :: {:ok, keys :: map()} | :miss
+  @callback get(jwks_uri :: String.t()) :: {:ok, entry :: term()} | :miss
 
   @doc """
-  Store keys for a JWKS URI with a TTL.
+  Store an entry for a JWKS URI with a TTL, replacing any existing entry.
 
-  `max_age` is the number of seconds the entry should be considered fresh,
-  derived from the `cache-control: max-age` HTTP header.
+  The `entry` holds the platform's keys. Store it as given. `max_age` is the
+  number of seconds the entry should be considered fresh, derived from the
+  `cache-control: max-age` HTTP header.
   """
-  @callback put(jwks_uri :: String.t(), keys :: map(), max_age :: pos_integer()) :: :ok
-
-  @doc """
-  Remove a cached entry for a JWKS URI.
-
-  Called before re-fetching on a key ID miss (key rotation).
-  """
-  @callback delete(jwks_uri :: String.t()) :: :ok
+  @callback put(jwks_uri :: String.t(), entry :: term(), max_age :: pos_integer()) :: :ok
 
   defmacro __using__(_opts) do
     quote do

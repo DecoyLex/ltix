@@ -28,19 +28,13 @@ if Code.ensure_loaded?(Cachex) do
     def get(jwks_uri) do
       case succeeded!(:get, Cachex.get(cache_name(), jwks_uri)) do
         nil -> :miss
-        keys -> {:ok, keys}
+        entry -> {:ok, entry}
       end
     end
 
     @impl Ltix.JWT.KeySet.Cache
-    def put(jwks_uri, keys, max_age) do
-      succeeded!(:put, Cachex.put(cache_name(), jwks_uri, keys, expire: :timer.seconds(max_age)))
-      :ok
-    end
-
-    @impl Ltix.JWT.KeySet.Cache
-    def delete(jwks_uri) do
-      succeeded!(:delete, Cachex.del(cache_name(), jwks_uri))
+    def put(jwks_uri, entry, max_age) do
+      succeeded!(:put, Cachex.put(cache_name(), jwks_uri, entry, expire: :timer.seconds(max_age)))
       :ok
     end
 

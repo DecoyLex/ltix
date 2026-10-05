@@ -43,21 +43,14 @@ defmodule Ltix.JWT.KeySet.ETSCache do
 
     with {:ok, entry} <- lookup(jwks_uri),
          :ok <- ensure_valid(entry) do
-      {:ok, entry.keys}
+      {:ok, entry.entry}
     end
   end
 
   @impl Ltix.JWT.KeySet.Cache
-  def put(jwks_uri, keys, max_age) do
+  def put(jwks_uri, entry, max_age) do
     ensure_table()
-    :ets.insert(@table, {jwks_uri, keys, System.monotonic_time(:second), max_age})
-    :ok
-  end
-
-  @impl Ltix.JWT.KeySet.Cache
-  def delete(jwks_uri) do
-    ensure_table()
-    :ets.delete(@table, jwks_uri)
+    :ets.insert(@table, {jwks_uri, entry, System.monotonic_time(:second), max_age})
     :ok
   end
 
@@ -70,10 +63,10 @@ defmodule Ltix.JWT.KeySet.ETSCache do
 
   defp lookup(jwks_uri) do
     case :ets.lookup(@table, jwks_uri) do
-      [{^jwks_uri, keys, inserted_at, max_age}] ->
+      [{^jwks_uri, entry, inserted_at, max_age}] ->
         elapsed = System.monotonic_time(:second) - inserted_at
 
-        {:ok, %{keys: keys, max_age: max_age, elapsed: elapsed}}
+        {:ok, %{entry: entry, max_age: max_age, elapsed: elapsed}}
 
       [] ->
         :miss

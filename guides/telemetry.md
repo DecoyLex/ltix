@@ -7,42 +7,42 @@ suffixes with `system_time` and `duration` measurements provided by
 
 ## OIDC flow
 
-- `[:ltix, :login, :start | :stop | :exception]` — wraps `handle_login/3`. Use `issuer`, `client_id`, and `redirect_uri` metadata to break down measurements.
+- `[:ltix, :login, :start | :stop | :exception]` wraps `handle_login/3`. Use `issuer`, `client_id`, and `redirect_uri` metadata to break down measurements.
 
-- `[:ltix, :callback, :start | :stop | :exception]` — wraps `handle_callback/3`. Use `issuer`, `client_id`, `deployment_id`, and `message_type` metadata (stop only; `nil` on error) to break down measurements.
+- `[:ltix, :callback, :start | :stop | :exception]` wraps `handle_callback/3`. Use `issuer`, `client_id`, `deployment_id`, and `message_type` metadata (stop only, `nil` on error) to break down measurements.
 
 ## Advantage services
 
-- `[:ltix, :grade_service, <action>, :start | :stop | :exception]` — wraps each grade service operation. Actions: `:list_line_items`, `:get_line_item`, `:create_line_item`, `:update_line_item`, `:delete_line_item`, `:post_score`, `:list_results`, `:stream_line_items`, `:stream_results`. The `endpoint` metadata is the URL the operation requests, or `nil` when no URL could be resolved. Use it to break down measurements.
+- `[:ltix, :grade_service, <action>, :start | :stop | :exception]` wraps each grade service operation. The actions are `:list_line_items`, `:get_line_item`, `:create_line_item`, `:update_line_item`, `:delete_line_item`, `:post_score`, `:list_results`, `:stream_line_items`, and `:stream_results`. The `endpoint` metadata is the URL the operation requests, or `nil` when no URL could be resolved. Use it to break down measurements.
 
-- `[:ltix, :memberships_service, <action>, :start | :stop | :exception]` — wraps each memberships service operation. Actions: `:list_members`, `:stream_members`. The `endpoint` metadata is the memberships URL the operation requests, or `nil` when no URL could be resolved. Use it to break down measurements.
+- `[:ltix, :memberships_service, <action>, :start | :stop | :exception]` wraps each memberships service operation. The actions are `:list_members` and `:stream_members`. The `endpoint` metadata is the memberships URL the operation requests, or `nil` when no URL could be resolved. Use it to break down measurements.
 
-- `[:ltix, :deep_linking, :build_response, :start | :stop | :exception]` — wraps `Ltix.DeepLinking.build_response/3`. Use `item_count` and `item_types` metadata to break down measurements.
+- `[:ltix, :deep_linking, :build_response, :start | :stop | :exception]` wraps `Ltix.DeepLinking.build_response/3`. Use `item_count` and `item_types` metadata to break down measurements.
 
 Bang variants such as `list_members!/2` emit the same events as their non-bang functions.
 
 ## OAuth
 
-- `[:ltix, :oauth, :authenticate, :start | :stop | :exception]` — wraps the token request made by `Ltix.OAuth.authenticate/2` and each service's `authenticate/2`. Use `scopes_requested` metadata (start and stop) to break down measurements. `scopes_granted` and `expires_in` are available on stop (`nil` on error).
+- `[:ltix, :oauth, :authenticate, :start | :stop | :exception]` wraps the token request made by `Ltix.OAuth.authenticate/2` and each service's `authenticate/2`. Use `scopes_requested` metadata (start and stop) to break down measurements. `scopes_granted` and `expires_in` are available on stop (`nil` on error).
 
 - `[:ltix, :oauth, :refresh, :start | :stop | :exception]` wraps the token request made by `Ltix.OAuth.Client.refresh/1`, `Ltix.OAuth.Client.force_refresh/1`, and their bang variants. It has the same metadata as `[:ltix, :oauth, :authenticate]`. `refresh/1` emits nothing when the token has not expired.
 
 ## JWKS cache
 
-Single events (not spans), fired during `Ltix.JWT.KeySet.get_key/3`:
+These are single events (not spans), emitted during `Ltix.JWT.KeySet.get_key/3`.
 
-- `[:ltix, :jwks, :cache_hit]` — key found in cache. Metadata: `jwks_uri`, `kid`.
-- `[:ltix, :jwks, :cache_miss]` — key fetched from platform. Metadata: `jwks_uri`, `kid`.
+- `[:ltix, :jwks, :cache_hit]` - key found in cache. The metadata is `jwks_uri` and `kid`.
+- `[:ltix, :jwks, :cache_miss]` - key fetched from platform. The metadata is `jwks_uri` and `kid`.
 
-A miss is also emitted when the `kid` is not found after fetching
-(before the error is returned).
+A miss is also emitted when the `kid` is not found (before the error is
+returned).
 
 ## Not instrumented
 
 | Area | Reason |
 |---|---|
 | HTTP requests | Req emits `[:req, :request, :*]` already |
-| Storage adapter calls | Host app code — instrument your own adapter |
+| Storage adapter calls | Host app code. Instrument your own adapter. |
 | JWT verification internals | Sub-steps of the callback span |
-| Claim parsing | In-memory struct building; negligible cost |
+| Claim parsing | In-memory struct building with negligible cost |
 | Pagination per-page | Service-level span covers the whole operation |

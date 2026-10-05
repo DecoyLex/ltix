@@ -1,9 +1,8 @@
 defmodule Ltix.JWT.KeySet.CachexCacheTest do
   @moduledoc """
   Tests that CachexCache correctly implements the Cache behaviour contract:
-  - get/1 maps Cachex {:ok, nil} → :miss and {:ok, value} → {:ok, value}
+  - get/1 maps Cachex {:ok, nil} → :miss and {:ok, entry} → {:ok, entry}
   - put/3 returns :ok and makes data retrievable
-  - delete/1 returns :ok and invalidates cached data
   - every callback raises KeySetCacheFailed when Cachex returns an error
   - cache_name/0 reads from application config
   """
@@ -59,31 +58,14 @@ defmodule Ltix.JWT.KeySet.CachexCacheTest do
     test "maps Cachex {:ok, nil} to :miss for uncached key" do
       assert :miss = CachexCache.get(@jwks_uri)
     end
-
-    test "maps Cachex {:ok, value} to {:ok, value} for cached key" do
-      keys = %{"kid-1" => :some_jwk}
-      CachexCache.put(@jwks_uri, keys, 300)
-
-      assert {:ok, ^keys} = CachexCache.get(@jwks_uri)
-    end
   end
 
   describe "put/3" do
-    test "returns :ok and makes data round-trippable via get/1" do
-      keys = %{"kid-1" => :some_jwk}
-      assert :ok = CachexCache.put(@jwks_uri, keys, 300)
-      assert {:ok, ^keys} = CachexCache.get(@jwks_uri)
-    end
-  end
+    test "returns :ok and makes the entry round-trippable via get/1" do
+      entry = %{keys: %{"kid-1" => :some_jwk}, fetched_at: ~U[2026-01-01 00:00:00Z]}
 
-  describe "delete/1" do
-    test "returns :ok and causes subsequent get/1 to return :miss" do
-      keys = %{"kid-1" => :some_jwk}
-      CachexCache.put(@jwks_uri, keys, 300)
-      assert {:ok, _} = CachexCache.get(@jwks_uri)
-
-      assert :ok = CachexCache.delete(@jwks_uri)
-      assert :miss = CachexCache.get(@jwks_uri)
+      assert :ok = CachexCache.put(@jwks_uri, entry, 300)
+      assert {:ok, ^entry} = CachexCache.get(@jwks_uri)
     end
   end
 
@@ -99,11 +81,10 @@ defmodule Ltix.JWT.KeySet.CachexCacheTest do
       Application.put_env(:ltix, :cachex_cache_name, @unreachable_cache)
     end
 
-    test "get/1, put/3, and delete/1 raise KeySetCacheFailed" do
+    test "get/1 and put/3 raise KeySetCacheFailed" do
       for {operation, call} <- [
             get: fn -> CachexCache.get(@jwks_uri) end,
-            put: fn -> CachexCache.put(@jwks_uri, %{}, 300) end,
-            delete: fn -> CachexCache.delete(@jwks_uri) end
+            put: fn -> CachexCache.put(@jwks_uri, %{}, 300) end
           ] do
         assert_raise KeySetCacheFailed,
                      "Key set cache Ltix.JWT.KeySet.CachexCache failed to #{operation} keys, :nodedown",

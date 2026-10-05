@@ -412,9 +412,11 @@ defmodule Ltix.Test do
   Set up a simulated LTI platform in one call.
 
   Generates platform-side RSA keys, builds a registration and deployment,
-  and stubs the JWKS HTTP endpoint. Your app's own storage adapter
-  (configured via `config :ltix, storage_adapter: ...`) handles
-  persistence during the OIDC flow.
+  stubs the JWKS HTTP endpoint, and expires keys cached for the platform's
+  key set URL in the configured `Ltix.JWT.KeySet.Cache`, which must be
+  started. Your app's own storage adapter (configured via
+  `config :ltix, storage_adapter: ...`) handles persistence during the OIDC
+  flow.
 
   ## Options
 
@@ -456,6 +458,8 @@ defmodule Ltix.Test do
       |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
       |> Req.Test.json(jwks)
     end)
+
+    KeySet.expire_keys(resolved_registration(platform).jwks_uri)
 
     platform
   end

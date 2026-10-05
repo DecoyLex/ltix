@@ -43,13 +43,10 @@ defmodule LtixTest do
     end
 
     @impl Ltix.JWT.KeySet.Cache
-    def put(jwks_uri, _keys, _max_age) do
+    def put(jwks_uri, _entry, _max_age) do
       send(self(), {:jwks_cache, :put, jwks_uri})
       :ok
     end
-
-    @impl Ltix.JWT.KeySet.Cache
-    def delete(_jwks_uri), do: :ok
   end
 
   # Returns a result sent by the test for a callback, otherwise delegates.
@@ -102,7 +99,8 @@ defmodule LtixTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+        jwks_uri:
+          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
         tool_jwk: Ltix.JWK.generate()
       })
 

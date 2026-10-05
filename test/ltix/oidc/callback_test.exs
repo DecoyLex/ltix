@@ -25,7 +25,8 @@ defmodule Ltix.OIDC.CallbackTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
+        jwks_uri:
+          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
         tool_jwk: Ltix.JWK.generate()
       })
 

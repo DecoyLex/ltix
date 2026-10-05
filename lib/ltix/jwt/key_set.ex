@@ -17,9 +17,7 @@ defmodule Ltix.JWT.KeySet do
   ## Caching
 
   By default, keys are cached in an ETS table (`Ltix.JWT.KeySet.ETSCache`).
-  The cache respects the platform's `cache-control: max-age` header. When a
-  `kid` is not found in cached keys, the module re-fetches once to handle
-  key rotation.
+  The cache respects the platform's `cache-control: max-age` header.
 
   You can swap the cache backend by implementing `Ltix.JWT.KeySet.Cache`:
 
@@ -34,10 +32,11 @@ defmodule Ltix.JWT.KeySet do
 
   ## Key Rotation
 
-  When a `kid` is not found in the cached key set, the module deletes the
-  cache entry and re-fetches from the platform. This handles the case where
-  the platform has rotated its keys. To prevent abuse, only one re-fetch is
-  attempted per `get_key/3` call.
+  When a `kid` is not found in the cached keys, the module re-fetches the key
+  set to pick up keys the platform has rotated in. It re-fetches at most once
+  every 30 seconds for each key set URL, so unknown key IDs can't make it
+  fetch on every launch. The cached keys stay in use until a re-fetch
+  succeeds.
   """
 
   alias Ltix.Errors.Security.KidNotFound
@@ -48,6 +47,9 @@ defmodule Ltix.JWT.KeySet do
 
   @default_max_age 300
 
+  # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
+  @refetch_interval 30
+
   @options_schema Zoi.keyword([jwks_cache: Zoi.module(), req_options: Zoi.keyword(Zoi.any())],
                     unrecognized_keys: :error
                   )
@@ -56,8 +58,8 @@ defmodule Ltix.JWT.KeySet do
   Fetch the platform's public key matching `kid`.
 
   Checks the cache first. On a cache miss, fetches from the platform's JWKS
-  endpoint. If the `kid` is not found in cached keys, re-fetches once to
-  support key rotation.
+  endpoint. If the `kid` is not found in cached keys fetched at least 30
+  seconds ago, re-fetches to support key rotation.
 
   ## Options
 
@@ -72,56 +74,57 @@ defmodule Ltix.JWT.KeySet do
   def get_key(%Registration{} = registration, kid, opts \\ []) do
     opts = Options.parse!(opts, @options_schema)
     cache = resolve_cache(opts)
-    do_get_key(registration, kid, cache, opts, _refetched? = false)
-  end
+    jwks_uri = registration.jwks_uri
 
-  defp do_get_key(registration, kid, cache, opts, refetched?) do
-    with {:ok, {status, keys}} <- get_cached_or_fetch(registration.jwks_uri, cache, opts),
-         {:ok, jwk} <- find_key(keys, kid) do
-      :telemetry.execute([:ltix, :jwks, status], %{}, %{
-        jwks_uri: registration.jwks_uri,
-        kid: kid
-      })
-
-      {:ok, jwk}
-    else
-      :not_found when not refetched? ->
-        # [Sec §6.4] Key rotation: re-fetch once on kid miss
-        cache.delete(registration.jwks_uri)
-        do_get_key(registration, kid, cache, opts, _refetched? = true)
+    case find_key(jwks_uri, kid, cache, opts) do
+      {:ok, status, jwk} ->
+        :telemetry.execute([:ltix, :jwks, status], %{}, %{jwks_uri: jwks_uri, kid: kid})
+        {:ok, jwk}
 
       :not_found ->
-        :telemetry.execute([:ltix, :jwks, :cache_miss], %{}, %{
-          jwks_uri: registration.jwks_uri,
-          kid: kid
-        })
-
-        {:error,
-         KidNotFound.exception(
-           kid: kid,
-           spec_ref: "Sec §6.3"
-         )}
+        :telemetry.execute([:ltix, :jwks, :cache_miss], %{}, %{jwks_uri: jwks_uri, kid: kid})
+        {:error, KidNotFound.exception(kid: kid, spec_ref: "Sec §6.3")}
 
       {:error, _error} = error ->
         error
     end
   end
 
-  defp get_cached_or_fetch(jwks_uri, cache, opts) do
+  # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
+  defp find_key(jwks_uri, kid, cache, opts) do
     case cache.get(jwks_uri) do
-      {:ok, keys} ->
-        {:ok, {:cache_hit, keys}}
+      {:ok, %{keys: %{^kid => jwk}}} ->
+        {:ok, :cache_hit, jwk}
+
+      {:ok, %{fetched_at: fetched_at}} ->
+        if DateTime.diff(DateTime.utc_now(), fetched_at) >= @refetch_interval,
+          do: fetch_key(jwks_uri, kid, cache, opts),
+          else: :not_found
 
       :miss ->
-        fetch_and_cache(jwks_uri, cache, opts)
+        fetch_key(jwks_uri, kid, cache, opts)
     end
   end
 
-  defp fetch_and_cache(jwks_uri, cache, opts) do
+  defp fetch_key(jwks_uri, kid, cache, opts) do
     with {:ok, keys, max_age} <- fetch_jwks(jwks_uri, opts) do
-      if max_age > 0, do: cache.put(jwks_uri, keys, max_age)
-      {:ok, {:cache_miss, keys}}
+      if max_age > 0,
+        do: cache.put(jwks_uri, %{keys: keys, fetched_at: DateTime.utc_now()}, max_age)
+
+      case Map.fetch(keys, kid) do
+        {:ok, jwk} -> {:ok, :cache_miss, jwk}
+        :error -> :not_found
+      end
     end
+  end
+
+  # Replaces the configured cache's keys for a key set URL with an empty set
+  # that is due for a re-fetch, so the next lookup fetches the key set again.
+  @doc false
+  @spec expire_keys(String.t()) :: :ok
+  def expire_keys(jwks_uri) do
+    fetched_at = DateTime.add(DateTime.utc_now(), -@refetch_interval)
+    resolve_cache([]).put(jwks_uri, %{keys: %{}, fetched_at: fetched_at}, @default_max_age)
   end
 
   defp fetch_jwks(jwks_uri, opts) do
@@ -155,13 +158,6 @@ defmodule Ltix.JWT.KeySet do
   end
 
   defp parse_jwks(_body), do: %{}
-
-  defp find_key(keys, kid) do
-    case Map.fetch(keys, kid) do
-      {:ok, jwk} -> {:ok, jwk}
-      :error -> :not_found
-    end
-  end
 
   defp parse_max_age(headers) do
     headers
