@@ -236,6 +236,27 @@ defmodule Ltix.OAuthTest do
       assert client.scopes == MapSet.new([@test_scope])
     end
 
+    test "a token that lives less than a minute is usable for half its lifetime", ctx do
+      Ltix.Test.stub_token_response(expires_in: 30)
+
+      assert {:ok, client} =
+               OAuth.authenticate(ctx.registration,
+                 endpoints: %{TestService => :valid_endpoint},
+                 req_options: req_options()
+               )
+
+      refute Client.expired?(client)
+      assert {:ok, ^client} = Client.refresh(client)
+
+      issued_30_seconds_ago = %{
+        client
+        | issued_at: DateTime.add(client.issued_at, -16),
+          expires_at: DateTime.add(client.expires_at, -16)
+      }
+
+      assert Client.expired?(issued_30_seconds_ago)
+    end
+
     for {field, value} <- [
           {"access_token", 123},
           {"access_token", "token\r\nInjected"},

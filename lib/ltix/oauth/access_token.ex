@@ -41,12 +41,13 @@ defmodule Ltix.OAuth.AccessToken do
   @expiry_buffer_seconds 60
 
   @derive {Inspect, except: [:access_token]}
-  defstruct [:access_token, :token_type, :granted_scopes, :expires_at]
+  defstruct [:access_token, :token_type, :granted_scopes, :issued_at, :expires_at]
 
   @type t :: %__MODULE__{
           access_token: String.t(),
           token_type: String.t(),
           granted_scopes: MapSet.t(String.t()),
+          issued_at: DateTime.t() | nil,
           expires_at: DateTime.t()
         }
 
@@ -71,7 +72,10 @@ defmodule Ltix.OAuth.AccessToken do
   @doc """
   Check whether the token has expired.
 
-  Uses a 60-second buffer to avoid using a token that is about to expire.
+  A token counts as expired 60 seconds before its expiry, so it isn't used
+  when about to expire. A token that lives less than two minutes counts as
+  expired halfway through its lifetime instead. Without an `issued_at` time,
+  the 60 seconds apply.
 
   ## Examples
 
@@ -81,10 +85,15 @@ defmodule Ltix.OAuth.AccessToken do
   """
   # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
   @spec expired?(t()) :: boolean()
-  def expired?(%__MODULE__{expires_at: expires_at}) do
-    buffered = DateTime.add(expires_at, -@expiry_buffer_seconds)
+  def expired?(%__MODULE__{issued_at: issued_at, expires_at: expires_at}) do
+    buffered = DateTime.add(expires_at, -expiry_buffer(issued_at, expires_at))
     DateTime.compare(DateTime.utc_now(), buffered) != :lt
   end
+
+  defp expiry_buffer(%DateTime{} = issued_at, expires_at),
+    do: min(@expiry_buffer_seconds, div(DateTime.diff(expires_at, issued_at), 2))
+
+  defp expiry_buffer(nil, _expires_at), do: @expiry_buffer_seconds
 
   defp parse_response(
          %{"access_token" => access_token, "token_type" => token_type} = body,
@@ -103,6 +112,7 @@ defmodule Ltix.OAuth.AccessToken do
          access_token: access_token,
          token_type: "bearer",
          granted_scopes: granted_scopes,
+         issued_at: now,
          expires_at: expires_at
        }}
     end

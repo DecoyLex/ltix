@@ -53,8 +53,8 @@ defp ensure_fresh(client) do
 end
 ```
 
-`refresh/1` requests a new token only when the current one has expired
-or expires within 60 seconds. Otherwise it returns the client unchanged.
+`refresh/1` requests a new token only when `Ltix.OAuth.Client.expired?/1`
+is true for the current one. Otherwise it returns the client unchanged.
 The returned client has the same endpoints and registration — only the
 token changes. To request a new token regardless of expiry, use
 `force_refresh!/1`.

@@ -35,10 +35,19 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Registration
 
   @derive {Inspect, except: [:access_token]}
-  defstruct [:access_token, :expires_at, :scopes, :registration, :req_options, endpoints: %{}]
+  defstruct [
+    :access_token,
+    :issued_at,
+    :expires_at,
+    :scopes,
+    :registration,
+    :req_options,
+    endpoints: %{}
+  ]
 
   @type t :: %__MODULE__{
           access_token: String.t(),
+          issued_at: DateTime.t() | nil,
           expires_at: DateTime.t(),
           scopes: MapSet.t(String.t()),
           registration: Registration.t(),
@@ -83,9 +92,8 @@ defmodule Ltix.OAuth.Client do
   def option_fields, do: @option_fields
 
   @doc """
-  Check whether the client's token has expired.
-
-  Uses a 60-second buffer to avoid using a token that is about to expire.
+  Check whether the client's token has expired, the same way as
+  `Ltix.OAuth.AccessToken.expired?/1`.
 
   ## Examples
 
@@ -201,6 +209,7 @@ defmodule Ltix.OAuth.Client do
          %{
            client
            | access_token: token.access_token,
+             issued_at: token.issued_at,
              expires_at: token.expires_at,
              scopes: token.granted_scopes
          }}
@@ -275,6 +284,7 @@ defmodule Ltix.OAuth.Client do
         access_token: "tok",
         token_type: "bearer",
         granted_scopes: MapSet.new(["scope:read"]),
+        issued_at: nil,
         expires_at: ~U[2025-01-01 01:00:00Z]
       }
   """
@@ -284,6 +294,7 @@ defmodule Ltix.OAuth.Client do
       access_token: client.access_token,
       token_type: "bearer",
       granted_scopes: client.scopes,
+      issued_at: client.issued_at,
       expires_at: client.expires_at
     }
   end
@@ -328,6 +339,7 @@ defmodule Ltix.OAuth.Client do
   defp new(%AccessToken{} = token, registration, endpoints, req_options) do
     %__MODULE__{
       access_token: token.access_token,
+      issued_at: token.issued_at,
       expires_at: token.expires_at,
       scopes: token.granted_scopes,
       registration: registration,
