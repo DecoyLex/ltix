@@ -31,7 +31,7 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
-  alias Ltix.Registerable
+  alias Ltix.Records
   alias Ltix.Registration
 
   @derive {Inspect, except: [:access_token]}
@@ -246,7 +246,7 @@ defmodule Ltix.OAuth.Client do
     endpoints = Keyword.fetch!(opts, :endpoints)
     req_options = Keyword.fetch!(opts, :req_options)
 
-    with {:ok, registration} <- Registerable.to_registration(registerable),
+    with {:ok, registration} <- Records.convert!(registerable, :registration, :registration),
          :ok <- validate_endpoints(endpoints) do
       token
       |> new(registration, endpoints, req_options)

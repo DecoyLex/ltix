@@ -23,10 +23,9 @@ defmodule Ltix.DeepLinking do
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.Response
 
-  alias Ltix.Deployable
   alias Ltix.LaunchContext
   alias Ltix.Options
-  alias Ltix.Registerable
+  alias Ltix.Records
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
@@ -144,8 +143,8 @@ defmodule Ltix.DeepLinking do
        ) do
     settings = context.claims.deep_linking_settings
 
-    with {:ok, registration} <- Registerable.to_registration(context.registration),
-         {:ok, deployment} <- Deployable.to_deployment(context.deployment),
+    with {:ok, registration} <- Records.convert!(context.registration, :registration),
+         {:ok, deployment} <- Records.convert!(context.deployment, :deployment),
          {:ok, items_json} <- collect_items(serialized),
          :ok <- validate_items(items_json, settings) do
       claims = build_jwt_claims(registration, deployment, settings, items_json, opts)

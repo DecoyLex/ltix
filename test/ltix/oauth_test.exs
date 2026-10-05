@@ -99,6 +99,15 @@ defmodule Ltix.OAuthTest do
   end
 
   describe "authenticate/2" do
+    test "raises ArgumentError for a registration that doesn't convert", ctx do
+      assert_raise ArgumentError, ~r/Ltix.Registerable/, fn ->
+        OAuth.authenticate(%BareRegistration{registration: ctx.registration},
+          endpoints: %{TestService => :valid_endpoint},
+          req_options: req_options()
+        )
+      end
+    end
+
     test "acquires token with single-service endpoint", ctx do
       stub_token_response(@test_scope)
 

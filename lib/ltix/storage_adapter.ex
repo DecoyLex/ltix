@@ -40,6 +40,7 @@ defmodule Ltix.StorageAdapter do
   alias Ltix.Errors.Security.NonceNotFound
   alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Unknown.StorageError
+  alias Ltix.Records
   alias Ltix.Registerable
   alias Ltix.Registration
 
@@ -124,14 +125,7 @@ defmodule Ltix.StorageAdapter do
   def get_registration(adapter, issuer, client_id) do
     case adapter.get_registration(issuer, client_id) do
       {:ok, registration} ->
-        with {:ok, resolved} <-
-               convert(
-                 :get_registration,
-                 registration,
-                 Registerable,
-                 &Registerable.to_registration/1,
-                 Registration
-               ) do
+        with {:ok, resolved} <- convert(:get_registration, registration, :registration) do
           {:ok, registration, resolved}
         end
 
@@ -161,13 +155,7 @@ defmodule Ltix.StorageAdapter do
 
   # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
   defp check_deployment_id(deployment, deployment_id) do
-    case convert(
-           :get_deployment,
-           deployment,
-           Deployable,
-           &Deployable.to_deployment/1,
-           Deployment
-         ) do
+    case convert(:get_deployment, deployment, :deployment) do
       {:ok, %Deployment{deployment_id: ^deployment_id}} ->
         {:ok, deployment}
 
@@ -186,37 +174,20 @@ defmodule Ltix.StorageAdapter do
     end
   end
 
-  # Converts a record returned by `callback` with `protocol`. A record without
-  # an implementation, or an implementation that returns something other than
-  # `{:ok, %struct{}}` or `{:error, exception}`, is a storage error.
-  defp convert(callback, record, protocol, conversion, struct) do
-    if protocol.impl_for(record) do
-      case conversion.(record) do
-        {:ok, %^struct{}} = converted ->
-          converted
+  # A record that does not convert is a storage error.
+  defp convert(callback, record, kind) do
+    case Records.convert(record, kind) do
+      {:invalid, message} ->
+        {:error,
+         StorageError.exception(
+           callback: callback,
+           result: {:ok, record},
+           reason: "returned an invalid record, #{message}"
+         )}
 
-        {:error, error} = failed when is_exception(error) ->
-          failed
-
-        _other ->
-          conversion_error(
-            callback,
-            record,
-            "returned a record whose #{inspect(protocol)} implementation " <>
-              "did not return {:ok, %#{inspect(struct)}{}} or {:error, exception}"
-          )
-      end
-    else
-      conversion_error(
-        callback,
-        record,
-        "returned a value that does not implement #{inspect(protocol)}"
-      )
+      result ->
+        result
     end
-  end
-
-  defp conversion_error(callback, record, reason) do
-    {:error, StorageError.exception(callback: callback, result: {:ok, record}, reason: reason)}
   end
 
   @doc false

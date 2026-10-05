@@ -173,7 +173,6 @@ defmodule Ltix.Test do
               {Plug.Conn, :send_resp, 3}
             ]}
 
-  alias Ltix.Deployable
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Security.SignatureInvalid
@@ -193,7 +192,7 @@ defmodule Ltix.Test do
   alias Ltix.MembershipsService.Member
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
-  alias Ltix.Registerable
+  alias Ltix.Records
   alias Ltix.Registration
   alias Ltix.Test.Platform
   alias Ltix.Test.ServiceStub
@@ -1131,10 +1130,10 @@ defmodule Ltix.Test do
   end
 
   defp resolved_registration(%Platform{} = platform),
-    do: ok!(Registerable.to_registration(platform.registration))
+    do: ok!(Records.convert!(platform.registration, :registration, :registration))
 
   defp resolved_deployment(%Platform{} = platform),
-    do: ok!(Deployable.to_deployment(platform.deployment))
+    do: ok!(Records.convert!(platform.deployment, :deployment, :deployment))
 
   defp ok!({:ok, value}), do: value
   defp ok!({:error, error}), do: raise(error)

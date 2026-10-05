@@ -153,6 +153,20 @@ defmodule Ltix.OAuth.ClientTest do
     end
   end
 
+  describe "from_access_token/2 with a registration that doesn't convert" do
+    test "raises InvalidOption for the registration option" do
+      {:ok, token} =
+        AccessToken.from_response(%{"access_token" => "cached-token", "token_type" => "Bearer"})
+
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :registration is invalid/, fn ->
+        Client.from_access_token(token,
+          registration: %BareRegistration{registration: build_registration()},
+          endpoints: %{TestService => :valid_endpoint}
+        )
+      end
+    end
+  end
+
   describe "from_access_token/2" do
     test "raises on missing, unknown, and invalid options" do
       {:ok, token} =

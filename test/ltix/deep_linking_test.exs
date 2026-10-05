@@ -37,6 +37,23 @@ defmodule Ltix.DeepLinkingTest do
     end
   end
 
+  describe "build_response/3 with records that don't convert" do
+    test "raises ArgumentError naming the protocol", %{platform: p} do
+      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      bare = %BareRegistration{registration: context.registration}
+
+      for {context, message} <- [
+            {%{context | registration: bare},
+             "the Ltix.Registerable implementation for BareRegistration returned something " <>
+               "other than {:ok, %Ltix.Registration{}} or {:error, exception}"},
+            {%{context | deployment: %{private_key_pem: "secret"}},
+             "expected a record that implements Ltix.Deployable, got a map"}
+          ] do
+        assert_raise ArgumentError, message, fn -> DeepLinking.build_response(context) end
+      end
+    end
+  end
+
   describe "build_response/3 happy path" do
     test "empty items returns ok with signed JWT", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)

@@ -4,6 +4,7 @@ defmodule Ltix.OAuth do
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
+  alias Ltix.Records
   alias Ltix.Registerable
 
   @shared_fields Client.option_fields()
@@ -104,7 +105,7 @@ defmodule Ltix.OAuth do
   end
 
   defp request_client(registerable, endpoints, opts) do
-    with {:ok, registration} <- Registerable.to_registration(registerable),
+    with {:ok, registration} <- Records.convert!(registerable, :registration),
          :ok <- Client.validate_endpoints(endpoints),
          {:ok, token} <-
            ClientCredentials.request_token_span(

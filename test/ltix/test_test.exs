@@ -464,6 +464,14 @@ defmodule Ltix.TestTest do
         Ltix.Test.setup_platform!(registration: registration)
       end
     end
+
+    test "raises InvalidOption for a registration that doesn't convert" do
+      registration = %BareRegistration{registration: Ltix.Test.setup_platform!().registration}
+
+      assert_raise InvalidOption, ~r/Option :registration is invalid/, fn ->
+        Ltix.Test.setup_platform!(registration: registration)
+      end
+    end
   end
 
   describe "Ltix.Test.StorageAdapter" do
