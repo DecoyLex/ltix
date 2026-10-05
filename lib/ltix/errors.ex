@@ -2,8 +2,8 @@ defmodule Ltix.Errors do
   @moduledoc """
   Structured error types for LTI 1.3 validation.
 
-  Uses Splode for composable, class-based errors. Three error classes,
-  each with a default HTTP status code:
+  Uses Splode for composable, class-based errors. There are three
+  error classes, each with a default HTTP status code.
 
   | Class       | Status | Meaning                                                  |
   |-------------|--------|----------------------------------------------------------|
@@ -15,14 +15,14 @@ defmodule Ltix.Errors do
   at once are returned together in their class, such as
   `%Ltix.Errors.Invalid{errors: [...]}`.
 
-  Use `status_code/1` to get the HTTP status for any Ltix error:
+  Use `status_code/1` to get the HTTP status for any Ltix error.
 
       error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
       Ltix.Errors.status_code(error)
       #=> 400
 
   When Plug is available, all errors also implement `Plug.Exception`,
-  so Phoenix error views pick up the correct status automatically.
+  so Phoenix error views use the correct status automatically.
   """
   use Splode,
     error_classes: [
@@ -155,7 +155,7 @@ defmodule Ltix.Errors do
   @doc """
   Returns the HTTP status code for an Ltix error.
 
-  Each error carries a status code derived from its class:
+  Each error has a status code derived from its class.
 
   | Class       | Default status |
   |-------------|----------------|
@@ -163,7 +163,8 @@ defmodule Ltix.Errors do
   | `:security` | 401            |
   | `:unknown`  | 500            |
 
-  Individual errors may override the default for their class.
+  Individual errors may override the default for their class. Exceptions
+  that are not Ltix errors return 500.
 
   ## Examples
 
@@ -172,5 +173,7 @@ defmodule Ltix.Errors do
       400
   """
   @spec status_code(Exception.t()) :: pos_integer()
-  def status_code(%{__struct__: module}), do: module.__status_code__()
+  def status_code(%module{} = error) do
+    if ltix_error?(error), do: module.__status_code__(), else: 500
+  end
 end
