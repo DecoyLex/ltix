@@ -175,7 +175,7 @@ defmodule Ltix.GradeService.Score do
       "u1"
 
   Strings are also accepted for `activity_progress` and `grading_progress`,
-  which is convenient when values come from form params:
+  which is convenient when values come from form params.
 
       iex> {:ok, score} = Ltix.GradeService.Score.new(%{user_id: "u1", activity_progress: "completed", grading_progress: "fully_graded"})
       iex> score.activity_progress
@@ -215,6 +215,25 @@ defmodule Ltix.GradeService.Score do
       {:ok, score} -> score
       {:error, error} -> raise error
     end
+  end
+
+  @doc """
+  Validate a score the same way as `new/1`.
+
+  Useful for a score built or changed as a struct.
+
+  ## Examples
+
+      iex> score = Ltix.GradeService.Score.new!(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+      iex> Ltix.GradeService.Score.validate(score)
+      :ok
+      iex> {:error, error} = Ltix.GradeService.Score.validate(%{score | user_id: nil})
+      iex> error.field
+      :user_id
+  """
+  @spec validate(t()) :: :ok | {:error, Exception.t()}
+  def validate(%__MODULE__{} = score) do
+    with {:ok, _score} <- new(Map.from_struct(score)), do: :ok
   end
 
   @doc """

@@ -820,6 +820,14 @@ defmodule Ltix.GradeServiceTest do
       assert :ok = GradeService.post_score(client, ctx.score)
     end
 
+    test "returns InvalidField without sending a score built with invalid fields", ctx do
+      Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid score") end)
+      client = build_client(ctx.platform)
+
+      score = %{ctx.score | activity_progress: "Completed"}
+      assert {:error, %InvalidField{struct: Score}} = GradeService.post_score(client, score)
+    end
+
     test "posts to explicit line item URL", ctx do
       explicit_url = "#{@line_items_url}/42/lineitem"
 

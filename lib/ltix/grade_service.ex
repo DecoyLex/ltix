@@ -485,7 +485,8 @@ defmodule Ltix.GradeService do
     url = derive_url(resolve_line_item_url(endpoint(client, opts), opts), "scores")
 
     run(:post_score, client, [@scope_score], url, fn url ->
-      with {:ok, _body} <- send_request(client, :post, url, body: {@score_media_type, score}) do
+      with :ok <- Score.validate(score),
+           {:ok, _body} <- send_request(client, :post, url, body: {@score_media_type, score}) do
         :ok
       end
     end)
