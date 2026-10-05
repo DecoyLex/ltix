@@ -187,6 +187,18 @@ end
 > tokens. This is harmless — the platform issues independent tokens,
 > and one simply goes unused.
 
+## Storing tokens outside ETS
+
+To share tokens across nodes, store them in your database or a shared cache. `Ltix.OAuth.AccessToken.to_map/1` returns a map that encodes to JSON, and `Ltix.OAuth.AccessToken.from_map/1` restores the token:
+
+```elixir
+stored = Ltix.OAuth.AccessToken.to_map(Ltix.OAuth.Client.to_access_token(client))
+
+{:ok, token} = Ltix.OAuth.AccessToken.from_map(stored)
+```
+
+The map holds the bearer token, so store it like any other credential.
+
 ## When to cache
 
 Don't add caching complexity unless you have a reason:

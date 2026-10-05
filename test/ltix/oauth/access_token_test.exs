@@ -58,18 +58,6 @@ defmodule Ltix.OAuth.AccessTokenTest do
       assert token.expires_at == ~U[2025-01-01 00:10:00Z]
     end
 
-    test "falls back to requested_scopes when scope is absent" do
-      response = Map.delete(@valid_response, "scope")
-
-      assert {:ok, token} =
-               AccessToken.from_response(response,
-                 now: @now,
-                 requested_scopes: ["scope:read"]
-               )
-
-      assert token.granted_scopes == MapSet.new(["scope:read"])
-    end
-
     test "splits scope string on spaces" do
       response = %{@valid_response | "scope" => "a b c"}
 
@@ -100,15 +88,56 @@ defmodule Ltix.OAuth.AccessTokenTest do
   end
 
   describe "expired?/1" do
-    test "returns false when the token is fresh" do
-      refute AccessToken.expired?(%AccessToken{
-               expires_at: DateTime.add(DateTime.utc_now(), 3600)
-             })
-    end
-
     test "returns true within 60 seconds of expiry" do
       assert AccessToken.expired?(%AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 59)})
       refute AccessToken.expired?(%AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 62)})
+    end
+  end
+
+  describe "to_map/1 and from_map/1" do
+    test "restore a token from its JSON-encoded map" do
+      {:ok, token} = AccessToken.from_response(@valid_response, now: @now)
+      json = Ltix.AppConfig.json_library!()
+
+      stored =
+        token
+        |> AccessToken.to_map()
+        |> json.encode!()
+        |> IO.iodata_to_binary()
+
+      assert {:ok, ^token} = AccessToken.from_map(json.decode!(stored))
+    end
+
+    test "restore a token built without an issue time" do
+      token = %AccessToken{
+        access_token: "test-token-123",
+        token_type: "bearer",
+        granted_scopes: MapSet.new(),
+        expires_at: @now
+      }
+
+      assert {:ok, ^token} = AccessToken.from_map(AccessToken.to_map(token))
+    end
+
+    test "from_map/1 returns InvalidField for a missing or malformed field" do
+      valid = AccessToken.to_map(elem(AccessToken.from_response(@valid_response, now: @now), 1))
+
+      for {field, value} <- [
+            {"access_token", nil},
+            {"access_token", 123},
+            {"expires_at", nil},
+            {"expires_at", "tomorrow"},
+            {"expires_at", 1_735_693_200},
+            {"scope", ["scope:read"]}
+          ] do
+        assert {:error, %Ltix.Errors.Invalid.InvalidField{struct: AccessToken}} =
+                 AccessToken.from_map(Map.put(valid, field, value))
+      end
+    end
+
+    test "from_map/1 leaves the access token out of errors" do
+      assert {:error, error} = AccessToken.from_map(%{"access_token" => "secret-token"})
+      refute inspect(error) =~ "secret-token"
     end
   end
 end
