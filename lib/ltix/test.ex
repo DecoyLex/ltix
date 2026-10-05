@@ -450,18 +450,33 @@ defmodule Ltix.Test do
     platform = %Platform{registration: registration, deployment: deployment, jwk: jwk}
 
     # Eagerly validate protocol implementations
-    resolved_registration(platform)
+    %Registration{jwks_uri: jwks_uri} = resolved_registration(platform)
     resolved_deployment(platform)
 
-    Req.Test.stub(KeySet, fn conn ->
-      conn
-      |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
-      |> Req.Test.json(jwks)
-    end)
-
-    KeySet.expire_keys(resolved_registration(platform).jwks_uri)
+    stub_jwks(jwks_uri, jwks)
+    KeySet.expire_keys(jwks_uri)
 
     platform
+  end
+
+  # Serves each platform set up in this test process its own keys at its own
+  # key set URL.
+  defp stub_jwks(jwks_uri, jwks) do
+    %URI{host: host, path: path} = URI.parse(jwks_uri)
+    key_sets = Map.put(Process.get({__MODULE__, :key_sets}, %{}), {host, path}, jwks)
+    Process.put({__MODULE__, :key_sets}, key_sets)
+
+    Req.Test.stub(KeySet, fn conn ->
+      case Map.fetch(key_sets, {conn.host, conn.request_path}) do
+        {:ok, jwks} ->
+          conn
+          |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
+          |> Req.Test.json(jwks)
+
+        :error ->
+          Plug.Conn.send_resp(conn, 404, "")
+      end
+    end)
   end
 
   @doc """

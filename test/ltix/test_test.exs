@@ -479,6 +479,20 @@ defmodule Ltix.TestTest do
                StorageAdapter.get_deployment(second.registration, "first-dep")
     end
 
+    test "launches from each of two platforms set up in one test" do
+      first = Ltix.Test.setup_platform!(client_id: "first-tool")
+      second = Ltix.Test.setup_platform!(client_id: "second-tool")
+      {:ok, pid} = StorageAdapter.start_link(platforms: [first, second])
+      StorageAdapter.set_pid(pid)
+
+      for platform <- [first, second] do
+        {:ok, login_result} = do_login(platform)
+        nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+
+        assert {:ok, %LaunchContext{}} = do_callback(platform, login_result, nonce, [])
+      end
+    end
+
     test "resolves registrations given without a deployment" do
       platform = Ltix.Test.setup_platform!(client_id: "new-tool")
       {:ok, pid} = StorageAdapter.start_link(registrations: [platform.registration])
