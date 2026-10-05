@@ -219,6 +219,21 @@ defmodule Ltix.JWT.TokenTest do
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
+    test "reports a missing or non-numeric expiry as a claim error", ctx do
+      claims = Ltix.Test.valid_lti_claims(ctx.platform)
+
+      verify =
+        &Token.verify(Ltix.Test.sign_id_token(&1, ctx.platform_jwk), ctx.registration,
+          req_options: req_options()
+        )
+
+      assert {:error, %Ltix.Errors.Invalid.MissingClaim{claim: "exp"}} =
+               verify.(Map.delete(claims, "exp"))
+
+      assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "exp", value: "tomorrow"}} =
+               verify.(Map.put(claims, "exp", "tomorrow"))
+    end
+
     # [Sec §5.1.3 step 7](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "accepts token within clock skew tolerance", ctx do
       # Token expired 3 seconds ago, but default clock skew is 5 seconds

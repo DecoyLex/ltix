@@ -246,16 +246,24 @@ defmodule Ltix.JWT.Token do
   end
 
   # [Sec §5.1.3 step 7] exp MUST be in the future (with clock skew tolerance).
-  defp validate_expiration(claims, opts) do
-    exp = Map.get(claims, "exp")
+  defp validate_expiration(%{"exp" => exp}, opts) when is_number(exp) do
     clock_skew = Keyword.get(opts, :clock_skew, @default_clock_skew)
     now = Keyword.get(opts, :now, System.system_time(:second))
 
-    if is_number(exp) and now < exp + clock_skew do
+    if now < exp + clock_skew do
       :ok
     else
       {:error, TokenExpired.exception(spec_ref: "Sec §5.1.3 step 7")}
     end
+  end
+
+  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
+  defp validate_expiration(%{"exp" => exp}, _opts) do
+    {:error, InvalidClaim.exception(claim: "exp", value: exp, spec_ref: "Sec §5.1.2")}
+  end
+
+  defp validate_expiration(_claims, _opts) do
+    {:error, MissingClaim.exception(claim: "exp", spec_ref: "Sec §5.1.2")}
   end
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
