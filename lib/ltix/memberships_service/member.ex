@@ -29,6 +29,7 @@ defmodule Ltix.MembershipsService.Member do
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Extensions
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.ClaimHelpers
   alias Ltix.LaunchClaims.Role
@@ -64,7 +65,7 @@ defmodule Ltix.MembershipsService.Member do
           message: [LaunchClaims.t()] | nil,
           roles: [Role.t()],
           unrecognized_roles: [String.t()],
-          extensions: %{optional(String.t()) => term()}
+          extensions: %{optional(String.t()) => term()} | nil
         }
 
   # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data)
@@ -128,7 +129,7 @@ defmodule Ltix.MembershipsService.Member do
   def from_json(json), do: from_json(json, Role.parsers([]))
 
   # Same as `from_json/1`, with role parsers from `Ltix.LaunchClaims.Role.parsers/1`,
-  # so a page of members resolves them once.
+  # so they are resolved once for a page of members.
   @doc false
   @spec from_json(map(), list()) :: {:ok, t()} | {:error, Exception.t()}
   # [sharing-of-personal-data]:
@@ -202,7 +203,7 @@ defmodule Ltix.MembershipsService.Member do
           into: required,
           do: {key, value}
 
-    Map.merge(member.extensions, put_status(fields, member.status))
+    Extensions.merge(put_status(fields, member.status), member.extensions)
   end
 
   defp put_status(map, nil), do: map

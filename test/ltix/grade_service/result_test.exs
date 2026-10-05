@@ -52,24 +52,14 @@ defmodule Ltix.GradeService.ResultTest do
 
       assert {:ok, %Result{result_maximum: nil}} = Result.from_json(json)
     end
-
-    test "captures unrecognized JSON keys in extensions" do
-      json = %{
-        "userId" => "123",
-        "https://platform.example.com/extra" => %{"key" => "value"},
-        "customField" => 42
-      }
-
-      assert {:ok, %Result{} = result} = Result.from_json(json)
-
-      assert result.extensions == %{
-               "https://platform.example.com/extra" => %{"key" => "value"},
-               "customField" => 42
-             }
-    end
   end
 
   describe "to_map/1" do
+    test "serializes a result built without extensions" do
+      result = %Result{user_id: "5", result_score: 0.5, extensions: nil}
+      assert Result.to_map(result) == %{"userId" => "5", "resultScore" => 0.5}
+    end
+
     test "round-trips a parsed result with camelCase keys and extensions" do
       json = %{
         "id" => "https://lms.example.com/lineitems/1/results/5",

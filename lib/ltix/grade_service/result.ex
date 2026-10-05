@@ -2,7 +2,7 @@ defmodule Ltix.GradeService.Result do
   @moduledoc """
   A result record from the platform's gradebook.
 
-  Results are read-only — the platform provides them via the result
+  Results are read-only. The platform provides them via the result
   service. Each result represents the current grade for a specific
   line item and user.
 
@@ -21,6 +21,7 @@ defmodule Ltix.GradeService.Result do
       #=> 0.83
   """
 
+  alias Ltix.Extensions
   alias Ltix.LaunchClaims.ClaimHelpers
 
   defstruct [
@@ -42,7 +43,7 @@ defmodule Ltix.GradeService.Result do
           result_maximum: number() | nil,
           scoring_user_id: String.t() | nil,
           comment: String.t() | nil,
-          extensions: %{optional(String.t()) => term()}
+          extensions: %{optional(String.t()) => term()} | nil
         }
 
   # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema-0)
@@ -77,7 +78,7 @@ defmodule Ltix.GradeService.Result do
   Parse a result from a decoded JSON map.
 
   Accepts any map and extracts known fields. Fields with the wrong type are
-  `nil`. Unrecognized keys are captured in `extensions`.
+  `nil`. Unrecognized keys are kept in `extensions`.
 
   ## Examples
 
@@ -108,6 +109,6 @@ defmodule Ltix.GradeService.Result do
 
     fields
     |> Map.reject(fn {_json_key, value} -> is_nil(value) end)
-    |> Map.merge(result.extensions)
+    |> Extensions.merge(result.extensions)
   end
 end

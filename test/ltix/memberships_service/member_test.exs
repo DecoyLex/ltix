@@ -197,6 +197,11 @@ defmodule Ltix.MembershipsService.MemberTest do
   end
 
   describe "to_map/1" do
+    test "serializes a member built without extensions" do
+      member = %Member{user_id: "user-1", roles: [], extensions: nil}
+      assert Member.to_map(member) == %{"user_id" => "user-1", "roles" => []}
+    end
+
     test "leaves out the message section" do
       member = %Member{user_id: "user-1", roles: [], message: [%Ltix.LaunchClaims{}]}
 
