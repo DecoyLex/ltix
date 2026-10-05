@@ -40,6 +40,7 @@ defmodule Ltix.OAuth.AccessToken do
 
   @expiry_buffer_seconds 60
 
+  @derive {Inspect, except: [:access_token]}
   defstruct [:access_token, :token_type, :granted_scopes, :expires_at]
 
   @type t :: %__MODULE__{

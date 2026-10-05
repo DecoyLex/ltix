@@ -118,8 +118,10 @@ defmodule Ltix.JWKTest do
         assert Exception.message(error) =~ reason
       end
 
-      assert {:error, %InvalidField{field: :private_key_pem, value: 123}} =
-               JWK.new(private_key_pem: 123, kid: ctx.kid)
+      for pem <- [123, String.to_charlist(ctx.pem)] do
+        assert {:error, %InvalidField{field: :private_key_pem, value: "[redacted]"}} =
+                 JWK.new(private_key_pem: pem, kid: ctx.kid)
+      end
     end
 
     test "new!/1 returns the JWK or raises the error", ctx do

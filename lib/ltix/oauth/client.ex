@@ -34,6 +34,7 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Registerable
   alias Ltix.Registration
 
+  @derive {Inspect, except: [:access_token]}
   defstruct [:access_token, :expires_at, :scopes, :registration, :req_options, endpoints: %{}]
 
   @type t :: %__MODULE__{

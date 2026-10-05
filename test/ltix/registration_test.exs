@@ -82,13 +82,23 @@ defmodule Ltix.RegistrationTest do
              "must be an absolute HTTPS URL"},
             {:jwks_uri, "https://platform.example.com:0/jwks", "must be an absolute HTTPS URL"},
             {:token_endpoint, "https://platform.example.com/a token",
-             "must be an absolute HTTPS URL"},
-            {:tool_jwk, "not-a-jwk", "must be an %Ltix.JWK{} struct"}
+             "must be an absolute HTTPS URL"}
           ] do
         assert {:error,
                 %InvalidField{struct: Registration, field: ^field, value: ^value, reason: ^reason}} =
                  Registration.new(%{@valid_attrs | field => value})
       end
+    end
+
+    test "leaves an invalid tool_jwk out of the error" do
+      pem = @tool_jwk.private_key_pem
+
+      assert {:error,
+              %InvalidField{field: :tool_jwk, reason: "must be an %Ltix.JWK{} struct"} = error} =
+               Registration.new(%{@valid_attrs | tool_jwk: pem})
+
+      refute inspect(error) =~ "PRIVATE KEY"
+      refute Exception.message(error) =~ "PRIVATE KEY"
     end
 
     test "reports missing required fields" do

@@ -186,10 +186,11 @@ defmodule Ltix.Registration do
   defp validate_tool_jwk(nil), do: required(:tool_jwk)
   defp validate_tool_jwk(%JWK{}), do: nil
 
-  defp validate_tool_jwk(tool_jwk) do
+  # The value may hold key material, so it is redacted from the error.
+  defp validate_tool_jwk(_tool_jwk) do
     invalid(
       :tool_jwk,
-      tool_jwk,
+      "[redacted]",
       "must be an %Ltix.JWK{} struct",
       "Sec §7.2 (per-registration key)"
     )

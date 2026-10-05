@@ -45,6 +45,7 @@ defmodule Ltix.JWK do
                      unrecognized_keys: :error
                    )
 
+  @derive {Inspect, except: [:private_key_pem]}
   @enforce_keys [:private_key_pem, :kid]
   defstruct [:private_key_pem, :kid]
 
@@ -211,8 +212,8 @@ defmodule Ltix.JWK do
     end
   end
 
-  defp validate_pem(pem) do
-    invalid(:private_key_pem, pem, "must be a binary", "Sec §6.1 (RSA key)")
+  defp validate_pem(_pem) do
+    invalid(:private_key_pem, "[redacted]", "must be a binary", "Sec §6.1 (RSA key)")
   end
 
   defp validate_pem_entry(entry) do

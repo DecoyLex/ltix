@@ -472,4 +472,22 @@ defmodule Ltix.OAuth.ClientTest do
       end
     end
   end
+
+  describe "inspect" do
+    test "leaves out the access token and the tool's private key" do
+      {:ok, token} =
+        AccessToken.from_response(%{"access_token" => "secret-token", "token_type" => "Bearer"})
+
+      {:ok, client} =
+        Client.from_access_token(token,
+          registration: build_registration(),
+          endpoints: %{TestService => :valid_endpoint}
+        )
+
+      for value <- [token, client, client.registration, client.registration.tool_jwk] do
+        refute inspect(value) =~ "secret-token"
+        refute inspect(value) =~ "PRIVATE KEY"
+      end
+    end
+  end
 end
