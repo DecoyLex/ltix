@@ -1,6 +1,6 @@
 # Threat Model
 
-Ltix authenticates LTI launches and calls platform services for your tool. This guide covers who Ltix trusts, what it protects against, and what your application has to do for the whole tool to be secure.
+Ltix authenticates LTI launches and calls platform services for your tool. This guide covers who Ltix trusts, what it guarantees, and what is out of scope. A security report is a case where Ltix breaks one of these guarantees.
 
 ## Trust
 
@@ -26,9 +26,9 @@ A successful `Ltix.handle_callback/3` means all of the following hold.
 - **Expiry.** The token hasn't expired and was issued within the last hour, allowing a few seconds of clock skew. Change the hour with the `:max_token_age` option.
 - **Browser.** The launch arrived in the browser that started the login, for the registration that login found. The token's nonce has to match the state your application kept from `Ltix.handle_login/3`.
 - **Replay.** The nonce hasn't been used before, as long as your storage adapter records each nonce once.
-- **Deployment.** Your storage adapter returned the deployment the token names.
+- **Deployment.** Your storage adapter returned a deployment for the token's deployment ID.
 
-An unknown key ID makes Ltix fetch the platform's key set again, at most once every 30 seconds for each key set URL. Requests with made-up key IDs can't make Ltix fetch on every launch.
+When a token's key ID isn't in the cached key set, Ltix fetches the key set again only if the cached copy is at least 30 seconds old. Launches that arrive at the same time can each fetch it. A key set URL with no cached copy is fetched on every launch, which happens while fetches fail or when the platform sends `max-age=0`.
 
 Ltix rejects input only when authenticating the launch or doing what you asked depends on it. A launch with a malformed optional field still succeeds, and that field is left out.
 
@@ -43,33 +43,9 @@ Every request Ltix sends to a platform, for keys, tokens, or services, meets the
 
 Inspecting a `Ltix.JWK`, `Ltix.OAuth.AccessToken`, or `Ltix.OAuth.Client` hides the private key and the access token, so they stay out of logs and error reports.
 
-## Your application's responsibilities
+## Your application
 
-### Login state
-
-Keep the state from `Ltix.handle_login/3` in the user's session and pass it to `Ltix.handle_callback/3`. Don't take it from the launch request. Launches usually arrive inside an iframe, so the session cookie needs `SameSite=None`, `Secure`, and `Partitioned`. See [Getting Started](getting-started.md#iframe-strategy).
-
-### Nonces
-
-Your storage adapter's `c:Ltix.StorageAdapter.validate_nonce/3` has to accept each nonce only once, even when two launches arrive at the same moment. Ltix calls it only for tokens a registered platform signed, and logins don't write to storage. Delete each record after its `expires_at`. `Ltix.Test.assert_storage_adapter!/2` checks that your adapter accepts each nonce once.
-
-### After the launch
-
-The checks above protect only the launch request. Protect the routes your tool serves afterward with your own CSRF tokens and session handling.
-
-Decide what a user may do from the roles in `context.claims`, and take the course, resource link, and line items a user may act on from the verified launch. Don't accept them from later requests.
-
-Claim values are platform data. Escape them when you render them.
-
-### Redirects
-
-`context.claims.target_link_uri` is where the platform wants the user to go. Check that it points to your tool before redirecting there.
-
-### Keys and launch contexts
-
-Ltix asks your storage adapter for each signature and never stores your private key, so the key can stay in your database or in a key management service. Keep it out of version control, logs, and responses. See [JWK Management](jwk-management.md).
-
-A `Ltix.LaunchContext` has the user's identity and course data. Keep contexts on the server and put only an ID in the session cookie.
+These guarantees depend on your application doing its part. It keeps the login state in the user's session, records each nonce once, protects the routes it serves after a launch, and keeps its signing keys secret. [Hardening Your Tool](hardening.md) covers each step.
 
 ## Out of scope
 
@@ -83,7 +59,6 @@ Report vulnerabilities privately through GitHub's private vulnerability reportin
 
 ## Next steps
 
+- [Hardening Your Tool](hardening.md): what your application has to do
 - [Concepts](concepts.md): how a launch works
 - [Storage Adapters](storage-adapters.md): the callbacks your application implements
-- [Getting Started](getting-started.md): session and iframe setup
-- [JWK Management](jwk-management.md): generating and rotating keys

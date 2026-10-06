@@ -724,6 +724,8 @@ way to production:
   Serve both the old and new key from your public key endpoint during
   the transition. See [JWK Management](jwk-management.md).
 
+- **Hardening**: CSRF protection after the launch, authorization from roles, redirect checks, and key handling. See [Hardening Your Tool](hardening.md).
+
 - **Error handling**: the controller above returns raw error messages.
   Match on error classes to show users meaningful messages and log
   details for debugging. See [Error Handling](error-handling.md).

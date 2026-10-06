@@ -15,4 +15,4 @@ Include the Ltix version, what an attacker can do, and the steps to reproduce it
 
 ## Threat model
 
-The [Threat Model](guides/threat-model.md) guide covers who Ltix trusts, what it protects against, and what your application is responsible for.
+The [Threat Model](guides/threat-model.md) guide covers who Ltix trusts, what it guarantees, and what is out of scope. Reports are measured against those guarantees. [Hardening Your Tool](guides/hardening.md) covers what your application has to do.
