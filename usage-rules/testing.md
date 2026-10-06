@@ -4,7 +4,7 @@ Rules for testing applications that use Ltix.
 
 ## Test Configuration
 
-Add to `config/test.exs`:
+Add to `config/test.exs`.
 
 ```elixir
 config :ltix,
@@ -12,9 +12,9 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}]
 ```
 
-Point at your own storage adapter. The `req_options` plug routes all
+Configure your own storage adapter. The `req_options` plug routes all
 outbound HTTP through `Req.Test`. Each internal module rewrites the plug
-name to its own well-known stub name, so you can stub each independently:
+name to its own well-known stub name, so you can stub each independently.
 
 | Stub name                       | HTTP call                         |
 |---------------------------------|-----------------------------------|
@@ -27,11 +27,11 @@ name to its own well-known stub name, so you can stub each independently:
 
 ## Platform Setup
 
-In your test's `setup` block:
+Set up the platform in your test's `setup` block.
 
 ```elixir
 setup do
-  jwk = MyApp.Lti.generate_jwk!()
+  jwk = MyApp.Lti.create_jwk!()
 
   platform = Ltix.Test.setup_platform!(
     registration: fn reg ->
@@ -54,8 +54,8 @@ end
 
 `setup_platform!/1` generates platform-side RSA keys, builds a registration
 and deployment, and stubs the JWKS HTTP endpoint. Pass a `:registration`
-function to create matching records in your persistence layer. Options:
-`:issuer`, `:client_id`, `:deployment_id`.
+function to create matching records in your persistence layer. Options are
+`:issuer`, `:client_id`, and `:deployment_id`.
 
 Without a storage adapter of your own, configure the in-memory `Ltix.Test.StorageAdapter` and start it with your test platforms. Use it only in tests.
 
@@ -68,7 +68,7 @@ Ltix.Test.StorageAdapter.set_pid(pid)
 
 ### 1. Full OIDC Flow (Controller Tests)
 
-Simulate the complete platform-initiated launch through your routes:
+Simulate the complete platform-initiated launch through your routes.
 
 ```elixir
 test "launch renders dashboard", %{conn: conn, platform: platform} do
@@ -96,7 +96,7 @@ end
 
 ### 2. Direct Context Construction (Unit Tests)
 
-Skip the OIDC flow entirely for business logic tests:
+Skip the OIDC flow entirely for business logic tests.
 
 ```elixir
 test "instructors can manage grades", %{platform: platform} do
@@ -111,7 +111,7 @@ end
 
 ### 3. Deep Linking Response Verification
 
-Verify signed response JWTs from your tool:
+Verify signed response JWTs from your tool.
 
 ```elixir
 test "content selection returns valid JWT", %{platform: platform} do
@@ -134,19 +134,19 @@ end
 
 `launch_params/2` and `build_launch_context/2` take the same launch options with the same defaults. Unknown options, including unknown keys in nested maps, raise `Ltix.Errors.Invalid.InvalidOption`.
 
-- `:roles` — list of atoms (`:instructor`, `:learner`, `:teaching_assistant`, etc.),
-  `%Role{}` structs, or URI strings (default: `[:instructor]`). Unrecognized URIs are listed
+- `:roles` - list of atoms (`:instructor`, `:learner`, `:teaching_assistant`, etc.),
+  `%Role{}` structs, or URI strings (defaults to `[:instructor]`). Unrecognized URIs are listed
   in `claims.unrecognized_roles`.
-- `:subject` — user identifier (default: `"user-12345"`), `nil` for an anonymous launch
-- `:name`, `:email`, `:given_name`, `:family_name` — user profile fields
-- `:context` — `%Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (default id: `"context-001"`)
-- `:resource_link` — `%ResourceLink{}` or map with `:id`, `:title`, `:description` keys
-- `:message_type` — `:resource_link` (default) or `:deep_linking`
-- `:deep_linking_settings` — `%DeepLinkingSettings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
-- `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
-- `:ags_endpoint` — `%AGSEndpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
-- `:memberships_endpoint` — `%MembershipsEndpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
-- `:claims` — raw claim map merged last (for advanced overrides)
+- `:subject` - user identifier (defaults to `"user-12345"`), `nil` for an anonymous launch
+- `:name`, `:email`, `:given_name`, `:family_name` - user profile fields
+- `:context` - `%Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (the default id is `"context-001"`)
+- `:resource_link` - `%ResourceLink{}` or map with `:id`, `:title`, `:description` keys
+- `:message_type` - `:resource_link` (default) or `:deep_linking`
+- `:deep_linking_settings` - `%DeepLinkingSettings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
+- `:target_link_uri` - launch URL (defaults to `"https://tool.example.com/launch"`)
+- `:ags_endpoint` - `%AGSEndpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
+- `:memberships_endpoint` - `%MembershipsEndpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
+- `:claims` - raw claim map merged last (for advanced overrides)
 
 `launch_params/2` also requires `:nonce` and `:state`.
 
@@ -162,7 +162,7 @@ params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" 
 ## Testing Advantage Services
 
 When testing code that uses `Ltix.GradeService` or `Ltix.MembershipsService`,
-stub both the OAuth token endpoint and the service endpoint:
+stub both the OAuth token endpoint and the service endpoint.
 
 ```elixir
 test "posts a score after launch", %{platform: platform} do
@@ -193,7 +193,7 @@ test "posts a score after launch", %{platform: platform} do
 end
 ```
 
-Per-operation stubs are available for each service call:
+Per-operation stubs are available for each service call.
 
 - `stub_list_line_items/1`, `stub_get_line_item/1`, `stub_create_line_item/1`,
   `stub_update_line_item/1`, `stub_delete_line_item/0`

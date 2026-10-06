@@ -3,7 +3,7 @@ defmodule Ltix.JWK do
   RSA key management for LTI tool authentication.
 
   Every LTI Advantage service call requires a signed JWT assertion. This module
-  wraps an RSA private key and its key ID in a struct that is easy to persist
+  stores an RSA private key and its key ID in a struct that is easy to persist
   (PEM string + kid) and converts to JWKS documents for platform consumption.
 
   ## Generating a key
@@ -11,7 +11,7 @@ defmodule Ltix.JWK do
       jwk = Ltix.JWK.generate()
 
   Store the struct fields (`private_key_pem` and `kid`) in your database or
-  config, and sign with the key from your storage adapter's
+  config, encrypting the private key, and sign with the key from your storage adapter's
   `c:Ltix.StorageAdapter.sign/3` callback using `sign/2`.
 
   ## Loading from storage
@@ -20,10 +20,12 @@ defmodule Ltix.JWK do
 
   ## Building a JWKS endpoint response
 
-      jwks = Ltix.JWK.to_jwks([current_jwk, previous_jwk])
-      # => %{"keys" => [%{"kty" => "RSA", "kid" => "...", ...}, ...]}
+      def jwks(conn, _params) do
+        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_jwks()))
+      end
 
-  Include multiple keys during rotation so platforms can verify with either.
+  During a rotation, include the new key and the old one so platforms can
+  verify with either.
 
   """
 
@@ -130,16 +132,14 @@ defmodule Ltix.JWK do
   @doc """
   Build a JWKS (JSON Web Key Set) map from one or more JWKs.
 
-  Strips private key material, so the output is safe for public endpoints.
+  Removes private key material, so the output is safe for public endpoints.
   Accepts a single `%Ltix.JWK{}` or a list.
 
   ## Examples
 
-      jwk = Ltix.JWK.generate()
-      jwks = Ltix.JWK.to_jwks(jwk)
-      [key] = jwks["keys"]
-      key["kty"]
-      #=> "RSA"
+      def jwks(conn, _params) do
+        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_jwks()))
+      end
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   @spec to_jwks(t() | [t()]) :: map()
@@ -184,9 +184,7 @@ defmodule Ltix.JWK do
   end
 
   @doc """
-  Sign a message with the key.
-
-  Returns the RS256 signature that `c:Ltix.StorageAdapter.sign/3` expects.
+  Sign a message with RS256, as `c:Ltix.StorageAdapter.sign/3` requires.
 
   ## Examples
 

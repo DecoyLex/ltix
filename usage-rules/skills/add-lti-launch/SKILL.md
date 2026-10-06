@@ -161,6 +161,10 @@ defmodule MyAppWeb.Router do
     get "/login", LtiController, :login
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
+  end
+
+  # Platforms fetch the key set as JSON, so it needs no browser pipeline.
+  scope "/lti", MyAppWeb do
     get "/jwks", LtiController, :jwks
   end
 
@@ -195,6 +199,8 @@ defmodule MyAppWeb.LtiController do
 
   alias MyApp.Lti
 
+  require Logger
+
   def login(conn, params) do
     launch_url = url(conn, ~p"/lti/launch")
 
@@ -205,9 +211,7 @@ defmodule MyAppWeb.LtiController do
         |> redirect(external: redirect_uri)
 
       {:error, error} ->
-        conn
-        |> put_status(Ltix.Errors.status_code(error))
-        |> render(:error, message: Exception.message(error))
+        launch_failed(conn, error)
     end
   end
 
@@ -221,21 +225,22 @@ defmodule MyAppWeb.LtiController do
         |> handle_launch(context)
 
       {:error, error} ->
-        conn
-        |> put_status(Ltix.Errors.status_code(error))
-        |> render(:error, message: Exception.message(error))
+        launch_failed(conn, error)
     end
   end
 
   def jwks(conn, _params) do
-    keys =
-      Lti.list_active_jwks()
-      |> Enum.map(fn key ->
-        {:ok, jwk} = Ltix.JWK.new(private_key_pem: key.private_key_pem, kid: key.kid)
-        jwk
-      end)
+    json(conn, %{"keys" => Lti.list_public_jwks()})
+  end
 
-    json(conn, Ltix.JWK.to_jwks(keys))
+  # Error messages can include URLs and claim values, so they go to the
+  # log, and the user sees a general message.
+  defp launch_failed(conn, error) do
+    Logger.warning("LTI launch failed: #{Exception.message(error)}")
+
+    conn
+    |> put_status(Ltix.Errors.status_code(error))
+    |> render(:error, message: "The launch could not be completed.")
   end
 
   # TODO: This is a skeleton — fill in based on the app's needs.
@@ -277,9 +282,10 @@ Key points about the controller:
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
   course data, and session cookies are signed, not encrypted. Store only the fields you
   need (e.g., `user_id`, `course_id`).
-- **The JWKS endpoint** reconstructs `%Ltix.JWK{}` structs from your stored
-  `private_key_pem` + `kid` via `Ltix.JWK.new/1`. `Ltix.JWK.to_jwks/1` strips private
-  key material automatically — safe to pass private keys directly.
+- **The JWKS endpoint** serves the public JWK stored with each signing key, so it never
+  reads a private key. Private keys are encrypted at rest and only read to sign.
+- **Don't render Ltix error messages to users.** They can include URLs and claim values.
+  Log them and show a general message.
 
 ## Step 5: Test Setup
 

@@ -18,8 +18,8 @@ covers generating keys, serving a JWKS endpoint, and rotating keys.
 jwk = Ltix.JWK.generate()
 ```
 
-Store `private_key_pem` and `kid` in your database or config. To
-reconstruct the struct later, pass them to `Ltix.JWK.new/1` or
+Store `private_key_pem` and `kid` in your database or config, and encrypt
+the private key wherever you keep it. To reconstruct the struct later, pass them to `Ltix.JWK.new/1` or
 `Ltix.JWK.new!/1`. A missing, invalid, or unknown field returns an
 `Ltix.Errors.Invalid.InvalidField` error, and several bad fields are
 returned together in an `Ltix.Errors.Invalid` error.
@@ -29,7 +29,7 @@ independently.
 
 ## Signing with a key
 
-Ltix never stores your private key. When it needs a signature, it calls your storage adapter's `c:Ltix.StorageAdapter.key_id/1` and `c:Ltix.StorageAdapter.sign/3` callbacks. `Ltix.JWK.sign/2` produces the signature for a key your application holds:
+Ltix never stores your private key. When it needs a signature, it calls your storage adapter's `c:Ltix.StorageAdapter.key_id/1` and `c:Ltix.StorageAdapter.sign/3` callbacks. `Ltix.JWK.sign/2` produces the signature for a key your application has.
 
 ```elixir
 @impl true
@@ -46,7 +46,7 @@ end
 
 `sign/3` signs with the key that has the given ID and returns an error for an ID it doesn't have. A request that starts before a rotation still gets a signature from the key whose ID is in its JWT header.
 
-A key in a key management service never has to leave it. Call the service from `sign/3` and return its RS256 signature. See [Storage Adapters](storage-adapters.md#signing).
+A key in a key management service does not have to be exported. Call the service from `sign/3` and return its RS256 signature. See [Storage Adapters](storage-adapters.md#signing).
 
 ## Serving a JWKS endpoint
 
@@ -56,14 +56,14 @@ registration.
 
 Each key has a unique `kid`, so platforms match signatures to the
 correct key automatically. Pass your JWKs to `to_jwks/1` and it
-returns a JWKS map with only the public halves:
+returns a JWKS map with only the public keys.
 
 ```elixir
 Ltix.JWK.to_jwks([jwk_1, jwk_2])
 #=> %{"keys" => [%{"kty" => "RSA", "kid" => "...", "n" => "...", ...}, ...]}
 ```
 
-Private material is stripped automatically.
+Private material is removed automatically.
 
 For tools with a single registration, you can hard-code a single key.
 For tools managing multiple registrations, see the
@@ -76,7 +76,7 @@ When you rotate a key, your JWKS endpoint must continue serving the
 old public key until platforms have refreshed their cache. A typical
 overlap period is 24-48 hours.
 
-The rotation sequence:
+The rotation sequence has four steps.
 
 1. Generate a new key
 2. Start using the new key for signing
@@ -84,7 +84,7 @@ The rotation sequence:
 4. After the overlap period, stop serving the old key
 
 During the overlap, `to_jwks/1` accepts a list, so serving both keys
-is straightforward:
+is straightforward.
 
 ```elixir
 Ltix.JWK.to_jwks([old_jwk, new_jwk])
@@ -92,10 +92,10 @@ Ltix.JWK.to_jwks([old_jwk, new_jwk])
 
 ## Next steps
 
-- [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md): database
+- [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) - database
   storage, JWKS controller, and automated rotation
-- [Advantage Services](advantage-services.md): how keys are used
+- [Advantage Services](advantage-services.md) - how keys are used
   in service authentication
-- [Storage Adapters](storage-adapters.md): the callbacks that sign
+- [Storage Adapters](storage-adapters.md) - the callbacks that sign
   with your keys
-- `Ltix.JWK`: API reference
+- `Ltix.JWK` - API reference

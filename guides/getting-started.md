@@ -42,6 +42,12 @@ children = [
 > If you already use Cachex, you can use `Ltix.JWT.KeySet.CachexCache`
 > instead. See `Ltix.JWT.KeySet.CachexCache` for setup instructions.
 
+### Set up key encryption
+
+Your tool signs with private keys that you'll store in the database. Encrypt them there, so a database dump or a read-only breach doesn't expose your keys.
+
+Use the encryption your app already has, or a key management service. If you have neither, we recommend [Cloak](https://hexdocs.pm/cloak_ecto). Follow its [install guide](https://hexdocs.pm/cloak_ecto/install.html) to set up a vault and a binary field type. This guide calls that type `MyApp.Encrypted.Binary`.
+
 ## Database schema
 
 You need tables for four LTI concerns (signing keys, registrations,
@@ -57,8 +63,9 @@ defmodule MyApp.Repo.Migrations.CreateLtiTables do
 
   def change do
     create table(:lti_jwks) do
-      add :private_key_pem, :text, null: false
       add :kid, :string, null: false
+      add :public_jwk, :map, null: false
+      add :private_key_pem, :binary, null: false
       add :active, :boolean, default: true, null: false
       timestamps()
     end
@@ -122,13 +129,16 @@ defmodule MyApp.Lti.Jwk do
   use Ecto.Schema
 
   schema "lti_jwks" do
-    field :private_key_pem, :string
     field :kid, :string
+    field :public_jwk, :map
+    field :private_key_pem, MyApp.Encrypted.Binary, redact: true
     field :active, :boolean, default: true
     timestamps()
   end
 end
 ```
+
+The private key is encrypted in the database and left out of `inspect`. If you encrypt with something other than Cloak, use its field type in place of `MyApp.Encrypted.Binary`. The public key is stored next to it, so serving your key set never reads a private key.
 
 ```elixir
 # lib/my_app/lti/registration.ex
@@ -282,8 +292,28 @@ defmodule MyApp.Lti do
     )
   end
 
-  def list_active_jwks do
-    Repo.all(from j in Jwk, where: j.active == true)
+  def create_jwk! do
+    jwk = Ltix.JWK.generate()
+    %{"keys" => [public_jwk]} = Ltix.JWK.to_jwks(jwk)
+
+    # Ecto's debug log prints query parameters, and the key is one of them.
+    Repo.insert!(
+      %Jwk{kid: jwk.kid, public_jwk: public_jwk, private_key_pem: jwk.private_key_pem},
+      log: false
+    )
+  end
+
+  def list_public_jwks do
+    Repo.all(from j in Jwk, where: j.active == true, select: j.public_jwk)
+  end
+
+  # The platform left out client_id, so look up by issuer alone. An issuer
+  # with several registrations is ambiguous and needs the client_id.
+  def get_registration(issuer, nil) do
+    case Repo.all(from r in Registration, where: r.issuer == ^issuer) do
+      [registration] -> {:ok, registration}
+      _none_or_several -> {:error, :not_found}
+    end
   end
 
   def get_registration(issuer, client_id) do
@@ -312,7 +342,7 @@ defmodule MyApp.Lti do
   end
 
   def sign(key_id, message) do
-    case Repo.get_by(Jwk, kid: key_id) do
+    case Repo.get_by(Jwk, kid: key_id, active: true) do
       nil -> {:error, :unknown_key}
       jwk -> Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid), message)
     end
@@ -375,8 +405,7 @@ module, where the actual queries live.
 >
 > Older versions of some platforms may omit `client_id` from the login
 > request, in which case `get_registration/2` receives `nil` as the
-> second argument. If you need to support this, add a function head
-> that looks up by issuer alone. See
+> second argument. The issuer-only clause above handles that. See
 > [Storage Adapters](storage-adapters.md) for details.
 
 For more on nonce expiry, custom structs, and per-call adapter
@@ -418,12 +447,7 @@ $ iex -S mix
 
 iex> alias MyApp.{Lti, Repo}
 
-iex> tool_jwk = Ltix.JWK.generate()
-
-iex> Repo.insert!(%Lti.Jwk{
-...>   private_key_pem: tool_jwk.private_key_pem,
-...>   kid: tool_jwk.kid
-...> })
+iex> jwk = Lti.create_jwk!()
 ```
 
 For key rotation in production, see [JWK Management](jwk-management.md).
@@ -449,8 +473,6 @@ iex> {:ok, _} = Ltix.Registration.new(attrs)
 Once it passes validation, persist it:
 
 ```
-iex> [jwk] = Repo.all(Lti.Jwk)
-
 iex> registration = Repo.insert!(%Lti.Registration{
 ...>   issuer: "https://canvas.example.edu",
 ...>   client_id: "10000000000042",
@@ -568,6 +590,10 @@ defmodule MyAppWeb.Router do
     get "/login", LtiController, :login
     post "/login", LtiController, :login
     post "/launch", LtiController, :launch
+  end
+
+  # Platforms fetch your key set as JSON, so it needs no browser pipeline.
+  scope "/lti", MyAppWeb do
     get "/jwks", LtiController, :jwks
   end
 
@@ -609,6 +635,8 @@ defmodule MyAppWeb.LtiController do
 
   alias MyApp.Lti
 
+  require Logger
+
   def login(conn, params) do
     launch_url = url(conn, ~p"/lti/launch")
 
@@ -619,9 +647,7 @@ defmodule MyAppWeb.LtiController do
         |> redirect(external: redirect_uri)
 
       {:error, error} ->
-        conn
-        |> put_status(Ltix.Errors.status_code(error))
-        |> render(:error, message: Exception.message(error))
+        launch_failed(conn, error)
     end
   end
 
@@ -640,21 +666,22 @@ defmodule MyAppWeb.LtiController do
         |> render(:launch, context: context, user: user, course: course)
 
       {:error, error} ->
-        conn
-        |> put_status(Ltix.Errors.status_code(error))
-        |> render(:error, message: Exception.message(error))
+        launch_failed(conn, error)
     end
   end
 
   def jwks(conn, _params) do
-    keys =
-      Lti.list_active_jwks()
-      |> Enum.map(fn key ->
-        {:ok, jwk} = Ltix.JWK.new(private_key_pem: key.private_key_pem, kid: key.kid)
-        jwk
-      end)
+    json(conn, %{"keys" => Lti.list_public_jwks()})
+  end
 
-    json(conn, Ltix.JWK.to_jwks(keys))
+  # Error messages can include URLs and claim values, so they go to the
+  # log, and the user sees a general message.
+  defp launch_failed(conn, error) do
+    Logger.warning("LTI launch failed: #{Exception.message(error)}")
+
+    conn
+    |> put_status(Ltix.Errors.status_code(error))
+    |> render(:error, message: "The launch could not be completed.")
   end
 end
 ```
@@ -708,10 +735,7 @@ The platform fetches your public keys from here to verify signed
 requests from your tool during Advantage service calls (grades, roster,
 etc.).
 
-`Ltix.JWK.to_jwks/1` strips private key material, so only public keys
-are included in the response. Include multiple keys during
-rotation so platforms can verify with either the current or previous
-key. See [JWK Management](jwk-management.md) for rotation strategies.
+The endpoint serves the public keys stored with each signing key, so it never reads a private key. Include multiple keys during rotation so platforms can verify with either the current or previous key. See [JWK Management](jwk-management.md) for rotation strategies.
 
 ## Next steps
 
@@ -726,9 +750,9 @@ way to production:
 
 - **Hardening**: CSRF protection after the launch, authorization from roles, redirect checks, and key handling. See [Hardening Your Tool](hardening.md).
 
-- **Error handling**: the controller above returns raw error messages.
-  Match on error classes to show users meaningful messages and log
-  details for debugging. See [Error Handling](error-handling.md).
+- **Error handling**: the controller above shows one general message.
+  Match on error classes to show users more helpful messages and choose
+  log levels. See [Error Handling](error-handling.md).
 
 - **Role-based authorization**: decide what instructors, learners,
   and TAs can do in your tool. See

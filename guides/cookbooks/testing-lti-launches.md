@@ -1,12 +1,12 @@
 # Testing LTI Launches
 
-`Ltix.Test` provides helpers for testing your LTI-powered application.
+`Ltix.Test` provides helpers for testing your LTI application.
 Set up a simulated platform in one call, then test your controllers,
 authorization logic, and role-based behavior without a real LMS.
 
 ## Setup
 
-Add your storage adapter and the Req test plug to `config/test.exs`:
+Add your storage adapter and the Req test plug to `config/test.exs`.
 
 ```elixir
 # config/test.exs
@@ -15,21 +15,21 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}]
 ```
 
-The `:ltix` atom is a sentinel; each internal module rewrites it to its
+The `:ltix` atom is a sentinel. Each internal module rewrites it to its
 own stub name so that HTTP calls are isolated per service.
 `setup_platform!/1` automatically stubs JWKS fetches.
 
 Then create a test platform in your setup block. Pass a `:registration`
 function to create matching records in your own persistence layer. The
 function receives an `Ltix.Registration` with the platform details
-(issuer, client_id, endpoints) and returns your app's struct:
+(issuer, client_id, endpoints) and returns your app's struct.
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do
   use MyAppWeb.ConnCase, async: true
 
   setup do
-    jwk = MyApp.Lti.generate_jwk!()
+    jwk = MyApp.Lti.create_jwk!()
 
     platform = Ltix.Test.setup_platform!(
       registration: fn reg ->
@@ -75,7 +75,7 @@ end
 ## Testing your controller
 
 Simulate a full platform-initiated launch against your controller
-endpoints. This exercises your routes, session handling, and response
+endpoints. This tests your routes, session handling, and response
 logic end-to-end.
 
 ```elixir
@@ -186,13 +186,13 @@ end
 
 ### Roles
 
-Pass atoms for common LIS context roles:
+Pass atoms for common LIS context roles.
 
 ```elixir
 roles: [:instructor, :learner]
 ```
 
-For sub-roles, pass a `%Role{}` struct:
+For sub-roles, pass a `%Role{}` struct.
 
 ```elixir
 alias Ltix.LaunchClaims.Role
@@ -201,7 +201,7 @@ roles: [%Role{type: :context, name: :instructor, sub_role: :teaching_assistant}]
 
 For institution or system roles, or custom role URIs, pass the full URI
 string. URIs Ltix does not recognize are listed in
-`context.claims.unrecognized_roles`, as in a real launch:
+`context.claims.unrecognized_roles`, as in a real launch.
 
 ```elixir
 roles: ["http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"]
@@ -270,7 +270,7 @@ Ltix.Test.launch_params(platform,
 ### Raw claim overrides
 
 For claims not covered by the convenience options, use `:claims` to
-merge raw claims over the built ones:
+merge raw claims over the built ones.
 
 ```elixir
 Ltix.Test.launch_params(platform,
