@@ -1,7 +1,7 @@
 # Token Caching and Reuse
 
-Most LTI tools authenticate once per request or job and never think
-about token management. But when a background job processes hundreds of
+Most LTI tools authenticate once per request or job and need no
+token management. But when a background job processes hundreds of
 grades or syncs multiple courses, understanding the token lifecycle
 avoids redundant authentication and handles mid-job expiry.
 
@@ -10,7 +10,7 @@ avoids redundant authentication and handles mid-job expiry.
 When processing many items in a single job, the token may expire before
 you finish. Call `refresh!/1` between batches. The endpoint is rebuilt
 from the URL and scopes saved during a launch, as in
-[Syncing Grades in the Background](background-grade-sync.md):
+[Syncing Grades in the Background](background-grade-sync.md).
 
 ```elixir
 alias Ltix.LaunchClaims.AGSEndpoint
@@ -55,15 +55,15 @@ end
 
 `refresh/1` requests a new token only when `Ltix.OAuth.Client.expired?/1`
 is true for the current one. Otherwise it returns the client unchanged.
-The returned client has the same endpoints and registration — only the
-token changes. To request a new token regardless of expiry, use
+The returned client has the same endpoints and registration, and only
+the token changes. To request a new token regardless of expiry, use
 `force_refresh!/1`.
 
 ## Syncing multiple courses
 
-A token is scoped to a registration (platform + client\_id), not to a
-course. If you sync several courses on the same platform in one job,
-authenticate once and swap endpoints with `with_endpoints!/3`:
+A token is scoped to a registration (platform + client\_id). If you sync
+several courses on the same platform in one job, authenticate once and
+swap endpoints with `with_endpoints!/3`.
 
 ```elixir
 def perform(%{args: %{"platform_id" => platform_id}}) do
@@ -96,16 +96,16 @@ def perform(%{args: %{"platform_id" => platform_id}}) do
 end
 ```
 
-The token's granted scopes do not change. If it lacks a scope a new endpoint needs, that service returns a `ScopeMismatch` error when called. Pass `require_all_scopes: true` to `with_endpoints/3` to get the error at swap time instead.
+The token's granted scopes do not change. If it lacks a scope a new endpoint needs, that service returns a `ScopeMismatch` error when called. Pass `require_all_scopes: true` to `with_endpoints/3` to get the error at swap time.
 
 ## Caching tokens across workers
 
-When many Oban workers hit the same platform concurrently — say, one
-job per course — each authenticates independently by default. To share
+When many Oban workers call the same platform concurrently (say, one
+job per course), each authenticates independently by default. To share
 tokens, cache them in ETS. A token has only the scopes it was
 requested for, so key the cache by the registration and the scopes the
 service requests. Workers calling the same service share one token, and
-a service that needs other scopes gets a separate token:
+a service that needs other scopes gets a separate token.
 
 ```elixir
 defmodule MyApp.LTI.TokenCache do
@@ -140,7 +140,7 @@ defmodule MyApp.LTI.TokenCache do
   defp authenticate_and_cache(key, registration, service, endpoint) do
     {:ok, client} = service.authenticate(registration, endpoint: endpoint)
 
-    :ets.insert(@table, {key, Client.to_access_token(client)})
+    :ets.insert(@table, {key, client.token})
     {:ok, client}
   end
 end
@@ -162,7 +162,7 @@ def start(_type, _args) do
 end
 ```
 
-Usage in an Oban worker:
+Use the cache in an Oban worker.
 
 ```elixir
 def perform(%{args: %{"course_id" => course_id}}) do
@@ -184,15 +184,15 @@ end
 >
 > This ETS cache uses last-write-wins. Concurrent workers may both
 > miss the cache and authenticate simultaneously, producing two valid
-> tokens. This is harmless — the platform issues independent tokens,
-> and one simply goes unused.
+> tokens. This is harmless because the platform issues independent
+> tokens, and one simply goes unused.
 
 ## Storing tokens outside ETS
 
-To share tokens across nodes, store them in your database or a shared cache. `Ltix.OAuth.AccessToken.to_map/1` returns a map that encodes to JSON, and `Ltix.OAuth.AccessToken.from_map/1` restores the token:
+To share tokens across nodes, store them in your database or a shared cache. `Ltix.OAuth.AccessToken.to_map/1` returns a map that encodes to JSON, and `Ltix.OAuth.AccessToken.from_map/1` restores the token.
 
 ```elixir
-stored = Ltix.OAuth.AccessToken.to_map(Ltix.OAuth.Client.to_access_token(client))
+stored = Ltix.OAuth.AccessToken.to_map(client.token)
 
 {:ok, token} = Ltix.OAuth.AccessToken.from_map(stored)
 ```
@@ -201,7 +201,7 @@ The map holds the bearer token, so store it like any other credential.
 
 ## When to cache
 
-Don't add caching complexity unless you have a reason:
+Don't add caching complexity unless you have a reason.
 
 | Scenario | Approach |
 |---|---|
@@ -212,9 +212,9 @@ Don't add caching complexity unless you have a reason:
 
 ## Next steps
 
-- [Advantage Services](../advantage-services.md): overview of service
-  authentication and token management
-- [Syncing Grades in the Background](background-grade-sync.md): simple
-  background grading without caching
-- `Ltix.OAuth.Client`: full token lifecycle API reference
-- `Ltix.OAuth.AccessToken`: cacheable token struct
+- [Advantage Services](../advantage-services.md) for an overview of
+  service authentication and token management
+- [Syncing Grades in the Background](background-grade-sync.md) for
+  simple background grading without caching
+- `Ltix.OAuth.Client` for the full token lifecycle API reference
+- `Ltix.OAuth.AccessToken` for the cacheable token struct

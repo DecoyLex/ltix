@@ -100,7 +100,7 @@ defmodule PhoenixExampleWeb.LtiController do
         endpoint: endpoint,
         line_items: line_items,
         line_items_error: line_items_error,
-        scopes: client.scopes,
+        scopes: client.token.granted_scopes,
         score_for: params["score_for"],
         user_id: context.claims.subject,
         error: nil

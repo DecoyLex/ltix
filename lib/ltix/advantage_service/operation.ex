@@ -38,7 +38,8 @@ defmodule Ltix.AdvantageService.Operation do
   # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
   defp check_expiry(%Client{} = client) do
     if Client.expired?(client) do
-      {:error, AccessTokenExpired.exception(expires_at: client.expires_at, spec_ref: "Sec §7.1")}
+      {:error,
+       AccessTokenExpired.exception(expires_at: client.token.expires_at, spec_ref: "Sec §7.1")}
     else
       :ok
     end

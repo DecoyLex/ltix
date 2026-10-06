@@ -123,8 +123,8 @@ endpoint = %AttendanceEndpoint{attendance_url: stored_url}
 )
 ```
 
-Both paths produce the same `%Ltix.OAuth.Client{}`. The client carries
-your endpoint in its `endpoints` map, keyed by `AttendanceService`.
+Both paths produce the same `%Ltix.OAuth.Client{}`. Its `endpoints` map
+has your endpoint, keyed by `AttendanceService`.
 
 ## Making authenticated requests
 
@@ -147,7 +147,7 @@ def get_records(%Client{} = client) do
     client.req_options
     |> Keyword.put(:url, endpoint.attendance_url)
     |> Keyword.put(:headers, [
-      {"authorization", "Bearer #{client.access_token}"},
+      {"authorization", "Bearer #{client.token.access_token}"},
       {"accept", "application/json"}
     ])
 
@@ -166,10 +166,10 @@ def get_records(%Client{} = client) do
 end
 ```
 
-`client.req_options` carries the Req options that were passed to
+`client.req_options` has the Req options that were passed to
 `Ltix.OAuth.authenticate/2`. Set `:url` and `:headers` on top of
 them with `Keyword.put/3`. The bearer token comes from
-`client.access_token`, and the endpoint URL from
+`client.token.access_token`, and the endpoint URL from
 `client.endpoints[__MODULE__]`.
 
 ## Adding an expiry check
@@ -181,7 +181,8 @@ For longer-lived processes, check before each call:
 ```elixir
 def get_records(%Client{} = client) do
   if Client.expired?(client) do
-    {:error, Ltix.Errors.Security.AccessTokenExpired.exception(expires_at: client.expires_at)}
+    {:error,
+     Ltix.Errors.Security.AccessTokenExpired.exception(expires_at: client.token.expires_at)}
   else
     do_get_records(client)
   end
@@ -220,9 +221,12 @@ defmodule MyApp.Lti.AttendanceServiceTest do
 
   defp build_client(platform) do
     %Client{
-      access_token: "test-attendance-token",
-      expires_at: DateTime.add(DateTime.utc_now(), 3600),
-      scopes: MapSet.new([@scope]),
+      token: %Ltix.OAuth.AccessToken{
+        access_token: "test-attendance-token",
+        token_type: "bearer",
+        granted_scopes: MapSet.new([@scope]),
+        expires_at: DateTime.add(DateTime.utc_now(), 3600)
+      },
       registration: platform.registration,
       req_options: [plug: {Req.Test, AttendanceService}],
       endpoints: %{
@@ -272,7 +276,7 @@ test "authenticate from launch context", %{platform: platform} do
 
   {:ok, client} = Ltix.OAuth.authenticate(context, services: [AttendanceService])
 
-  assert client.access_token == "test-attendance-token"
+  assert client.token.access_token == "test-attendance-token"
 end
 ```
 

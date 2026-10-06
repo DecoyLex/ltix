@@ -13,6 +13,7 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.MembershipContainer
+  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
 
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
@@ -98,9 +99,12 @@ defmodule Ltix.MembershipsServiceTest do
       Keyword.get(opts, :expires_at, DateTime.add(DateTime.utc_now(), 3600))
 
     %Client{
-      access_token: "test-nrps-token",
-      expires_at: expires_at,
-      scopes: MapSet.new(scopes),
+      token: %AccessToken{
+        access_token: "test-nrps-token",
+        token_type: "bearer",
+        expires_at: expires_at,
+        granted_scopes: MapSet.new(scopes)
+      },
       registration: platform.registration,
       req_options: req_options(),
       endpoints: %{MembershipsService => endpoint}
@@ -169,7 +173,7 @@ defmodule Ltix.MembershipsServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert MapSet.member?(client.scopes, @nrps_scope)
+      assert MapSet.member?(client.token.granted_scopes, @nrps_scope)
       assert %MembershipsEndpoint{} = client.endpoints[MembershipsService]
     end
 
@@ -229,7 +233,7 @@ defmodule Ltix.MembershipsServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert MapSet.member?(client.scopes, @nrps_scope)
+      assert MapSet.member?(client.token.granted_scopes, @nrps_scope)
     end
 
     test "accepts a token without the NRPS scope unless require_all_scopes is set, from a registration or a launch",

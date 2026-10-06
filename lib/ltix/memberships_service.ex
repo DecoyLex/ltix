@@ -285,7 +285,7 @@ defmodule Ltix.MembershipsService do
     end)
   end
 
-  defp request_headers(%Client{access_token: token}) do
+  defp request_headers(%Client{token: %{access_token: token}}) do
     [
       {"accept", @media_type},
       {"authorization", "Bearer #{token}"}

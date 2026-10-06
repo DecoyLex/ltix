@@ -117,8 +117,8 @@ defmodule Ltix.OAuthTest do
                  req_options: req_options()
                )
 
-      assert client.access_token == "test-token"
-      assert MapSet.member?(client.scopes, @test_scope)
+      assert client.token.access_token == "test-token"
+      assert MapSet.member?(client.token.granted_scopes, @test_scope)
       assert client.endpoints == %{TestService => :valid_endpoint}
       assert client.registration == ctx.registration
     end
@@ -126,7 +126,7 @@ defmodule Ltix.OAuthTest do
     test "configured token response helper grants only its configured scopes", ctx do
       Ltix.Test.stub_token_response(scopes: [@other_scope], access_token: "configured-token")
 
-      assert {:ok, %Client{access_token: "configured-token"} = client} =
+      assert {:ok, %Client{token: %{access_token: "configured-token"}} = client} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{
                    TestService => :valid_endpoint,
@@ -135,7 +135,7 @@ defmodule Ltix.OAuthTest do
                  req_options: req_options()
                )
 
-      assert client.scopes == MapSet.new([@other_scope])
+      assert client.token.granted_scopes == MapSet.new([@other_scope])
     end
 
     test "multiple endpoints send space-separated scopes", ctx do
@@ -164,8 +164,8 @@ defmodule Ltix.OAuthTest do
                  req_options: req_options()
                )
 
-      assert MapSet.member?(client.scopes, @test_scope)
-      assert MapSet.member?(client.scopes, @other_scope)
+      assert MapSet.member?(client.token.granted_scopes, @test_scope)
+      assert MapSet.member?(client.token.granted_scopes, @other_scope)
     end
 
     test "granted scopes reflect platform response, not requested", ctx do
@@ -181,8 +181,8 @@ defmodule Ltix.OAuthTest do
                  req_options: req_options()
                )
 
-      assert MapSet.member?(client.scopes, @test_scope)
-      refute MapSet.member?(client.scopes, @other_scope)
+      assert MapSet.member?(client.token.granted_scopes, @test_scope)
+      refute MapSet.member?(client.token.granted_scopes, @other_scope)
     end
 
     test "require_all_scopes returns ScopeMismatch when the platform grants only some", ctx do
@@ -207,16 +207,16 @@ defmodule Ltix.OAuthTest do
 
       before_request = DateTime.utc_now()
 
-      assert {:ok, %Client{access_token: "extension-token"} = client} =
+      assert {:ok, %Client{token: %{access_token: "extension-token"}} = client} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options()
                )
 
       after_request = DateTime.utc_now()
-      assert client.scopes == MapSet.new([@test_scope])
-      assert DateTime.compare(client.expires_at, DateTime.add(before_request, 3600)) != :lt
-      assert DateTime.compare(client.expires_at, DateTime.add(after_request, 3600)) != :gt
+      assert client.token.granted_scopes == MapSet.new([@test_scope])
+      assert DateTime.compare(client.token.expires_at, DateTime.add(before_request, 3600)) != :lt
+      assert DateTime.compare(client.token.expires_at, DateTime.add(after_request, 3600)) != :gt
     end
 
     test "accepts a compliant response and honors zero lifetime", ctx do
@@ -231,18 +231,18 @@ defmodule Ltix.OAuthTest do
 
       before_request = System.system_time(:microsecond)
 
-      assert {:ok, %Client{access_token: "expired-token"} = client} =
+      assert {:ok, %Client{token: %{access_token: "expired-token"}} = client} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options()
                )
 
       after_request = System.system_time(:microsecond)
-      expires_at = DateTime.to_unix(client.expires_at, :microsecond)
+      expires_at = DateTime.to_unix(client.token.expires_at, :microsecond)
       assert expires_at >= before_request
       assert expires_at <= after_request
       assert Client.expired?(client)
-      assert client.scopes == MapSet.new([@test_scope])
+      assert client.token.granted_scopes == MapSet.new([@test_scope])
     end
 
     test "a token that lives less than a minute is usable for half its lifetime", ctx do
@@ -257,13 +257,13 @@ defmodule Ltix.OAuthTest do
       refute Client.expired?(client)
       assert {:ok, ^client} = Client.refresh(client)
 
-      issued_30_seconds_ago = %{
-        client
-        | issued_at: DateTime.add(client.issued_at, -16),
-          expires_at: DateTime.add(client.expires_at, -16)
+      issued_16_seconds_ago = %{
+        client.token
+        | issued_at: DateTime.add(client.token.issued_at, -16),
+          expires_at: DateTime.add(client.token.expires_at, -16)
       }
 
-      assert Client.expired?(issued_30_seconds_ago)
+      assert Client.expired?(%{client | token: issued_16_seconds_ago})
     end
 
     for {field, value} <- [
@@ -372,13 +372,13 @@ defmodule Ltix.OAuthTest do
         })
       end)
 
-      assert {:ok, %Client{access_token: "aZ09-._~+/=="} = client} =
+      assert {:ok, %Client{token: %{access_token: "aZ09-._~+/=="}} = client} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options()
                )
 
-      assert client.scopes == MapSet.new(["!#[scope]~", "other.scope"])
+      assert client.token.granted_scopes == MapSet.new(["!#[scope]~", "other.scope"])
     end
 
     test "accepts JSON media type parameters and whitespace", ctx do
@@ -388,7 +388,7 @@ defmodule Ltix.OAuthTest do
         |> Plug.Conn.send_resp(200, ~s({"access_token":"media-type-token","token_type":"Bearer"}))
       end)
 
-      assert {:ok, %Client{access_token: "media-type-token"}} =
+      assert {:ok, %Client{token: %{access_token: "media-type-token"}}} =
                OAuth.authenticate(ctx.registration,
                  endpoints: %{TestService => :valid_endpoint},
                  req_options: req_options()
@@ -528,7 +528,7 @@ defmodule Ltix.OAuthTest do
                OtherService => :other_endpoint
              }
 
-      assert client.scopes == MapSet.new([@test_scope, @other_scope])
+      assert client.token.granted_scopes == MapSet.new([@test_scope, @other_scope])
       assert client.registration == ctx.registration
     end
 

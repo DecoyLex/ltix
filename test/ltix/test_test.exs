@@ -18,6 +18,7 @@ defmodule Ltix.TestTest do
   alias Ltix.LaunchContext
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
+  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.Test.StorageAdapter
 
@@ -717,7 +718,7 @@ defmodule Ltix.TestTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert client.access_token == "my-token"
+      assert client.token.access_token == "my-token"
     end
   end
 
@@ -1085,9 +1086,12 @@ defmodule Ltix.TestTest do
 
   defp build_client(platform, service, endpoint, scopes) do
     %Client{
-      access_token: "test-token",
-      expires_at: DateTime.add(DateTime.utc_now(), 3600),
-      scopes: MapSet.new(scopes),
+      token: %AccessToken{
+        access_token: "test-token",
+        token_type: "bearer",
+        expires_at: DateTime.add(DateTime.utc_now(), 3600),
+        granted_scopes: MapSet.new(scopes)
+      },
       registration: platform.registration,
       req_options: [plug: {Req.Test, service}, retry: false],
       endpoints: %{service => endpoint}

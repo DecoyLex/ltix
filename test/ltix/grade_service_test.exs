@@ -20,6 +20,7 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.MembershipsEndpoint
+  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
@@ -64,9 +65,12 @@ defmodule Ltix.GradeServiceTest do
     expires_at = Keyword.get(opts, :expires_at, DateTime.add(DateTime.utc_now(), 3600))
 
     %Client{
-      access_token: "test-ags-token",
-      expires_at: expires_at,
-      scopes: MapSet.new(scopes),
+      token: %AccessToken{
+        access_token: "test-ags-token",
+        token_type: "bearer",
+        expires_at: expires_at,
+        granted_scopes: MapSet.new(scopes)
+      },
       registration: platform.registration,
       req_options: req_options(),
       endpoints: %{GradeService => endpoint}

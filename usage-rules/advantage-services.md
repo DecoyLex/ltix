@@ -1,21 +1,21 @@
 # Advantage Services
 
-Rules for working with LTI Advantage Services: Grade Service (AGS), Memberships Service
-(NRPS), and OAuth token management.
+Rules for working with LTI Advantage Services. Covers Grade Service (AGS), Memberships
+Service (NRPS), and OAuth token management.
 
 ## Authenticate-Then-Call Pattern
 
-All services follow the same pattern:
+All services follow the same pattern.
 
 ```elixir
 {:ok, client} = Ltix.GradeService.authenticate(context)
 {:ok, items} = Ltix.GradeService.list_line_items(client)
 ```
 
-`authenticate/2` returns an `%OAuth.Client{}` with the access token and endpoints baked in.
+`authenticate/2` returns an `%OAuth.Client{}` that holds the access token and the service endpoints.
 Pass the client to all subsequent service calls.
 
-You can also authenticate from a `%Registration{}` directly (for background jobs):
+You can also authenticate from a `%Registration{}` directly (for background jobs).
 
 ```elixir
 {:ok, client} = Ltix.MembershipsService.authenticate(registration, endpoint: endpoint)
@@ -23,7 +23,7 @@ You can also authenticate from a `%Registration{}` directly (for background jobs
 
 ## Service Availability
 
-Services are optional per-launch. **Always** handle `ServiceNotAvailable`:
+Services are optional per-launch. **Always** handle `ServiceNotAvailable`.
 
 ```elixir
 case Ltix.GradeService.authenticate(context) do
@@ -36,14 +36,14 @@ end
 ## Token Lifecycle
 
 - Tokens typically last ~1 hour. Safe to ignore for single request handlers.
-- For background jobs, check expiry before each call:
+- For background jobs, check expiry before each call.
 
 ```elixir
 client = Ltix.OAuth.Client.refresh!(client)
 ```
 
-- Tokens are scoped to a registration (platform + client_id), not a course. Reuse across
-  courses on the same platform with `Client.with_endpoints/3`.
+- Tokens are scoped to a registration (platform + client_id). Reuse across courses on the
+  same platform with `Client.with_endpoints/3`.
 - Platforms may grant fewer scopes than requested. Authentication still succeeds. Service
   functions validate automatically and return `ScopeMismatch` if the required scope is
   missing. Pass `require_all_scopes: true` to fail at authentication instead.
@@ -71,15 +71,15 @@ client = Ltix.OAuth.Client.refresh!(client)
   grading progress values (`:pending`, `:pending_manual`, `:not_ready`, `:failed`) may be
   ignored by the platform.
 - `score_given` can exceed `score_maximum` (extra credit is allowed).
-- Activity progress enum: `:initialized`, `:started`, `:in_progress`, `:submitted`, `:completed`
-- Grading progress enum: `:fully_graded`, `:pending`, `:pending_manual`, `:failed`, `:not_ready`
+- Activity progress enum values are `:initialized`, `:started`, `:in_progress`, `:submitted`, and `:completed`
+- Grading progress enum values are `:fully_graded`, `:pending`, `:pending_manual`, `:failed`, and `:not_ready`
 
 ### Line Items
 
-**Coupled** (platform-created): The platform creates a line item for the resource link
+**Coupled** (platform-created). The platform creates a line item for the resource link
 automatically. Post scores directly without specifying a line item.
 
-**Programmatic**: The tool manages its own line items:
+**Programmatic.** The tool manages its own line items.
 
 ```elixir
 {:ok, item} = Ltix.GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
@@ -94,10 +94,10 @@ automatically. Post scores directly without specifying a line item.
 
 ### Coupled Line Item Deletion
 
-**Do not** delete coupled line items — behavior varies wildly by platform:
-- Canvas: rejects deletion (HTTP 401)
-- Moodle/Blackboard: deletes the gradebook entry entirely
-- D2L: severs the link but preserves grade data
+**Do not** delete coupled line items, because behavior varies by platform.
+- Canvas rejects deletion (HTTP 401)
+- Moodle and Blackboard delete the gradebook entry entirely
+- D2L removes the link but preserves grade data
 
 Ltix blocks deletion of coupled line items by default. **Never** pass `force: true`
 without confirming with the user which LMS platforms they target and that they understand
@@ -105,7 +105,7 @@ the consequences.
 
 ### Canvas Extensions
 
-Pass Canvas-specific properties via `:extensions`:
+Pass Canvas-specific properties via `:extensions`.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -132,9 +132,9 @@ Pass Canvas-specific properties via `:extensions`:
 {:ok, roster} = Ltix.MembershipsService.list_members(client)
 ```
 
-- `list_members/2` loads the entire roster into memory (safety limit: 10,000 members).
+- `list_members/2` loads the entire roster into memory (the safety limit is 10,000 members).
   Beyond that it returns `CollectionTooLarge`.
-- For large courses, use `stream_members/2` for lazy, paginated processing:
+- For large courses, use `stream_members/2` for lazy, paginated processing.
 
 ```elixir
 {:ok, stream} = Ltix.MembershipsService.stream_members(client)
@@ -148,8 +148,8 @@ stream
 
 ### Filtering
 
-- `:role` — filter server-side (`:learner`, `:instructor`, etc.)
-- `:resource_link_id` — only members with access to a specific resource link
+- `:role` - filter server-side (`:learner`, `:instructor`, etc.)
+- `:resource_link_id` - only members with access to a specific resource link
 
 ### Missing PII
 
@@ -158,11 +158,11 @@ depend on platform privacy settings. **Always** handle `nil` for these fields.
 
 ## Background Service Calls
 
-**Ask the user** before implementing background service patterns — these involve
+**Ask the user** before implementing background service patterns. These involve
 architectural decisions about where to store endpoint URLs, how to schedule jobs, and
-how to handle token caching. The pattern below is a starting point, not a prescription.
+how to handle token caching. The pattern below is an example to adapt.
 
-Store the endpoint URL during the first launch for later use in background jobs:
+Store the endpoint URL during the first launch for later use in background jobs.
 
 ```elixir
 # During launch

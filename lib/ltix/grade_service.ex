@@ -654,11 +654,11 @@ defmodule Ltix.GradeService do
 
   defp check_coupled_guard(_endpoint, _url, _force), do: :ok
 
-  defp auth_headers(%Client{access_token: token}, nil) do
+  defp auth_headers(%Client{token: %{access_token: token}}, nil) do
     [{"authorization", "Bearer #{token}"}]
   end
 
-  defp auth_headers(%Client{access_token: token}, accept) do
+  defp auth_headers(%Client{token: %{access_token: token}}, accept) do
     [
       {"accept", accept},
       {"authorization", "Bearer #{token}"}

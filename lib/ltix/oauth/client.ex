@@ -2,8 +2,9 @@ defmodule Ltix.OAuth.Client do
   @moduledoc """
   Authenticated OAuth session for LTI Advantage service calls.
 
-  Holds an access token, tracks which scopes were granted, and provides
-  explicit refresh. Pass this struct to service functions like
+  Holds an `Ltix.OAuth.AccessToken` with the scopes it was granted, the
+  registration it was requested for, and the service endpoints it calls, and
+  provides explicit refresh. Pass this struct to service functions like
   `Ltix.MembershipsService.list_members/2`.
 
   ## Refreshing
@@ -19,7 +20,7 @@ defmodule Ltix.OAuth.Client do
         Ltix.MembershipsService => course_b_endpoint
       })
 
-  Or cache the token with `to_access_token/1` and build a client from it later:
+  Or cache `client.token` and build a client from it later:
 
       {:ok, client} = Ltix.OAuth.Client.from_access_token(cached_token,
         registration: registration,
@@ -34,22 +35,10 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Records
   alias Ltix.Registration
 
-  @derive {Inspect, except: [:access_token]}
-  defstruct [
-    :access_token,
-    :issued_at,
-    :expires_at,
-    :scopes,
-    :registration,
-    :req_options,
-    endpoints: %{}
-  ]
+  defstruct [:token, :registration, :req_options, endpoints: %{}]
 
   @type t :: %__MODULE__{
-          access_token: String.t(),
-          issued_at: DateTime.t() | nil,
-          expires_at: DateTime.t(),
-          scopes: MapSet.t(String.t()),
+          token: AccessToken.t(),
           registration: Registration.t(),
           req_options: keyword(),
           endpoints: %{module() => term()}
@@ -97,40 +86,29 @@ defmodule Ltix.OAuth.Client do
 
   ## Examples
 
-      iex> client = %Ltix.OAuth.Client{
-      ...>   access_token: "tok",
-      ...>   expires_at: DateTime.add(DateTime.utc_now(), 3600),
-      ...>   scopes: MapSet.new(),
-      ...>   registration: nil,
-      ...>   req_options: []
-      ...> }
-      iex> Ltix.OAuth.Client.expired?(client)
+      iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+      iex> Ltix.OAuth.Client.expired?(%Ltix.OAuth.Client{token: token})
       false
   """
   # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
   @spec expired?(t()) :: boolean()
-  def expired?(%__MODULE__{} = client), do: AccessToken.expired?(to_access_token(client))
+  def expired?(%__MODULE__{token: token}), do: AccessToken.expired?(token)
 
   @doc """
-  Check whether the client was granted a specific scope.
+  Check whether the client's token was granted a specific scope.
 
   ## Examples
 
-      iex> client = %Ltix.OAuth.Client{
-      ...>   access_token: "tok",
-      ...>   expires_at: DateTime.utc_now(),
-      ...>   scopes: MapSet.new(["scope:read"]),
-      ...>   registration: nil,
-      ...>   req_options: []
-      ...> }
+      iex> token = %Ltix.OAuth.AccessToken{granted_scopes: MapSet.new(["scope:read"])}
+      iex> client = %Ltix.OAuth.Client{token: token}
       iex> Ltix.OAuth.Client.has_scope?(client, "scope:read")
       true
       iex> Ltix.OAuth.Client.has_scope?(client, "scope:write")
       false
   """
   @spec has_scope?(t(), String.t()) :: boolean()
-  def has_scope?(%__MODULE__{scopes: scopes}, scope) do
-    MapSet.member?(scopes, scope)
+  def has_scope?(%__MODULE__{token: token}, scope) do
+    MapSet.member?(token.granted_scopes, scope)
   end
 
   @doc """
@@ -205,14 +183,7 @@ defmodule Ltix.OAuth.Client do
            client.req_options
          ) do
       {:ok, token} ->
-        {:ok,
-         %{
-           client
-           | access_token: token.access_token,
-             issued_at: token.issued_at,
-             expires_at: token.expires_at,
-             scopes: token.granted_scopes
-         }}
+        {:ok, %{client | token: token}}
 
       {:error, _} = error ->
         error
@@ -248,9 +219,15 @@ defmodule Ltix.OAuth.Client do
 
     with {:ok, registration} <- Records.convert!(registerable, :registration, :registration),
          :ok <- validate_endpoints(endpoints) do
-      token
-      |> new(registration, endpoints, req_options)
-      |> check_granted_scopes(Keyword.fetch!(opts, :require_all_scopes))
+      check_granted_scopes(
+        %__MODULE__{
+          token: token,
+          registration: registration,
+          req_options: req_options,
+          endpoints: endpoints
+        },
+        Keyword.fetch!(opts, :require_all_scopes)
+      )
     end
   end
 
@@ -263,40 +240,6 @@ defmodule Ltix.OAuth.Client do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
-  end
-
-  @doc """
-  Return the client's token as a cacheable `AccessToken`.
-
-  Rebuild a client from it later with `from_access_token/2`.
-
-  ## Examples
-
-      iex> client = %Ltix.OAuth.Client{
-      ...>   access_token: "tok",
-      ...>   expires_at: ~U[2025-01-01 01:00:00Z],
-      ...>   scopes: MapSet.new(["scope:read"]),
-      ...>   registration: nil,
-      ...>   req_options: []
-      ...> }
-      iex> Ltix.OAuth.Client.to_access_token(client)
-      %Ltix.OAuth.AccessToken{
-        access_token: "tok",
-        token_type: "bearer",
-        granted_scopes: MapSet.new(["scope:read"]),
-        issued_at: nil,
-        expires_at: ~U[2025-01-01 01:00:00Z]
-      }
-  """
-  @spec to_access_token(t()) :: AccessToken.t()
-  def to_access_token(%__MODULE__{} = client) do
-    %AccessToken{
-      access_token: client.access_token,
-      token_type: "bearer",
-      granted_scopes: client.scopes,
-      issued_at: client.issued_at,
-      expires_at: client.expires_at
-    }
   end
 
   @doc """
@@ -336,18 +279,6 @@ defmodule Ltix.OAuth.Client do
     end
   end
 
-  defp new(%AccessToken{} = token, registration, endpoints, req_options) do
-    %__MODULE__{
-      access_token: token.access_token,
-      issued_at: token.issued_at,
-      expires_at: token.expires_at,
-      scopes: token.granted_scopes,
-      registration: registration,
-      req_options: req_options,
-      endpoints: endpoints
-    }
-  end
-
   @doc false
   @spec validate_endpoints(%{module() => term()}) :: :ok | {:error, Exception.t()}
   def validate_endpoints(endpoints) do
@@ -381,7 +312,7 @@ defmodule Ltix.OAuth.Client do
   defp scope_mismatch(client, scopes) do
     ScopeMismatch.exception(
       scopes: scopes,
-      granted_scopes: MapSet.to_list(client.scopes),
+      granted_scopes: MapSet.to_list(client.token.granted_scopes),
       spec_ref: "Sec §4.1"
     )
   end

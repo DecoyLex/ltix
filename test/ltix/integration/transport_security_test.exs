@@ -27,9 +27,12 @@ defmodule Ltix.Integration.TransportSecurityTest do
     ]
 
     client = %Client{
-      access_token: "secret-bearer-token",
-      expires_at: DateTime.add(DateTime.utc_now(), 3600),
-      scopes: MapSet.new(scopes),
+      token: %AccessToken{
+        access_token: "secret-bearer-token",
+        token_type: "bearer",
+        expires_at: DateTime.add(DateTime.utc_now(), 3600),
+        granted_scopes: MapSet.new(scopes)
+      },
       registration: platform.registration,
       req_options: [plug: {Req.Test, :ltix}, retry: false],
       endpoints: %{

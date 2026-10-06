@@ -4,17 +4,23 @@ defmodule Ltix.Test.MembershipsServiceHelper do
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
 
   def create_client do
     platform = Ltix.Test.setup_platform!()
 
     client = %Client{
-      access_token: "nested-payload-token",
-      expires_at: DateTime.add(DateTime.utc_now(), 3600),
+      token: %AccessToken{
+        access_token: "nested-payload-token",
+        token_type: "bearer",
+        expires_at: DateTime.add(DateTime.utc_now(), 3600),
+        granted_scopes:
+          MapSet.new([
+            "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+          ])
+      },
       registration: platform.registration,
-      scopes:
-        MapSet.new(["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]),
       req_options: [plug: {Req.Test, MembershipsService}, retry: false],
       endpoints: %{
         MembershipsService => MembershipsEndpoint.new!("https://platform.example.com/members")

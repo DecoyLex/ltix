@@ -45,15 +45,22 @@ defmodule Ltix.OAuth.ClientTest do
 
   defp build_client(overrides \\ %{}) do
     defaults = %{
-      access_token: "test-token",
-      expires_at: DateTime.add(DateTime.utc_now(), 3600),
-      scopes: MapSet.new([@test_scope]),
+      token: build_token(DateTime.add(DateTime.utc_now(), 3600)),
       registration: nil,
       req_options: [],
       endpoints: %{TestService => :valid_endpoint}
     }
 
     struct!(Client, Map.merge(defaults, overrides))
+  end
+
+  defp build_token(expires_at) do
+    %AccessToken{
+      access_token: "test-token",
+      token_type: "bearer",
+      granted_scopes: MapSet.new([@test_scope]),
+      expires_at: expires_at
+    }
   end
 
   defp both_endpoints, do: %{TestService => :valid_endpoint, OtherService => :other_endpoint}
@@ -94,23 +101,6 @@ defmodule Ltix.OAuth.ClientTest do
         "scope" => @test_scope
       })
     end)
-  end
-
-  describe "expired?/1" do
-    test "returns false when token is fresh" do
-      client = build_client(%{expires_at: DateTime.add(DateTime.utc_now(), 3600)})
-      refute Client.expired?(client)
-    end
-
-    test "returns true when within 60s buffer of expiry" do
-      client = build_client(%{expires_at: DateTime.add(DateTime.utc_now(), 30)})
-      assert Client.expired?(client)
-    end
-
-    test "returns true when token is already past expiry" do
-      client = build_client(%{expires_at: DateTime.add(DateTime.utc_now(), -100)})
-      assert Client.expired?(client)
-    end
   end
 
   describe "has_scope?/2" do
@@ -212,8 +202,8 @@ defmodule Ltix.OAuth.ClientTest do
                  endpoints: %{TestService => :valid_endpoint}
                )
 
-      assert client.access_token == "cached-token"
-      assert MapSet.member?(client.scopes, @test_scope)
+      assert client.token.access_token == "cached-token"
+      assert MapSet.member?(client.token.granted_scopes, @test_scope)
       assert client.endpoints == %{TestService => :valid_endpoint}
     end
 
@@ -299,35 +289,6 @@ defmodule Ltix.OAuth.ClientTest do
     end
   end
 
-  describe "to_access_token/1" do
-    test "carries the client's token, expiry, and granted scopes" do
-      client = build_client()
-
-      assert %AccessToken{
-               access_token: "test-token",
-               token_type: "bearer",
-               granted_scopes: granted_scopes,
-               expires_at: expires_at
-             } = Client.to_access_token(client)
-
-      assert granted_scopes == MapSet.new([@test_scope])
-      assert expires_at == client.expires_at
-    end
-
-    test "returns a token that from_access_token/2 turns back into the same client" do
-      registration = build_registration()
-      client = build_client(%{registration: registration, endpoints: both_endpoints()})
-
-      assert {:ok, ^client} =
-               client
-               |> Client.to_access_token()
-               |> Client.from_access_token(
-                 registration: registration,
-                 endpoints: both_endpoints()
-               )
-    end
-  end
-
   describe "with_endpoints/3" do
     test "swaps endpoints keeping same token" do
       client = build_client()
@@ -336,8 +297,8 @@ defmodule Ltix.OAuth.ClientTest do
                Client.with_endpoints(client, %{TestService => :other_valid_endpoint})
 
       assert new_client.endpoints == %{TestService => :other_valid_endpoint}
-      assert new_client.access_token == client.access_token
-      assert new_client.scopes == client.scopes
+      assert new_client.token.access_token == client.token.access_token
+      assert new_client.token.granted_scopes == client.token.granted_scopes
     end
 
     test "fails with InvalidEndpoint on wrong struct type" do
@@ -389,12 +350,12 @@ defmodule Ltix.OAuth.ClientTest do
       client =
         build_client(%{
           registration: registration,
-          expires_at: DateTime.add(DateTime.utc_now(), -1),
+          token: build_token(DateTime.add(DateTime.utc_now(), -1)),
           req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
         })
 
       assert {:ok, %Client{} = refreshed} = Client.refresh(client)
-      assert refreshed.access_token == "refreshed-token"
+      assert refreshed.token.access_token == "refreshed-token"
       assert refreshed.registration == registration
       assert refreshed.endpoints == client.endpoints
     end
@@ -410,7 +371,7 @@ defmodule Ltix.OAuth.ClientTest do
       client =
         build_client(%{
           registration: build_registration(),
-          expires_at: DateTime.add(DateTime.utc_now(), -1),
+          token: build_token(DateTime.add(DateTime.utc_now(), -1)),
           req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
         })
 
@@ -431,7 +392,10 @@ defmodule Ltix.OAuth.ClientTest do
 
     test "a client that has not expired emits nothing from refresh", %{client: client} do
       assert {:ok, _} =
-               Client.refresh(%{client | expires_at: DateTime.add(DateTime.utc_now(), 3600)})
+               Client.refresh(%{
+                 client
+                 | token: %{client.token | expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+               })
 
       refute_received {[:ltix, :oauth, :refresh, :start], _, _, _}
     end
@@ -463,7 +427,7 @@ defmodule Ltix.OAuth.ClientTest do
         })
 
       assert {:ok, %Client{} = refreshed} = Client.force_refresh(client)
-      assert refreshed.access_token == "refreshed-token"
+      assert refreshed.token.access_token == "refreshed-token"
       assert refreshed.registration == registration
       assert refreshed.endpoints == client.endpoints
     end
