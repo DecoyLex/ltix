@@ -9,7 +9,8 @@ defmodule PhoenixExampleWeb.Endpoint do
     key: "_phoenix_example_key",
     signing_salt: "t2Ceoyww",
     same_site: "None",
-    secure: true
+    secure: true,
+    extra: "Partitioned"
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
