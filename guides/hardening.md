@@ -155,7 +155,7 @@ Ltix sends requests only to public addresses, over HTTPS, with certificate verif
 
 - Leave `:local_network_access` at its default in production. Grant `:local` or `:loopback` on the call for a platform you know runs on your network, and avoid granting it in config for every platform.
 - Don't pass `:finch`, `:adapter`, `:unix_socket`, or a proxy in `:req_options` unless you need one. Ltix can't check the addresses they connect to, so they need `local_network_access: :loopback`. With a proxy, have the proxy refuse private addresses.
-- Requests your own code sends with `Req`, such as a custom Advantage service, don't get these checks. Apply the same rules there.
+- Send a custom Advantage service's requests with `Ltix.OAuth.Client.request/3` and `Ltix.OAuth.Client.request_pages/3`, which apply these checks. Requests your own code sends directly with `Req` don't get them.
 
 Access tokens from `Ltix.OAuth` let the holder call the platform as your tool. Cache them on the server and keep them out of logs and responses.
 

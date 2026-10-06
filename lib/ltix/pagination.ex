@@ -73,67 +73,71 @@ defmodule Ltix.Pagination do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_results(url, headers, opts \\ []) do
     opts = Options.parse!(opts, @stream_schema)
-    params = Keyword.fetch!(opts, :params)
-    req_options = req_options(opts)
+    {configured_params, req_options} = Keyword.pop(req_options(opts), :params, [])
 
+    params =
+      case Keyword.fetch!(opts, :params) do
+        params when map_size(params) == 0 -> configured_params
+        params -> params
+      end
+
+    req_options = Keyword.merge(req_options, method: :get, headers: headers)
+
+    paginate(url, params, &Ltix.HTTP.request_success(Keyword.put(req_options, :url, &1)))
+  end
+
+  @doc false
+  # Streams result tuples for the pages `fetch` returns, starting at `url`
+  # with `params`. `fetch` takes a page URL and returns `{:ok, response}` for
+  # a successful response.
+  @spec paginate(term(), Enumerable.t(), (String.t() ->
+                                            {:ok, Req.Response.t()} | {:error, Exception.t()})) ::
+          {:ok, Enumerable.t()} | {:error, Exception.t()}
+  def paginate(url, params, fetch) do
     with {:ok, base_uri} <- Ltix.HTTP.validate_url(url),
+         first_url = put_params(url, params),
          {:ok, first_body, next_url, fetched} <-
-           fetch_page(url, headers, params, req_options, base_uri, MapSet.new()) do
+           fetch_page(first_url, fetch, base_uri, MapSet.new()) do
       {:ok,
        Stream.resource(
          fn -> {:first, first_body, next_url, fetched} end,
-         &next_page(&1, headers, req_options, base_uri),
+         &next_page(&1, fetch, base_uri),
          fn _ -> :ok end
        )}
     end
   end
 
-  defp next_page({:first, body, next_url, fetched}, _headers, _req_options, _base_uri) do
+  defp put_params(url, params) when map_size(params) == 0 or params == [], do: url
+
+  defp put_params(url, params) do
+    [url: url, params: params]
+    |> Req.new()
+    |> RequestSteps.put_params()
+    |> then(&URI.to_string(&1.url))
+  end
+
+  defp next_page({:first, body, next_url, fetched}, _fetch, _base_uri) do
     {[{:ok, body}], {next_url, fetched}}
   end
 
-  defp next_page(:done, _headers, _req_options, _base_uri), do: {:halt, :done}
-  defp next_page({nil, _fetched}, _headers, _req_options, _base_uri), do: {:halt, :done}
+  defp next_page(:done, _fetch, _base_uri), do: {:halt, :done}
+  defp next_page({nil, _fetched}, _fetch, _base_uri), do: {:halt, :done}
 
-  defp next_page({url, fetched}, headers, req_options, base_uri) do
-    req_options = Keyword.delete(req_options, :params)
-
-    case fetch_page(url, headers, %{}, req_options, base_uri, fetched) do
+  defp next_page({url, fetched}, fetch, base_uri) do
+    case fetch_page(url, fetch, base_uri, fetched) do
       {:ok, body, next_url, fetched} -> {[{:ok, body}], {next_url, fetched}}
       {:error, reason} -> {[{:error, reason}], :done}
     end
   end
 
   # `fetched` holds the URLs of the pages fetched so far.
-  defp fetch_page(url, headers, params, req_options, base_uri, fetched) do
-    params = if params == %{}, do: Keyword.get(req_options, :params, []), else: params
-
-    request_url =
-      [url: url, params: params]
-      |> Req.new()
-      |> RequestSteps.put_params()
-      |> then(&URI.to_string(&1.url))
-
-    req_opts =
-      req_options
-      |> Keyword.delete(:params)
-      |> Keyword.put(:url, request_url)
-      |> Keyword.put(:headers, headers)
-
-    with {:ok, %Req.Response{status: 200, body: body, headers: resp_headers} = response} <-
-           Ltix.HTTP.request(Keyword.put(req_opts, :method, :get)),
-         response_url = Req.Response.get_private(response, :ltix_response_url, request_url),
-         fetched = MapSet.union(fetched, MapSet.new([request_url, response_url], &page_key/1)),
-         {:ok, next_url} <-
-           validate_next_url(parse_next_link(resp_headers, response_url), base_uri),
+  defp fetch_page(url, fetch, base_uri, fetched) do
+    with {:ok, %Req.Response{body: body, headers: headers} = response} <- fetch.(url),
+         response_url = Req.Response.get_private(response, :ltix_response_url, url),
+         fetched = MapSet.union(fetched, MapSet.new([url, response_url], &page_key/1)),
+         {:ok, next_url} <- validate_next_url(parse_next_link(headers, response_url), base_uri),
          :ok <- validate_not_fetched(next_url, fetched) do
       {:ok, body, next_url, fetched}
-    else
-      {:ok, %Req.Response{} = response} ->
-        {:error, Ltix.HTTP.status_error(response, request_url)}
-
-      {:error, _} = error ->
-        error
     end
   end
 
@@ -206,7 +210,7 @@ defmodule Ltix.Pagination do
   Extract the `rel="next"` URL, resolving relative targets against
   `response_url`.
 
-  Pass the URL of the response carrying the headers. Returns `nil` if no
+  Pass the URL of the response that has the headers. Returns `nil` if no
   next link is present. Ignores links with an `anchor` parameter.
 
       iex> Ltix.Pagination.parse_next_link(

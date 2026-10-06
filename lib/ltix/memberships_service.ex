@@ -40,7 +40,6 @@ defmodule Ltix.MembershipsService do
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.HTTP
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.Role
@@ -49,7 +48,6 @@ defmodule Ltix.MembershipsService do
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Options
-  alias Ltix.Pagination
   alias Ltix.Registerable
 
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
@@ -227,8 +225,8 @@ defmodule Ltix.MembershipsService do
   Fetch members as a lazy stream.
 
   Returns `{:ok, stream}` where each element is a `%Member{}`.
-  Use this instead of `list_members/2` for large rosters where you
-  want to process members incrementally or stop early.
+  Use this for large rosters where you want to process members
+  incrementally or stop early. `list_members/2` returns the whole roster.
   Later page failures and member parsing errors raise during enumeration.
 
   Streams take no `:max_members` limit because they fetch one page at a
@@ -267,10 +265,10 @@ defmodule Ltix.MembershipsService do
 
     Operation.run([:ltix, :memberships_service, operation], client, [@nrps_scope], url, fn url ->
       with {:ok, pages} <-
-             Pagination.stream_results(url, request_headers(client),
-               params: query_params(opts),
-               req_options: HTTP.req_options(client.req_options, __MODULE__),
-               local_network_access: client.local_network_access
+             Client.request_pages(client, __MODULE__,
+               url: url,
+               headers: [{"accept", @media_type}],
+               params: query_params(opts)
              ) do
         consume.(pages)
       end
@@ -284,13 +282,6 @@ defmodule Ltix.MembershipsService do
       {:ok, body} -> MembershipContainer.from_json(body)
       {:error, _error} = error -> error
     end)
-  end
-
-  defp request_headers(%Client{token: %{access_token: token}}) do
-    [
-      {"accept", @media_type},
-      {"authorization", "Bearer #{token}"}
-    ]
   end
 
   # The `:endpoint` option overrides the client's endpoint and is validated like it.

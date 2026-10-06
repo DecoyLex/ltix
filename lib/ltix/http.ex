@@ -19,9 +19,9 @@ defmodule Ltix.HTTP do
     Zoi.nullish(
       Zoi.enum([:none, :local, :loopback],
         description: """
-        Addresses platform requests may reach besides public ones. `:local` adds
-        private network addresses, and `:loopback` adds those and this machine.
-        Defaults to `config :ltix, :local_network_access`, then `:none`.
+        Addresses platform requests may connect to besides public ones. `:local`
+        adds private network addresses, and `:loopback` adds those and this
+        machine. Defaults to `config :ltix, :local_network_access`, then `:none`.
         """
       )
     )
@@ -31,11 +31,11 @@ defmodule Ltix.HTTP do
   Merge application-level `req_options` with caller-provided options and
   rewrite any `Req.Test` plug to use the given stub name.
 
-  Used by every module that makes an outbound HTTP call so that:
+  Used by every module that makes an outbound HTTP call. This has two effects.
 
-  1. `config :ltix, req_options: [...]` is always respected.
-  2. A single `plug: {Req.Test, :ltix}` config entry routes each
-     callsite to its own well-known stub name.
+  1. `config :ltix, req_options: [...]` always applies.
+  2. A single `plug: {Req.Test, :ltix}` config entry makes each
+     callsite use its own well-known stub name.
   """
   @spec req_options(keyword(), module()) :: keyword()
   def req_options(caller_opts, stub_name) do
@@ -84,6 +84,21 @@ defmodule Ltix.HTTP do
       |> Req.request()
       |> to_ltix_error(url)
       |> decode_json(decode?, url, labels)
+    end
+  end
+
+  @doc """
+  Send a request with `request/1` and return `status_error/2` for a response
+  without a successful status.
+  """
+  @spec request_success(keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
+  def request_success(opts) do
+    case request(opts) do
+      {:ok, %Req.Response{status: status} = response} when status not in 200..299 ->
+        {:error, status_error(response, Keyword.get(opts, :url))}
+
+      result ->
+        result
     end
   end
 

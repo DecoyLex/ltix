@@ -4,15 +4,15 @@ defmodule Ltix.GradeService do
   gradebook using the
   [Assignment and Grade Services (AGS) v2.0](https://www.imsglobal.org/spec/lti-ags/v2p0/).
 
-  AGS has two workflows depending on the launch claim:
+  AGS has two workflows depending on the launch claim.
 
-  **Coupled** — the platform creates a single line item for the resource
+  **Coupled.** The platform creates a single line item for the resource
   link. The tool posts scores against that line item directly.
 
       {:ok, client} = Ltix.GradeService.authenticate(launch_context)
       :ok = Ltix.GradeService.post_score(client, score)
 
-  **Programmatic** — the tool manages its own line items and can create,
+  **Programmatic.** The tool manages its own line items and can create,
   update, or delete them.
 
       {:ok, client} = Ltix.GradeService.authenticate(launch_context)
@@ -43,7 +43,6 @@ defmodule Ltix.GradeService do
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Options
-  alias Ltix.Pagination
   alias Ltix.Registerable
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
@@ -227,9 +226,9 @@ defmodule Ltix.GradeService do
   Fetch line items as a lazy stream.
 
   Returns `{:ok, stream}` where each element is a `%LineItem{}`. Use this
-  instead of `list_line_items/2` for large gradebooks where you want to
-  process line items incrementally or stop early. Later page failures and
-  parsing errors raise during enumeration.
+  for large gradebooks where you want to process line items incrementally
+  or stop early. `list_line_items/2` returns the whole list. Later page
+  failures and parsing errors raise during enumeration.
 
   ## Options
 
@@ -286,7 +285,8 @@ defmodule Ltix.GradeService do
     url = resolve_line_item_url(endpoint(client, opts), opts)
 
     run(:get_line_item, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
-      with {:ok, body} <- send_request(client, :get, url, accept: @line_item_media_type) do
+      with {:ok, body} <-
+             send_request(client, :get, url, headers: [{"accept", @line_item_media_type}]) do
         parse_line_item(body)
       end
     end)
@@ -353,7 +353,7 @@ defmodule Ltix.GradeService do
 
     run(:create_line_item, client, [@scope_lineitem], url, fn url ->
       with :ok <- LineItem.validate(item),
-           {:ok, body} <- send_request(client, :post, url, body: {@line_item_media_type, item}) do
+           {:ok, body} <- send_request(client, :post, url, json_body(@line_item_media_type, item)) do
         parse_line_item(body)
       end
     end)
@@ -392,7 +392,7 @@ defmodule Ltix.GradeService do
   def update_line_item(%Client{} = client, %LineItem{} = item) do
     run(:update_line_item, client, [@scope_lineitem], line_item_url(item, nil), fn url ->
       with :ok <- LineItem.validate(item),
-           {:ok, body} <- send_request(client, :put, url, body: {@line_item_media_type, item}) do
+           {:ok, body} <- send_request(client, :put, url, json_body(@line_item_media_type, item)) do
         parse_line_item(body)
       end
     end)
@@ -428,7 +428,7 @@ defmodule Ltix.GradeService do
 
   Returns `:ok` on success.
 
-  By default, refuses to delete the platform-coupled line item
+  By default, returns an error for the platform-coupled line item
   (the `line_item` URL from the launch claim). Pass `force: true`
   to override.
 
@@ -486,7 +486,7 @@ defmodule Ltix.GradeService do
 
     run(:post_score, client, [@scope_score], url, fn url ->
       with :ok <- Score.validate(score),
-           {:ok, _body} <- send_request(client, :post, url, body: {@score_media_type, score}) do
+           {:ok, _body} <- send_request(client, :post, url, json_body(@score_media_type, score)) do
         :ok
       end
     end)
@@ -558,9 +558,9 @@ defmodule Ltix.GradeService do
   Fetch results for a line item as a lazy stream.
 
   Returns `{:ok, stream}` where each element is a `%Result{}`. Use this
-  instead of `list_results/2` for large courses where you want to process
-  results incrementally or stop early. Later page failures and parsing
-  errors raise during enumeration.
+  for large courses where you want to process results incrementally or
+  stop early. `list_results/2` returns the whole list. Later page failures
+  and parsing errors raise during enumeration.
 
   ## Options
 
@@ -654,63 +654,23 @@ defmodule Ltix.GradeService do
 
   defp check_coupled_guard(_endpoint, _url, _force), do: :ok
 
-  defp auth_headers(%Client{token: %{access_token: token}}, nil) do
-    [{"authorization", "Bearer #{token}"}]
-  end
-
-  defp auth_headers(%Client{token: %{access_token: token}}, accept) do
-    [
-      {"accept", accept},
-      {"authorization", "Bearer #{token}"}
-    ]
-  end
-
-  defp req_options(%Client{} = client) do
-    HTTP.req_options(client.req_options, __MODULE__)
-  end
-
   defp fetch_pages(%Client{} = client, url, accept, params) do
-    Pagination.stream_results(url, auth_headers(client, accept),
-      params: params,
-      req_options: req_options(client),
-      local_network_access: client.local_network_access
+    Client.request_pages(client, __MODULE__,
+      url: url,
+      headers: [{"accept", accept}],
+      params: params
     )
   end
 
   defp send_request(%Client{} = client, method, url, opts \\ []) do
-    headers = auth_headers(client, Keyword.get(opts, :accept))
-
-    {headers, body_options} =
-      case Keyword.get(opts, :body) do
-        nil ->
-          {headers, []}
-
-        {content_type, body} ->
-          {[{"content-type", content_type} | headers],
-           [body: AppConfig.json_library!().encode!(body)]}
-      end
-
-    request_options =
-      Keyword.merge(
-        req_options(client),
-        [
-          method: method,
-          url: url,
-          headers: headers,
-          local_network_access: client.local_network_access
-        ] ++ body_options
-      )
-
-    case HTTP.request(request_options) do
-      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-        {:ok, body}
-
-      {:ok, %Req.Response{} = response} ->
-        {:error, HTTP.status_error(response, url)}
-
-      {:error, _exception} = error ->
-        error
+    with {:ok, %Req.Response{body: body}} <-
+           Client.request(client, __MODULE__, [method: method, url: url] ++ opts) do
+      {:ok, body}
     end
+  end
+
+  defp json_body(media_type, body) do
+    [headers: [{"content-type", media_type}], body: AppConfig.json_library!().encode!(body)]
   end
 
   defp list_line_items_params(opts) do

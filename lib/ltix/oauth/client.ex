@@ -17,13 +17,13 @@ defmodule Ltix.OAuth.Client do
   ## Reusing tokens across contexts
 
   A token is valid across contexts (courses, launches) on the same
-  registration. Reuse a cached token with different endpoints:
+  registration. Reuse a cached token with different endpoints.
 
       {:ok, client_b} = Ltix.OAuth.Client.with_endpoints(client, %{
         Ltix.MembershipsService => course_b_endpoint
       })
 
-  Or cache `client.token` and build a client from it later:
+  Or cache `client.token` and build a client from it later.
 
       {:ok, client} = Ltix.OAuth.Client.from_access_token(cached_token,
         registration: registration,
@@ -33,9 +33,11 @@ defmodule Ltix.OAuth.Client do
 
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Security.AccessTokenExpired
+  alias Ltix.HTTP
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
+  alias Ltix.Pagination
   alias Ltix.Records
   alias Ltix.Registerable
 
@@ -61,7 +63,7 @@ defmodule Ltix.OAuth.Client do
     req_options:
       Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.request/2`.")
       |> Zoi.default([]),
-    local_network_access: Ltix.HTTP.local_network_access_option(),
+    local_network_access: HTTP.local_network_access_option(),
     storage_adapter:
       Zoi.module(
         description:
@@ -177,6 +179,71 @@ defmodule Ltix.OAuth.Client do
     end
   end
 
+  @doc """
+  Send an authenticated request to a platform service.
+
+  Use this to call a platform from your own `Ltix.AdvantageService`. `opts`
+  are `Req` request options such as `:url`, `:method`, `:headers`, `:params`,
+  and `:json`. The request has the client's access token as its bearer token,
+  and it gets the same checks as every request Ltix sends, including HTTPS and
+  the client's `:local_network_access` setting.
+
+  Returns `{:ok, response}` for a successful status. A 401 or 403 returns
+  `Ltix.Errors.Security.AccessDenied`, and any other status returns
+  `Ltix.Errors.Unknown.TransportError`.
+
+  In tests, stub the request with `Req.Test.stub(service, ...)`.
+
+  ## Examples
+
+      {:ok, %Req.Response{body: body}} =
+        Ltix.OAuth.Client.request(client, MyApp.AttendanceService,
+          url: endpoint.attendance_url,
+          headers: [{"accept", "application/json"}]
+        )
+  """
+  # [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750#section-2.1)
+  @spec request(t(), module(), keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
+  def request(%__MODULE__{token: %AccessToken{access_token: token}} = client, service, opts)
+      when is_atom(service) and is_list(opts) do
+    client.req_options
+    |> HTTP.req_options(service)
+    |> Keyword.merge(opts)
+    |> Keyword.merge(auth: {:bearer, token}, local_network_access: client.local_network_access)
+    |> HTTP.request_success()
+  end
+
+  @doc """
+  Send an authenticated GET request and follow the `rel="next"` links of the
+  responses.
+
+  Takes the options of `request/3`. `:params` apply to the first page only.
+
+  Fetches the first page before returning. Returns `{:ok, stream}` with
+  `{:ok, body}` for each page, or `{:error, error}` if the first page fails.
+  Later pages are fetched as the stream is consumed. A later failure emits one
+  `{:error, error}` and ends the stream.
+
+  ## Examples
+
+      {:ok, pages} =
+        Ltix.OAuth.Client.request_pages(client, MyApp.AttendanceService,
+          url: endpoint.attendance_url,
+          params: [limit: 50]
+        )
+
+      Enum.flat_map(pages, fn {:ok, body} -> body["records"] end)
+  """
+  @spec request_pages(t(), module(), keyword()) :: {:ok, Enumerable.t()} | {:error, Exception.t()}
+  def request_pages(%__MODULE__{} = client, service, opts)
+      when is_atom(service) and is_list(opts) do
+    {params, opts} = Keyword.pop(opts, :params, [])
+
+    Pagination.paginate(Keyword.get(opts, :url), params, fn url ->
+      request(client, service, Keyword.merge(opts, method: :get, url: url, params: []))
+    end)
+  end
+
   # --- Refresh ---
 
   @doc """
@@ -209,7 +276,7 @@ defmodule Ltix.OAuth.Client do
 
   @doc """
   Force a refresh regardless of expiry.
-  Useful for testing or if the client wants to proactively refresh before making a batch of calls.
+  Useful for testing or for refreshing before making a batch of calls.
   """
   @spec force_refresh(t()) :: {:ok, t()} | {:error, Exception.t()}
   def force_refresh(%__MODULE__{} = client) do
@@ -286,7 +353,7 @@ defmodule Ltix.OAuth.Client do
   end
 
   @doc """
-  Swap endpoints on an existing client.
+  Replace the endpoints of an existing client.
 
   The token remains the same, so it may lack some of the scopes the new endpoints need.
 

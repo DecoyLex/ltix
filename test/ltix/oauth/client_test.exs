@@ -292,7 +292,7 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   describe "with_endpoints/3" do
-    test "swaps endpoints keeping same token" do
+    test "replaces endpoints keeping same token" do
       client = build_client()
 
       assert {:ok, %Client{} = new_client} =
@@ -308,15 +308,6 @@ defmodule Ltix.OAuth.ClientTest do
 
       assert {:error, %InvalidEndpoint{}} =
                Client.with_endpoints(client, %{TestService => :wrong_endpoint})
-    end
-
-    test "accepts endpoints whose scopes the token only partly covers" do
-      client = build_client()
-
-      assert {:ok, %Client{endpoints: endpoints}} =
-               Client.with_endpoints(client, both_endpoints())
-
-      assert endpoints == both_endpoints()
     end
 
     test "require_all_scopes returns ScopeMismatch when the token lacks an endpoint's scope" do
@@ -450,6 +441,178 @@ defmodule Ltix.OAuth.ClientTest do
       assert_raise Ltix.Errors.Invalid.TokenRequestFailed, fn ->
         Client.force_refresh!(client)
       end
+    end
+  end
+
+  describe "request/3" do
+    setup do
+      %{client: build_client(%{req_options: [plug: {Req.Test, :ltix}, retry: false]})}
+    end
+
+    test "sends the request with the client's token to the service's stub", %{client: client} do
+      owner = self()
+
+      Req.Test.stub(TestService, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        send(
+          owner,
+          {:request, conn.method, conn.host, conn.request_path, conn.query_string, body,
+           Plug.Conn.get_req_header(conn, "authorization"),
+           Plug.Conn.get_req_header(conn, "accept")}
+        )
+
+        Req.Test.json(conn, %{"records" => [%{"id" => 1}]})
+      end)
+
+      assert {:ok, %Req.Response{status: 200, body: %{"records" => [%{"id" => 1}]}}} =
+               Client.request(client, TestService,
+                 method: :post,
+                 url: "https://platform.example.com/records",
+                 params: [page: 2],
+                 headers: [{"accept", "application/json"}, {"authorization", "Bearer other"}],
+                 json: %{"name" => "A"}
+               )
+
+      assert_received {:request, "POST", "platform.example.com", "/records", "page=2",
+                       ~s({"name":"A"}), ["Bearer test-token"], ["application/json"]}
+    end
+
+    test "returns an error for a response that isn't a success", %{client: client} do
+      url = "https://platform.example.com/records"
+
+      for {status, error} <- [
+            {403, Ltix.Errors.Security.AccessDenied},
+            {404, Ltix.Errors.Unknown.TransportError}
+          ] do
+        Req.Test.stub(TestService, &Plug.Conn.send_resp(&1, status, "no"))
+
+        assert {:error, %^error{status: ^status, url: ^url, body: "no"}} =
+                 Client.request(client, TestService, url: url)
+      end
+    end
+
+    test "applies the checks Ltix makes on platform requests", %{client: client} do
+      Req.Test.stub(TestService, fn _conn -> flunk("the request was sent") end)
+
+      assert {:error, %Ltix.Errors.Unknown.TransportError{} = error} =
+               Client.request(client, TestService, url: "http://platform.example.com/records")
+
+      assert Exception.message(error) =~ "HTTPS"
+
+      assert {:error, %Ltix.Errors.Security.LocalNetworkAccessDenied{address_space: :loopback}} =
+               Client.request(client, TestService,
+                 url: "https://127.0.0.1/records",
+                 local_network_access: :loopback
+               )
+    end
+
+    test "sends the request to a local address when the client was granted access", %{
+      client: client
+    } do
+      Req.Test.stub(TestService, &Req.Test.json(&1, %{}))
+      client = %{client | local_network_access: :local}
+
+      assert {:ok, %Req.Response{status: 200}} =
+               Client.request(client, TestService, url: "https://10.0.0.5/records")
+    end
+  end
+
+  describe "request_pages/3" do
+    setup do
+      %{client: build_client(%{req_options: [plug: {Req.Test, :ltix}, retry: false]})}
+    end
+
+    test "follows next links with the client's token", %{client: client} do
+      owner = self()
+
+      Req.Test.stub(TestService, fn conn ->
+        send(
+          owner,
+          {:request, conn.request_path, conn.query_string,
+           Plug.Conn.get_req_header(conn, "authorization"),
+           Plug.Conn.get_req_header(conn, "accept")}
+        )
+
+        case conn.query_string do
+          "limit=1" ->
+            conn
+            |> Plug.Conn.put_resp_header(
+              "link",
+              ~s(<https://platform.example.com/records?page=2>; rel="next")
+            )
+            |> Req.Test.json(%{"page" => 1})
+
+          "page=2" ->
+            Req.Test.json(conn, %{"page" => 2})
+        end
+      end)
+
+      assert {:ok, pages} =
+               Client.request_pages(client, TestService,
+                 url: "https://platform.example.com/records",
+                 params: [limit: 1],
+                 headers: [{"accept", "application/json"}]
+               )
+
+      assert Enum.to_list(pages) == [{:ok, %{"page" => 1}}, {:ok, %{"page" => 2}}]
+
+      for query <- ["limit=1", "page=2"] do
+        assert_received {:request, "/records", ^query, ["Bearer test-token"],
+                         ["application/json"]}
+      end
+    end
+
+    test "returns the first page's error", %{client: client} do
+      Req.Test.stub(TestService, &Plug.Conn.send_resp(&1, 403, "no"))
+
+      assert {:error, %Ltix.Errors.Security.AccessDenied{status: 403}} =
+               Client.request_pages(client, TestService,
+                 url: "https://platform.example.com/records"
+               )
+    end
+
+    test "ends the stream with a later page's error", %{client: client} do
+      Req.Test.stub(TestService, fn conn ->
+        case conn.request_path do
+          "/records" ->
+            conn
+            |> Plug.Conn.put_resp_header("link", ~s(</more>; rel="next"))
+            |> Req.Test.json(%{"page" => 1})
+
+          "/more" ->
+            Plug.Conn.send_resp(conn, 500, "no")
+        end
+      end)
+
+      assert {:ok, pages} =
+               Client.request_pages(client, TestService,
+                 url: "https://platform.example.com/records"
+               )
+
+      assert [{:ok, %{"page" => 1}}, {:error, %Ltix.Errors.Unknown.TransportError{status: 500}}] =
+               Enum.to_list(pages)
+    end
+
+    test "applies the client's local network access to later pages", %{client: client} do
+      Req.Test.stub(TestService, fn conn ->
+        case conn.request_path do
+          "/records" ->
+            conn
+            |> Plug.Conn.put_resp_header("link", ~s(</more>; rel="next"))
+            |> Req.Test.json(%{"page" => 1})
+
+          "/more" ->
+            Req.Test.json(conn, %{"page" => 2})
+        end
+      end)
+
+      assert {:ok, pages} =
+               Client.request_pages(%{client | local_network_access: :local}, TestService,
+                 url: "https://10.0.0.5/records"
+               )
+
+      assert Enum.to_list(pages) == [{:ok, %{"page" => 1}}, {:ok, %{"page" => 2}}]
     end
   end
 

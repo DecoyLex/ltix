@@ -25,6 +25,8 @@ defmodule Ltix.AdvantageService do
         def scopes(%MyApp.ProctorEndpoint{}),
           do: ["https://example.com/scope/proctoring"]
       end
+
+  Send the service's requests with `Ltix.OAuth.Client.request/3`.
   """
 
   @doc "Extract the service's endpoint from launch claims, or return `:error` when the launch has none."
