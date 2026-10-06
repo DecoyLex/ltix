@@ -140,7 +140,7 @@ end
 - `:context` — `%Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (default id: `"context-001"`)
 - `:resource_link` — `%ResourceLink{}` or map with `:id`, `:title`, `:description` keys
 - `:message_type` — `:resource_link` (default) or `:deep_linking`
-- `:deep_linking_settings` — `%DeepLinkingSettings{}` or map of its fields (defaults accept every type and target, and multiple items)
+- `:deep_linking_settings` — `%DeepLinkingSettings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
 - `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
 - `:ags_endpoint` — `%AGSEndpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
 - `:memberships_endpoint` — `%MembershipsEndpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`

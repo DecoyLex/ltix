@@ -306,8 +306,8 @@ defmodule Ltix.Test do
         ],
         description:
           "Settings of a Deep Linking request, as a `%Ltix.LaunchClaims.DeepLinkingSettings{}` " <>
-            "or a map of its fields. Fields you leave out accept every content type and " <>
-            "presentation target, and multiple items."
+            "or a map of its fields. Fields you leave out accept the five standard content " <>
+            "types, every presentation target, and multiple items."
       ),
     ags_endpoint:
       Zoi.union(

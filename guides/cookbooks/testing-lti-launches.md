@@ -223,7 +223,7 @@ Both options also take the `%Ltix.LaunchClaims.Context{}` and `%Ltix.LaunchClaim
 
 ### Deep linking
 
-Pass `message_type: :deep_linking`. Settings you leave out accept every content type and presentation target, and multiple items.
+Pass `message_type: :deep_linking`. Settings you leave out accept the five standard content types, every presentation target, and multiple items.
 
 ```elixir
 Ltix.Test.build_launch_context(platform,
