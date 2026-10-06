@@ -1,6 +1,6 @@
 # Hardening Your Tool
 
-Ltix authenticates launches and guards the requests it sends to platforms. The rest of your tool's security is your application's job. This guide lists what to do, with the code for each step. For what Ltix itself guarantees, see the [Threat Model](threat-model.md).
+Ltix authenticates launches and checks the requests it sends to platforms. The rest of your tool's security is your application's job. This guide lists what to do, with the code for each step. For what Ltix itself guarantees, see the [Threat Model](threat-model.md).
 
 ## Sessions and login state
 
@@ -46,6 +46,8 @@ plug Plug.Session,
 - `Secure` is required with `SameSite=None`.
 - `Partitioned` keeps the cookie working in browsers that block third-party cookies, and gives each platform site its own cookie jar.
 
+For browsers that block the cookie, see [Keeping Login State in Platform Storage](cookbooks/platform-storage.md).
+
 Sign the session cookie, which Phoenix does by default. Add `:encryption_salt` if you keep anything in it that the user shouldn't read.
 
 ## Launch contexts
@@ -89,7 +91,7 @@ Platforms report roles differently, so check the broad role your feature needs. 
 
 ### Data from later requests
 
-Take the course, resource link, and service endpoints a user acts on from the launch context you stored. Don't accept them from form fields or query parameters. A line item URL from the browser, for example, sends your platform access token wherever the user points it.
+Take the course, resource link, and service endpoints a user acts on from the launch context you stored. Don't accept them from form fields or query parameters. A line item URL from the browser, for example, sends your platform access token to whatever URL the user supplies.
 
 ```elixir
 # The line item comes from the stored launch, never from params
@@ -113,7 +115,7 @@ plug :put_secure_browser_headers, %{
 
 ## Redirects
 
-`context.claims.target_link_uri` is where the platform wants the user to go. Check that it points at your tool before redirecting, so a launch can't send users to another site through your domain.
+`context.claims.target_link_uri` is the URL the platform requests as the user's destination. Check that it points at your tool before redirecting, so a launch can't send users to another site through your domain.
 
 ```elixir
 defp tool_url?(url) do
@@ -126,7 +128,7 @@ end
 
 ## Registering platforms
 
-Registering a platform is the decision to trust it. Ltix believes what a registered platform signs.
+Registering a platform is the decision to trust it. Ltix accepts what a registered platform signs.
 
 - Have a person approve each registration. If you offer self-service or dynamic registration, hold new registrations until someone approves them.
 - Look registrations up by issuer and client ID. For a login that leaves out the client ID, return `{:error, :not_found}` when the issuer has more than one registration.
@@ -140,7 +142,7 @@ Run `Ltix.Test.assert_storage_adapter!/2` against your adapter in your test suit
 
 ## Signing keys
 
-Ltix asks your adapter for each signature and never stores your private key.
+Ltix calls your adapter for each signature and never stores your private key.
 
 - Keep keys out of version control, logs, and responses. Encrypt them at rest, or keep them in a key management service and sign from `sign/3`.
 - Use a separate key for each registration, so you can rotate one without the others.
@@ -154,7 +156,7 @@ See [JWK Management](jwk-management.md) for rotation.
 Ltix sends requests only to public addresses, over HTTPS, with certificate verification.
 
 - Leave `:local_network_access` at its default in production. Grant `:local` or `:loopback` on the call for a platform you know runs on your network, and avoid granting it in config for every platform.
-- Don't pass `:finch`, `:adapter`, `:unix_socket`, or a proxy in `:req_options` unless you need one. Ltix can't check the addresses they connect to, so they need `local_network_access: :loopback`. With a proxy, have the proxy refuse private addresses.
+- Don't pass `:finch`, `:adapter`, `:unix_socket`, or a proxy in `:req_options` unless you need one. Ltix can't check the addresses they connect to, so they need `local_network_access: :loopback`. With a proxy, have the proxy block private addresses.
 - Send a custom Advantage service's requests with `Ltix.OAuth.Client.request/3` and `Ltix.OAuth.Client.request_pages/3`, which apply these checks. Requests your own code sends directly with `Req` don't get them.
 
 Access tokens from `Ltix.OAuth` let the holder call the platform as your tool. Cache them on the server and keep them out of logs and responses.
@@ -180,8 +182,8 @@ Your login and launch endpoints accept requests from anyone. Rate limit them the
 
 ## Next steps
 
-- [Threat Model](threat-model.md): what Ltix guarantees and what is out of scope
-- [Storage Adapters](storage-adapters.md): nonce storage and signing callbacks
-- [JWK Management](jwk-management.md): generating and rotating keys
-- [Getting Started](getting-started.md): session, pipeline, and iframe setup
-- [Error Handling](error-handling.md): matching and logging errors
+- [Threat Model](threat-model.md) - what Ltix guarantees and what is out of scope
+- [Storage Adapters](storage-adapters.md) - nonce storage and signing callbacks
+- [JWK Management](jwk-management.md) - generating and rotating keys
+- [Getting Started](getting-started.md) - session, pipeline, and iframe setup
+- [Error Handling](error-handling.md) - matching and logging errors

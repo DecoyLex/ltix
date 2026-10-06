@@ -550,6 +550,8 @@ fit your app:
   This lets you keep `SameSite=Lax` on most routes while only the LTI
   endpoints use `SameSite=None`.
 
+- **Platform storage**: keep the login state in the platform's window, for browsers that block your cookie during the launch. See [Keeping Login State in Platform Storage](cookbooks/platform-storage.md).
+
 The examples below assume the iframe approach.
 
 ### Routes
