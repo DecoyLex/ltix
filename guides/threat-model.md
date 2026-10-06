@@ -24,7 +24,7 @@ A successful `Ltix.handle_callback/3` means all of the following hold.
 - **Signature.** The ID token is signed with RS256 by a key from the registration's key set URL. Ltix rejects every other algorithm and any token with critical header extensions.
 - **Registration.** The token's issuer and audience match a registration your storage adapter returned. A token whose audience includes any other client isn't accepted.
 - **Expiry.** The token hasn't expired, allowing a few seconds of clock skew.
-- **Browser.** The launch arrived in the browser that started the login. The token's nonce has to match the state your application kept from `Ltix.handle_login/3`.
+- **Browser.** The launch arrived in the browser that started the login, for the registration that login found. The token's nonce has to match the state your application kept from `Ltix.handle_login/3`.
 - **Replay.** The nonce hasn't been used before, as long as your storage adapter consumes each nonce once.
 - **Deployment.** Your storage adapter returned the deployment the token names.
 

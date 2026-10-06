@@ -33,6 +33,23 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       assert_transaction_binding(ctx.platform, ctx.other_platform)
     end
 
+    # [RFC 9700 §2.1](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1)
+    test "rejects a token from another registration that carries the login's nonce", ctx do
+      {login, params} = begin_launch(ctx.platform, "original-user")
+
+      other_registration_params =
+        Ltix.Test.launch_params(ctx.other_platform,
+          nonce: Ltix.Test.extract_nonce(login.redirect_uri),
+          state: login.state
+        )
+
+      assert {:error, %Security.NonceNotFound{}} =
+               callback(other_registration_params, login.state)
+
+      assert {:ok, %LaunchContext{claims: %{subject: "original-user"}}} =
+               callback(params, login.state)
+    end
+
     test "verifies the signature before checking nonce binding without consuming valid nonces",
          ctx do
       {login, params} = begin_launch(ctx.platform, "original-user")

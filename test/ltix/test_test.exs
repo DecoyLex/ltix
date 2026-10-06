@@ -495,7 +495,12 @@ defmodule Ltix.TestTest do
       StorageAdapter.set_pid(pid)
 
       for platform <- [first, second] do
-        {:ok, login_result} = do_login(platform)
+        params =
+          Map.put(Ltix.Test.login_params(platform), "client_id", platform.registration.client_id)
+
+        {:ok, login_result} =
+          Ltix.handle_login(params, @launch_url, storage_adapter: StorageAdapter)
+
         nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
 
         assert {:ok, %LaunchContext{}} = do_callback(platform, login_result, nonce, [])

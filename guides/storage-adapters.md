@@ -71,10 +71,7 @@ end
 
 > #### Ambiguous issuer-only lookups {: .warning}
 >
-> If you support multiple registrations from the same issuer (different
-> client_ids), an issuer-only lookup is ambiguous. You can either return
-> the first match or return `{:error, :not_found}` and require the
-> platform to include `client_id`, as the example above does.
+> If you support multiple registrations from the same issuer (different client_ids), an issuer-only lookup is ambiguous. A launch succeeds only for the registration the login found, so returning the first match fails launches for the others. Return `{:error, :not_found}` to require the platform to include `client_id`, as the example above does.
 
 ## Deployment lookups
 

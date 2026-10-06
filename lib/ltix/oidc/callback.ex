@@ -46,7 +46,7 @@ defmodule Ltix.OIDC.Callback do
              registration,
              Keyword.take(opts, [:clock_skew, :req_options, :jwks_cache])
            ),
-         :ok <- verify_nonce_binding(raw_claims, expected_state),
+         :ok <- verify_nonce_binding(raw_claims, expected_state, registration),
          :ok <- StorageAdapter.validate_nonce(callback_module, raw_claims["nonce"], registration),
          :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, user_deployment} <-
@@ -131,8 +131,8 @@ defmodule Ltix.OIDC.Callback do
   # https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation
   #
   # [OIDC §3.2.2.11][nonce-validation]
-  defp verify_nonce_binding(claims, expected_state) do
-    if State.nonce_matches?(claims["nonce"], expected_state) do
+  defp verify_nonce_binding(claims, expected_state, registration) do
+    if State.nonce_matches?(claims["nonce"], expected_state, registration) do
       :ok
     else
       {:error, NonceNotFound.exception(spec_ref: "OIDC §3.2.2.11")}

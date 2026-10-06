@@ -1,10 +1,15 @@
 defmodule Ltix.OIDC.State do
   @moduledoc false
 
-  @spec generate() :: {String.t(), String.t()}
-  def generate do
+  alias Ltix.Registration
+
+  # The nonce is derived from the state and the registration the login
+  # started with, so a token is accepted only for that browser and that
+  # registration.
+  @spec generate(Registration.t()) :: {String.t(), String.t()}
+  def generate(%Registration{} = registration) do
     state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-    {state, nonce(state)}
+    {state, nonce(state, registration)}
   end
 
   @spec matches?(term(), term()) :: boolean()
@@ -18,22 +23,23 @@ defmodule Ltix.OIDC.State do
 
   # [nonce-validation]:
   # https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation
+  # [mix-up]: https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1
   #
-  # [OIDC §3.2.2.11][nonce-validation]
-  @spec nonce_matches?(term(), term()) :: boolean()
-  def nonce_matches?(returned_nonce, expected_state)
+  # [OIDC §3.2.2.11][nonce-validation], [RFC 9700 §2.1][mix-up]
+  @spec nonce_matches?(term(), term(), Registration.t()) :: boolean()
+  def nonce_matches?(returned_nonce, expected_state, %Registration{} = registration)
       when is_binary(expected_state) and byte_size(expected_state) > 0 do
-    matches?(returned_nonce, nonce(expected_state))
+    matches?(returned_nonce, nonce(expected_state, registration))
   end
 
-  def nonce_matches?(_returned_nonce, _expected_state), do: false
+  def nonce_matches?(_returned_nonce, _expected_state, _registration), do: false
 
   # [nonce-notes]:
   # https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
   #
   # [OIDC §15.5.2][nonce-notes]
-  defp nonce(state) do
-    digest = :crypto.hash(:sha256, ["Ltix.OIDC.nonce\0", state])
+  defp nonce(state, %Registration{issuer: issuer, client_id: client_id}) do
+    digest = :crypto.hash(:sha256, ["Ltix.OIDC.nonce\0", state, 0, issuer, 0, client_id])
     Base.url_encode64(digest, padding: false)
   end
 end
