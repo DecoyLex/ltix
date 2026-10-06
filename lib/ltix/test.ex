@@ -17,7 +17,10 @@ defmodule Ltix.Test do
   in-memory `Ltix.Test.StorageAdapter` with the platform.
 
   Add the optional `:plug` dependency to your test environment to use
-  `setup_platform!/1` and HTTP stubs.
+  `setup_platform!/1` and HTTP stubs. The stubs take effect only when Ltix
+  sends its requests through `Req.Test`, so add this to `config/test.exs`.
+
+      config :ltix, req_options: [plug: {Req.Test, :ltix}]
 
   ## Connecting to your storage adapter
 
