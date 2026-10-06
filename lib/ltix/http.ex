@@ -119,8 +119,14 @@ defmodule Ltix.HTTP do
     )
   end
 
-  def status_error(%Req.Response{status: status, body: body}, url, spec_ref) do
-    TransportError.exception(status: status, body: body, url: url, spec_ref: spec_ref)
+  def status_error(%Req.Response{status: status, body: body, headers: headers}, url, spec_ref) do
+    TransportError.exception(
+      status: status,
+      body: body,
+      headers: headers,
+      url: url,
+      spec_ref: spec_ref
+    )
   end
 
   @doc false

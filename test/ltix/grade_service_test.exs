@@ -1232,10 +1232,11 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "an error status keeps its status and raw body", ctx do
+    test "an error status keeps its status, raw body, and headers", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.put_resp_header("retry-after", "120")
         |> Plug.Conn.send_resp(503, "<html>maintenance</html>")
       end)
 
@@ -1243,7 +1244,11 @@ defmodule Ltix.GradeServiceTest do
             GradeService.post_score(ctx.client, ctx.score),
             GradeService.list_line_items(ctx.client)
           ] do
-        assert {:error, %TransportError{status: 503, body: "<html>maintenance</html>"}} = result
+        assert {:error,
+                %TransportError{status: 503, body: "<html>maintenance</html>", headers: headers}} =
+                 result
+
+        assert headers["retry-after"] == ["120"]
       end
     end
   end

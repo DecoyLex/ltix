@@ -179,7 +179,7 @@ These indicate an unexpected failure outside the incoming request.
 | Error | Fields | When |
 |---|---|---|
 | `StorageError` | `callback`, `result`, `reason` | A storage adapter callback returned `{:error, reason}`, an unexpected value, or a deployment for a different `deployment_id` |
-| `TransportError` | `status`, `body`, `url`, `spec_ref` | An HTTP request to the platform failed |
+| `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | An HTTP request to the platform failed |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
 | `KeySetCacheNotStarted` | `cache`, `child_spec` | Raised when a launch needs a key set cache that is not started in the supervision tree |
 | `KeySetCacheFailed` | `cache`, `operation`, `reason` | Raised when the key set cache backend fails to get or store keys |
@@ -227,7 +227,7 @@ etc.) and OAuth authentication.
 
 | Error | Fields | When |
 |---|---|---|
-| `TransportError` | `status`, `body`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is not an absolute HTTPS URL |
+| `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is not an absolute HTTPS URL |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | The platform redirected to a different origin or an invalid location |
 | `KeySetCacheNotStarted` | `cache`, `child_spec` | Raised when a launch needs a key set cache that is not started in the supervision tree |
 | `KeySetCacheFailed` | `cache`, `operation`, `reason` | Raised when the key set cache backend fails to get or store keys |
