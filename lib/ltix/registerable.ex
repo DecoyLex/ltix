@@ -1,13 +1,11 @@
 defprotocol Ltix.Registerable do
   @moduledoc """
-  Protocol for extracting an `Ltix.Registration` from a custom struct.
+  Protocol for converting your registration struct to an `Ltix.Registration`.
 
-  Implement this protocol on your own registration struct so that
-  `Ltix.StorageAdapter` callbacks can return your struct directly.
-  The library calls the protocol internally to extract the
-  `Ltix.Registration` it needs for JWT verification, nonce management,
-  and OAuth token requests. Your original struct is preserved in the
-  `Ltix.LaunchContext` returned after a successful launch.
+  Implement it for your registration struct, and your storage adapter can
+  return that struct. Ltix passes your struct to the other
+  `Ltix.StorageAdapter` callbacks, and the `Ltix.LaunchContext` and
+  `Ltix.OAuth.Client` have it.
 
       defmodule MyApp.PlatformRegistration do
         defstruct [:id, :tenant_id, :issuer, :client_id,
@@ -26,16 +24,15 @@ defprotocol Ltix.Registerable do
         end
       end
 
-  `Ltix.Registration` itself implements this protocol, so storage adapter
-  callbacks can return a `%Registration{}` directly. Login and launch return
-  the same error as `Ltix.Registration.new/1` for an invalid one.
+  `Ltix.Registration` implements this protocol, so your storage adapter can
+  also return a `%Registration{}`. Login and launch return the same error as
+  `Ltix.Registration.new/1` for an invalid one.
   """
 
   @doc """
-  Extract an `Ltix.Registration` from the given struct.
+  Return the `Ltix.Registration` for the given struct.
 
-  Implementations should typically delegate to `Ltix.Registration.new/1`
-  so that field validation is applied.
+  Build it with `Ltix.Registration.new/1`, which validates the fields.
   """
   @spec to_registration(t()) :: {:ok, Ltix.Registration.t()} | {:error, Exception.t()}
   def to_registration(source)

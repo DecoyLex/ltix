@@ -287,9 +287,7 @@ defmodule Ltix.OAuth.ClientTest do
                  endpoints: %{TestService => :valid_endpoint}
                )
 
-      assert %Ltix.Registration{} = client.registration
-      assert client.registration.issuer == "https://custom-lms.example.com"
-      assert client.registration.client_id == "custom-tool-client"
+      assert client.registration == custom_registration
     end
   end
 

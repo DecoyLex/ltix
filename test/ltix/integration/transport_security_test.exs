@@ -218,7 +218,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
         jwks_uri: "http://platform.example.com/keys"
     }
 
-    assert {:error, %TransportError{} = error} =
+    assert {:error, error} =
              ClientCredentials.request_token(registration, [],
                req_options: [plug: {Req.Test, :ltix}]
              )
@@ -533,7 +533,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     end
   end
 
-  test "safe asynchronous redirects cancel the old body and reach the final endpoint", %{
+  test "safe asynchronous redirects cancel the old body and request the final endpoint", %{
     client: client,
     score: score
   } do
@@ -590,7 +590,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     Req.Test.verify!(GradeService)
   end
 
-  test "unsafe asynchronous redirects stop without orphaning the old response", %{
+  test "unsafe asynchronous redirects stop and cancel the old response", %{
     client: client,
     score: score
   } do

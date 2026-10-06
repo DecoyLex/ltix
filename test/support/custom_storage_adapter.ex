@@ -2,7 +2,7 @@ defmodule CustomStorageAdapter do
   @moduledoc false
 
   # Storage adapter that returns custom structs with non-Ltix field names.
-  # Used to verify protocols are doing the work, not coincidental field overlap.
+  # Used to verify that Ltix reads records only through the protocols.
 
   @behaviour Ltix.StorageAdapter
 
@@ -40,17 +40,11 @@ defmodule CustomStorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def get_deployment(registration, deployment_id) do
+  def get_deployment(%CustomRegistration{id: registration_id}, deployment_id) do
     Agent.get(get_pid(), fn state ->
-      owner =
-        Enum.find(state.registrations, fn stored ->
-          stored.platform_issuer == registration.issuer and
-            stored.oauth_client_id == registration.client_id
-        end)
-
       deployment =
         Enum.find(state.deployments, fn deployment ->
-          owner != nil and deployment.registration_id == owner.id and
+          deployment.registration_id == registration_id and
             deployment.platform_deployment_id == deployment_id
         end)
 
@@ -62,7 +56,7 @@ defmodule CustomStorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def validate_nonce(nonce, _registration, _expires_at) do
+  def validate_nonce(nonce, %CustomRegistration{}, _expires_at) do
     Agent.get_and_update(get_pid(), fn state ->
       if MapSet.member?(state.used_nonces, nonce),
         do: {{:error, :nonce_already_used}, state},

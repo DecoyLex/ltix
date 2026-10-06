@@ -55,14 +55,14 @@ defmodule Ltix.OIDC.Callback do
            StorageAdapter.validate_nonce(
              callback_module,
              raw_claims["nonce"],
-             registration,
+             user_registration,
              Token.expires_at(raw_claims, token_opts)
            ),
          :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, user_deployment} <-
            StorageAdapter.get_deployment(
              callback_module,
-             registration,
+             user_registration,
              raw_claims[@lti <> "deployment_id"]
            ),
          {:ok, claims} <-

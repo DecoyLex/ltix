@@ -1,19 +1,19 @@
 defmodule Ltix.DeepLinking do
   @moduledoc """
-  Package content items into a signed response JWT for the platform.
+  Put content items into a signed response JWT for the platform.
 
   When the platform sends an `LtiDeepLinkingRequest` launch, your tool
   presents a selection UI and calls `build_response/3` with the chosen
   items. The response JWT is then POSTed back to the platform's return URL.
 
-  Content items are built with these modules:
+  Content items are built with these modules.
 
-    * `Ltix.DeepLinking.ContentItem.LTIResourceLink` — an LTI activity
+    * `Ltix.DeepLinking.ContentItem.LTIResourceLink` - an LTI activity
       the platform will link to
-    * `Ltix.DeepLinking.ContentItem.Link` — an external URL
-    * `Ltix.DeepLinking.ContentItem.File` — a downloadable file
-    * `Ltix.DeepLinking.ContentItem.HTMLFragment` — inline HTML to embed
-    * `Ltix.DeepLinking.ContentItem.Image` — an image for direct rendering
+    * `Ltix.DeepLinking.ContentItem.Link` - an external URL
+    * `Ltix.DeepLinking.ContentItem.File` - a downloadable file
+    * `Ltix.DeepLinking.ContentItem.HTMLFragment` - inline HTML to embed
+    * `Ltix.DeepLinking.ContentItem.Image` - an image for direct rendering
 
   See the [Deep Linking](deep-linking.md) guide for the full workflow
   and [Building Content Items](cookbooks/building-content-items.md) for
@@ -64,30 +64,30 @@ defmodule Ltix.DeepLinking do
 
   ## Options
 
-    * `:message` — user-facing message to show on return
-    * `:log` — log message for the platform
-    * `:error_message` — user-facing error message
-    * `:error_log` — error log message for the platform
-    * `:storage_adapter` — module implementing `Ltix.StorageAdapter`, which
+    * `:message` - user-facing message to show on return
+    * `:log` - log message for the platform
+    * `:error_message` - user-facing error message
+    * `:error_log` - error log message for the platform
+    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`, which
       signs the response (defaults to application config)
 
   ## Errors
 
-    * `Ltix.Errors.Invalid.InvalidMessageType` — context is not a deep
+    * `Ltix.Errors.Invalid.InvalidMessageType` - context is not a deep
       linking launch
-    * `Ltix.Errors.Invalid.InvalidContentItem` — an item is not a content
+    * `Ltix.Errors.Invalid.InvalidContentItem` - an item is not a content
       item, has no `"type"` or one that is not a string, or `items` is not a
       list
-    * `Ltix.Errors.Invalid.ContentItemTypeNotAccepted` — item type not
+    * `Ltix.Errors.Invalid.ContentItemTypeNotAccepted` - item type not
       in `accept_types`
-    * `Ltix.Errors.Invalid.ContentItemsExceedLimit` — multiple items
+    * `Ltix.Errors.Invalid.ContentItemsExceedLimit` - multiple items
       when `accept_multiple` is `false`
-    * `Ltix.Errors.Invalid.LineItemNotAccepted` — line item present
+    * `Ltix.Errors.Invalid.LineItemNotAccepted` - line item present
       when `accept_line_item` is `false`
-    * `Ltix.Errors.Invalid.PresentationTargetNotAccepted` — an item is
+    * `Ltix.Errors.Invalid.PresentationTargetNotAccepted` - an item is
       presented in an `iframe`, `window`, or `embed` that is not in
       `accept_presentation_document_targets`
-    * `Ltix.Errors.Invalid.MediaTypeNotAccepted` — a file's `media_type`
+    * `Ltix.Errors.Invalid.MediaTypeNotAccepted` - a file's `media_type`
       does not match `accept_media_types`
 
   Errors about one item include its `index` in `items`. Several failures at once
@@ -155,7 +155,7 @@ defmodule Ltix.DeepLinking do
          :ok <- validate_items(items_json, settings),
          claims = build_jwt_claims(registration, deployment, settings, items_json, opts),
          # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
-         {:ok, jwt} <- StorageAdapter.sign_jwt(storage_adapter, registration, claims) do
+         {:ok, jwt} <- StorageAdapter.sign_jwt(storage_adapter, context.registration, claims) do
       {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
     end
   end

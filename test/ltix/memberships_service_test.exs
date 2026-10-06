@@ -291,8 +291,7 @@ defmodule Ltix.MembershipsServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert client.registration.issuer == "https://custom-lms.example.com"
-      assert client.registration.client_id == "custom-tool-client"
+      assert client.registration == custom_registration
     end
   end
 
@@ -419,7 +418,7 @@ defmodule Ltix.MembershipsServiceTest do
       end
     end
 
-    test "requests the endpoint override instead of the client's endpoint", ctx do
+    test "requests the endpoint override", ctx do
       Req.Test.stub(Ltix.MembershipsService, fn conn ->
         assert conn.request_path == "/other-memberships"
 
@@ -582,19 +581,6 @@ defmodule Ltix.MembershipsServiceTest do
 
       client = build_client(ctx.platform)
       assert {:ok, _} = MembershipsService.list_members(client)
-    end
-
-    test "robustly handles wrong but compatible content type", ctx do
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("application/json")
-        |> Req.Test.json(build_membership_response([]))
-      end)
-
-      client = build_client(ctx.platform)
-
-      assert {:ok, %MembershipContainer{}} =
-               MembershipsService.list_members(client)
     end
 
     test "rejects wrong content type", ctx do

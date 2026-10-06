@@ -164,7 +164,7 @@ defmodule Ltix.OAuthTest do
       assert MapSet.member?(client.token.granted_scopes, @other_scope)
     end
 
-    test "granted scopes reflect platform response, not requested", ctx do
+    test "granted scopes are the scopes in the platform response", ctx do
       # Platform grants only a subset
       stub_token_response(@test_scope)
 
@@ -215,7 +215,7 @@ defmodule Ltix.OAuthTest do
       assert DateTime.compare(client.token.expires_at, DateTime.add(after_request, 3600)) != :gt
     end
 
-    test "accepts a compliant response and honors zero lifetime", ctx do
+    test "accepts a compliant response and applies a zero lifetime", ctx do
       Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         Req.Test.json(conn, %{
           "access_token" => "expired-token",
@@ -241,7 +241,7 @@ defmodule Ltix.OAuthTest do
       assert client.token.granted_scopes == MapSet.new([@test_scope])
     end
 
-    test "a token that lives less than a minute is usable for half its lifetime", ctx do
+    test "a token with a lifetime under a minute is usable for half its lifetime", ctx do
       Ltix.Test.stub_token_response(expires_in: 30)
 
       assert {:ok, client} =
@@ -502,9 +502,7 @@ defmodule Ltix.OAuthTest do
                  req_options: req_options()
                )
 
-      assert %Ltix.Registration{} = client.registration
-      assert client.registration.issuer == "https://platform.example.com"
-      assert client.registration.client_id == "tool-client-id"
+      assert client.registration == ctx.custom_registration
     end
   end
 

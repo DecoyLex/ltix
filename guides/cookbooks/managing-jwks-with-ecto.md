@@ -62,17 +62,8 @@ Your storage adapter signs with the registration's key through the `key_id/1` an
 
 ```elixir
 @impl true
-def key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
-  query =
-    from r in PlatformRegistration,
-      join: k in assoc(r, :key),
-      where: r.issuer == ^issuer and r.client_id == ^client_id,
-      select: k.kid
-
-  case Repo.one(query) do
-    nil -> {:error, :not_found}
-    kid -> {:ok, kid}
-  end
+def key_id(%PlatformRegistration{key_id: key_id}) do
+  {:ok, Repo.get!(LtiKey, key_id).kid}
 end
 
 @impl true

@@ -4,7 +4,6 @@ defmodule Ltix.OAuth do
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
-  alias Ltix.Records
   alias Ltix.Registerable
 
   @shared_fields Client.option_fields()
@@ -54,7 +53,7 @@ defmodule Ltix.OAuth do
         }
       )
 
-  The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2` instead.
+  The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2`.
 
   ## Options (launch context)
 
@@ -105,16 +104,15 @@ defmodule Ltix.OAuth do
   end
 
   defp request_client(registerable, endpoints, opts) do
-    with {:ok, registration} <- Records.convert!(registerable, :registration),
-         :ok <- Client.validate_endpoints(endpoints),
+    with :ok <- Client.validate_endpoints(endpoints),
          {:ok, token} <-
            ClientCredentials.request_token_span(
              :authenticate,
-             registration,
+             registerable,
              Client.collect_scopes(endpoints),
              Keyword.take(opts, [:storage_adapter, :req_options, :local_network_access])
            ) do
-      Client.from_access_token(token, [registration: registration, endpoints: endpoints] ++ opts)
+      Client.from_access_token(token, [registration: registerable, endpoints: endpoints] ++ opts)
     end
   end
 

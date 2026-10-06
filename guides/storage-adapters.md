@@ -85,20 +85,14 @@ end
 Return any struct that implements `Ltix.Deployable`. Like registrations,
 your original struct is preserved in the `Ltix.LaunchContext`.
 
-The `registration` parameter is the resolved `Ltix.Registration` (not
-your custom struct). The `deployment_id` is case-sensitive and assigned
-by the platform:
+The `registration` parameter is the struct your `get_registration/2` returned. The `deployment_id` is case-sensitive and assigned by the platform.
 
 ```elixir
-def get_deployment(%Ltix.Registration{issuer: issuer, client_id: client_id}, deployment_id) do
-  query =
-    from d in PlatformDeployment,
-      join: r in PlatformRegistration,
-      on: d.registration_id == r.id,
-      where: r.issuer == ^issuer and r.client_id == ^client_id,
-      where: d.deployment_id == ^deployment_id
-
-  case Repo.one(query) do
+def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id) do
+  case Repo.get_by(PlatformDeployment,
+         registration_id: registration_id,
+         deployment_id: deployment_id
+       ) do
     nil -> {:error, :not_found}
     record -> {:ok, record}
   end
@@ -174,23 +168,14 @@ The insert is atomic. If two requests race with the same nonce, only one of them
 
 Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and asks your adapter for the signature, so your private key stays wherever you keep it.
 
-`key_id/1` returns the ID of the key that signs for a registration. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/3` gets the same ID back with the message to sign.
+Both callbacks receive the registration struct you gave Ltix, either from `get_registration/2` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/1` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/3` gets the same ID back with the message to sign.
 
 For keys stored in your database, `Ltix.JWK.sign/2` produces the signature.
 
 ```elixir
 @impl true
-def key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
-  query =
-    from r in PlatformRegistration,
-      join: k in assoc(r, :signing_key),
-      where: r.issuer == ^issuer and r.client_id == ^client_id,
-      select: k.kid
-
-  case Repo.one(query) do
-    nil -> {:error, :not_found}
-    kid -> {:ok, kid}
-  end
+def key_id(%PlatformRegistration{signing_key_id: signing_key_id}) do
+  {:ok, Repo.get!(SigningKey, signing_key_id).kid}
 end
 
 @impl true
@@ -232,15 +217,11 @@ defmodule MyApp.LtiStorage do
   end
 
   @impl true
-  def get_deployment(%Ltix.Registration{issuer: issuer, client_id: client_id}, deployment_id) do
-    query =
-      from d in PlatformDeployment,
-        join: r in PlatformRegistration,
-        on: d.registration_id == r.id,
-        where: r.issuer == ^issuer and r.client_id == ^client_id,
-        where: d.deployment_id == ^deployment_id
-
-    case Repo.one(query) do
+  def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id) do
+    case Repo.get_by(PlatformDeployment,
+           registration_id: registration_id,
+           deployment_id: deployment_id
+         ) do
       nil -> {:error, :not_found}
       record -> {:ok, record}
     end

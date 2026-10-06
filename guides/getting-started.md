@@ -293,15 +293,8 @@ defmodule MyApp.Lti do
     end
   end
 
-  def get_deployment(%Ltix.Registration{issuer: issuer, client_id: client_id}, deployment_id) do
-    query =
-      from d in Deployment,
-        join: r in Registration,
-        on: d.registration_id == r.id,
-        where: r.issuer == ^issuer and r.client_id == ^client_id,
-        where: d.deployment_id == ^deployment_id
-
-    case Repo.one(query) do
+  def get_deployment(%Registration{id: registration_id}, deployment_id) do
+    case Repo.get_by(Deployment, registration_id: registration_id, deployment_id: deployment_id) do
       nil -> {:error, :not_found}
       deployment -> {:ok, deployment}
     end
@@ -314,17 +307,8 @@ defmodule MyApp.Lti do
     end
   end
 
-  def signing_key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
-    query =
-      from r in Registration,
-        join: j in assoc(r, :jwk),
-        where: r.issuer == ^issuer and r.client_id == ^client_id,
-        select: j.kid
-
-    case Repo.one(query) do
-      nil -> {:error, :not_found}
-      kid -> {:ok, kid}
-    end
+  def signing_key_id(%Registration{jwk_id: jwk_id}) do
+    {:ok, Repo.get!(Jwk, jwk_id).kid}
   end
 
   def sign(key_id, message) do

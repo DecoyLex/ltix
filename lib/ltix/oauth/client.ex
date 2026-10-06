@@ -7,6 +7,9 @@ defmodule Ltix.OAuth.Client do
   provides explicit refresh. Pass this struct to service functions like
   `Ltix.MembershipsService.list_members/2`.
 
+  `registration` is the struct you authenticated with, which can be your own
+  struct implementing `Ltix.Registerable`.
+
   ## Refreshing
 
       client = Ltix.OAuth.Client.refresh!(client)
@@ -34,7 +37,7 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
   alias Ltix.Records
-  alias Ltix.Registration
+  alias Ltix.Registerable
 
   defstruct [
     :token,
@@ -47,7 +50,7 @@ defmodule Ltix.OAuth.Client do
 
   @type t :: %__MODULE__{
           token: AccessToken.t(),
-          registration: Registration.t(),
+          registration: Registerable.t(),
           storage_adapter: module() | nil,
           req_options: keyword(),
           local_network_access: :none | :local | :loopback | nil,
@@ -255,12 +258,12 @@ defmodule Ltix.OAuth.Client do
     endpoints = Keyword.fetch!(opts, :endpoints)
     req_options = Keyword.fetch!(opts, :req_options)
 
-    with {:ok, registration} <- Records.convert!(registerable, :registration, :registration),
+    with {:ok, _registration} <- Records.convert!(registerable, :registration, :registration),
          :ok <- validate_endpoints(endpoints) do
       check_granted_scopes(
         %__MODULE__{
           token: token,
-          registration: registration,
+          registration: registerable,
           storage_adapter: Keyword.get(opts, :storage_adapter),
           req_options: req_options,
           local_network_access: Keyword.get(opts, :local_network_access),

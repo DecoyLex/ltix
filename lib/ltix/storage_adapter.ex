@@ -14,6 +14,11 @@ defmodule Ltix.StorageAdapter do
   so you can access your own fields (database IDs, tenant info, etc.)
   without an extra query.
 
+  Every other callback receives the registration the same way you provided
+  it. Launch callbacks get the struct `c:get_registration/2` returned, and
+  the signing callbacks get the struct you passed to the function that
+  needed a signature.
+
   ## Callback summary
 
   | Callback | Called during | Purpose |
@@ -87,8 +92,6 @@ defmodule Ltix.StorageAdapter do
   Look up a deployment by registration and deployment_id.
 
   The `deployment_id` is case-sensitive and assigned by the platform.
-  The `registration` parameter is the resolved `Ltix.Registration`,
-  not the original struct returned by `c:get_registration/2`.
 
   Return any struct that implements `Ltix.Deployable`. The library
   validates it via the protocol and preserves your original struct
@@ -99,7 +102,7 @@ defmodule Ltix.StorageAdapter do
   returns `Ltix.Errors.Invalid.DeploymentNotFound`.
   """
   # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)
-  @callback get_deployment(registration :: Registration.t(), deployment_id :: String.t()) ::
+  @callback get_deployment(registration :: Registerable.t(), deployment_id :: String.t()) ::
               {:ok, Deployable.t()} | {:error, :not_found | term()}
 
   @doc """
@@ -119,7 +122,7 @@ defmodule Ltix.StorageAdapter do
   # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   @callback validate_nonce(
               nonce :: String.t(),
-              registration :: Registration.t(),
+              registration :: Registerable.t(),
               expires_at :: DateTime.t()
             ) :: :ok | {:error, :nonce_already_used | term()}
 
@@ -131,7 +134,7 @@ defmodule Ltix.StorageAdapter do
   back to `c:sign/3`.
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
-  @callback key_id(registration :: Registration.t()) :: {:ok, String.t()} | {:error, term()}
+  @callback key_id(registration :: Registerable.t()) :: {:ok, String.t()} | {:error, term()}
 
   @doc """
   Sign a message with the key `c:key_id/1` returned.
@@ -141,7 +144,7 @@ defmodule Ltix.StorageAdapter do
   key held in your application.
   """
   # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
-  @callback sign(registration :: Registration.t(), key_id :: String.t(), message :: binary()) ::
+  @callback sign(registration :: Registerable.t(), key_id :: String.t(), message :: binary()) ::
               {:ok, binary()} | {:error, term()}
 
   @optional_callbacks key_id: 1, sign: 3
@@ -169,7 +172,7 @@ defmodule Ltix.StorageAdapter do
   end
 
   @doc false
-  @spec get_deployment(module(), Registration.t(), String.t()) ::
+  @spec get_deployment(module(), Registerable.t(), String.t()) ::
           {:ok, Deployable.t()} | {:error, Exception.t()}
   def get_deployment(adapter, registration, deployment_id) do
     case adapter.get_deployment(registration, deployment_id) do
@@ -223,7 +226,7 @@ defmodule Ltix.StorageAdapter do
 
   # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   @doc false
-  @spec validate_nonce(module(), String.t(), Registration.t(), DateTime.t()) ::
+  @spec validate_nonce(module(), String.t(), Registerable.t(), DateTime.t()) ::
           :ok | {:error, Exception.t()}
   def validate_nonce(adapter, nonce, registration, expires_at) do
     case adapter.validate_nonce(nonce, registration, expires_at) do
@@ -241,7 +244,7 @@ defmodule Ltix.StorageAdapter do
   # Returns a compact RS256 JWT with the given claims, signed by the adapter.
   # [RFC 7515 §7.1](https://www.rfc-editor.org/rfc/rfc7515#section-7.1)
   @doc false
-  @spec sign_jwt(module(), Registration.t(), map()) :: {:ok, String.t()} | {:error, Exception.t()}
+  @spec sign_jwt(module(), Registerable.t(), map()) :: {:ok, String.t()} | {:error, Exception.t()}
   def sign_jwt(adapter, registration, claims) do
     with :ok <- require_signing(adapter),
          {:ok, key_id} <- key_id(adapter, registration) do

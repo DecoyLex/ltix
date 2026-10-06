@@ -201,7 +201,7 @@ defmodule Ltix.Test.StorageAdapterContract do
         record_identity!(third.deployment, Deployable, opts, label)
 
     Enum.each(platforms, fn platform ->
-      registration = resolve!(platform.registration, Registerable, "registration factory")
+      registration = stored_registration!(adapter, platform)
       deployment = resolve!(platform.deployment, Deployable, "deployment factory")
 
       label =
@@ -226,7 +226,7 @@ defmodule Ltix.Test.StorageAdapterContract do
     Enum.each(
       [{first, second}, {second, first}, {first, third_extra}, {third, first_extra}],
       fn {target, source} ->
-        registration = resolve!(target.registration, Registerable, "registration factory")
+        registration = stored_registration!(adapter, target)
         deployment = resolve!(source.deployment, Deployable, "deployment factory")
         forbidden = if ownership_visible, do: source.deployment
 
@@ -320,7 +320,7 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp check_concurrent_deployment!(_adapter, _platform, _opts, false), do: :ok
 
   defp check_concurrent_deployment!(adapter, platform, opts, true) do
-    registration = resolve!(platform.registration, Registerable, "registration factory")
+    registration = stored_registration!(adapter, platform)
 
     deployment_id =
       "Concurrent-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}"
@@ -340,7 +340,7 @@ defmodule Ltix.Test.StorageAdapterContract do
   end
 
   defp check_nonces!(adapter, platform, opts) do
-    registration = resolve!(platform.registration, Registerable, "registration factory")
+    registration = stored_registration!(adapter, platform)
     expires_at = DateTime.add(DateTime.utc_now(:second), 300)
     nonce = "Nonce-#{Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)}"
     label = "#{inspect(adapter)} validate_nonce/3"
@@ -475,6 +475,18 @@ defmodule Ltix.Test.StorageAdapterContract do
 
   defp validated!(result, protocol, label),
     do: fail!(label, "a valid #{inspect(protocol)} conversion", result)
+
+  # Returns the record the adapter's `get_registration/2` returns for a
+  # platform, which is the record a launch gives the other callbacks.
+  defp stored_registration!(adapter, platform) do
+    label = "#{inspect(adapter)} get_registration/2 must return the registration"
+    resolved = resolve!(platform.registration, Registerable, "registration factory")
+
+    case call!(adapter, :get_registration, [resolved.issuer, resolved.client_id], label) do
+      {:ok, registration} -> registration
+      result -> fail!(label, "{:ok, registration}", result)
+    end
+  end
 
   defp call!(adapter, callback, args, label),
     do: invoke!(fn -> apply(adapter, callback, args) end, label)

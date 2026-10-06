@@ -10,7 +10,7 @@ defmodule Ltix.Integration.SigningTest do
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
 
-  # Signs with a key the test chooses and reports each signing request.
+  # Signs with a key the test chooses and sends each signing request to the test process.
   defmodule KeyStorageAdapter do
     @moduledoc false
     @behaviour Ltix.StorageAdapter
@@ -84,6 +84,27 @@ defmodule Ltix.Integration.SigningTest do
       assert {:ok, %{"iss" => "tool-client-id"}} = verify(assertion, ctx.signing_key)
     end
 
+    test "passes the adapter the registration record it was called with", ctx do
+      record = %CustomRegistration{
+        id: 42,
+        platform_issuer: ctx.registration.issuer,
+        oauth_client_id: ctx.registration.client_id,
+        oidc_auth_url: ctx.registration.auth_endpoint,
+        platform_jwks_url: ctx.registration.jwks_uri,
+        platform_token_url: ctx.registration.token_endpoint
+      }
+
+      assert {:ok, %Client{registration: ^record} = client} =
+               OAuth.authenticate(record, ctx.opts)
+
+      assert_received {:key_id, ^record}
+      assert_received {:sign, ^record, _key_id}
+
+      assert {:ok, %Client{registration: ^record}} = Client.force_refresh(client)
+      assert_received {:key_id, ^record}
+      assert_received {:sign, ^record, _key_id}
+    end
+
     test "returns StorageError without sending a request when the adapter can't sign", ctx do
       opts = Keyword.put(ctx.opts, :storage_adapter, LaunchStorageAdapter)
 
@@ -117,9 +138,12 @@ defmodule Ltix.Integration.SigningTest do
     test "are signed with the storage adapter's key", ctx do
       context = Ltix.Test.build_launch_context(ctx.platform, message_type: :deep_linking)
       key_id = ctx.signing_key.kid
+      registration = context.registration
 
       assert {:ok, response} =
                DeepLinking.build_response(context, [], storage_adapter: KeyStorageAdapter)
+
+      assert_received {:key_id, ^registration}
 
       assert %{"alg" => "RS256", "typ" => "JWT", "kid" => ^key_id} = header(response.jwt)
 

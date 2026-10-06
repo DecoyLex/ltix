@@ -6,6 +6,8 @@ defmodule Ltix.OAuth.ClientCredentials do
   alias Ltix.HTTP
   alias Ltix.OAuth.AccessToken
   alias Ltix.Options
+  alias Ltix.Records
+  alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.StorageAdapter
 
@@ -15,21 +17,33 @@ defmodule Ltix.OAuth.ClientCredentials do
   @doc """
   Request an OAuth 2.0 access token via the client credentials grant.
 
-  Builds a JWT assertion signed by the storage adapter and POSTs it to the
-  platform's token endpoint. Returns a parsed `AccessToken` on success.
+  Takes any record implementing `Ltix.Registerable`. Builds a JWT assertion
+  signed by the storage adapter and POSTs it to the platform's token
+  endpoint. Returns a parsed `AccessToken` on success.
 
   ## Options
 
     * `:storage_adapter` - module implementing `Ltix.StorageAdapter` with the
       signing callbacks (defaults to application config)
-    * `:req_options` - options passed through to `Req.request/2` (default: `[]`)
+    * `:req_options` - options passed through to `Req.request/2` (defaults to `[]`)
     * `:local_network_access` - see `Ltix.HTTP.local_network_access_option/0`
   """
-  @spec request_token(Registration.t(), [String.t()], keyword()) ::
+  @spec request_token(Registerable.t(), [String.t()], keyword()) ::
           {:ok, AccessToken.t()} | {:error, Exception.t()}
-  def request_token(registration, scopes, opts \\ [])
+  def request_token(registerable, scopes, opts \\ []) do
+    with {:ok, registration} <- Records.convert!(registerable, :registration),
+         :ok <- require_token_endpoint(registration),
+         {:ok, assertion} <-
+           StorageAdapter.sign_jwt(
+             Options.fetch_configured!(opts, :storage_adapter),
+             registerable,
+             assertion_claims(registration)
+           ) do
+      send_token_request(registration, scopes, opts, assertion)
+    end
+  end
 
-  def request_token(%Registration{token_endpoint: nil}, _scopes, _opts) do
+  defp require_token_endpoint(%Registration{token_endpoint: nil}) do
     {:error,
      ServiceNotAvailable.exception(
        service: :oauth,
@@ -38,15 +52,9 @@ defmodule Ltix.OAuth.ClientCredentials do
      )}
   end
 
-  def request_token(%Registration{} = registration, scopes, opts) do
-    storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
+  defp require_token_endpoint(%Registration{}), do: :ok
 
-    with {:ok, assertion} <- build_assertion(registration, storage_adapter) do
-      request_token(registration, scopes, opts, assertion)
-    end
-  end
-
-  defp request_token(registration, scopes, opts, assertion) do
+  defp send_token_request(registration, scopes, opts, assertion) do
     req_options = req_options(opts)
 
     body =
@@ -73,13 +81,13 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   # Requests a token inside a `[:ltix, :oauth, action]` telemetry span.
   @doc false
-  @spec request_token_span(atom(), Registration.t(), [String.t()], keyword()) ::
+  @spec request_token_span(atom(), Registerable.t(), [String.t()], keyword()) ::
           {:ok, AccessToken.t()} | {:error, Exception.t()}
-  def request_token_span(action, registration, scopes, opts) do
+  def request_token_span(action, registerable, scopes, opts) do
     metadata = %{scopes_requested: scopes}
 
     :telemetry.span([:ltix, :oauth, action], metadata, fn ->
-      result = request_token(registration, scopes, opts)
+      result = request_token(registerable, scopes, opts)
       {result, Map.merge(metadata, stop_metadata(result))}
     end)
   end
@@ -120,11 +128,11 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)
-  # Build and sign the JWT client assertion with all MUST claims.
-  defp build_assertion(%Registration{} = registration, storage_adapter) do
+  # The MUST claims of the JWT client assertion.
+  defp assertion_claims(%Registration{} = registration) do
     now = System.system_time(:second)
 
-    claims = %{
+    %{
       "iss" => registration.client_id,
       "sub" => registration.client_id,
       "aud" => registration.token_endpoint,
@@ -132,9 +140,6 @@ defmodule Ltix.OAuth.ClientCredentials do
       "exp" => now + 300,
       "jti" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
     }
-
-    # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#rsa-key)
-    StorageAdapter.sign_jwt(storage_adapter, registration, claims)
   end
 
   defp req_options(opts) do

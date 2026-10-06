@@ -100,11 +100,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
 
       case Enum.find(records, &(&1.platform_deployment_id == deployment_id)) do
         nil ->
-          {:ok,
-           create_deployment(
-             Ltix.Deployment.new!(deployment_id),
-             registration_record(registration)
-           )}
+          {:ok, create_deployment(Ltix.Deployment.new!(deployment_id), registration)}
 
         record ->
           {:ok, record}
@@ -117,12 +113,10 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
            deployment_id,
            {:error, :not_found}
          ) do
-      owner = registration_record(registration)
-
       {:ok,
        %CustomDeployment{
          id: System.unique_integer([:positive]),
-         registration_id: owner.id,
+         registration_id: registration.id,
          platform_deployment_id: deployment_id
        }}
     end
@@ -148,8 +142,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     defp deployment_result(:auto_create, registration, deployment_id, {:error, :not_found}) do
-      owner = registration_record(registration)
-      {:ok, create_deployment(Ltix.Deployment.new!(deployment_id), owner)}
+      {:ok, create_deployment(Ltix.Deployment.new!(deployment_id), registration)}
     end
 
     defp deployment_result(_mode, _registration, _deployment_id, result), do: result
@@ -184,12 +177,11 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     defp race_deployment(registration, deployment_id) do
-      owner = registration_record(registration)
       synchronize_reads(deployment_id)
 
       record = %CustomDeployment{
         id: System.unique_integer([:positive]),
-        registration_id: owner.id,
+        registration_id: registration.id,
         platform_deployment_id: deployment_id
       }
 
@@ -229,13 +221,6 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
       receive do
         {:storage_read, ^key} -> :ok
       end
-    end
-
-    defp registration_record(registration) do
-      {:ok, record} =
-        CustomStorageAdapter.get_registration(registration.issuer, registration.client_id)
-
-      record
     end
 
     defp create_deployment(deployment, registration) do

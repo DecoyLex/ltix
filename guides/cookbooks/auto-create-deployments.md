@@ -2,28 +2,26 @@
 
 In the standard LTI flow, registrations and deployments are both created
 out-of-band before the first launch. But many tools don't need
-per-deployment configuration. They care about the platform (registration)
-but treat deployments as bookkeeping. For these tools, you can
+per-deployment configuration. Their configuration is per platform
+(registration), and they only record deployments. For these tools, you can
 auto-create deployments the first time a new `deployment_id` appears in
 a launch.
 
 This works because `get_deployment/2` runs after JWT signature
 verification and nonce validation, so the `deployment_id` is already
-trusted by the time your adapter sees it.
+verified by the time your adapter receives it.
 
 <!-- tabs-open -->
 
 ### Storage adapter
 
-The simplest approach: make `get_deployment/2` upsert instead of just
-querying. The first launch creates the deployment row; subsequent
-launches find it. No controller changes needed.
+The simplest approach is to make `get_deployment/2` upsert. The first
+launch creates the deployment row, and subsequent launches find it. No
+controller changes needed.
 
 ```elixir
 @impl true
-def get_deployment(%Ltix.Registration{} = reg, deployment_id) do
-  registration_id = get_registration_id(reg)
-
+def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id) do
   %PlatformDeployment{registration_id: registration_id, deployment_id: deployment_id}
   |> Repo.insert(on_conflict: :nothing, conflict_target: [:registration_id, :deployment_id])
 
@@ -46,7 +44,7 @@ calls find the same record on the subsequent select.
 > #### Migration {: .tip}
 >
 > Your `platform_deployments` table needs a unique index for the
-> upsert's conflict target:
+> upsert's conflict target.
 >
 > ```elixir
 > create unique_index(:platform_deployments, [:registration_id, :deployment_id])
@@ -54,10 +52,10 @@ calls find the same record on the subsequent select.
 
 ### Controller
 
-If deployments carry meaning in your domain (per-deployment settings,
-onboarding flows, approval steps), handle creation in the controller
-instead. This lets you show a registration form, collect extra
-information, or require admin approval before the deployment is active.
+If deployments have meaning in your domain (per-deployment settings,
+onboarding flows, approval steps), handle creation in the controller.
+This lets you show a registration form, collect extra information, or
+require admin approval before the deployment is active.
 
 ```elixir
 def launch(conn, params) do
@@ -90,7 +88,7 @@ end
 ```
 
 For an onboarding flow where you need to collect information before
-creating the deployment:
+creating the deployment, use this clause.
 
 ```elixir
 {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: id}} ->
@@ -111,7 +109,7 @@ creating the deployment:
 
 | | Storage adapter | Controller |
 |---|---|---|
-| Best for | Deployments are bookkeeping | Deployments carry domain meaning |
+| Best for | Deployments are only records | Deployments have domain meaning |
 | Controller changes | None | Match on `DeploymentNotFound` |
-| User experience | Seamless, first launch just works | Can show onboarding UI |
+| User experience | First launch succeeds with no extra step | Can show onboarding UI |
 | Complexity | Low | Medium |

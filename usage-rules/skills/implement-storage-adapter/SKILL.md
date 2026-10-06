@@ -268,17 +268,8 @@ defmodule MyApp.Lti do
 
   # The ID of the key that signs for a registration. Platforms use it to find
   # the public key in the tool's key set.
-  def signing_key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
-    query =
-      from r in Registration,
-        join: j in assoc(r, :jwk),
-        where: r.issuer == ^issuer and r.client_id == ^client_id,
-        select: j.kid
-
-    case Repo.one(query) do
-      nil -> {:error, :not_found}
-      kid -> {:ok, kid}
-    end
+  def signing_key_id(%Registration{jwk_id: jwk_id}) do
+    {:ok, Repo.get!(Jwk, jwk_id).kid}
   end
 
   def sign(key_id, message) do
@@ -286,15 +277,8 @@ defmodule MyApp.Lti do
     Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid), message)
   end
 
-  def get_deployment(%Ltix.Registration{issuer: issuer, client_id: client_id}, deployment_id) do
-    query =
-      from d in Deployment,
-        join: r in Registration,
-        on: d.registration_id == r.id,
-        where: r.issuer == ^issuer and r.client_id == ^client_id,
-        where: d.deployment_id == ^deployment_id
-
-    case Repo.one(query) do
+  def get_deployment(%Registration{id: registration_id}, deployment_id) do
+    case Repo.get_by(Deployment, registration_id: registration_id, deployment_id: deployment_id) do
       nil -> {:error, :not_found}
       deployment -> {:ok, deployment}
     end
@@ -311,9 +295,8 @@ defmodule MyApp.Lti do
 end
 ```
 
-Note that `get_deployment/2` receives the resolved `Ltix.Registration` (not the original
-Ecto struct), so it pattern-matches on `%Ltix.Registration{}`. The nonce callback also
-receives `%Ltix.Registration{}`.
+Note that `get_deployment/2` receives the struct `get_registration/2` returned, so it
+pattern-matches on your Ecto schema. The nonce and signing callbacks receive it too.
 
 ## Step 4: Storage Adapter Module
 
@@ -387,9 +370,9 @@ These are non-negotiable requirements from the LTI spec and library:
 
 - **`deployment_id` is case-sensitive** and at most 255 ASCII characters.
 
-- **`get_deployment/2`, `validate_nonce/3`, `key_id/1`, and `sign/3` receive `%Ltix.Registration{}`**, not your
-  original Ecto struct. The library resolves your struct through the `Registerable`
-  protocol before calling these callbacks.
+- **`get_deployment/2`, `validate_nonce/3`, `key_id/1`, and `sign/3` receive your own
+  registration struct**, the one `get_registration/2` returned or the one you passed to
+  the function that needed a signature. `Ltix.OAuth.Client.registration` holds it too.
 
 ## Optional Patterns (Discuss with User First)
 
@@ -479,43 +462,30 @@ defmodule MyApp.Lti.StorageAdapterTest do
 
   describe "signing" do
     test "signs with the registration's key", %{jwk: jwk, registration: registration} do
-      {:ok, found} = StorageAdapter.get_registration(
-        registration.issuer, registration.client_id
-      )
-      {:ok, ltix_reg} = Ltix.Registerable.to_registration(found)
-
-      assert {:ok, key_id} = StorageAdapter.key_id(ltix_reg)
+      assert {:ok, key_id} = StorageAdapter.key_id(registration)
       assert key_id == jwk.kid
-      assert {:ok, signature} = StorageAdapter.sign(ltix_reg, key_id, "message")
+      assert {:ok, signature} = StorageAdapter.sign(registration, key_id, "message")
       assert is_binary(signature)
     end
   end
 
   describe "get_deployment/2" do
     test "finds by registration and deployment_id", %{registration: registration, deployment: deployment} do
-      # get_deployment receives a resolved Ltix.Registration, not your Ecto struct
-      {:ok, found} = StorageAdapter.get_registration(
-        registration.issuer, registration.client_id
-      )
-      {:ok, ltix_reg} = Ltix.Registerable.to_registration(found)
+      assert {:ok, found_dep} =
+               StorageAdapter.get_deployment(registration, deployment.deployment_id)
 
-      assert {:ok, found_dep} = StorageAdapter.get_deployment(ltix_reg, deployment.deployment_id)
       assert found_dep.id == deployment.id
     end
   end
 
   describe "nonce lifecycle" do
     test "accepts a nonce once", %{registration: registration} do
-      {:ok, found} = StorageAdapter.get_registration(
-        registration.issuer, registration.client_id
-      )
-      {:ok, ltix_reg} = Ltix.Registerable.to_registration(found)
       expires_at = DateTime.add(DateTime.utc_now(:second), 300)
 
-      assert :ok = StorageAdapter.validate_nonce("test-nonce", ltix_reg, expires_at)
+      assert :ok = StorageAdapter.validate_nonce("test-nonce", registration, expires_at)
 
       assert {:error, :nonce_already_used} =
-               StorageAdapter.validate_nonce("test-nonce", ltix_reg, expires_at)
+               StorageAdapter.validate_nonce("test-nonce", registration, expires_at)
     end
   end
 end

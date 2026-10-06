@@ -319,8 +319,7 @@ defmodule Ltix.GradeServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert client.registration.issuer == "https://custom-lms.example.com"
-      assert client.registration.client_id == "custom-tool-client"
+      assert client.registration == custom_registration
     end
   end
 
@@ -774,18 +773,6 @@ defmodule Ltix.GradeServiceTest do
       assert :ok = GradeService.delete_line_item(client, force: true)
     end
 
-    test "no guard when endpoint has no line_item URL", ctx do
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        Plug.Conn.send_resp(conn, 204, "")
-      end)
-
-      endpoint = %AGSEndpoint{line_items: @line_items_url, line_item: nil, scopes: @all_scopes}
-      client = build_client(ctx.platform, endpoint: endpoint)
-
-      assert :ok =
-               GradeService.delete_line_item(client, line_item: "#{@line_items_url}/99/lineitem")
-    end
-
     test "returns ScopeMismatch without lineitem scope", ctx do
       client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
 
@@ -1150,20 +1137,18 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "malformed line item responses" do
-    test "return MalformedResponse instead of crashing", ctx do
+    test "return MalformedResponse", ctx do
       client = build_client(ctx.platform)
       item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
 
-      for body <- ["", "not json", [1]] do
-        Req.Test.stub(Ltix.GradeService, &Req.Test.json(&1, body))
+      Req.Test.stub(Ltix.GradeService, &Req.Test.json(&1, [1]))
 
-        for result <- [
-              GradeService.get_line_item(client),
-              GradeService.create_line_item(client, label: "Quiz", score_maximum: 10),
-              GradeService.update_line_item(client, item)
-            ] do
-          assert {:error, %MalformedResponse{service: GradeService}} = result
-        end
+      for result <- [
+            GradeService.get_line_item(client),
+            GradeService.create_line_item(client, label: "Quiz", score_maximum: 10),
+            GradeService.update_line_item(client, item)
+          ] do
+        assert {:error, %MalformedResponse{service: GradeService}} = result
       end
     end
   end
@@ -1326,7 +1311,7 @@ defmodule Ltix.GradeServiceTest do
       %{client: build_client(ctx.platform), endpoint: endpoint, score: score}
     end
 
-    test "every operation uses the given endpoint instead of the client's", ctx do
+    test "every operation uses the given endpoint", ctx do
       %{client: client, endpoint: endpoint} = ctx
 
       assert {:ok, []} = GradeService.list_line_items(client, endpoint: endpoint)

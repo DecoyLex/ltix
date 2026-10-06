@@ -64,7 +64,8 @@ These are the 3 required callbacks:
 1. **`get_registration(issuer, client_id)`** — `client_id` can be `nil` when the platform
    omits it from the login request. You must handle both cases.
 2. **`get_deployment(registration, deployment_id)`** — called after JWT verification.
-   `deployment_id` is case-sensitive.
+   `deployment_id` is case-sensitive. `registration` is the struct your `get_registration/2`
+   returned, as it is for every callback that takes one.
 3. **`validate_nonce(nonce, registration, expires_at)`** — record the nonce as used, called
    after the ID token is verified. Must prevent replay attacks. Use an atomic
    `INSERT ... ON CONFLICT DO NOTHING` to avoid race conditions, and keep the record until
