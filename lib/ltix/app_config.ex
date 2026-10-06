@@ -40,6 +40,10 @@ defmodule Ltix.AppConfig do
     Application.get_env(:ltix, :allow_anonymous, false)
   end
 
+  def max_token_age do
+    Application.get_env(:ltix, :max_token_age, 3600)
+  end
+
   def default_key_size do
     Application.get_env(:ltix, :default_key_size, 4096)
   end

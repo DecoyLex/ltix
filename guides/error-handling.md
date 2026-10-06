@@ -160,7 +160,7 @@ These indicate the launch failed a security check:
 | Error | Fields | When |
 |---|---|---|
 | `SignatureInvalid` | `spec_ref` | JWT signature doesn't verify against the platform's public key |
-| `TokenExpired` | `spec_ref` | JWT `exp` claim is in the past |
+| `TokenExpired` | `spec_ref` | JWT `exp` claim is in the past, or its `iat` claim is older than `:max_token_age` |
 | `IssuerMismatch` | `expected`, `actual`, `spec_ref` | JWT `iss` doesn't match the registration |
 | `AudienceMismatch` | `claim`, `expected`, `actual`, `spec_ref` | JWT `aud` is not the registration's client_id or a list containing only it, or `azp` is not the client_id |
 | `AlgorithmNotAllowed` | `algorithm`, `spec_ref` | JWT uses something other than RS256 |

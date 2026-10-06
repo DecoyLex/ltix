@@ -25,13 +25,18 @@ defmodule Ltix.JWT.Token do
   5. Validate `iss` matches the registration's issuer
   6. Validate `aud` is the tool's `client_id`, or a list containing only it
   7. Validate `azp` matches `client_id` (when present)
-  8. Validate `exp` is not in the past (with configurable clock skew)
-  9. Validate `iat` is a NumericDate
+  8. Validate `iat` is a NumericDate
+  9. Validate `exp` is not in the past and `iat` is within the maximum
+     token age (with configurable clock skew)
   10. Validate `nonce` is present
 
   ## Options
 
-    * `:clock_skew` — seconds of tolerance for `exp` validation (default: `5`)
+    * `:clock_skew` — seconds of tolerance for `exp` and `iat` validation
+      (default: `5`)
+    * `:max_token_age` — seconds after `iat` that a token is still accepted,
+      or `:infinity` to accept any age (defaults to application config, then
+      `3600`)
     * `:now` — override current time in unix seconds (useful for testing)
     * `:req_options` — extra options passed through to `Ltix.JWT.KeySet`
     * `:jwks_cache` — cache module passed through to `Ltix.JWT.KeySet`
@@ -57,6 +62,8 @@ defmodule Ltix.JWT.Token do
   @options_schema Zoi.keyword(
                     [
                       clock_skew: Zoi.integer() |> Zoi.non_negative(),
+                      max_token_age:
+                        Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)]),
                       now: Zoi.integer(),
                       req_options: Zoi.keyword(Zoi.any()),
                       jwks_cache: Zoi.module()
@@ -188,8 +195,8 @@ defmodule Ltix.JWT.Token do
   defp validate_claims(claims, registration, opts) do
     with :ok <- validate_issuer(claims, registration),
          :ok <- validate_audience(claims, registration),
-         :ok <- validate_expiration(claims, opts),
-         :ok <- validate_issued_at(claims) do
+         :ok <- validate_issued_at(claims),
+         :ok <- validate_expiration(claims, opts) do
       validate_nonce(claims)
     end
   end
@@ -254,13 +261,14 @@ defmodule Ltix.JWT.Token do
   end
 
   # [Sec §5.1.3 step 7] exp MUST be in the future (with clock skew tolerance).
+  # [Sec §5.1.3 step 8] The Tool MAY reject tokens issued too long ago.
   defp validate_expiration(%{"exp" => exp} = claims, opts) when is_number(exp) do
     now = Keyword.get(opts, :now, System.system_time(:second))
 
     if now < deadline(claims, opts) do
       :ok
     else
-      {:error, TokenExpired.exception(spec_ref: "Sec §5.1.3 step 7")}
+      {:error, TokenExpired.exception(spec_ref: "Sec §5.1.3 steps 7-8")}
     end
   end
 
@@ -273,8 +281,14 @@ defmodule Ltix.JWT.Token do
     {:error, MissingClaim.exception(claim: "exp", spec_ref: "Sec §5.1.2")}
   end
 
-  defp deadline(%{"exp" => exp}, opts) do
-    exp + Keyword.get(opts, :clock_skew, @default_clock_skew)
+  defp deadline(%{"exp" => exp, "iat" => issued_at}, opts) do
+    limit =
+      case Keyword.get_lazy(opts, :max_token_age, &AppConfig.max_token_age/0) do
+        :infinity -> exp
+        max_token_age -> min(exp, issued_at + max_token_age)
+      end
+
+    limit + Keyword.get(opts, :clock_skew, @default_clock_skew)
   end
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)

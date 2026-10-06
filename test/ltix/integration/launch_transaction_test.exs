@@ -34,7 +34,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     end
 
     # [RFC 9700 §2.1](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1)
-    test "rejects a token from another registration that carries the login's nonce", ctx do
+    test "rejects a token from another registration that has the login's nonce", ctx do
       {login, params} = begin_launch(ctx.platform, "original-user")
 
       other_registration_params =
@@ -82,18 +82,11 @@ defmodule Ltix.Integration.LaunchTransactionTest do
   describe "nonce storage" do
     test "records a nonce only after the ID token is verified, until the token expires",
          ctx do
-      login = login(ctx.platform, LaunchStorageAdapter)
+      exp = System.system_time(:second) + 600
+      {login, launch} = signed_launch(ctx.platform, %{"exp" => exp}, LaunchStorageAdapter)
+      nonce = Ltix.Test.extract_nonce(login.redirect_uri)
 
       refute_received {:validate_nonce, _nonce, _expires_at}
-
-      nonce = Ltix.Test.extract_nonce(login.redirect_uri)
-      exp = System.system_time(:second) + 600
-      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => nonce, "exp" => exp})
-
-      launch = %{
-        "id_token" => Ltix.Test.sign_id_token(claims, ctx.platform.jwk),
-        "state" => login.state
-      }
 
       assert {:ok, %LaunchContext{}} =
                callback(launch, login.state, LaunchStorageAdapter)
@@ -103,6 +96,46 @@ defmodule Ltix.Integration.LaunchTransactionTest do
 
       assert {:error, %Security.NonceReused{}} =
                callback(launch, login.state, LaunchStorageAdapter)
+    end
+  end
+
+  # [Sec §5.1.3 step 8](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+  describe "token age" do
+    test "rejects a token issued more than an hour ago, even when it hasn't expired", ctx do
+      now = System.system_time(:second)
+      {login, launch} = signed_launch(ctx.platform, %{"iat" => now - 3_606, "exp" => now + 600})
+
+      assert {:error, %Security.TokenExpired{}} =
+               callback(launch, login.state, LaunchStorageAdapter)
+
+      refute_received {:validate_nonce, _nonce, _expires_at}
+    end
+
+    test "keeps the nonce record until the age limit when the token expires later", ctx do
+      now = System.system_time(:second)
+      {login, launch} = signed_launch(ctx.platform, %{"iat" => now - 60, "exp" => now + 7_200})
+
+      assert {:ok, %LaunchContext{}} = callback(launch, login.state, LaunchStorageAdapter)
+      assert_received {:validate_nonce, _nonce, expires_at}
+      assert expires_at == DateTime.from_unix!(now - 60 + 3_600 + 5)
+    end
+
+    test "applies a max_token_age option and accepts any age with :infinity", ctx do
+      now = System.system_time(:second)
+      claims = %{"iat" => now - 120, "exp" => now + 600}
+
+      {login, launch} = signed_launch(ctx.platform, claims)
+
+      assert {:error, %Security.TokenExpired{}} =
+               callback(launch, login.state, LaunchStorageAdapter, max_token_age: 60)
+
+      {login, launch} = signed_launch(ctx.platform, %{claims | "iat" => now - 86_400})
+
+      assert {:ok, %LaunchContext{}} =
+               callback(launch, login.state, LaunchStorageAdapter, max_token_age: :infinity)
+
+      assert_received {:validate_nonce, _nonce, expires_at}
+      assert expires_at == DateTime.from_unix!(now + 600 + 5)
     end
   end
 
@@ -160,14 +193,6 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     assert {:error, %Security.NonceReused{}} = callback(second_params, second_login.state)
   end
 
-  defp login(platform, storage_adapter) do
-    params =
-      Map.put(Ltix.Test.login_params(platform), "client_id", platform.registration.client_id)
-
-    {:ok, login} = Ltix.handle_login(params, @launch_url, storage_adapter: storage_adapter)
-    login
-  end
-
   defp begin_launch(platform, subject) do
     login = login(platform, StorageAdapter)
 
@@ -181,10 +206,29 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     {login, launch_params}
   end
 
-  defp callback(params, expected_state, storage_adapter \\ StorageAdapter) do
-    Ltix.handle_callback(params, expected_state,
-      storage_adapter: storage_adapter,
-      req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
+  defp login(platform, storage_adapter) do
+    params =
+      Map.put(Ltix.Test.login_params(platform), "client_id", platform.registration.client_id)
+
+    {:ok, login} = Ltix.handle_login(params, @launch_url, storage_adapter: storage_adapter)
+    login
+  end
+
+  defp signed_launch(platform, claims, storage_adapter \\ StorageAdapter) do
+    login = login(platform, storage_adapter)
+    nonce = Ltix.Test.extract_nonce(login.redirect_uri)
+    claims = Ltix.Test.valid_lti_claims(platform, Map.put(claims, "nonce", nonce))
+
+    {login,
+     %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => login.state}}
+  end
+
+  defp callback(params, expected_state, storage_adapter \\ StorageAdapter, opts \\ []) do
+    Ltix.handle_callback(
+      params,
+      expected_state,
+      [storage_adapter: storage_adapter, req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]] ++
+        opts
     )
   end
 end

@@ -21,9 +21,9 @@ defmodule Ltix do
         storage_adapter: MyApp.LtiStorage
 
   `handle_login/3` takes `:storage_adapter`, and `handle_callback/3` takes
-  `:storage_adapter`, `:allow_anonymous`, `:req_options`, and `:jwks_cache`, to
-  override the setting for a single call. Unknown or invalid options raise
-  `Ltix.Errors.Invalid.InvalidOption`.
+  `:storage_adapter`, `:allow_anonymous`, `:max_token_age`, `:req_options`, and
+  `:jwks_cache`, to override the setting for a single call. Unknown or invalid
+  options raise `Ltix.Errors.Invalid.InvalidOption`.
 
   ### Required
 
@@ -34,6 +34,10 @@ defmodule Ltix do
 
     * `:allow_anonymous` — when `true`, allow launches without a `sub`
       claim in the ID Token. Defaults to `false`.
+
+    * `:max_token_age` — seconds after the platform issued the ID Token
+      that the launch is still accepted, or `:infinity` to accept any age.
+      Defaults to `3600`.
 
     * `:json_library` — JSON encoder/decoder module. Detected at
       compile time: uses `JSON` (Elixir 1.18+/OTP 27+) if available,
@@ -167,7 +171,9 @@ defmodule Ltix do
                        claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
                        role_parsers: Zoi.map(Zoi.string(), Zoi.any()),
                        jwks_cache: Zoi.module(),
-                       clock_skew: Zoi.integer() |> Zoi.non_negative()
+                       clock_skew: Zoi.integer() |> Zoi.non_negative(),
+                       max_token_age:
+                         Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)])
                      ],
                      unrecognized_keys: :error
                    )
@@ -241,6 +247,9 @@ defmodule Ltix do
     * `:claim_parsers` — custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
     * `:role_parsers` — custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
     * `:clock_skew` — seconds of tolerance for token expiration (default: `5`)
+    * `:max_token_age` — seconds after the platform issued the ID Token that
+      the launch is still accepted, or `:infinity` to accept any age
+      (defaults to application config, then `3600`)
   """
   # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)
   # [Sec §5.1.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)

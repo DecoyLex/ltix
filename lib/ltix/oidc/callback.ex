@@ -34,7 +34,7 @@ defmodule Ltix.OIDC.Callback do
   @spec launch(map(), String.t(), module(), keyword()) ::
           {:ok, LaunchContext.t(), Registration.t()} | {:error, Exception.t()}
   def launch(params, expected_state, callback_module, opts) do
-    token_opts = Keyword.take(opts, [:clock_skew, :req_options, :jwks_cache])
+    token_opts = Keyword.take(opts, [:clock_skew, :max_token_age, :req_options, :jwks_cache])
 
     with :ok <- check_error_response(params),
          {:ok, id_token} <- extract_id_token(params),

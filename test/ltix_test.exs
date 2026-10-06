@@ -8,6 +8,7 @@ defmodule LtixTest do
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
+  alias Ltix.Errors.Security.TokenExpired
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.LaunchContext
   alias Ltix.Registration
@@ -81,7 +82,7 @@ defmodule LtixTest do
 
   setup do
     previous_configuration =
-      Map.new([:allow_anonymous, :storage_adapter, Ltix.LaunchClaims], fn key ->
+      Map.new([:allow_anonymous, :max_token_age, :storage_adapter, Ltix.LaunchClaims], fn key ->
         {key, Application.fetch_env(:ltix, key)}
       end)
 
@@ -357,6 +358,23 @@ defmodule LtixTest do
                Ltix.handle_callback(params, ctx.state, req_options: req_options())
 
       assert launch.claims.subject == nil
+    end
+
+    test "reads max_token_age from application config", ctx do
+      Application.put_env(:ltix, :max_token_age, 60)
+
+      claims = Map.put(ctx.claims, "iat", System.system_time(:second) - 120)
+      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
+      params = %{"id_token" => id_token, "state" => ctx.state}
+
+      assert {:error, %TokenExpired{}} =
+               Ltix.handle_callback(params, ctx.state, req_options: req_options())
+
+      assert {:ok, %LaunchContext{}} =
+               Ltix.handle_callback(params, ctx.state,
+                 max_token_age: :infinity,
+                 req_options: req_options()
+               )
     end
 
     test "opts override application config", ctx do
