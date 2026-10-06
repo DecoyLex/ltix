@@ -80,7 +80,12 @@ defmodule PhoenixExample.LtiStorage do
   def key_id(_registration), do: {:ok, tool_jwk().kid}
 
   @impl true
-  def sign(_registration, _key_id, message), do: Ltix.JWK.sign(tool_jwk(), message)
+  def sign(_registration, key_id, message) do
+    case tool_jwk() do
+      %Ltix.JWK{kid: ^key_id} = tool_jwk -> Ltix.JWK.sign(tool_jwk, message)
+      _other_key -> {:error, :unknown_key}
+    end
+  end
 
   @doc """
   Return the key the tool signs with.

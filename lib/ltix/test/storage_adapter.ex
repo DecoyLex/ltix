@@ -37,10 +37,10 @@ defmodule Ltix.Test.StorageAdapter do
 
   ## Options
 
-    * `:platforms` — list of `Ltix.Test.Platform` structs whose registration
-      and deployment the adapter resolves (default: `[]`)
-    * `:registrations` — list of structs implementing `Ltix.Registerable`
-      that have no deployment (default: `[]`)
+    * `:platforms` - list of `Ltix.Test.Platform` structs whose registration
+      and deployment the adapter resolves (defaults to `[]`)
+    * `:registrations` - list of structs implementing `Ltix.Registerable`
+      that have no deployment (defaults to `[]`)
   """
   def start_link(opts \\ []) do
     opts = Options.parse!(opts, @start_link_schema)
@@ -146,7 +146,12 @@ defmodule Ltix.Test.StorageAdapter do
   def key_id(_registration), do: {:ok, tool_jwk().kid}
 
   @impl Ltix.StorageAdapter
-  def sign(_registration, _key_id, message), do: Ltix.JWK.sign(tool_jwk(), message)
+  def sign(_registration, key_id, message) do
+    case tool_jwk() do
+      %Ltix.JWK{kid: ^key_id} = tool_jwk -> Ltix.JWK.sign(tool_jwk, message)
+      _other_key -> {:error, :unknown_key}
+    end
+  end
 
   defp registration_key(registration) do
     resolved = ok!(Records.convert!(registration, :registration, :registrations))

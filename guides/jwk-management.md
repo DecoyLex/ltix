@@ -33,11 +33,18 @@ Ltix never stores your private key. When it needs a signature, it calls your sto
 
 ```elixir
 @impl true
-def key_id(_registration), do: {:ok, jwk.kid}
+def key_id(_registration), do: {:ok, current_jwk().kid}
 
 @impl true
-def sign(_registration, _key_id, message), do: Ltix.JWK.sign(jwk, message)
+def sign(_registration, key_id, message) do
+  case Enum.find(active_jwks(), &(&1.kid == key_id)) do
+    nil -> {:error, :unknown_key}
+    jwk -> Ltix.JWK.sign(jwk, message)
+  end
+end
 ```
+
+`sign/3` signs with the key that has the given ID and returns an error for an ID it doesn't have. A request that starts before a rotation still gets a signature from the key whose ID is in its JWT header.
 
 A key in a key management service never has to leave it. Call the service from `sign/3` and return its RS256 signature. See [Storage Adapters](storage-adapters.md#signing).
 

@@ -312,8 +312,10 @@ defmodule MyApp.Lti do
   end
 
   def sign(key_id, message) do
-    jwk = Repo.get_by!(Jwk, kid: key_id)
-    Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid), message)
+    case Repo.get_by(Jwk, kid: key_id) do
+      nil -> {:error, :unknown_key}
+      jwk -> Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid), message)
+    end
   end
 end
 ```

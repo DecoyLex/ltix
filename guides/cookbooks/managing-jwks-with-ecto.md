@@ -68,12 +68,14 @@ end
 
 @impl true
 def sign(_registration, key_id, message) do
-  key = Repo.get_by!(LtiKey, kid: key_id)
-  Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
+  case Repo.get_by(LtiKey, kid: key_id) do
+    nil -> {:error, :unknown_key}
+    key -> Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
+  end
 end
 ```
 
-`sign/3` looks the key up by the ID `key_id/1` returned, so a request that starts before a rotation still signs with the key its JWT names.
+`sign/3` looks the key up by the ID `key_id/1` returned, so a request that starts before a rotation still signs with the key whose ID is in its JWT header.
 
 ## JWKS controller
 

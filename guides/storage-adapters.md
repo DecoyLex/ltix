@@ -180,8 +180,10 @@ end
 
 @impl true
 def sign(_registration, key_id, message) do
-  key = Repo.get_by!(SigningKey, kid: key_id)
-  Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
+  case Repo.get_by(SigningKey, kid: key_id) do
+    nil -> {:error, :unknown_key}
+    key -> Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
+  end
 end
 ```
 

@@ -33,9 +33,9 @@ defmodule Ltix.StorageAdapter do
 
   `c:key_id/1` and `c:sign/3` are optional. Implement them when your tool
   calls Advantage services or builds deep linking responses. Ltix builds
-  each JWT and asks your adapter for the signature, so the private key
+  each JWT and calls your adapter for the signature, so the private key
   stays wherever you keep it. `Ltix.JWK.sign/2` signs with a key held in
-  your application:
+  your application.
 
       @impl true
       def key_id(registration) do
@@ -44,7 +44,10 @@ defmodule Ltix.StorageAdapter do
 
       @impl true
       def sign(_registration, key_id, message) do
-        Ltix.JWK.sign(MyApp.Lti.get_key!(key_id), message)
+        case MyApp.Lti.get_key(key_id) do
+          nil -> {:error, :unknown_key}
+          jwk -> Ltix.JWK.sign(jwk, message)
+        end
       end
 
   ## Failures
@@ -142,6 +145,9 @@ defmodule Ltix.StorageAdapter do
   Return `{:ok, signature}` with the RSASSA-PKCS1-v1_5 SHA-256 (RS256)
   signature of `message`, as raw bytes. `Ltix.JWK.sign/2` returns this for a
   key held in your application.
+
+  Sign with the key whose ID is `key_id`, and return `{:error, reason}` for a key
+  ID you can't sign with.
   """
   # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
   @callback sign(registration :: Registerable.t(), key_id :: String.t(), message :: binary()) ::
