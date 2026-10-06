@@ -70,7 +70,7 @@ end
 
 ## Checking your storage adapter
 
-`Ltix.Test.assert_storage_adapter!/2` checks your real adapter's registration and deployment lookups, protocol conversions, and nonce replay prevention. See [Testing your adapter](storage-adapters.md#testing-your-adapter) for factories and database sandbox setup.
+`Ltix.Test.assert_storage_adapter!/2` checks your real adapter's registration and deployment lookups, protocol conversions, nonce replay prevention, and signatures. See [Testing your adapter](storage-adapters.md#testing-your-adapter) for factories and database sandbox setup.
 
 ## Testing your controller
 

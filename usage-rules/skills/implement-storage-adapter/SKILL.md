@@ -367,7 +367,7 @@ These are non-negotiable requirements from the LTI spec and library:
   (string) columns. `sign/3` reconstructs them into `%Ltix.JWK{}` via `Ltix.JWK.new/1` and
   signs with `Ltix.JWK.sign/2`. Treat them with the same care as any secret.
 
-- **`sign/3` signs with the key `key_id/1` named.** Look the key up by the `key_id`
+- **`sign/3` signs with the key whose ID `key_id/1` returned.** Look the key up by the `key_id`
   argument, so a rotation between the two calls can't sign with a different key.
 
 - **`deployment_id` is case-sensitive** and at most 255 ASCII characters.
@@ -399,6 +399,11 @@ Repo.delete_all(from n in MyApp.Lti.Nonce, where: n.expires_at < ^DateTime.utc_n
 Ask the user how they want to schedule this (Oban, Quantum, manual GenServer, etc.).
 
 ## Step 6: Test the Callbacks
+
+Run `Ltix.Test.assert_storage_adapter!/2` against the adapter first. It checks the whole
+contract, including concurrent launches and, with the `:jwks` option, that signatures
+verify against the published key set. See the
+[Storage Adapters](https://hexdocs.pm/ltix/storage-adapters.md#testing-your-adapter) guide.
 
 Unit-test each storage adapter callback directly. These verify that your queries,
 protocol implementations, and nonce handling work correctly:

@@ -1,10 +1,10 @@
 # Storage Adapters
 
 Ltix doesn't assume your database, ORM, or persistence strategy. Your
-application owns all storage and provides lookups through the
+application manages all storage and provides lookups through the
 `Ltix.StorageAdapter` behaviour. This guide covers what each callback
 does, how to build a production-ready implementation with Ecto, and
-common pitfalls.
+common mistakes.
 
 ## Callback overview
 
@@ -29,15 +29,15 @@ When storage fails, return `{:error, reason}` from any callback. The login or la
 
 Return any struct that implements `Ltix.Registerable`. The library
 extracts the `Ltix.Registration` it needs via the protocol, and
-your original struct is preserved in the `Ltix.LaunchContext` — so
+your original struct is preserved in the `Ltix.LaunchContext`, so
 you can access your own fields (database IDs, tenant info, etc.)
 after a successful launch without an extra query.
 
 Ltix calls `get_registration/2` during login initiation with the login
 request's issuer and client_id, and again during launch validation
 with the ID Token's issuer and audience.
-The `client_id` may be `nil` — some platforms don't include it in the
-login initiation request. Your adapter must handle both cases:
+The `client_id` may be `nil` because some platforms don't include it in
+the login initiation request. Your adapter must handle both cases.
 
 ```elixir
 def get_registration(issuer, nil) do
@@ -55,7 +55,7 @@ def get_registration(issuer, client_id) do
 end
 ```
 
-Your Ecto schema implements `Ltix.Registerable` to map its fields:
+Your Ecto schema implements `Ltix.Registerable` to map its fields.
 
 ```elixir
 defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do
@@ -166,9 +166,9 @@ The insert is atomic. If two requests race with the same nonce, only one of them
 
 ## Signing
 
-Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and asks your adapter for the signature, so your private key stays wherever you keep it.
+Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and calls your adapter to get the signature, so your private key stays wherever you keep it.
 
-Both callbacks receive the registration struct you gave Ltix, either from `get_registration/2` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/1` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/3` gets the same ID back with the message to sign.
+Both callbacks receive the registration struct you gave Ltix, either from `get_registration/2` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/1` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/3` receives the same ID with the message to sign.
 
 For keys stored in your database, `Ltix.JWK.sign/2` produces the signature.
 
@@ -187,13 +187,13 @@ def sign(_registration, key_id, message) do
 end
 ```
 
-For a key held in a key management service, call the service from `sign/3` and return `{:ok, signature}` with its RS256 (RSASSA-PKCS1-v1_5 with SHA-256) signature of the message.
+For a key stored in a key management service, call the service from `sign/3` and return `{:ok, signature}` with its RS256 (RSASSA-PKCS1-v1_5 with SHA-256) signature of the message.
 
 Calling a service or building a deep linking response with an adapter that lacks these callbacks returns `Ltix.Errors.Unknown.StorageError`.
 
 ## Putting it together
 
-A complete Ecto-backed adapter:
+The following is a complete Ecto-backed adapter.
 
 ```elixir
 defmodule MyApp.LtiStorage do
@@ -239,7 +239,7 @@ defmodule MyApp.LtiStorage do
 end
 ```
 
-The protocol implementations live on your Ecto schemas:
+The protocol implementations are defined for your Ecto schemas.
 
 ```elixir
 defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do
@@ -263,7 +263,7 @@ end
 
 After a successful launch, `context.registration` is your
 `%PlatformRegistration{}` and `context.deployment` is your
-`%PlatformDeployment{}` — access your own fields directly:
+`%PlatformDeployment{}`, so you can access your own fields directly.
 
 ```elixir
 context.registration.id          #=> 42
@@ -273,7 +273,7 @@ context.deployment.id            #=> 99
 
 ## Testing your adapter
 
-Use `Ltix.Test.assert_storage_adapter!/2` to check registration and deployment lookups, returned records, and nonce replay prevention. It returns `:ok` or raises `ExUnit.AssertionError` with the failing contract check.
+Use `Ltix.Test.assert_storage_adapter!/2` to check registration and deployment lookups, returned records, nonce replay prevention, and signing. It returns `:ok` or raises `ExUnit.AssertionError` with the failing contract check.
 
 Pass factories that persist the supplied registration and deployment details and return your application structs. Run against isolated test storage and clean up through your normal test setup.
 
@@ -291,12 +291,15 @@ test "storage adapter satisfies the contract" do
         registration_id: registration.id
       })
     end,
+    jwks: fn _registration -> MyApp.Lti.published_jwks() end,
     prepare_process: fn ->
       Ecto.Adapters.SQL.Sandbox.allow(MyApp.Repo, parent, self())
     end
   )
 end
 ```
+
+When your adapter has `key_id/1` and `sign/3`, pass `:jwks` a function that returns the key set your JWKS endpoint serves. The check signs a message through your adapter and verifies it against the key in that key set whose ID `key_id/1` returned. Leave `:jwks` out for an adapter without the signing callbacks.
 
 Preserve the lookup identifiers supplied to your factories. If lookups preload associations or change metadata, pass `registration_identity: & &1.id` and `deployment_identity: & &1.id`, or projections suited to your records.
 
@@ -305,7 +308,7 @@ Omit `:prepare_process` when your adapter needs neither database sandbox access 
 ## Per-call override
 
 You can bypass the configured adapter for a specific call by passing
-`:storage_adapter` in opts:
+`:storage_adapter` in opts.
 
 ```elixir
 Ltix.handle_login(params, launch_url, storage_adapter: MyApp.TestStorage)

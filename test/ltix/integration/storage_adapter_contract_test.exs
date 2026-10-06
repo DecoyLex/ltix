@@ -242,6 +242,66 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
   end
 
+  # Adds the signing callbacks to `CustomStorageAdapter`, signing with the
+  # key and failure mode the test sets.
+  defmodule SigningAdapter do
+    @moduledoc false
+    @behaviour Ltix.StorageAdapter
+
+    @impl Ltix.StorageAdapter
+    defdelegate get_registration(issuer, client_id), to: CustomStorageAdapter
+
+    @impl Ltix.StorageAdapter
+    defdelegate get_deployment(registration, deployment_id), to: CustomStorageAdapter
+
+    @impl Ltix.StorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at), to: CustomStorageAdapter
+
+    @impl Ltix.StorageAdapter
+    def key_id(%CustomRegistration{}) do
+      case Process.get(:signing_failure) do
+        :key_id_error -> {:error, :database_unavailable}
+        :blank_key_id -> {:ok, ""}
+        :unpublished_key_id -> {:ok, Process.get(:other_key).kid}
+        _ -> {:ok, Process.get(:signing_key).kid}
+      end
+    end
+
+    @impl Ltix.StorageAdapter
+    def sign(%CustomRegistration{}, key_id, message) do
+      signing_key = Process.get(:signing_key)
+      other_key = Process.get(:other_key)
+
+      case Process.get(:signing_failure) do
+        :unpublished_key_id when key_id == other_key.kid -> Ltix.JWK.sign(other_key, message)
+        :sign_error -> {:error, :database_unavailable}
+        :sign_wrong_result -> {:ok, :not_a_signature}
+        :wrong_key -> Ltix.JWK.sign(other_key, message)
+        :ignore_message -> Ltix.JWK.sign(signing_key, "another message")
+        :ignore_key_id -> Ltix.JWK.sign(signing_key, message)
+        _ when key_id == signing_key.kid -> Ltix.JWK.sign(signing_key, message)
+        _ -> {:error, :unknown_key}
+      end
+    end
+  end
+
+  # Exports one of the two signing callbacks.
+  defmodule HalfSigningAdapter do
+    @moduledoc false
+
+    defdelegate get_registration(issuer, client_id), to: CustomStorageAdapter
+    defdelegate get_deployment(registration, deployment_id), to: CustomStorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at), to: CustomStorageAdapter
+    def key_id(_registration), do: {:ok, "key"}
+  end
+
+  setup_all do
+    %{
+      signing_key: Ltix.JWK.generate(key_size: 2048),
+      other_key: Ltix.JWK.generate(key_size: 2048)
+    }
+  end
+
   setup do
     pid = start_supervised!({CustomStorageAdapter, registrations: [], deployments: []})
     CustomStorageAdapter.set_pid(pid)
@@ -404,6 +464,65 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     assert_receive {:deployment_created, registration, first}
     assert_receive {:deployment_created, ^registration, second}
     refute first == second
+  end
+
+  describe "signing callbacks" do
+    setup %{opts: opts, signing_key: signing_key, other_key: other_key} do
+      Process.put(:signing_key, signing_key)
+      Process.put(:other_key, other_key)
+
+      %{opts: opts ++ [jwks: fn %CustomRegistration{} -> Ltix.JWK.to_jwks(signing_key) end]}
+    end
+
+    test "accepts signatures that verify against the published key set", %{opts: opts} do
+      assert :ok = Ltix.Test.assert_storage_adapter!(SigningAdapter, opts)
+    end
+
+    for {failure, message} <- [
+          key_id_error: "key_id/1.*database_unavailable",
+          blank_key_id: "key_id/1.*non-empty string",
+          unpublished_key_id: "key_id/1.*key set",
+          sign_error: "sign/3.*database_unavailable",
+          sign_wrong_result: "sign/3.*signature",
+          wrong_key: "sign/3.*verifies",
+          ignore_message: "sign/3.*verifies",
+          ignore_key_id: "sign/3.*key ID it can't sign with"
+        ] do
+      test "rejects #{failure} with a useful assertion failure", %{opts: opts} do
+        Process.put(:signing_failure, unquote(failure))
+
+        assert_raise ExUnit.AssertionError, Regex.compile!(unquote(message), "s"), fn ->
+          Ltix.Test.assert_storage_adapter!(SigningAdapter, opts)
+        end
+      end
+    end
+
+    test "rejects a published key set that includes a private key", %{opts: opts} do
+      {_type, private_key} = JOSE.JWK.to_map(Ltix.JWK.to_jose(Process.get(:signing_key)))
+      opts = Keyword.put(opts, :jwks, fn _registration -> %{"keys" => [private_key]} end)
+
+      assert_raise ExUnit.AssertionError, ~r/jwks.*private key/s, fn ->
+        Ltix.Test.assert_storage_adapter!(SigningAdapter, opts)
+      end
+    end
+
+    test "requires the jwks option when the adapter signs", %{opts: opts} do
+      assert_raise InvalidOption, ~r/jwks.*key_id\/1 and sign\/3/s, fn ->
+        Ltix.Test.assert_storage_adapter!(SigningAdapter, Keyword.delete(opts, :jwks))
+      end
+    end
+
+    test "rejects the jwks option for an adapter that doesn't sign", %{opts: opts} do
+      assert_raise InvalidOption, ~r/jwks.*neither key_id\/1 nor sign\/3/s, fn ->
+        Ltix.Test.assert_storage_adapter!(CustomStorageAdapter, opts)
+      end
+    end
+
+    test "rejects an adapter that exports only one signing callback", %{opts: opts} do
+      assert_raise InvalidOption, ~r/storage_adapter.*key_id\/1 and sign\/3/s, fn ->
+        Ltix.Test.assert_storage_adapter!(HalfSigningAdapter, opts)
+      end
+    end
   end
 
   test "reports invalid factory results as fixture failures", %{opts: opts} do

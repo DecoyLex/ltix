@@ -4,11 +4,13 @@ defmodule Ltix.Test.StorageAdapterContract do
   alias Ltix.Deployable
   alias Ltix.Deployment
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
   alias Ltix.Options
   alias Ltix.Records
   alias Ltix.Registerable
   alias Ltix.Registration
+  alias Ltix.StorageAdapter
   alias Ltix.Test.Platform
 
   @schema Zoi.keyword(
@@ -18,6 +20,7 @@ defmodule Ltix.Test.StorageAdapterContract do
               registration_identity: Zoi.function(arity: 1),
               deployment_identity: Zoi.function(arity: 1),
               prepare_process: Zoi.function(arity: 0),
+              jwks: Zoi.function(arity: 1),
               auto_create_deployments: Zoi.boolean() |> Zoi.default(false),
               timeout:
                 Zoi.integer()
@@ -31,10 +34,19 @@ defmodule Ltix.Test.StorageAdapterContract do
   def verify!(adapter, opts) do
     opts = Options.parse!(opts, @schema)
     validate_adapter!(adapter)
+    validate_signing!(adapter, Keyword.has_key?(opts, :jwks))
     platforms = create_platforms!(opts)
     check_registrations!(adapter, platforms, opts)
     check_deployments!(adapter, platforms, opts)
     Enum.each(platforms, &check_nonces!(adapter, &1, opts))
+
+    # After validation, the key set is given exactly when the adapter signs.
+    if Keyword.has_key?(opts, :jwks) do
+      platforms
+      |> Enum.uniq_by(& &1.registration)
+      |> Enum.each(&check_signing!(adapter, &1, opts))
+    end
+
     :ok
   end
 
@@ -50,12 +62,48 @@ defmodule Ltix.Test.StorageAdapterContract do
     end
   end
 
+  # The signing callbacks are optional. An adapter exports both or neither,
+  # and the key set is given exactly when it exports them.
+  defp validate_signing!(adapter, key_set_given?) do
+    exported =
+      Enum.count([key_id: 1, sign: 3], fn {name, arity} ->
+        function_exported?(adapter, name, arity)
+      end)
+
+    validate_signing!(adapter, exported, key_set_given?)
+  end
+
+  defp validate_signing!(_adapter, 2, true), do: :ok
+  defp validate_signing!(_adapter, 0, false), do: :ok
+
+  defp validate_signing!(_adapter, 2, false) do
+    raise InvalidOption,
+      key: :jwks,
+      reason: "the key set is required to check an adapter that exports key_id/1 and sign/3"
+  end
+
+  defp validate_signing!(_adapter, 0, true) do
+    raise InvalidOption,
+      key: :jwks,
+      reason: "the adapter exports neither key_id/1 nor sign/3, so no signature can be checked"
+  end
+
+  defp validate_signing!(adapter, 1, _key_set_given?) do
+    raise InvalidOption,
+      key: :storage_adapter,
+      value: adapter,
+      reason: "must export both key_id/1 and sign/3, or neither"
+  end
+
   defp create_platforms!(opts) do
     identifier = Base.encode16(:crypto.strong_rand_bytes(16), case: :lower)
     issuer = "https://#{identifier}.example.com/Platform"
     other_issuer = "https://other-#{identifier}.example.com/Platform"
     client_id = "Client-#{identifier}"
     deployment_id = "Deployment-#{identifier}"
+
+    # The checks do not use the platform's key.
+    jwk = JWK.generate(key_size: 2048)
 
     [first, second, third] =
       Enum.map(
@@ -88,11 +136,7 @@ defmodule Ltix.Test.StorageAdapterContract do
             "registration factory must preserve issuer and client_id"
           )
 
-          platform = %Platform{
-            registration: record,
-            deployment: nil,
-            jwk: JWK.generate(key_size: 2048)
-          }
+          platform = %Platform{registration: record, deployment: nil, jwk: jwk}
 
           create_deployment!(platform, deployment_id, opts)
         end
@@ -374,6 +418,88 @@ defmodule Ltix.Test.StorageAdapterContract do
     )
   end
 
+  # Signs the way the library does and verifies the result against the key
+  # set the tool publishes.
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
+  defp check_signing!(adapter, platform, opts) do
+    registration = stored_registration!(adapter, platform)
+    jwt = sign_jwt!(adapter, registration)
+    %JOSE.JWS{fields: %{"kid" => key_id}} = JOSE.JWT.peek_protected(jwt)
+    keys = published_keys!(registration, opts)
+
+    label = "#{inspect(adapter)} key_id/1 must return the ID of a key in the published key set"
+
+    public_key =
+      case Enum.find(keys, &(&1["kid"] == key_id)) do
+        nil -> fail!(label, "one of #{inspect(Enum.map(keys, & &1["kid"]))}", key_id)
+        key -> invoke!(fn -> JOSE.JWK.from_map(key) end, "jwks option")
+      end
+
+    label =
+      "#{inspect(adapter)} sign/3 must return a signature that verifies against the published key"
+
+    case JOSE.JWS.verify_strict(public_key, ["RS256"], jwt) do
+      {true, _payload, _jws} -> :ok
+      _invalid -> fail!(label, "a signature by key #{inspect(key_id)}", "another signature")
+    end
+
+    label =
+      "#{inspect(adapter)} sign/3 must return {:error, reason} for a key ID it can't sign with"
+
+    unknown_key_id = "Unknown-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}"
+
+    case call!(adapter, :sign, [registration, unknown_key_id, "message"], label) do
+      {:error, _reason} -> :ok
+      result -> fail!(label, "{:error, reason}", result)
+    end
+  end
+
+  defp sign_jwt!(adapter, registration) do
+    label = "#{inspect(adapter)} signing"
+
+    case invoke!(
+           fn -> StorageAdapter.sign_jwt(adapter, registration, %{"sub" => "check"}) end,
+           label
+         ) do
+      {:ok, jwt} ->
+        jwt
+
+      {:error, %StorageError{callback: :key_id, result: result}} ->
+        fail!(
+          "#{inspect(adapter)} key_id/1 must return {:ok, key_id} with a non-empty string",
+          "{:ok, key_id}",
+          result
+        )
+
+      {:error, %StorageError{callback: :sign, result: result}} ->
+        fail!(
+          "#{inspect(adapter)} sign/3 must return {:ok, signature} with the RS256 signature",
+          "{:ok, signature}",
+          result
+        )
+
+      {:error, error} ->
+        fail!(label, "{:ok, jwt}", error)
+    end
+  end
+
+  # Returns the keys of the key set the `:jwks` option returns.
+  defp published_keys!(registration, opts) do
+    keys =
+      case invoke!(fn -> Keyword.fetch!(opts, :jwks).(registration) end, "jwks option") do
+        %{"keys" => keys} when is_list(keys) -> keys
+        result -> fail!("The jwks option must return a key set", ~s(%{"keys" => [...]}), result)
+      end
+
+    expect!(
+      Enum.any?(keys, &is_map_key(&1, "d")),
+      false,
+      "The jwks option must return a key set without a private key"
+    )
+
+    keys
+  end
+
   defp concurrent_results!(operation, opts, label) do
     {:ok, supervisor} = Task.Supervisor.start_link()
     parent = self()
@@ -477,7 +603,7 @@ defmodule Ltix.Test.StorageAdapterContract do
     do: fail!(label, "a valid #{inspect(protocol)} conversion", result)
 
   # Returns the record the adapter's `get_registration/2` returns for a
-  # platform, which is the record a launch gives the other callbacks.
+  # platform, which is the record a launch passes to the other callbacks.
   defp stored_registration!(adapter, platform) do
     label = "#{inspect(adapter)} get_registration/2 must return the registration"
     resolved = resolve!(platform.registration, Registerable, "registration factory")
