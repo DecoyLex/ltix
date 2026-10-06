@@ -66,12 +66,29 @@ defmodule Ltix.Test.StorageAdapter do
     end)
   end
 
-  @doc "Register the adapter PID in the calling process."
+  @doc """
+  Register the adapter PID in the calling process.
+
+  Processes the caller starts, such as tasks and LiveViews, use the same
+  adapter.
+  """
   def set_pid(pid), do: Process.put(@pid_key, pid)
+
+  # Finds the adapter registered in this process or the process that started it.
+  defp pid do
+    Process.get(@pid_key) ||
+      Enum.find_value(Process.get(:"$callers", []), fn process ->
+        case Process.info(process, :dictionary) do
+          {:dictionary, dictionary} -> Keyword.get(dictionary, @pid_key)
+          nil -> nil
+        end
+      end) ||
+      raise "No Ltix.Test.StorageAdapter registered. Call set_pid/1 in the test process."
+  end
 
   @impl Ltix.StorageAdapter
   def get_registration(issuer, client_id) do
-    registrations = Agent.get(Process.get(@pid_key), & &1.registrations)
+    registrations = Agent.get(pid(), & &1.registrations)
 
     matches =
       for {{^issuer, registered_client_id}, registration} <- registrations,
@@ -88,7 +105,7 @@ defmodule Ltix.Test.StorageAdapter do
   def get_deployment(registration, deployment_id) do
     key = {registration_key(registration), deployment_id}
 
-    Agent.get(Process.get(@pid_key), fn state ->
+    Agent.get(pid(), fn state ->
       case Map.fetch(state.deployments, key) do
         {:ok, _deployment} = found -> found
         :error -> {:error, :not_found}
@@ -98,19 +115,19 @@ defmodule Ltix.Test.StorageAdapter do
 
   @impl Ltix.StorageAdapter
   def store_nonce(nonce, _registration) do
-    Agent.update(Process.get(@pid_key), fn state ->
+    Agent.update(pid(), fn state ->
       %{state | nonces: MapSet.put(state.nonces, nonce)}
     end)
   end
 
   @doc "Return the set of stored (unused) nonces."
   def stored_nonces do
-    Agent.get(Process.get(@pid_key), fn state -> state.nonces end)
+    Agent.get(pid(), fn state -> state.nonces end)
   end
 
   @impl Ltix.StorageAdapter
   def validate_nonce(nonce, _registration) do
-    Agent.get_and_update(Process.get(@pid_key), fn state ->
+    Agent.get_and_update(pid(), fn state ->
       cond do
         MapSet.member?(state.used_nonces, nonce) ->
           {{:error, :nonce_already_used}, state}

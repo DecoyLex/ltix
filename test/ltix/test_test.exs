@@ -493,6 +493,17 @@ defmodule Ltix.TestTest do
       end
     end
 
+    test "serves processes the test starts", %{platform: platform} do
+      task =
+        Task.async(fn ->
+          {:ok, login_result} = do_login(platform)
+          nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+          do_callback(platform, login_result, nonce, [])
+        end)
+
+      assert {:ok, %LaunchContext{}} = Task.await(task)
+    end
+
     test "resolves registrations given without a deployment" do
       platform = Ltix.Test.setup_platform!(client_id: "new-tool")
       {:ok, pid} = StorageAdapter.start_link(registrations: [platform.registration])
