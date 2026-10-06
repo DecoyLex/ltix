@@ -39,6 +39,8 @@ defmodule Ltix.JWT.KeySet do
   succeeds.
   """
 
+  alias Ltix.AppConfig
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.HTTP
   alias Ltix.JWT.KeySet.ETSCache
@@ -132,18 +134,37 @@ defmodule Ltix.JWT.KeySet do
 
     result =
       req_opts
-      |> Keyword.put(:method, :get)
+      |> Keyword.merge(method: :get, decode_body: false)
       |> HTTP.request()
 
     case result do
       {:ok, %Req.Response{status: 200, body: body, headers: headers}} ->
-        {:ok, parse_jwks(body), parse_max_age(headers)}
+        with {:ok, jwks} <- decode_jwks(body) do
+          {:ok, parse_jwks(jwks), parse_max_age(headers)}
+        end
 
       {:ok, %Req.Response{} = response} ->
         {:error, HTTP.status_error(response, jwks_uri, "Sec §6.3")}
 
       {:error, _error} = error ->
         error
+    end
+  end
+
+  # Platforms serve key sets with various content types, so the body is
+  # decoded whatever its content type.
+  defp decode_jwks(body) do
+    case AppConfig.json_library!().decode(body) do
+      {:ok, jwks} when is_map(jwks) ->
+        {:ok, jwks}
+
+      _not_an_object ->
+        {:error,
+         MalformedResponse.exception(
+           service: __MODULE__,
+           reason: "key set is not a JSON object",
+           spec_ref: "Sec §6.3"
+         )}
     end
   end
 

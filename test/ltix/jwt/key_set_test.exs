@@ -7,6 +7,17 @@ defmodule Ltix.JWT.KeySetTest do
 
   @tool_jwk Ltix.JWK.generate()
 
+  defmodule NoCache do
+    @moduledoc false
+    @behaviour Ltix.JWT.KeySet.Cache
+
+    @impl Ltix.JWT.KeySet.Cache
+    def get(_jwks_uri), do: :miss
+
+    @impl Ltix.JWT.KeySet.Cache
+    def put(_jwks_uri, _entry, _max_age), do: :ok
+  end
+
   setup do
     platform_jwk = Ltix.JWK.generate()
     jwks = Ltix.JWK.to_jwks(platform_jwk)
@@ -188,6 +199,40 @@ defmodule Ltix.JWT.KeySetTest do
         assert {:error, %Ltix.Errors.Security.KidNotFound{kid: ^kid}} =
                  KeySet.get_key(ctx.registration, kid, opts)
       end
+    end
+
+    test "decodes a key set served without a JSON content type", ctx do
+      body = Ltix.AppConfig.json_library!().encode!(ctx.jwks)
+
+      for content_type <- ["text/plain", nil] do
+        Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+          conn =
+            if content_type,
+              do: Plug.Conn.put_resp_content_type(conn, content_type),
+              else: conn
+
+          Plug.Conn.send_resp(conn, 200, body)
+        end)
+
+        kid = ctx.platform_jwk.kid
+
+        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+                 KeySet.get_key(ctx.registration, kid,
+                   jwks_cache: NoCache,
+                   req_options: req_options()
+                 )
+      end
+    end
+
+    test "returns MalformedResponse for a key set that is not JSON", ctx do
+      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("text/html")
+        |> Plug.Conn.send_resp(200, "<html>maintenance</html>")
+      end)
+
+      assert {:error, %Ltix.Errors.Invalid.MalformedResponse{service: KeySet}} =
+               KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
     end
 
     test "returns TransportError on network failure", ctx do
