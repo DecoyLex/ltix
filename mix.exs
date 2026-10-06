@@ -82,6 +82,7 @@ defmodule Ltix.MixProject do
         "guides/what-is-ltix.md",
         "guides/concepts.md",
         "guides/comparing-lti-libraries.md",
+        "guides/threat-model.md",
         "guides/getting-started.md",
         "guides/testing-with-ims-ri.md",
         "guides/storage-adapters.md",
@@ -144,7 +145,8 @@ defmodule Ltix.MixProject do
         About: [
           "guides/what-is-ltix.md",
           "guides/concepts.md",
-          "guides/comparing-lti-libraries.md"
+          "guides/comparing-lti-libraries.md",
+          "guides/threat-model.md"
         ],
         "Getting started": [
           "guides/getting-started.md",
