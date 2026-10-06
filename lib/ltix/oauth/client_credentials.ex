@@ -19,6 +19,7 @@ defmodule Ltix.OAuth.ClientCredentials do
   ## Options
 
     * `:req_options` - options passed through to `Req.request/2` (default: `[]`)
+    * `:local_network_access` - see `Ltix.HTTP.local_network_access_option/0`
   """
   @spec request_token(Registration.t(), [String.t()], keyword()) ::
           {:ok, AccessToken.t()} | {:error, Exception.t()}
@@ -51,6 +52,7 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:headers, [{"content-type", "application/x-www-form-urlencoded"}])
       |> Keyword.put(:body, body)
       |> Keyword.put(:retry, false)
+      |> Keyword.put(:local_network_access, Keyword.get(opts, :local_network_access))
       |> Keyword.merge(method: :post, service: :oauth, spec_ref: "RFC 6749 §5.1")
 
     with {:ok, response} <- HTTP.request(req_opts) do
@@ -62,11 +64,11 @@ defmodule Ltix.OAuth.ClientCredentials do
   @doc false
   @spec request_token_span(atom(), Registration.t(), [String.t()], keyword()) ::
           {:ok, AccessToken.t()} | {:error, Exception.t()}
-  def request_token_span(action, registration, scopes, req_options) do
+  def request_token_span(action, registration, scopes, opts) do
     metadata = %{scopes_requested: scopes}
 
     :telemetry.span([:ltix, :oauth, action], metadata, fn ->
-      result = request_token(registration, scopes, req_options: req_options)
+      result = request_token(registration, scopes, opts)
       {result, Map.merge(metadata, stop_metadata(result))}
     end)
   end

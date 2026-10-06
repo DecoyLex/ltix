@@ -269,7 +269,8 @@ defmodule Ltix.MembershipsService do
       with {:ok, pages} <-
              Pagination.stream_results(url, request_headers(client),
                params: query_params(opts),
-               req_options: HTTP.req_options(client.req_options, __MODULE__)
+               req_options: HTTP.req_options(client.req_options, __MODULE__),
+               local_network_access: client.local_network_access
              ) do
         consume.(pages)
       end

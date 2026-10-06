@@ -1,6 +1,7 @@
 defmodule Ltix.Integration.TransportSecurityTest do
   use ExUnit.Case, async: false
 
+  alias Ltix.Errors.Security.LocalNetworkAccessDenied
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
@@ -74,7 +75,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     end)
 
     for url <- [
-          "http://127.0.0.1/lineitems/1",
+          "http://grades.example.com/lineitems/1",
           "https:///lineitems/1",
           "/lineitems/1",
           "https://secret@grades.example.com/lineitems/1",
@@ -109,7 +110,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
   for {name, authority, host} <- [
         {"registered-name punctuation", "host!name.example", "host!name.example"},
         {"percent-encoded registered names", "m%C3%BCnchen.example", "m%c3%bcnchen.example"},
-        {"IPv6 literals", "[2001:db8::1]", "2001:db8::1"},
+        {"IPv6 literals", "[2606:4700:4700::1111]", "2606:4700:4700::1111"},
         {"trailing dots", "grades.example.com.", "grades.example.com."}
       ] do
     test "accepts HTTPS endpoints with #{name}", %{client: client, score: score} do
@@ -149,9 +150,9 @@ defmodule Ltix.Integration.TransportSecurityTest do
     client = %{
       client
       | endpoints: %{
-          GradeService => %AGSEndpoint{line_items: "http://127.0.0.1/lineitems"},
+          GradeService => %AGSEndpoint{line_items: "http://grades.example.com/lineitems"},
           MembershipsService => %MembershipsEndpoint{
-            context_memberships_url: "http://127.0.0.1/members"
+            context_memberships_url: "http://roster.example.com/members"
           }
         }
     }
@@ -185,7 +186,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     for url <- [
           "https://grades.example.com/lineitems/1",
           "HTTPS://GRADES.example.com:443/lineitems/1",
-          "https://127.0.0.1:8443/lineitems/1"
+          "https://203.0.113.9:8443/lineitems/1"
         ] do
       assert :ok = GradeService.post_score(client, score, line_item: url)
     end
@@ -196,7 +197,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     assert_receive {:grade_request, :https, "grades.example.com", 443,
                     ["Bearer secret-bearer-token"]}
 
-    assert_receive {:grade_request, :https, "127.0.0.1", 8443, ["Bearer secret-bearer-token"]}
+    assert_receive {:grade_request, :https, "203.0.113.9", 8443, ["Bearer secret-bearer-token"]}
   end
 
   test "rejects insecure OAuth and JWKS URLs even on directly constructed registrations", %{
@@ -213,8 +214,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
 
     registration = %{
       registration
-      | token_endpoint: "http://127.0.0.1/token",
-        jwks_uri: "http://127.0.0.1/keys"
+      | token_endpoint: "http://platform.example.com/token",
+        jwks_uri: "http://platform.example.com/keys"
     }
 
     assert {:error, %TransportError{} = error} =
@@ -916,7 +917,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     Req.Test.verify!(KeySet)
   end
 
-  test "an insecure direct score URL never opens a loopback connection", %{
+  test "a loopback score URL never opens a connection without loopback access", %{
     client: client,
     score: score
   } do
@@ -925,7 +926,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     {:ok, port} = :inet.port(listener)
     client = %{client | req_options: [retry: false]}
 
-    assert {:error, %TransportError{}} =
+    assert {:error, %LocalNetworkAccessDenied{}} =
              GradeService.post_score(client, score,
                line_item: "http://127.0.0.1:#{port}/lineitems/1"
              )
@@ -988,7 +989,13 @@ defmodule Ltix.Integration.TransportSecurityTest do
           ]
         ] do
       {url, server} = start_https_endpoint(configuration)
-      client = %{client | req_options: Keyword.put(tls_options, :retry, false)}
+
+      client = %{
+        client
+        | req_options: Keyword.put(tls_options, :retry, false),
+          local_network_access: :loopback
+      }
+
       assert :ok = GradeService.post_score(client, score, line_item: url)
       assert {:ok, request} = Task.await(server)
       assert request =~ "POST /lineitems/1/scores HTTP/1.1"
@@ -1001,9 +1008,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
     score: score
   } do
     {url, server} = start_https_endpoint(certificate_configuration())
-    client = %{client | req_options: [retry: false]}
-    assert {:error, error} = GradeService.post_score(client, score, line_item: url)
-    assert Exception.message(error) =~ "Unknown CA"
+    client = %{client | req_options: [retry: false], local_network_access: :loopback}
+    assert {:error, %TransportError{}} = GradeService.post_score(client, score, line_item: url)
     assert {:error, _handshake_error} = Task.await(server)
   end
 

@@ -672,7 +672,8 @@ defmodule Ltix.GradeService do
   defp fetch_pages(%Client{} = client, url, accept, params) do
     Pagination.stream_results(url, auth_headers(client, accept),
       params: params,
-      req_options: req_options(client)
+      req_options: req_options(client),
+      local_network_access: client.local_network_access
     )
   end
 
@@ -692,7 +693,12 @@ defmodule Ltix.GradeService do
     request_options =
       Keyword.merge(
         req_options(client),
-        [method: method, url: url, headers: headers] ++ body_options
+        [
+          method: method,
+          url: url,
+          headers: headers,
+          local_network_access: client.local_network_access
+        ] ++ body_options
       )
 
     case HTTP.request(request_options) do

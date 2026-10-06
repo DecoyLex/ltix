@@ -36,12 +36,13 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Records
   alias Ltix.Registration
 
-  defstruct [:token, :registration, :req_options, endpoints: %{}]
+  defstruct [:token, :registration, :req_options, :local_network_access, endpoints: %{}]
 
   @type t :: %__MODULE__{
           token: AccessToken.t(),
           registration: Registration.t(),
           req_options: keyword(),
+          local_network_access: :none | :local | :loopback | nil,
           endpoints: %{module() => term()}
         }
 
@@ -49,6 +50,7 @@ defmodule Ltix.OAuth.Client do
     req_options:
       Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.request/2`.")
       |> Zoi.default([]),
+    local_network_access: Ltix.HTTP.local_network_access_option(),
     require_all_scopes:
       Zoi.boolean(
         description:
@@ -201,7 +203,8 @@ defmodule Ltix.OAuth.Client do
            :refresh,
            client.registration,
            scopes,
-           client.req_options
+           req_options: client.req_options,
+           local_network_access: client.local_network_access
          ) do
       {:ok, token} ->
         {:ok, %{client | token: token}}
@@ -245,6 +248,7 @@ defmodule Ltix.OAuth.Client do
           token: token,
           registration: registration,
           req_options: req_options,
+          local_network_access: Keyword.get(opts, :local_network_access),
           endpoints: endpoints
         },
         Keyword.fetch!(opts, :require_all_scopes)

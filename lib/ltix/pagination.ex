@@ -24,7 +24,8 @@ defmodule Ltix.Pagination do
                          description:
                            "HTTP request options, merged over `config :ltix, req_options`."
                        )
-                       |> Zoi.default([])
+                       |> Zoi.default([]),
+                     local_network_access: Ltix.HTTP.local_network_access_option()
                    ],
                    unrecognized_keys: :error
                  )
@@ -300,6 +301,10 @@ defmodule Ltix.Pagination do
   defp trim_whitespace(input), do: input
 
   defp req_options(opts) do
-    Keyword.merge(Ltix.HTTP.req_options([], __MODULE__), Keyword.get(opts, :req_options, []))
+    Keyword.put(
+      Keyword.merge(Ltix.HTTP.req_options([], __MODULE__), Keyword.get(opts, :req_options, [])),
+      :local_network_access,
+      Keyword.get(opts, :local_network_access)
+    )
   end
 end

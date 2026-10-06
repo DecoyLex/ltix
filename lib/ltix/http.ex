@@ -5,8 +5,27 @@ defmodule Ltix.HTTP do
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Security.AccessDenied
+  alias Ltix.Errors.Security.LocalNetworkAccessDenied
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
+  alias Ltix.HTTP.AddressSpace
+
+  @doc """
+  The `:local_network_access` option of every function that sends platform
+  requests.
+  """
+  @spec local_network_access_option() :: Zoi.schema()
+  def local_network_access_option do
+    Zoi.nullish(
+      Zoi.enum([:none, :local, :loopback],
+        description: """
+        Addresses platform requests may reach besides public ones. `:local` adds
+        private network addresses, and `:loopback` adds those and this machine.
+        Defaults to `config :ltix, :local_network_access`, then `:none`.
+        """
+      )
+    )
+  end
 
   @doc """
   Merge application-level `req_options` with caller-provided options and
@@ -30,6 +49,10 @@ defmodule Ltix.HTTP do
   @doc """
   Send a request only to an absolute HTTPS URL without a userinfo component (RFC 3986 §3.2.1).
 
+  HTTP is accepted for loopback and local hosts. A request that connects to a
+  local or loopback address returns `Ltix.Errors.Security.LocalNetworkAccessDenied`
+  unless the `:local_network_access` option or configuration allows it.
+
   A request that cannot connect to the platform returns `Ltix.Errors.Unknown.TransportError`.
   A JSON body is decoded unless `decode_body: false` is given. Invalid JSON in a
   successful response returns `Ltix.Errors.Invalid.MalformedResponse`, labeled
@@ -40,10 +63,13 @@ defmodule Ltix.HTTP do
   def request(opts) do
     {labels, opts} = Keyword.split(opts, [:service, :spec_ref])
     {decode?, opts} = Keyword.pop(opts, :decode_body, true)
+    {access, opts} = Keyword.pop(opts, :local_network_access)
     url = Keyword.get(opts, :url)
 
     with {:ok, uri} <- validate_url(url),
-         :ok <- validate_certificate_verification(opts) do
+         :ok <- validate_certificate_verification(opts),
+         {:ok, opts} <-
+           restrict_addresses(opts, uri, url, access || AppConfig.local_network_access()) do
       opts
       |> Keyword.merge(
         url: uri,
@@ -94,6 +120,11 @@ defmodule Ltix.HTTP do
     end)
   end
 
+  # [LNA §2.2](https://wicg.github.io/local-network-access/#local-network-request)
+  defp to_ltix_error({:error, %Req.TransportError{reason: {:ltix_address_space, space}}}, url) do
+    {:error, LocalNetworkAccessDenied.exception(url: url, address_space: space)}
+  end
+
   defp to_ltix_error({:error, error}, url) do
     if Errors.ltix_error?(error) do
       {:error, error}
@@ -136,16 +167,93 @@ defmodule Ltix.HTTP do
   def validate_url(url) when is_binary(url) do
     with {:ok, %URI{scheme: scheme, host: host, userinfo: nil} = uri}
          when is_binary(scheme) and is_binary(host) and host != "" <- URI.new(url),
-         true <- String.downcase(scheme, :ascii) == "https",
-         port = uri.port || 443,
+         scheme = String.downcase(scheme, :ascii),
+         host = String.downcase(host, :ascii),
+         true <- scheme == "https" or (scheme == "http" and host_address_space(host) != :public),
+         port = uri.port || URI.default_port(scheme),
          true <- port in 1..65_535 do
-      {:ok, %{uri | scheme: "https", host: String.downcase(host, :ascii), port: port}}
+      {:ok, %{uri | scheme: scheme, host: host, port: port}}
     else
       _ -> invalid_url()
     end
   end
 
   def validate_url(_url), do: invalid_url()
+
+  # Browsers treat loopback hosts as secure and relax mixed content for local
+  # addresses. The address a request connects to is checked separately.
+  # [Secure Contexts §3.1](https://www.w3.org/TR/secure-contexts/#is-origin-trustworthy)
+  # [LNA §2.5](https://wicg.github.io/local-network-access/#mixed-content)
+  # The address space a host is known to be in before it is resolved.
+  # Names under `localhost` are loopback.
+  # [RFC 6761 §6.3](https://www.rfc-editor.org/rfc/rfc6761#section-6.3)
+  defp host_address_space(host) do
+    case :inet.parse_address(String.to_charlist(host)) do
+      {:ok, address} ->
+        AddressSpace.classify(address)
+
+      {:error, :einval} ->
+        if host == "localhost" or String.ends_with?(host, ".localhost"),
+          do: :loopback,
+          else: :public
+    end
+  end
+
+  # Refuses hosts known to be outside the allowed address spaces, then has
+  # the connection refuse any other address a host name resolves to.
+  # [LNA §2.2](https://wicg.github.io/local-network-access/#local-network-request)
+  defp restrict_addresses(opts, uri, url, access) do
+    space = host_address_space(uri.host)
+    option = unchecked_connection_option(opts)
+
+    cond do
+      not AddressSpace.allowed?(space, access) ->
+        {:error, LocalNetworkAccessDenied.exception(url: url, address_space: space)}
+
+      option == nil ->
+        {:ok, put_transport_options(opts, access)}
+
+      access == :loopback ->
+        {:ok, opts}
+
+      true ->
+        {:error,
+         TransportError.exception(
+           body:
+             "The #{inspect(option)} request option requires local_network_access: :loopback, " <>
+               "because Ltix can't check the addresses it connects to",
+           url: url
+         )}
+    end
+  end
+
+  # The option, if any, that makes the request connect somewhere other than
+  # the address the URL's host resolves to, where the address check can't run.
+  defp unchecked_connection_option(opts) do
+    cond do
+      option = Enum.find([:finch, :adapter, :unix_socket], &(Keyword.get(opts, &1) != nil)) ->
+        option
+
+      get_in(opts, [:connect_options, :proxy]) != nil ->
+        :proxy
+
+      true ->
+        nil
+    end
+  end
+
+  defp put_transport_options(opts, access) do
+    transport_options = AddressSpace.transport_options(access)
+
+    Keyword.update(
+      opts,
+      :connect_options,
+      [transport_opts: transport_options],
+      &Keyword.update(&1, :transport_opts, transport_options, fn caller_options ->
+        Keyword.merge(caller_options, transport_options)
+      end)
+    )
+  end
 
   # [RFC 6750 §5.3](https://www.rfc-editor.org/rfc/rfc6750#section-5.3)
   defp validate_certificate_verification(opts) do
@@ -244,7 +352,8 @@ defmodule Ltix.HTTP do
     {:error,
      TransportError.exception(
        body:
-         "Endpoint must be an absolute HTTPS URL without a userinfo component (RFC 3986 §3.2.1)",
+         "Endpoint must be an absolute HTTPS URL, or an HTTP URL for a loopback or local host, " <>
+           "without a userinfo component (RFC 3986 §3.2.1)",
        spec_ref: "Sec §3, RFC 6750 §5.3"
      )}
   end

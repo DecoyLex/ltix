@@ -174,7 +174,7 @@ defmodule Ltix.PaginationTest do
       assert second_qs == "p=2"
     end
 
-    test "stream is lazy — does not fetch page 2 until consumed" do
+    test "stream is lazy and does not fetch page 2 until consumed" do
       counter = :counters.new(1, [:atomics])
       fetch_count = :counters.new(1, [:atomics])
 
@@ -204,11 +204,11 @@ defmodule Ltix.PaginationTest do
       # Only first page fetched so far
       assert :counters.get(fetch_count, 1) == 1
 
-      # Take first body — should not trigger page 2 fetch
+      # Take first body, which should not trigger page 2 fetch
       assert Enum.take(stream, 1) == [%{"items" => [1, 2]}]
       assert :counters.get(fetch_count, 1) == 1
 
-      # Take all — now page 2 is fetched
+      # Take all. Now page 2 is fetched
       assert Enum.to_list(stream) == [%{"items" => [1, 2]}, %{"items" => [3]}]
     end
   end

@@ -65,6 +65,8 @@ defmodule Ltix.Registration do
   - `tool_jwk` — `Ltix.JWK.t()` (the tool's private signing key for this registration)
 
   HTTPS URLs must be absolute and must not include a userinfo component (RFC 3986 §3.2.1).
+  HTTP URLs are accepted for platforms on a loopback or local host, such as
+  `http://localhost:8080`.
 
   ## Examples
 

@@ -36,7 +36,8 @@ Ltix rejects input only when authenticating the launch or doing what you asked d
 
 Every request Ltix sends to a platform, for keys, tokens, or services, meets these rules.
 
-- **HTTPS.** URLs have to be absolute HTTPS URLs without user information. Disabling certificate verification returns an error.
+- **Addresses.** Ltix connects only to public addresses. A request that would connect to a private network address or to your own machine returns `Ltix.Errors.Security.LocalNetworkAccessDenied`, whatever host name the URL uses. For a platform on your network or your machine, set `local_network_access: :local` or `:loopback` in your config or on the call.
+- **HTTPS.** URLs have to be absolute HTTPS URLs without user information. HTTP is accepted only for loopback and local hosts. Disabling certificate verification returns an error.
 - **Redirects.** Ltix follows a redirect only to the same scheme, host, and port.
 - **Pagination.** Ltix follows a next page link only to the first page's origin, and returns an error when a link repeats a page.
 

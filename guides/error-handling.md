@@ -170,6 +170,7 @@ These indicate the launch failed a security check:
 | `NonceReused` | `spec_ref` | Nonce was already consumed (replay attempt) |
 | `KidMissing` | `spec_ref` | JWT header has no `kid` field |
 | `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's JWKS |
+| `LocalNetworkAccessDenied` | `url`, `address_space` | The platform's key set is on a local or loopback address that `:local_network_access` doesn't allow |
 | `AuthenticationFailed` | `error`, `error_description`, `error_uri`, `spec_ref` | Platform returned an error response |
 
 ## Unknown errors
@@ -221,13 +222,14 @@ etc.) and OAuth authentication.
 | Error | Fields | When |
 |---|---|---|
 | `AccessDenied` | `status`, `body`, `url`, `spec_ref` | Platform responded to a service request or key set fetch with HTTP 401 or 403 |
+| `LocalNetworkAccessDenied` | `url`, `address_space` | A platform request would connect to a local or loopback address that `:local_network_access` doesn't allow |
 | `AccessTokenExpired` | `expires_at`, `spec_ref` | OAuth access token has expired |
 
 ### Unknown
 
 | Error | Fields | When |
 |---|---|---|
-| `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is not an absolute HTTPS URL |
+| `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is neither an absolute HTTPS URL nor an HTTP URL for a loopback or local host |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | The platform redirected to a different origin or an invalid location |
 | `KeySetCacheNotStarted` | `cache`, `child_spec` | Raised when a launch needs a key set cache that is not started in the supervision tree |
 | `KeySetCacheFailed` | `cache`, `operation`, `reason` | Raised when the key set cache backend fails to get or store keys |

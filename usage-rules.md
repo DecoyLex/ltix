@@ -49,7 +49,11 @@ preferred structure before creating modules.
 - The original struct from the storage adapter is preserved in `LaunchContext`, so you can
   access your own fields (DB IDs, tenant info) without extra queries after launch.
 - Issuer must be an HTTPS URL with no query or fragment components.
-- All endpoints (`auth_endpoint`, `jwks_uri`, `token_endpoint`) must be HTTPS.
+- All endpoints (`auth_endpoint`, `jwks_uri`, `token_endpoint`) must be HTTPS. HTTP is accepted
+  only for loopback and local hosts such as `http://localhost:8080`.
+- Platform requests reach only public addresses. For a platform on a private network or on
+  the same machine, set `local_network_access: :local` or `:loopback` in `config :ltix` or on
+  the call. Otherwise the request returns `Ltix.Errors.Security.LocalNetworkAccessDenied`.
 - `client_id` is a non-empty string.
 - `deployment_id` must be non-empty, at most 255 characters, ASCII-only, and is case-sensitive.
 

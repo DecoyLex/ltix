@@ -112,7 +112,7 @@ defmodule Ltix.OAuth do
              :authenticate,
              registration,
              Client.collect_scopes(endpoints),
-             Keyword.fetch!(opts, :req_options)
+             Keyword.take(opts, [:req_options, :local_network_access])
            ) do
       Client.from_access_token(token, [registration: registration, endpoints: endpoints] ++ opts)
     end

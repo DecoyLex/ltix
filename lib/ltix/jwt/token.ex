@@ -40,6 +40,7 @@ defmodule Ltix.JWT.Token do
     * `:now` — override current time in unix seconds (useful for testing)
     * `:req_options` — extra options passed through to `Ltix.JWT.KeySet`
     * `:jwks_cache` — cache module passed through to `Ltix.JWT.KeySet`
+    * `:local_network_access` — passed through to `Ltix.JWT.KeySet`
   """
 
   alias Ltix.AppConfig
@@ -66,7 +67,8 @@ defmodule Ltix.JWT.Token do
                         Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)]),
                       now: Zoi.integer(),
                       req_options: Zoi.keyword(Zoi.any()),
-                      jwks_cache: Zoi.module()
+                      jwks_cache: Zoi.module(),
+                      local_network_access: Ltix.HTTP.local_network_access_option()
                     ],
                     unrecognized_keys: :error
                   )
@@ -91,7 +93,11 @@ defmodule Ltix.JWT.Token do
          :ok <- validate_critical_headers(header),
          {:ok, kid} <- extract_kid(header),
          {:ok, jwk} <-
-           KeySet.get_key(registration, kid, Keyword.take(opts, [:req_options, :jwks_cache])),
+           KeySet.get_key(
+             registration,
+             kid,
+             Keyword.take(opts, [:req_options, :jwks_cache, :local_network_access])
+           ),
          {:ok, claims} <- verify_signature(token_string, jwk),
          :ok <- validate_claims(claims, registration, opts) do
       {:ok, claims}

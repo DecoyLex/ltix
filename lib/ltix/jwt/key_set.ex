@@ -52,7 +52,12 @@ defmodule Ltix.JWT.KeySet do
   # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
   @refetch_interval 30
 
-  @options_schema Zoi.keyword([jwks_cache: Zoi.module(), req_options: Zoi.keyword(Zoi.any())],
+  @options_schema Zoi.keyword(
+                    [
+                      jwks_cache: Zoi.module(),
+                      req_options: Zoi.keyword(Zoi.any()),
+                      local_network_access: HTTP.local_network_access_option()
+                    ],
                     unrecognized_keys: :error
                   )
 
@@ -69,6 +74,9 @@ defmodule Ltix.JWT.KeySet do
       (default: the application configuration, then
       `Ltix.JWT.KeySet.ETSCache`)
     * `:req_options` — extra options passed to `Req.get/2`
+    * `:local_network_access` — `:local` or `:loopback` to fetch a key set
+      from a private network address or this machine (defaults to
+      application config, then `:none`)
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   @spec get_key(Registration.t(), String.t(), keyword()) ::
@@ -134,7 +142,11 @@ defmodule Ltix.JWT.KeySet do
 
     result =
       req_opts
-      |> Keyword.merge(method: :get, decode_body: false)
+      |> Keyword.merge(
+        method: :get,
+        decode_body: false,
+        local_network_access: Keyword.get(opts, :local_network_access)
+      )
       |> HTTP.request()
 
     case result do
