@@ -492,14 +492,14 @@ LTI launches differ from normal browser requests in two ways:
 1. Platforms POST directly to your tool, so CSRF protection must be
    disabled on LTI routes.
 2. Launches typically happen inside an iframe on the platform, so
-   session cookies need `SameSite=None` and `Secure` to work in
-   the third-party context.
+   session cookies need `SameSite=None`, `Secure`, and `Partitioned`
+   to work in the third-party context.
 
 ### Iframe strategy
 
 Most LTI tools render inside the platform's iframe. If that's your
-plan, configure `SameSite=None` on your session cookie in the
-endpoint so it applies to all routes:
+plan, configure `SameSite=None` and `Partitioned` on your session
+cookie in the endpoint so it applies to all routes:
 
 ```elixir
 # lib/my_app_web/endpoint.ex
@@ -510,11 +510,14 @@ plug Plug.Session,
   key: "_my_app_key",
   signing_salt: "your-salt",
   same_site: "None",
-  secure: true
+  secure: true,
+  extra: "Partitioned"
 ```
 
 This is the simplest path. Your entire app works in the iframe with a
 single session cookie.
+
+`Partitioned` gives the cookie a separate jar for each platform site that embeds your tool. Browsers that block third-party cookies still accept a partitioned one, so the session works inside the iframe in current versions of Chrome, Firefox, and Safari.
 
 > #### Iframe sessions {: .warning}
 >
@@ -524,6 +527,10 @@ single session cookie.
 >
 > `SameSite=None` requires `secure: true`, which means HTTPS. You'll
 > need HTTPS in development too (e.g., via `mix phx.gen.cert`).
+>
+> A partitioned cookie is only sent inside that platform's iframe. If
+> your tool opens itself in a new tab after the launch, the tab starts
+> without the session.
 
 Two other approaches exist if rendering everything in an iframe doesn't
 fit your app:

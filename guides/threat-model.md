@@ -47,7 +47,7 @@ Inspecting a `Ltix.JWK`, `Ltix.OAuth.AccessToken`, or `Ltix.OAuth.Client` hides 
 
 ### Login state
 
-Keep the state from `Ltix.handle_login/3` in the user's session and pass it to `Ltix.handle_callback/3`. Don't take it from the launch request. Launches usually arrive inside an iframe, so the session cookie needs `SameSite=None` and `Secure`. See [Getting Started](getting-started.md#iframe-strategy).
+Keep the state from `Ltix.handle_login/3` in the user's session and pass it to `Ltix.handle_callback/3`. Don't take it from the launch request. Launches usually arrive inside an iframe, so the session cookie needs `SameSite=None`, `Secure`, and `Partitioned`. See [Getting Started](getting-started.md#iframe-strategy).
 
 ### Nonces
 

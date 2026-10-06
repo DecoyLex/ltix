@@ -146,7 +146,9 @@ LTI launches are cross-origin POSTs (platform domain to tool domain), often insi
 iframe:
 
 - Phoenix defaults to `SameSite=Lax`, which blocks cross-origin POST cookies.
-  Set `same_site: "None"` and `secure: true` in your endpoint session config.
+  Set `same_site: "None"`, `secure: true`, and `extra: "Partitioned"` in your endpoint
+  session config. `Partitioned` keeps the cookie working in browsers that block
+  third-party cookies.
 - HTTPS is mandatory in both production and development (`mix phx.gen.cert` for dev certs).
 - LTI tools are typically embedded in an iframe by the platform. Set a
   `Content-Security-Policy` header (`frame-ancestors 'self' *`) on LTI routes to allow

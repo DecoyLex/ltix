@@ -2,8 +2,8 @@
 
 The [IMS LTI Reference Implementation](https://lti-ri.imsglobal.org)
 provides a free test platform you can launch from without needing access
-to Canvas, Moodle, or Blackboard. This guide walks through setting it up
-with your Ltix-powered tool.
+to Canvas, Moodle, or Blackboard. This guide covers setting it up
+with the tool you built with Ltix.
 
 Before starting, complete the [Getting Started](getting-started.md) guide
 so you have a running tool with routes, a controller, and a storage adapter.
@@ -27,7 +27,7 @@ so you have a running tool with routes, a controller, and a storage adapter.
 ## Configure your storage adapter
 
 Copy the values from the RI platform page into your storage adapter.
-You need:
+You need the following fields.
 
 | RI Platform field | Storage field |
 |---|---|
@@ -40,9 +40,9 @@ You need:
 ## Add a resource link
 
 1. View your platform and click **Resource Links**
-2. Fill in the form with:
-   - **Tool link url:** `https://localhost:4000/lti/launch`
-   - **Login initiation url:** `https://localhost:4000/lti/login`
+2. Fill in the form with these values.
+   - **Tool link url** - `https://localhost:4000/lti/launch`
+   - **Login initiation url** - `https://localhost:4000/lti/login`
 3. Save
 
 ## Add a course
@@ -57,18 +57,18 @@ You need:
 3. Scroll down and click **Perform Launch**
 
 If everything is configured correctly, you'll see your launch page
-with the parsed launch data: user info, roles, context, and resource
-link.
+with the parsed launch data (user info, roles, context, and resource
+link).
 
 ## Troubleshooting
 
-If the launch fails silently, check these common issues:
+If the launch fails without an error, check these common issues.
 
 - **Self-signed certificate not accepted.** Visit `https://localhost:4000`
   in your browser and accept the certificate warning before attempting a
   launch. Otherwise the platform's redirect will fail without an error.
 - **Session cookie not sent.** Make sure your endpoint uses
-  `same_site: "None"` and `secure: true`. See
+  `same_site: "None"`, `secure: true`, and `extra: "Partitioned"`. See
   [Getting Started](getting-started.md#iframe-strategy)
   for details.
 - **Mismatched issuer or client_id.** Double-check that the values in
@@ -79,7 +79,7 @@ If the launch fails silently, check these common issues:
 The IMS Reference Implementation is useful for verifying a basic launch,
 but it has significant bugs and gaps beyond that. Service endpoints
 (AGS, NRPS) may return non-compliant responses, behave inconsistently,
-or fail outright. Treat it as a smoke test for the OIDC login flow, not
-as a conformance suite. For thorough testing of Advantage Services, use
-a real LMS like Canvas or Moodle — even their sandbox environments will
-give you far more reliable results.
+or fail. Treat it as a smoke test for the OIDC login flow. For
+thorough testing of Advantage Services, use a real LMS like Canvas or
+Moodle. Even their sandbox environments will give you far more reliable
+results.

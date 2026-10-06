@@ -33,9 +33,9 @@ structure, session config, endpoint setup), then ask about the rest:
 
 3. **Iframe strategy**: Most LTI tools render inside the platform's iframe. Three
    approaches exist:
-   - **Full iframe** (most common): set `same_site: "None"` and `secure: true` on
-     your session cookie in the endpoint. Your entire app works in the iframe with a
-     single session cookie. This is the simplest path.
+   - **Full iframe** (most common): set `same_site: "None"`, `secure: true`, and
+     `extra: "Partitioned"` on your session cookie in the endpoint. Your entire app works
+     in the iframe with a single session cookie. This is the simplest path.
    - **New tab launches**: set `target` to `_blank` in the platform's tool
      configuration. The launch opens a new browser tab where cookies are first-party,
      so no `SameSite` changes are needed.
@@ -88,12 +88,14 @@ plug Plug.Session,
   key: "_my_app_key",
   signing_salt: "...",
   same_site: "None", # <-- Change from "Lax" to "None"
-  secure: true # <-- Add this line
+  secure: true, # <-- Add this line
+  extra: "Partitioned" # <-- Add this line
 ```
 
 Without `same_site: "None"`, the browser silently drops the session cookie inside the
 iframe and the state check fails. This is the most common source of "launch just
-silently fails" issues.
+silently fails" issues. `Partitioned` keeps the cookie working in browsers that block
+third-party cookies. A partitioned cookie is only sent inside that platform's iframe.
 
 For development, HTTPS is required. If your user isn't using a reverse proxy that handles TLS (like Caddy),
 they'll need to set up a self-signed certificate and configure the Phoenix endpoint to use it:
@@ -338,8 +340,8 @@ These are non-negotiable requirements from the LTI spec:
   retrieve during launch, delete after successful launch.
 - **The login endpoint accepts both GET and POST, and the launch endpoint accepts POST.** The platform may initiate login with either method, and it sends the launch as a form-encoded POST.
 - **HTTPS is mandatory** in both production and development.
-- **`same_site: "None"` and `secure: true`** are required for session cookies to survive
-  cross-origin redirects in iframes.
+- **`same_site: "None"`, `secure: true`, and `extra: "Partitioned"`** are required for
+  session cookies to survive cross-origin redirects in iframes.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
   course data, and session cookies are signed, not encrypted. Store only the fields you
