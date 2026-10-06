@@ -158,18 +158,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     defp found(record), do: {:ok, record}
 
     @impl Ltix.StorageAdapter
-    def store_nonce(nonce, registration) do
-      case Process.get(:contract_failure) do
-        :store_error -> {:error, :database_unavailable}
-        :store_wrong_result -> {:ok, nonce}
-        :discard_nonce -> :ok
-        :case_fold_nonce -> CustomStorageAdapter.store_nonce(String.downcase(nonce), registration)
-        _ -> CustomStorageAdapter.store_nonce(nonce, registration)
-      end
-    end
-
-    @impl Ltix.StorageAdapter
-    def validate_nonce(nonce, registration) do
+    def validate_nonce(nonce, registration, expires_at) do
       case {Process.get(:contract_failure), Process.get(:contract_worker)} do
         {:concurrent_replay, true} ->
           race_nonce(nonce)
@@ -180,14 +169,17 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
         {:worker_exit, true} ->
           exit(:database_unavailable)
 
-        {:unknown_nonce, _} ->
+        {:replay, _} ->
           :ok
 
-        {:case_fold_nonce, _} ->
-          CustomStorageAdapter.validate_nonce(String.downcase(nonce), registration)
+        {:wrong_nonce_result, _} ->
+          {:ok, nonce}
 
-        {mode, _} ->
-          nonce_result(mode, CustomStorageAdapter.validate_nonce(nonce, registration))
+        {:case_fold_nonce, _} ->
+          CustomStorageAdapter.validate_nonce(String.downcase(nonce), registration, expires_at)
+
+        _ ->
+          CustomStorageAdapter.validate_nonce(nonce, registration, expires_at)
       end
     end
 
@@ -211,10 +203,10 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
 
     defp race_nonce(nonce) do
       pid = Process.get(:contract_adapter_pid)
-      present = Agent.get(pid, &MapSet.member?(&1.nonces, nonce))
+      used = Agent.get(pid, &MapSet.member?(&1.used_nonces, nonce))
       synchronize_reads(nonce)
-      Agent.update(pid, &%{&1 | nonces: MapSet.delete(&1.nonces, nonce)})
-      if present, do: :ok, else: {:error, :nonce_not_found}
+      Agent.update(pid, &%{&1 | used_nonces: MapSet.put(&1.used_nonces, nonce)})
+      if used, do: {:error, :nonce_already_used}, else: :ok
     end
 
     defp synchronize_reads(key) do
@@ -238,18 +230,6 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
         {:storage_read, ^key} -> :ok
       end
     end
-
-    defp nonce_result(:replay, {:error, :nonce_already_used}), do: :ok
-
-    defp nonce_result(:delete_consumed, {:error, :nonce_already_used}),
-      do: {:error, :nonce_not_found}
-
-    defp nonce_result(:consume_all_nonces, :ok) do
-      Agent.update(Process.get(:contract_adapter_pid), &%{&1 | nonces: MapSet.new()})
-      :ok
-    end
-
-    defp nonce_result(_mode, result), do: result
 
     defp registration_record(registration) do
       {:ok, record} =
@@ -362,16 +342,12 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
         invalid_deployment: "get_deployment/2.*Deployable",
         wrong_deployment: "get_deployment/2.*deployment",
         auto_create: "get_deployment/2.*not_found",
-        store_error: "store_nonce/2.*database_unavailable",
-        store_wrong_result: "store_nonce/2.*ok",
-        discard_nonce: "validate_nonce/2.*stored nonce",
-        unknown_nonce: "validate_nonce/2.*unknown nonce",
-        consume_all_nonces: "validate_nonce/2.*unrelated nonces",
-        case_fold_nonce: "validate_nonce/2.*case-sensitive",
-        replay: "validate_nonce/2.*consumed nonce",
-        concurrent_replay: "validate_nonce/2.*Expected 1, got 2",
-        worker_timeout: "validate_nonce/2.*callback timed out",
-        worker_exit: "validate_nonce/2.*database_unavailable"
+        wrong_nonce_result: "validate_nonce/3.*first time",
+        case_fold_nonce: "validate_nonce/3.*case-sensitive",
+        replay: "validate_nonce/3.*already used",
+        concurrent_replay: "validate_nonce/3.*atomically",
+        worker_timeout: "validate_nonce/3.*callback timed out",
+        worker_exit: "validate_nonce/3.*database_unavailable"
       ] do
     test "rejects #{mode} with a useful assertion failure", %{opts: opts} do
       opts = scripted_options(opts, unquote(mode))

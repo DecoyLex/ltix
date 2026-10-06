@@ -72,7 +72,7 @@ def launch(conn, params) do
     {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: id}} ->
       # Create the deployment, then ask the user to re-launch.
       # We can't retry handle_callback here because the nonce was
-      # already consumed (see note below).
+      # already used (see note below).
       MyApp.Deployments.create!(id)
 
       conn
@@ -100,11 +100,9 @@ creating the deployment:
   |> redirect(to: ~p"/lti/onboard")
 ```
 
-> #### Nonce is consumed before deployment lookup {: .warning}
+> #### Nonce is used before deployment lookup {: .warning}
 >
-> `handle_callback/3` validates and consumes the nonce before looking
-> up the deployment. When the call fails with `DeploymentNotFound`, the
-> nonce is already gone. You cannot retry `handle_callback/3` with the
+> `handle_callback/3` records the nonce as used before looking up the deployment. When the call fails with `DeploymentNotFound`, the nonce is already used. You cannot retry `handle_callback/3` with the
 > same params. The user must re-launch from the platform.
 
 <!-- tabs-close -->

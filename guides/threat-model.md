@@ -25,7 +25,7 @@ A successful `Ltix.handle_callback/3` means all of the following hold.
 - **Registration.** The token's issuer and audience match a registration your storage adapter returned. A token whose audience includes any other client isn't accepted.
 - **Expiry.** The token hasn't expired, allowing a few seconds of clock skew.
 - **Browser.** The launch arrived in the browser that started the login, for the registration that login found. The token's nonce has to match the state your application kept from `Ltix.handle_login/3`.
-- **Replay.** The nonce hasn't been used before, as long as your storage adapter consumes each nonce once.
+- **Replay.** The nonce hasn't been used before, as long as your storage adapter records each nonce once.
 - **Deployment.** Your storage adapter returned the deployment the token names.
 
 An unknown key ID makes Ltix fetch the platform's key set again, at most once every 30 seconds for each key set URL. Requests with made-up key IDs can't make Ltix fetch on every launch.
@@ -50,7 +50,7 @@ Keep the state from `Ltix.handle_login/3` in the user's session and pass it to `
 
 ### Nonces
 
-Your storage adapter's `c:Ltix.StorageAdapter.validate_nonce/2` has to consume each nonce exactly once, even when two launches arrive at the same moment. Expire stored nonces, because anyone who knows a registered issuer can start a login. `Ltix.Test.assert_storage_adapter!/2` checks that your adapter consumes each nonce once.
+Your storage adapter's `c:Ltix.StorageAdapter.validate_nonce/3` has to accept each nonce only once, even when two launches arrive at the same moment. Ltix calls it only for tokens a registered platform signed, and logins don't write to storage. Delete each record after its `expires_at`. `Ltix.Test.assert_storage_adapter!/2` checks that your adapter accepts each nonce once.
 
 ### After the launch
 

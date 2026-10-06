@@ -39,14 +39,14 @@ defmodule Ltix.Test.StorageAdapterContract do
   end
 
   defp validate_adapter!(adapter) do
-    callbacks = [get_registration: 2, get_deployment: 2, store_nonce: 2, validate_nonce: 2]
+    callbacks = [get_registration: 2, get_deployment: 2, validate_nonce: 3]
 
     unless is_atom(adapter) and Code.ensure_loaded?(adapter) and
              Enum.all?(callbacks, fn {name, arity} -> function_exported?(adapter, name, arity) end) do
       raise InvalidOption,
         key: :storage_adapter,
         value: adapter,
-        reason: "must export all four Ltix.StorageAdapter callbacks"
+        reason: "must export all three Ltix.StorageAdapter callbacks"
     end
   end
 
@@ -337,80 +337,37 @@ defmodule Ltix.Test.StorageAdapterContract do
 
   defp check_nonces!(adapter, platform, opts) do
     registration = resolve!(platform.registration, Registerable, "registration factory")
+    expires_at = DateTime.add(DateTime.utc_now(:second), 300)
     nonce = "Nonce-#{Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)}"
-    other_nonce = "Other-#{Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)}"
-    label = "#{inspect(adapter)} validate_nonce/2"
-    store_label = "#{inspect(adapter)} store_nonce/2 must return :ok"
+    label = "#{inspect(adapter)} validate_nonce/3"
 
-    unknown_label = "#{label} must reject an unknown nonce"
+    validate = fn nonce, label ->
+      call!(adapter, :validate_nonce, [nonce, registration, expires_at], label)
+    end
 
-    expect!(
-      call!(adapter, :validate_nonce, [nonce, registration], unknown_label),
-      {:error, :nonce_not_found},
-      unknown_label
-    )
+    check = fn nonce, expected, requirement ->
+      label = "#{label} must #{requirement}"
+      expect!(validate.(nonce, label), expected, label)
+    end
 
-    expect!(call!(adapter, :store_nonce, [nonce, registration], store_label), :ok, store_label)
+    check.(nonce, :ok, "accept a nonce the first time")
+    check.(nonce, {:error, :nonce_already_used}, "reject a nonce already used")
+    check.(String.downcase(nonce), :ok, "treat nonces as case-sensitive")
 
-    expect!(
-      call!(adapter, :store_nonce, [other_nonce, registration], store_label),
-      :ok,
-      store_label
-    )
-
-    case_label = "#{label} must treat nonces as case-sensitive"
-
-    expect!(
-      call!(adapter, :validate_nonce, [String.downcase(nonce), registration], case_label),
-      {:error, :nonce_not_found},
-      case_label
-    )
-
-    stored_label = "#{label} must accept a stored nonce"
-
-    expect!(
-      call!(adapter, :validate_nonce, [nonce, registration], stored_label),
-      :ok,
-      stored_label
-    )
-
-    consumed_label = "#{label} must reject a consumed nonce"
-
-    check_consumed!(
-      call!(adapter, :validate_nonce, [nonce, registration], consumed_label),
-      consumed_label
-    )
-
-    other_label = "#{label} must not consume unrelated nonces"
-
-    expect!(
-      call!(adapter, :validate_nonce, [other_nonce, registration], other_label),
-      :ok,
-      other_label
-    )
-
-    check_concurrent_nonce!(adapter, registration, opts)
+    check_concurrent_nonce!(validate, label, opts)
   end
 
-  defp check_consumed!({:error, reason}, _label)
-       when reason in [:nonce_not_found, :nonce_already_used], do: :ok
-
-  defp check_consumed!(result, label),
-    do: fail!(label, "{:error, :nonce_not_found} or {:error, :nonce_already_used}", result)
-
-  defp check_concurrent_nonce!(adapter, registration, opts) do
+  defp check_concurrent_nonce!(validate, label, opts) do
     nonce = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-    store_label = "#{inspect(adapter)} store_nonce/2 must return :ok"
-    expect!(call!(adapter, :store_nonce, [nonce, registration], store_label), :ok, store_label)
-
-    label =
-      "#{inspect(adapter)} validate_nonce/2 must consume a nonce atomically under concurrent attempts"
-
-    operation = fn -> call!(adapter, :validate_nonce, [nonce, registration], label) end
+    label = "#{label} must record a nonce atomically under concurrent attempts"
+    operation = fn -> validate.(nonce, label) end
     results = concurrent_results!(operation, opts, label)
-    expect!(Enum.count(results, &(&1 == :ok)), 1, "#{label}. Results were #{inspect(results)}")
-    Enum.each(Enum.reject(results, &(&1 == :ok)), &check_consumed!(&1, label))
-    check_consumed!(operation.(), "#{label} and reject a consumed nonce afterward")
+
+    expect!(
+      Enum.sort(results),
+      [:ok, {:error, :nonce_already_used}],
+      "#{label}. Results were #{inspect(results)}"
+    )
   end
 
   defp concurrent_results!(operation, opts, label) do

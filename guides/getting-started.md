@@ -85,13 +85,10 @@ defmodule MyApp.Repo.Migrations.CreateLtiTables do
 
     create unique_index(:lti_deployments, [:deployment_id, :registration_id])
 
-    create table(:lti_nonces) do
-      add :nonce, :string, null: false
-      add :issuer, :string, null: false
-      timestamps(updated_at: false)
+    create table(:lti_nonces, primary_key: false) do
+      add :nonce, :string, primary_key: true
+      add :expires_at, :utc_datetime, null: false
     end
-
-    create unique_index(:lti_nonces, [:nonce, :issuer])
 
     create table(:users) do
       add :lti_sub, :string, null: false
@@ -194,10 +191,9 @@ end
 defmodule MyApp.Lti.Nonce do
   use Ecto.Schema
 
+  @primary_key {:nonce, :string, autogenerate: false}
   schema "lti_nonces" do
-    field :nonce, :string
-    field :issuer, :string
-    timestamps(updated_at: false)
+    field :expires_at, :utc_datetime
   end
 end
 ```
@@ -322,18 +318,10 @@ defmodule MyApp.Lti do
     end
   end
 
-  def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    Repo.insert!(%Nonce{nonce: nonce, issuer: issuer})
-    :ok
-  end
-
-  def validate_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    case Repo.delete_all(
-           from n in Nonce,
-             where: n.nonce == ^nonce and n.issuer == ^issuer
-         ) do
+  def validate_nonce(nonce, expires_at) do
+    case Repo.insert_all(Nonce, [%{nonce: nonce, expires_at: expires_at}], on_conflict: :nothing) do
       {1, _} -> :ok
-      {0, _} -> {:error, :nonce_not_found}
+      {0, _} -> {:error, :nonce_already_used}
     end
   end
 end
@@ -359,9 +347,7 @@ The examples in this guide tenant on registration for simplicity.
 
 ## Storage adapter
 
-Ltix needs your application to look up registrations and deployments,
-and to manage nonces (one-time tokens that prevent replay attacks). You
-provide these through the `Ltix.StorageAdapter` behaviour.
+Ltix needs your application to look up registrations and deployments, and to record used nonces (one-time values that prevent replayed launches). You provide these through the `Ltix.StorageAdapter` behaviour.
 
 ```elixir
 # lib/my_app/lti/storage.ex
@@ -377,10 +363,7 @@ defmodule MyApp.Lti.Storage do
   def get_deployment(registration, deployment_id), do: Lti.get_deployment(registration, deployment_id)
 
   @impl true
-  def store_nonce(nonce, registration), do: Lti.store_nonce(nonce, registration)
-
-  @impl true
-  def validate_nonce(nonce, registration), do: Lti.validate_nonce(nonce, registration)
+  def validate_nonce(nonce, _registration, expires_at), do: Lti.validate_nonce(nonce, expires_at)
 end
 ```
 
@@ -731,9 +714,7 @@ key. See [JWK Management](jwk-management.md) for rotation strategies.
 You now have a working LTI launch. Here's what to tackle next on the
 way to production:
 
-- **Nonce cleanup**: the nonces table grows with every launch. Add a
-  periodic job (e.g., Oban) that deletes nonces older than a few
-  minutes. See [Storage Adapters](storage-adapters.md) for an example.
+- **Nonce cleanup**: the nonces table grows with every launch. Add a periodic job (e.g., Oban) that deletes nonces past their `expires_at`. See [Storage Adapters](storage-adapters.md) for an example.
 
 - **Key rotation**: signing keys should be rotated periodically.
   Serve both the old and new key from your public key endpoint during

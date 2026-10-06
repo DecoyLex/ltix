@@ -29,7 +29,7 @@ Every app must configure a storage adapter:
 config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
 ```
 
-The storage adapter module must implement the `Ltix.StorageAdapter` behaviour (4 callbacks).
+The storage adapter module must implement the `Ltix.StorageAdapter` behaviour (3 required callbacks).
 **Never** use `Ltix.Test.StorageAdapter` outside of tests.
 
 Phoenix apps typically group LTI-related modules under a context module like `MyApp.Lti`
@@ -55,30 +55,29 @@ preferred structure before creating modules.
 
 ## StorageAdapter Callbacks
 
-These are the 4 required callbacks:
+These are the 3 required callbacks:
 
 1. **`get_registration(issuer, client_id)`** — `client_id` can be `nil` when the platform
    omits it from the login request. You must handle both cases.
 2. **`get_deployment(registration, deployment_id)`** — called after JWT verification.
    `deployment_id` is case-sensitive.
-3. **`store_nonce(nonce, registration)`** — persist the nonce for later verification.
-4. **`validate_nonce(nonce, registration)`** — atomically check and consume the nonce.
-   Must prevent replay attacks. Use an atomic `DELETE ... WHERE` or `INSERT ... ON CONFLICT`
-   pattern to avoid race conditions.
+3. **`validate_nonce(nonce, registration, expires_at)`** — record the nonce as used, called
+   after the ID token is verified. Must prevent replay attacks. Use an atomic
+   `INSERT ... ON CONFLICT DO NOTHING` to avoid race conditions, and keep the record until
+   `expires_at`.
 
 Return types:
 - `get_registration/2`: `{:ok, Registerable.t()} | {:error, :not_found}` — any struct
   implementing `Ltix.Registerable` (including `%Registration{}` itself)
 - `get_deployment/2`: `{:ok, Deployable.t()} | {:error, :not_found}` — any struct
   implementing `Ltix.Deployable` (including `%Deployment{}` itself)
-- `store_nonce/2`: `:ok`
-- `validate_nonce/2`: `:ok | {:error, :nonce_already_used | :nonce_not_found}`
+- `validate_nonce/3`: `:ok | {:error, :nonce_already_used}`
 
 Any other `{:error, reason}` from a callback fails the login or launch with `Ltix.Errors.Unknown.StorageError`.
 
-**Nonce is consumed on callback.** `handle_callback/3` consumes the nonce as part of
+**Nonce is used on callback.** `handle_callback/3` records the nonce as used as part of
 validation. If the callback fails for a non-security reason (e.g., `DeploymentNotFound`),
-you cannot retry `handle_callback/3` with the same params — the nonce is already gone.
+you cannot retry `handle_callback/3` with the same params — the nonce is already used.
 Handle recoverable errors (like auto-creating a deployment) in the storage adapter itself,
 not by retrying the callback.
 

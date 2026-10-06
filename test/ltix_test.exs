@@ -26,10 +26,7 @@ defmodule LtixTest do
     defdelegate get_deployment(registration, deployment_id), to: StorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate store_nonce(nonce, registration), to: StorageAdapter
-
-    @impl Ltix.StorageAdapter
-    defdelegate validate_nonce(nonce, registration), to: StorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at), to: StorageAdapter
   end
 
   defmodule RecordingCache do
@@ -67,13 +64,10 @@ defmodule LtixTest do
     end
 
     @impl Ltix.StorageAdapter
-    def store_nonce(nonce, registration) do
-      scripted(:store_nonce, fn -> StorageAdapter.store_nonce(nonce, registration) end)
-    end
-
-    @impl Ltix.StorageAdapter
-    def validate_nonce(nonce, registration) do
-      scripted(:validate_nonce, fn -> StorageAdapter.validate_nonce(nonce, registration) end)
+    def validate_nonce(nonce, registration, expires_at) do
+      scripted(:validate_nonce, fn ->
+        StorageAdapter.validate_nonce(nonce, registration, expires_at)
+      end)
     end
 
     defp scripted(callback, default) do
@@ -673,7 +667,7 @@ defmodule LtixTest do
   end
 
   describe "storage adapter failures" do
-    for callback <- [:get_registration, :store_nonce],
+    for callback <- [:get_registration],
         result <- [{:error, :timeout}, :unexpected] do
       test "handle_login returns StorageError when #{callback} returns #{inspect(result)}" do
         callback = unquote(callback)

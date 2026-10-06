@@ -127,18 +127,14 @@ provides predicates like `Role.instructor?/1` for authorization. See
 
 ## Nonces
 
-A **nonce** is a one-time-use random string that prevents replay
-attacks. The flow:
+A **nonce** is a one-time-use random string that prevents replay attacks. The flow is:
 
-1. During login, Ltix generates a nonce and your storage adapter
-   persists it
+1. During login, Ltix generates a nonce tied to the login's state and registration
 2. The nonce is included in the authorization request to the platform
 3. The platform echoes it back in the signed JWT
-4. During launch validation, Ltix asks your adapter to verify the nonce
-   exists and consume it atomically
+4. During launch validation, Ltix checks the nonce against the state and asks your adapter to record it as used
 
-If someone intercepts a JWT and tries to replay it, the nonce check
-fails because it was already consumed.
+If someone intercepts a JWT and tries to replay it, the nonce check fails because it was already used.
 
 ## How Ltix fits in
 
@@ -149,5 +145,5 @@ verification, claim validation. Your application handles the rest:
 |---|---|
 | Build the authorization redirect | Store the OIDC state in the session |
 | Validate the JWT signature and claims | Look up registrations and deployments |
-| Parse roles, context, resource links | Manage nonces (store and consume) |
+| Parse roles, context, resource links | Record used nonces |
 | Return structured launch data | Decide what to do with the launch |

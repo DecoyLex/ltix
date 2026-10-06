@@ -34,20 +34,23 @@ defmodule Ltix.OIDC.Callback do
   @spec launch(map(), String.t(), module(), keyword()) ::
           {:ok, LaunchContext.t(), Registration.t()} | {:error, Exception.t()}
   def launch(params, expected_state, callback_module, opts) do
+    token_opts = Keyword.take(opts, [:clock_skew, :req_options, :jwks_cache])
+
     with :ok <- check_error_response(params),
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
          {:ok, iss, client_id} <- peek_issuer_and_audience(id_token),
          {:ok, user_registration, registration} <-
            StorageAdapter.get_registration(callback_module, iss, client_id),
-         {:ok, raw_claims} <-
-           Token.verify(
-             id_token,
-             registration,
-             Keyword.take(opts, [:clock_skew, :req_options, :jwks_cache])
-           ),
+         {:ok, raw_claims} <- Token.verify(id_token, registration, token_opts),
          :ok <- verify_nonce_binding(raw_claims, expected_state, registration),
-         :ok <- StorageAdapter.validate_nonce(callback_module, raw_claims["nonce"], registration),
+         :ok <-
+           StorageAdapter.validate_nonce(
+             callback_module,
+             raw_claims["nonce"],
+             registration,
+             Token.expires_at(raw_claims, token_opts)
+           ),
          :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, user_deployment} <-
            StorageAdapter.get_deployment(

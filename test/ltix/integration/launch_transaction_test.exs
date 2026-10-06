@@ -66,19 +66,43 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       assert {:ok, %LaunchContext{}} = callback(params, login.state)
     end
 
-    test "rejects an arbitrary stored nonce instead of treating storage as transaction binding",
-         ctx do
+    test "rejects a nonce that the login didn't issue", ctx do
       {login, params} = begin_launch(ctx.platform, "original-user")
-      nonce = "independent-stored-nonce"
-      :ok = StorageAdapter.store_nonce(nonce, ctx.platform.registration)
 
       unrelated_params =
-        Ltix.Test.launch_params(ctx.platform, nonce: nonce, state: login.state)
+        Ltix.Test.launch_params(ctx.platform, nonce: "unrelated-nonce", state: login.state)
 
       assert {:error, %Security.NonceNotFound{}} = callback(unrelated_params, login.state)
 
       assert {:ok, %LaunchContext{claims: %{subject: "original-user"}}} =
                callback(params, login.state)
+    end
+  end
+
+  describe "nonce storage" do
+    test "records a nonce only after the ID token is verified, until the token expires",
+         ctx do
+      login = login(ctx.platform, LaunchStorageAdapter)
+
+      refute_received {:validate_nonce, _nonce, _expires_at}
+
+      nonce = Ltix.Test.extract_nonce(login.redirect_uri)
+      exp = System.system_time(:second) + 600
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => nonce, "exp" => exp})
+
+      launch = %{
+        "id_token" => Ltix.Test.sign_id_token(claims, ctx.platform.jwk),
+        "state" => login.state
+      }
+
+      assert {:ok, %LaunchContext{}} =
+               callback(launch, login.state, LaunchStorageAdapter)
+
+      assert_received {:validate_nonce, ^nonce, expires_at}
+      assert expires_at == DateTime.from_unix!(exp + 5)
+
+      assert {:error, %Security.NonceReused{}} =
+               callback(launch, login.state, LaunchStorageAdapter)
     end
   end
 
@@ -136,11 +160,16 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     assert {:error, %Security.NonceReused{}} = callback(second_params, second_login.state)
   end
 
-  defp begin_launch(platform, subject) do
+  defp login(platform, storage_adapter) do
     params =
       Map.put(Ltix.Test.login_params(platform), "client_id", platform.registration.client_id)
 
-    {:ok, login} = Ltix.handle_login(params, @launch_url, storage_adapter: StorageAdapter)
+    {:ok, login} = Ltix.handle_login(params, @launch_url, storage_adapter: storage_adapter)
+    login
+  end
+
+  defp begin_launch(platform, subject) do
+    login = login(platform, StorageAdapter)
 
     launch_params =
       Ltix.Test.launch_params(platform,
@@ -152,9 +181,9 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     {login, launch_params}
   end
 
-  defp callback(params, expected_state) do
+  defp callback(params, expected_state, storage_adapter \\ StorageAdapter) do
     Ltix.handle_callback(params, expected_state,
-      storage_adapter: StorageAdapter,
+      storage_adapter: storage_adapter,
       req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
     )
   end

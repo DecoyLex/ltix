@@ -1,6 +1,6 @@
 ---
 name: implement-storage-adapter
-description: "Use this skill when implementing an Ltix.StorageAdapter for an LTI 1.3 tool application. Guides you through the four required callbacks with collaboration checkpoints for schema design and storage strategy decisions."
+description: "Use this skill when implementing an Ltix.StorageAdapter for an LTI 1.3 tool application. Guides you through the three required callbacks with collaboration checkpoints for schema design and storage strategy decisions."
 ---
 
 # Implement a Storage Adapter
@@ -10,14 +10,13 @@ primary integration point between Ltix and your application's database.
 
 ## Overview
 
-The storage adapter has 4 callbacks:
+The storage adapter has 3 callbacks:
 
 | Callback | Called During | Returns |
 |---|---|---|
 | `get_registration/2` | Login initiation and callback validation | `{:ok, Registerable.t()} \| {:error, :not_found \| term()}` |
 | `get_deployment/2` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found \| term()}` |
-| `store_nonce/2` | Login initiation | `:ok \| {:error, term()}` |
-| `validate_nonce/2` | Callback validation | `:ok \| {:error, :nonce_already_used \| :nonce_not_found \| term()}` |
+| `validate_nonce/3` | Callback validation, after the ID token is verified | `:ok \| {:error, :nonce_already_used \| term()}` |
 
 Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 
@@ -77,8 +76,8 @@ ask about the rest:
    or require manual registration? Auto-create is simpler but the user may want an admin
    approval flow.
 
-8. **Nonce cleanup**: Nonces accumulate when launches fail before reaching callback. How
-   should they be cleaned up — periodic Oban job, a database trigger, manual pruning?
+8. **Nonce cleanup**: Each launch records its nonce until the token expires. How should
+   expired records be deleted — periodic Oban job, a database trigger, manual pruning?
 
 ## Step 1: Database Schema
 
@@ -121,13 +120,10 @@ defmodule MyApp.Repo.Migrations.CreateLtiTables do
 
     create unique_index(:lti_deployments, [:deployment_id, :registration_id])
 
-    create table(:lti_nonces) do
-      add :nonce, :string, null: false
-      add :issuer, :string, null: false
-      timestamps(updated_at: false)
+    create table(:lti_nonces, primary_key: false) do
+      add :nonce, :string, primary_key: true
+      add :expires_at, :utc_datetime, null: false
     end
-
-    create unique_index(:lti_nonces, [:nonce, :issuer])
   end
 end
 ```
@@ -229,10 +225,9 @@ end
 defmodule MyApp.Lti.Nonce do
   use Ecto.Schema
 
+  @primary_key {:nonce, :string, autogenerate: false}
   schema "lti_nonces" do
-    field :nonce, :string
-    field :issuer, :string
-    timestamps(updated_at: false)
+    field :expires_at, :utc_datetime
   end
 end
 ```
@@ -288,30 +283,20 @@ defmodule MyApp.Lti do
     end
   end
 
-  def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    case Repo.insert(%Nonce{nonce: nonce, issuer: issuer}) do
-      {:ok, _nonce} -> :ok
-      {:error, changeset} -> {:error, changeset}
-    end
-  end
-
-  def validate_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    # Atomic delete-on-validate: if two requests race with the same nonce,
-    # only one will delete a row and succeed.
-    case Repo.delete_all(
-           from n in Nonce,
-             where: n.nonce == ^nonce and n.issuer == ^issuer
-         ) do
+  def validate_nonce(nonce, expires_at) do
+    # Atomic insert: if two requests race with the same nonce, only one
+    # inserts a row and succeeds.
+    case Repo.insert_all(Nonce, [%{nonce: nonce, expires_at: expires_at}], on_conflict: :nothing) do
       {1, _} -> :ok
-      {0, _} -> {:error, :nonce_not_found}
+      {0, _} -> {:error, :nonce_already_used}
     end
   end
 end
 ```
 
 Note that `get_deployment/2` receives the resolved `Ltix.Registration` (not the original
-Ecto struct), so it pattern-matches on `%Ltix.Registration{}`. The nonce callbacks also
-receive `%Ltix.Registration{}`.
+Ecto struct), so it pattern-matches on `%Ltix.Registration{}`. The nonce callback also
+receives `%Ltix.Registration{}`.
 
 ## Step 4: Storage Adapter Module
 
@@ -331,10 +316,7 @@ defmodule MyApp.Lti.StorageAdapter do
   def get_deployment(registration, deployment_id), do: Lti.get_deployment(registration, deployment_id)
 
   @impl true
-  def store_nonce(nonce, registration), do: Lti.store_nonce(nonce, registration)
-
-  @impl true
-  def validate_nonce(nonce, registration), do: Lti.validate_nonce(nonce, registration)
+  def validate_nonce(nonce, _registration, expires_at), do: Lti.validate_nonce(nonce, expires_at)
 end
 ```
 
@@ -369,9 +351,9 @@ These are non-negotiable requirements from the LTI spec and library:
 - **`client_id` can be nil** in `get_registration/2` when the platform omits it from the
   login request. The implementation must query by issuer alone in that case.
 
-- **Nonce validation must be atomic.** The `DELETE ... WHERE` pattern ensures that concurrent
-  requests with the same nonce can't both succeed. A two-step "read then delete" approach
-  has a race condition.
+- **Nonce recording must be atomic.** The `INSERT ... ON CONFLICT DO NOTHING` pattern ensures
+  that concurrent requests with the same nonce can't both succeed. A two-step "read then
+  insert" approach has a race condition.
 
 - **`tool_jwk` is private key material.** Store `private_key_pem` (text) and `kid` (string)
   columns. These are reconstructed into `%Ltix.JWK{}` via `Ltix.JWK.new/1` in your
@@ -383,7 +365,7 @@ These are non-negotiable requirements from the LTI spec and library:
   `get_registration/2`, because the `Ltix.Registerable` protocol implementation needs
   the JWK fields to build the `%Ltix.JWK{}`.
 
-- **`get_deployment/2` and nonce callbacks receive `%Ltix.Registration{}`**, not your
+- **`get_deployment/2` and `validate_nonce/3` receive `%Ltix.Registration{}`**, not your
   original Ecto struct. The library resolves your struct through the `Registerable`
   protocol before calling these callbacks.
 
@@ -401,11 +383,10 @@ Repo.insert(%MyApp.Lti.Deployment{registration_id: reg_id, deployment_id: deploy
 This is safe because `get_deployment/2` is called after JWT signature verification — the
 `deployment_id` is already trusted. But the user may prefer a manual approval step.
 
-**Nonce cleanup** — periodic job to remove stale nonces:
+**Nonce cleanup** — periodic job to remove expired nonces:
 
 ```elixir
-from(n in MyApp.Lti.Nonce, where: n.inserted_at < ago(5, "minute"))
-|> Repo.delete_all()
+Repo.delete_all(from n in MyApp.Lti.Nonce, where: n.expires_at < ^DateTime.utc_now())
 ```
 
 Ask the user how they want to schedule this (Oban, Quantum, manual GenServer, etc.).
@@ -489,15 +470,17 @@ defmodule MyApp.Lti.StorageAdapterTest do
   end
 
   describe "nonce lifecycle" do
-    test "store and validate consumes the nonce", %{registration: registration} do
+    test "accepts a nonce once", %{registration: registration} do
       {:ok, found} = StorageAdapter.get_registration(
         registration.issuer, registration.client_id
       )
       {:ok, ltix_reg} = Ltix.Registerable.to_registration(found)
+      expires_at = DateTime.add(DateTime.utc_now(:second), 300)
 
-      assert :ok = StorageAdapter.store_nonce("test-nonce", ltix_reg)
-      assert :ok = StorageAdapter.validate_nonce("test-nonce", ltix_reg)
-      assert {:error, :nonce_not_found} = StorageAdapter.validate_nonce("test-nonce", ltix_reg)
+      assert :ok = StorageAdapter.validate_nonce("test-nonce", ltix_reg, expires_at)
+
+      assert {:error, :nonce_already_used} =
+               StorageAdapter.validate_nonce("test-nonce", ltix_reg, expires_at)
     end
   end
 end

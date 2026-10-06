@@ -164,14 +164,6 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       assert query["client_id"] == "tool-client-id"
     end
 
-    test "nonce is stored via callback module", %{params: params, redirect_uri: redirect_uri} do
-      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
-      query = URI.decode_query(URI.parse(result.redirect_uri).query)
-      nonce = query["nonce"]
-
-      assert MapSet.member?(StorageAdapter.stored_nonces(), nonce)
-    end
-
     test "state and nonce are cryptographically random", %{
       params: params,
       redirect_uri: redirect_uri

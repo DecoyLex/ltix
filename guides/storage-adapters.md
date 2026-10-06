@@ -12,8 +12,7 @@ common pitfalls.
 |---|---|---|
 | `get_registration/2` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
 | `get_deployment/2` | Launch validation | Look up a deployment by registration and deployment_id |
-| `store_nonce/2` | Login initiation | Persist a nonce for later verification |
-| `validate_nonce/2` | Launch validation | Verify a nonce was issued by us, then consume it |
+| `validate_nonce/3` | Launch validation | Record a nonce as used, and reject one already used |
 
 When storage fails, return `{:error, reason}` from any callback. The login or launch then returns `{:error, %Ltix.Errors.Unknown.StorageError{}}`, whose `result` is what the callback returned. A `reason` that is already an Ltix error is returned unchanged. Any other unexpected return value is also reported as a `StorageError`.
 
@@ -113,12 +112,9 @@ end
 
 ## Nonce management
 
-Nonces prevent replay attacks. The flow is:
+Nonces prevent replayed launches. After Ltix verifies an ID token, it calls `validate_nonce/3` with the token's nonce and the time the token expires. Record the nonce as used and return `:ok`, or return `{:error, :nonce_already_used}` if it's already recorded. Logins don't write anything to storage.
 
-1. During login, Ltix generates a random nonce and calls `store_nonce/2`
-2. During launch validation, Ltix extracts the nonce from the JWT and
-   calls `validate_nonce/2`
-3. Your adapter must check the nonce exists and consume it atomically
+Recording has to be atomic, so only one of two launches with the same nonce succeeds. Keep each record until `expires_at`, then delete it.
 
 ### In-memory (development)
 
@@ -130,73 +126,45 @@ def start_link(_opts) do
 end
 
 @impl true
-def store_nonce(nonce, _registration) do
-  Agent.update(__MODULE__, &MapSet.put(&1, nonce))
-  :ok
-end
-
-@impl true
-def validate_nonce(nonce, _registration) do
-  Agent.get_and_update(__MODULE__, fn nonces ->
-    if MapSet.member?(nonces, nonce) do
-      {:ok, MapSet.delete(nonces, nonce)}
-    else
-      {{:error, :nonce_not_found}, nonces}
-    end
+def validate_nonce(nonce, _registration, _expires_at) do
+  Agent.get_and_update(__MODULE__, fn used ->
+    if MapSet.member?(used, nonce),
+      do: {{:error, :nonce_already_used}, used},
+      else: {:ok, MapSet.put(used, nonce)}
   end)
 end
 ```
 
 ### Ecto (production)
 
-A nonce table with atomic consume-on-validate:
+A nonce table keyed by the nonce.
 
 ```elixir
 # Migration
-create table(:lti_nonces) do
-  add :nonce, :string, null: false
-  add :issuer, :string, null: false
-  timestamps(updated_at: false)
+create table(:lti_nonces, primary_key: false) do
+  add :nonce, :string, primary_key: true
+  add :expires_at, :utc_datetime, null: false
 end
-
-create unique_index(:lti_nonces, [:nonce, :issuer])
 ```
 
 ```elixir
 @impl true
-def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-  changeset = LtiNonce.changeset(%LtiNonce{}, %{nonce: nonce, issuer: issuer})
-
-  case Repo.insert(changeset) do
-    {:ok, _nonce} -> :ok
-    {:error, changeset} -> {:error, changeset}
-  end
-end
-
-@impl true
-def validate_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-  case Repo.delete_all(
-         from n in LtiNonce,
-           where: n.nonce == ^nonce and n.issuer == ^issuer
-       ) do
+def validate_nonce(nonce, _registration, expires_at) do
+  case Repo.insert_all(LtiNonce, [%{nonce: nonce, expires_at: expires_at}], on_conflict: :nothing) do
     {1, _} -> :ok
-    {0, _} -> {:error, :nonce_not_found}
+    {0, _} -> {:error, :nonce_already_used}
   end
 end
 ```
 
-The `DELETE ... WHERE` is atomic — if two requests race with the same
-nonce, only one will delete a row and succeed.
+The insert is atomic. If two requests race with the same nonce, only one of them inserts a row.
 
 > #### Nonce expiry {: .tip}
 >
-> Nonces accumulate if launches fail before reaching the callback.
-> Add a periodic cleanup job that deletes nonces older than a few
-> minutes. The `inserted_at` timestamp makes this straightforward:
+> Add a periodic cleanup job that deletes nonces past their `expires_at`.
 >
 > ```elixir
-> from(n in LtiNonce, where: n.inserted_at < ago(5, "minute"))
-> |> Repo.delete_all()
+> Repo.delete_all(from n in LtiNonce, where: n.expires_at < ^DateTime.utc_now())
 > ```
 
 ## Putting it together
@@ -242,21 +210,10 @@ defmodule MyApp.LtiStorage do
   end
 
   @impl true
-  def store_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    case Repo.insert(%LtiNonce{nonce: nonce, issuer: issuer}) do
-      {:ok, _nonce} -> :ok
-      {:error, changeset} -> {:error, changeset}
-    end
-  end
-
-  @impl true
-  def validate_nonce(nonce, %Ltix.Registration{issuer: issuer}) do
-    case Repo.delete_all(
-           from n in LtiNonce,
-             where: n.nonce == ^nonce and n.issuer == ^issuer
-         ) do
+  def validate_nonce(nonce, _registration, expires_at) do
+    case Repo.insert_all(LtiNonce, [%{nonce: nonce, expires_at: expires_at}], on_conflict: :nothing) do
       {1, _} -> :ok
-      {0, _} -> {:error, :nonce_not_found}
+      {0, _} -> {:error, :nonce_already_used}
     end
   end
 end

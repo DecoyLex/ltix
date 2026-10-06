@@ -92,6 +92,14 @@ defmodule Ltix.JWT.Token do
   end
 
   @doc false
+  # Returns when a verified ID token stops being accepted, so its nonce
+  # record can be deleted after that.
+  @spec expires_at(map(), keyword()) :: DateTime.t()
+  def expires_at(claims, opts) do
+    DateTime.from_unix!(ceil(deadline(claims, opts)))
+  end
+
+  @doc false
   # Returns an ID token's claims without verifying it, so its registration can
   # be found before verification.
   @spec peek_claims(String.t()) :: {:ok, map()} | {:error, Exception.t()}
@@ -246,11 +254,10 @@ defmodule Ltix.JWT.Token do
   end
 
   # [Sec §5.1.3 step 7] exp MUST be in the future (with clock skew tolerance).
-  defp validate_expiration(%{"exp" => exp}, opts) when is_number(exp) do
-    clock_skew = Keyword.get(opts, :clock_skew, @default_clock_skew)
+  defp validate_expiration(%{"exp" => exp} = claims, opts) when is_number(exp) do
     now = Keyword.get(opts, :now, System.system_time(:second))
 
-    if now < exp + clock_skew do
+    if now < deadline(claims, opts) do
       :ok
     else
       {:error, TokenExpired.exception(spec_ref: "Sec §5.1.3 step 7")}
@@ -264,6 +271,10 @@ defmodule Ltix.JWT.Token do
 
   defp validate_expiration(_claims, _opts) do
     {:error, MissingClaim.exception(claim: "exp", spec_ref: "Sec §5.1.2")}
+  end
+
+  defp deadline(%{"exp" => exp}, opts) do
+    exp + Keyword.get(opts, :clock_skew, @default_clock_skew)
   end
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)

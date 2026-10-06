@@ -16,7 +16,6 @@ defmodule CustomStorageAdapter do
       %{
         registrations: registrations,
         deployments: deployments,
-        nonces: MapSet.new(),
         used_nonces: MapSet.new()
       }
     end)
@@ -63,30 +62,11 @@ defmodule CustomStorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def store_nonce(nonce, _registration) do
-    Agent.update(get_pid(), fn state ->
-      %{state | nonces: MapSet.put(state.nonces, nonce)}
-    end)
-  end
-
-  @impl Ltix.StorageAdapter
-  def validate_nonce(nonce, _registration) do
+  def validate_nonce(nonce, _registration, _expires_at) do
     Agent.get_and_update(get_pid(), fn state ->
-      cond do
-        MapSet.member?(state.used_nonces, nonce) ->
-          {{:error, :nonce_already_used}, state}
-
-        MapSet.member?(state.nonces, nonce) ->
-          {:ok,
-           %{
-             state
-             | nonces: MapSet.delete(state.nonces, nonce),
-               used_nonces: MapSet.put(state.used_nonces, nonce)
-           }}
-
-        true ->
-          {{:error, :nonce_not_found}, state}
-      end
+      if MapSet.member?(state.used_nonces, nonce),
+        do: {{:error, :nonce_already_used}, state},
+        else: {:ok, %{state | used_nonces: MapSet.put(state.used_nonces, nonce)}}
     end)
   end
 end

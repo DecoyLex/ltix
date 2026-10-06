@@ -16,9 +16,9 @@ defmodule Ltix.OIDC.LoginInitiation do
   def call(params, callback_module, redirect_uri) do
     with :ok <- validate_login_params(params),
          {:ok, _user_registration, registration} <-
-           StorageAdapter.get_registration(callback_module, params["iss"], client_id(params)),
-         {state, nonce} = State.generate(registration),
-         :ok <- StorageAdapter.store_nonce(callback_module, nonce, registration) do
+           StorageAdapter.get_registration(callback_module, params["iss"], client_id(params)) do
+      {state, nonce} = State.generate(registration)
+
       auth_redirect =
         AuthenticationRequest.build(registration, %{
           redirect_uri: redirect_uri,

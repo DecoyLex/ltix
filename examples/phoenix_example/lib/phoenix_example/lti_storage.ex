@@ -34,7 +34,7 @@ defmodule PhoenixExample.LtiStorage do
         IO.puts("Or use the following RSA public key:")
         tool_jwk |> Ltix.JWK.to_public_key() |> IO.puts()
 
-        %{nonces: MapSet.new(), contexts: %{}, tool_jwk: tool_jwk}
+        %{used_nonces: MapSet.new(), contexts: %{}, tool_jwk: tool_jwk}
       end,
       name: __MODULE__
     )
@@ -69,21 +69,12 @@ defmodule PhoenixExample.LtiStorage do
   def get_deployment(_registration, _deployment_id), do: {:error, :not_found}
 
   @impl true
-  def store_nonce(nonce, _registration) do
-    Agent.update(__MODULE__, fn state ->
-      update_in(state, [:nonces], &MapSet.put(&1, nonce))
-    end)
-
-    :ok
-  end
-
-  @impl true
-  def validate_nonce(nonce, _registration) do
+  def validate_nonce(nonce, _registration, _expires_at) do
     Agent.get_and_update(__MODULE__, fn state ->
-      if MapSet.member?(state.nonces, nonce) do
-        {:ok, update_in(state, [:nonces], &MapSet.delete(&1, nonce))}
+      if MapSet.member?(state.used_nonces, nonce) do
+        {{:error, :nonce_already_used}, state}
       else
-        {{:error, :nonce_not_found}, state}
+        {:ok, update_in(state, [:used_nonces], &MapSet.put(&1, nonce))}
       end
     end)
   end

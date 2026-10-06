@@ -48,7 +48,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         use Agent
 
         def start_link(_opts) do
-          Agent.start_link(fn -> %{registrations: %{}, deployments: %{}, nonces: MapSet.new()} end,
+          Agent.start_link(fn -> %{registrations: %{}, deployments: %{}, used_nonces: MapSet.new()} end,
             name: __MODULE__)
         end
 
@@ -103,17 +103,12 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         end
 
         @impl Ltix.StorageAdapter
-        def store_nonce(nonce, _registration) do
-          Agent.update(__MODULE__, &%{&1 | nonces: MapSet.put(&1.nonces, nonce)})
-        end
-
-        @impl Ltix.StorageAdapter
-        def validate_nonce(nonce, _registration) do
+        def validate_nonce(nonce, _registration, _expires_at) do
           Agent.get_and_update(__MODULE__, fn state ->
-            if MapSet.member?(state.nonces, nonce) do
-              {:ok, %{state | nonces: MapSet.delete(state.nonces, nonce)}}
+            if MapSet.member?(state.used_nonces, nonce) do
+              {{:error, :nonce_already_used}, state}
             else
-              {{:error, :nonce_not_found}, state}
+              {:ok, %{state | used_nonces: MapSet.put(state.used_nonces, nonce)}}
             end
           end)
         end
@@ -125,9 +120,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         @impl Ltix.StorageAdapter
         defdelegate get_registration(issuer, client_id), to: ConsumerStorage
         @impl Ltix.StorageAdapter
-        defdelegate store_nonce(nonce, registration), to: ConsumerStorage
-        @impl Ltix.StorageAdapter
-        defdelegate validate_nonce(nonce, registration), to: ConsumerStorage
+        defdelegate validate_nonce(nonce, registration, expires_at), to: ConsumerStorage
 
         @impl Ltix.StorageAdapter
         def get_deployment(registration, deployment_id) do

@@ -28,7 +28,7 @@ context.registration          #=> your struct from StorageAdapter.get_registrati
   cover the entire OIDC flow
 - **LTI Advantage** - Assignment and Grade Services, Names and Role
   Provisioning, and Deep Linking
-- **Storage-agnostic** - implement four callbacks in `Ltix.StorageAdapter`
+- **Storage-agnostic** - implement three callbacks in `Ltix.StorageAdapter`
   to plug in any persistence layer
 - **Framework-agnostic** - works with Phoenix, bare Plug, or any Elixir
   web framework

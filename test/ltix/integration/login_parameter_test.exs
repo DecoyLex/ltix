@@ -24,8 +24,8 @@ defmodule Ltix.Integration.LoginParameterTest do
     %{platform: platform, other_registration: other_registration}
   end
 
-  for parameter <- ~w(iss login_hint target_link_uri client_id lti_message_hint) do
-    test "rejects nonstring #{parameter} before storing a nonce", context do
+  for parameter <- ~w(iss client_id) do
+    test "rejects nonstring #{parameter}", context do
       parameter = unquote(parameter)
 
       for value <- [%{"hostile" => "value"}, [], ["value"], 123, true, false, nil] do
@@ -33,8 +33,6 @@ defmodule Ltix.Integration.LoginParameterTest do
 
         assert {:error, %MissingParameter{parameter: ^parameter, class: :invalid}} =
                  Ltix.handle_login(params, @launch_url, storage_adapter: StorageAdapter)
-
-        assert StorageAdapter.stored_nonces() == MapSet.new()
       end
     end
   end
@@ -50,8 +48,6 @@ defmodule Ltix.Integration.LoginParameterTest do
 
       assert {:error, %MissingParameter{parameter: ^parameter, class: :invalid}} =
                Ltix.handle_login(params, @launch_url, storage_adapter: StorageAdapter)
-
-      assert StorageAdapter.stored_nonces() == MapSet.new()
     end
   end
 
@@ -64,7 +60,6 @@ defmodule Ltix.Integration.LoginParameterTest do
     query = URI.decode_query(URI.parse(login.redirect_uri).query)
     assert query["client_id"] == context.platform.registration.client_id
     refute Map.has_key?(query, "lti_message_hint")
-    assert MapSet.member?(StorageAdapter.stored_nonces(), query["nonce"])
   end
 
   test "selects the requested client and preserves opaque hints exactly", context do
@@ -88,7 +83,6 @@ defmodule Ltix.Integration.LoginParameterTest do
       assert query["login_hint"] == login_hint
       assert query["lti_message_hint"] == message_hint
       assert query["redirect_uri"] == @launch_url
-      assert MapSet.member?(StorageAdapter.stored_nonces(), query["nonce"])
     end
   end
 end

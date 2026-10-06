@@ -58,7 +58,7 @@ context.deployment              #=> your struct from StorageAdapter.get_deployme
 
 Between those two calls, Ltix has verified the JWT signature against
 the platform's public keys, validated the token's expiration and
-audience, checked and consumed the nonce, parsed role URIs into
+audience, checked the nonce and recorded it as used, parsed role URIs into
 structured data, and confirmed the deployment exists.
 
 > #### Two calls per launch {: .info}
@@ -78,20 +78,20 @@ Ltix owns the protocol. Your application owns everything around it.
 |---|---|
 | Build the authorization redirect | Store the OIDC state in the session |
 | Fetch and cache the platform's public keys | Look up registrations and deployments |
-| Validate the JWT signature and claims | Manage nonces (store and consume) |
+| Validate the JWT signature and claims | Record used nonces |
 | Parse roles, context, resource links | Decide what to do with the launch |
 | Return structured, typed launch data | Handle errors and show appropriate UI |
 
 This boundary is enforced through the `Ltix.StorageAdapter` behaviour —
-a set of four callbacks your application implements to provide
+a set of three callbacks your application implements to provide
 persistence. Ltix never touches your database directly.
 
 ## Design choices
 
 **Storage-agnostic.** Ltix doesn't assume your database, ORM, or
-persistence strategy. You implement `Ltix.StorageAdapter` with four
-callbacks — registration lookup, deployment lookup, nonce storage, and
-nonce validation. Use Ecto, Mnesia, Redis, or anything else.
+persistence strategy. You implement `Ltix.StorageAdapter` with three
+callbacks — registration lookup, deployment lookup, and recording used
+nonces. Use Ecto, Mnesia, Redis, or anything else.
 
 **Framework-agnostic.** Ltix works with Phoenix, bare Plug, or any
 Elixir web framework. It takes maps in and returns structs out — no
@@ -119,6 +119,6 @@ failed.
   registrations, deployments, the launch flow, roles, and nonces
 - [Getting Started](getting-started.md) — integrate Ltix into a Phoenix
   app step by step
-- `Ltix.StorageAdapter` — the four callbacks your app implements
+- `Ltix.StorageAdapter` — the three callbacks your app implements
 - `Ltix.LaunchContext` — what a successful launch returns
 - `Ltix.LaunchClaims.Role` — role parsing and predicates
