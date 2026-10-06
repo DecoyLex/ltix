@@ -103,6 +103,16 @@ defmodule Ltix.OAuth.ClientTest do
     end)
   end
 
+  describe "require_unexpired/1" do
+    test "returns AccessTokenExpired with the expiry when the token has expired" do
+      expires_at = DateTime.add(DateTime.utc_now(), -100)
+      client = build_client(%{token: build_token(expires_at)})
+
+      assert {:error, %Ltix.Errors.Security.AccessTokenExpired{expires_at: ^expires_at}} =
+               Client.require_unexpired(client)
+    end
+  end
+
   describe "has_scope?/2" do
     test "returns true for granted scope" do
       client = build_client()

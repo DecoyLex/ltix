@@ -2,7 +2,6 @@ defmodule Ltix.AdvantageService.Operation do
   @moduledoc false
 
   alias Ltix.Errors.Invalid.CollectionTooLarge
-  alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.OAuth.Client
 
   @type url :: {:ok, String.t()} | {:error, Exception.t()}
@@ -22,7 +21,7 @@ defmodule Ltix.AdvantageService.Operation do
 
     :telemetry.span(event, metadata, fn ->
       result =
-        with :ok <- check_expiry(client),
+        with :ok <- Client.require_unexpired(client),
              :ok <- Client.require_any_scope(client, scopes),
              {:ok, url} <- url do
           request.(url)
@@ -34,16 +33,6 @@ defmodule Ltix.AdvantageService.Operation do
 
   defp requested_url({:ok, url}), do: url
   defp requested_url({:error, _error}), do: nil
-
-  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
-  defp check_expiry(%Client{} = client) do
-    if Client.expired?(client) do
-      {:error,
-       AccessTokenExpired.exception(expires_at: client.token.expires_at, spec_ref: "Sec §7.1")}
-    else
-      :ok
-    end
-  end
 
   @doc """
   Collect the items of a stream of `{:ok, item}` and `{:error, error}` results.

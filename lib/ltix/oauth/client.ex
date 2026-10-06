@@ -29,6 +29,7 @@ defmodule Ltix.OAuth.Client do
   """
 
   alias Ltix.Errors.Invalid.ScopeMismatch
+  alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
@@ -109,6 +110,26 @@ defmodule Ltix.OAuth.Client do
   @spec has_scope?(t(), String.t()) :: boolean()
   def has_scope?(%__MODULE__{token: token}, scope) do
     MapSet.member?(token.granted_scopes, scope)
+  end
+
+  @doc """
+  Require a token that hasn't expired, returning
+  `Ltix.Errors.Security.AccessTokenExpired` if it has.
+
+  ## Examples
+
+      iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+      iex> Ltix.OAuth.Client.require_unexpired(%Ltix.OAuth.Client{token: token})
+      :ok
+  """
+  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
+  @spec require_unexpired(t()) :: :ok | {:error, Exception.t()}
+  def require_unexpired(%__MODULE__{token: token} = client) do
+    if expired?(client) do
+      {:error, AccessTokenExpired.exception(expires_at: token.expires_at, spec_ref: "Sec §7.1")}
+    else
+      :ok
+    end
   end
 
   @doc """
