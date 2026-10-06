@@ -535,10 +535,7 @@ single session cookie.
 Two other approaches exist if rendering everything in an iframe doesn't
 fit your app:
 
-- **New tab launches**: set `target` to `_blank` in the platform's tool
-  configuration. The launch opens a new browser tab where cookies are
-  first-party, so no `SameSite` changes are needed. This works well for
-  apps with complex navigation that doesn't fit an iframe.
+- **New tab launches**: set `target` to `_blank` in the platform's tool configuration. The launch opens a new browser tab, where browsers that block third-party cookies still accept yours. The platform still sends the launch as a cross-site POST, and browsers leave `SameSite=Lax` cookies off those, so the cookie that holds the login state still needs `SameSite=None`. This works well for apps with complex navigation that doesn't fit an iframe.
 
 - **Split rendering**: serve a lightweight iframe view for the launch,
   then link out to the full app in a new tab for deeper interaction.

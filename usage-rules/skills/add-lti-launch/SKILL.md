@@ -37,8 +37,10 @@ structure, session config, endpoint setup), then ask about the rest:
      `extra: "Partitioned"` on your session cookie in the endpoint. Your entire app works
      in the iframe with a single session cookie. This is the simplest path.
    - **New tab launches**: set `target` to `_blank` in the platform's tool
-     configuration. The launch opens a new browser tab where cookies are first-party,
-     so no `SameSite` changes are needed.
+     configuration. The launch opens a new browser tab, where browsers that block
+     third-party cookies still accept yours. The launch is still a cross-site POST, which
+     `SameSite=Lax` cookies are left off, so the cookie that holds the login state still
+     needs `SameSite=None`.
    - **Split rendering**: serve a lightweight iframe view for the launch, then link out
      to the full app in a new tab for deeper interaction. Lets you keep `SameSite=Lax`
      on most routes.
