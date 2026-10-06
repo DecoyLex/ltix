@@ -146,12 +146,13 @@ defmodule Ltix.Integration.ConsumerBuildTest do
             issuer: "https://platform.example.com", client_id: "consumer",
             auth_endpoint: "https://platform.example.com/login",
             token_endpoint: "https://platform.example.com/token",
-            jwks_uri: "https://platform.example.com/keys", tool_jwk: tool_key
+            jwks_uri: "https://platform.example.com/keys"
           })
           platform = %Ltix.Test.Platform{
             registration: registration,
             deployment: Ltix.Deployment.new!("deployment-001"),
-            jwk: Ltix.JWK.generate(key_size: 2048)
+            jwk: Ltix.JWK.generate(key_size: 2048),
+            tool_jwk: tool_key
           }
           token = Ltix.Test.sign_id_token(%{"sub" => "consumer-user"}, tool_key)
           assert {:ok, %{"sub" => "consumer-user"}} =

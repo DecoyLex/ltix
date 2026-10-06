@@ -149,19 +149,12 @@ end
 
 defimpl Ltix.Registerable, for: MyApp.Lti.Registration do
   def to_registration(registration) do
-    {:ok, tool_jwk} =
-      Ltix.JWK.new(
-        private_key_pem: registration.jwk.private_key_pem,
-        kid: registration.jwk.kid
-      )
-
     Ltix.Registration.new(%{
       issuer: registration.issuer,
       client_id: registration.client_id,
       auth_endpoint: registration.auth_endpoint,
       jwks_uri: registration.jwks_uri,
-      token_endpoint: registration.token_endpoint,
-      tool_jwk: tool_jwk
+      token_endpoint: registration.token_endpoint
     })
   end
 end
@@ -294,11 +287,7 @@ defmodule MyApp.Lti do
   end
 
   def get_registration(issuer, client_id) do
-    registration =
-      Repo.get_by(Registration, issuer: issuer, client_id: client_id)
-      |> Repo.preload(:jwk)
-
-    case registration do
+    case Repo.get_by(Registration, issuer: issuer, client_id: client_id) do
       nil -> {:error, :not_found}
       registration -> {:ok, registration}
     end
@@ -324,6 +313,24 @@ defmodule MyApp.Lti do
       {0, _} -> {:error, :nonce_already_used}
     end
   end
+
+  def signing_key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
+    query =
+      from r in Registration,
+        join: j in assoc(r, :jwk),
+        where: r.issuer == ^issuer and r.client_id == ^client_id,
+        select: j.kid
+
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      kid -> {:ok, kid}
+    end
+  end
+
+  def sign(key_id, message) do
+    jwk = Repo.get_by!(Jwk, kid: key_id)
+    Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid), message)
+  end
 end
 ```
 
@@ -347,7 +354,7 @@ The examples in this guide tenant on registration for simplicity.
 
 ## Storage adapter
 
-Ltix needs your application to look up registrations and deployments, and to record used nonces (one-time values that prevent replayed launches). You provide these through the `Ltix.StorageAdapter` behaviour.
+Ltix needs your application to look up registrations and deployments, to record used nonces (one-time values that prevent replayed launches), and to sign what your tool sends to platforms. You provide these through the `Ltix.StorageAdapter` behaviour.
 
 ```elixir
 # lib/my_app/lti/storage.ex
@@ -364,11 +371,19 @@ defmodule MyApp.Lti.Storage do
 
   @impl true
   def validate_nonce(nonce, _registration, expires_at), do: Lti.validate_nonce(nonce, expires_at)
+
+  @impl true
+  def key_id(registration), do: Lti.signing_key_id(registration)
+
+  @impl true
+  def sign(_registration, key_id, message), do: Lti.sign(key_id, message)
 end
 ```
 
 The storage adapter is a thin wrapper that delegates to your context
 module, where the actual queries live.
+
+`key_id/1` and `sign/3` are optional. Ltix calls them to sign requests for Advantage services and deep linking responses, so a tool that only handles launches can leave them out.
 
 > #### Nil client_id {: .tip}
 >
@@ -439,8 +454,7 @@ iex> attrs = %{
 ...>   client_id: "10000000000042",
 ...>   auth_endpoint: "https://canvas.example.edu/api/lti/authorize_redirect",
 ...>   jwks_uri: "https://canvas.example.edu/api/lti/security/jwks",
-...>   token_endpoint: "https://canvas.example.edu/login/oauth2/token",
-...>   tool_jwk: tool_jwk
+...>   token_endpoint: "https://canvas.example.edu/login/oauth2/token"
 ...> }
 
 iex> {:ok, _} = Ltix.Registration.new(attrs)

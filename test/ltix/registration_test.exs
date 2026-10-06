@@ -6,15 +6,12 @@ defmodule Ltix.RegistrationTest do
 
   doctest Ltix.Registration
 
-  @tool_jwk Ltix.JWK.generate()
-
   @valid_attrs %{
     issuer: "https://platform.example.com",
     client_id: "tool-client-123",
     auth_endpoint: "https://platform.example.com/auth",
     jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-    token_endpoint: "https://platform.example.com/token",
-    tool_jwk: @tool_jwk
+    token_endpoint: "https://platform.example.com/token"
   }
 
   describe "new/1" do
@@ -25,7 +22,6 @@ defmodule Ltix.RegistrationTest do
       assert reg.auth_endpoint == "https://platform.example.com/auth"
       assert reg.jwks_uri == "https://platform.example.com/.well-known/jwks.json"
       assert reg.token_endpoint == "https://platform.example.com/token"
-      assert reg.tool_jwk == @tool_jwk
     end
 
     test "rejects unknown fields" do
@@ -90,19 +86,8 @@ defmodule Ltix.RegistrationTest do
       end
     end
 
-    test "leaves an invalid tool_jwk out of the error" do
-      pem = @tool_jwk.private_key_pem
-
-      assert {:error,
-              %InvalidField{field: :tool_jwk, reason: "must be an %Ltix.JWK{} struct"} = error} =
-               Registration.new(%{@valid_attrs | tool_jwk: pem})
-
-      refute inspect(error) =~ "PRIVATE KEY"
-      refute Exception.message(error) =~ "PRIVATE KEY"
-    end
-
     test "reports missing required fields" do
-      for field <- [:issuer, :client_id, :auth_endpoint, :jwks_uri, :tool_jwk] do
+      for field <- [:issuer, :client_id, :auth_endpoint, :jwks_uri] do
         for attrs <- [Map.delete(@valid_attrs, field), %{@valid_attrs | field => nil}] do
           assert {:error, %InvalidField{field: ^field, reason: :required}} =
                    Registration.new(attrs)

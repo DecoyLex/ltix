@@ -77,16 +77,13 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   defp build_registration do
-    tool_jwk = Ltix.JWK.generate()
-
     {:ok, registration} =
       Ltix.Registration.new(%{
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        token_endpoint: "https://platform.example.com/token",
-        tool_jwk: tool_jwk
+        token_endpoint: "https://platform.example.com/token"
       })
 
     registration
@@ -266,8 +263,6 @@ defmodule Ltix.OAuth.ClientTest do
     end
 
     test "accepts a custom Registerable struct" do
-      tool_jwk = Ltix.JWK.generate()
-
       custom_registration = %CustomRegistration{
         id: "reg-001",
         tenant_id: "tenant-1",
@@ -275,8 +270,7 @@ defmodule Ltix.OAuth.ClientTest do
         oauth_client_id: "custom-tool-client",
         oidc_auth_url: "https://custom-lms.example.com/auth",
         platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token",
-        signing_key: tool_jwk
+        platform_token_url: "https://custom-lms.example.com/token"
       }
 
       {:ok, token} =
@@ -462,7 +456,7 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   describe "inspect" do
-    test "leaves out the access token and the tool's private key" do
+    test "leaves out the access token" do
       {:ok, token} =
         AccessToken.from_response(%{"access_token" => "secret-token", "token_type" => "Bearer"})
 
@@ -472,9 +466,8 @@ defmodule Ltix.OAuth.ClientTest do
           endpoints: %{TestService => :valid_endpoint}
         )
 
-      for value <- [token, client, client.registration, client.registration.tool_jwk] do
+      for value <- [token, client] do
         refute inspect(value) =~ "secret-token"
-        refute inspect(value) =~ "PRIVATE KEY"
       end
     end
   end

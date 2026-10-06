@@ -19,8 +19,7 @@ defmodule Ltix.Integration.FullLaunchTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/#{platform_jwk.kid}/jwks.json",
-        tool_jwk: Ltix.JWK.generate()
+        jwks_uri: "https://platform.example.com/.well-known/#{platform_jwk.kid}/jwks.json"
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")

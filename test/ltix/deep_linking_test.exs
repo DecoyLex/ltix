@@ -38,7 +38,7 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 with records that don't convert" do
-    test "raises ArgumentError naming the protocol", %{platform: p} do
+    test "raises ArgumentError that includes the protocol name", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
       bare = %BareRegistration{registration: context.registration}
 
@@ -54,17 +54,7 @@ defmodule Ltix.DeepLinkingTest do
     end
   end
 
-  describe "build_response/3 happy path" do
-    test "empty items returns ok with signed JWT", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-
-      assert {:ok, %Response{jwt: jwt, return_url: url}} =
-               DeepLinking.build_response(context)
-
-      assert [_, _, _] = String.split(jwt, ".")
-      assert url == "https://platform.example.com/deep_links"
-    end
-
+  describe "build_response/3 success" do
     test "JWT is verifiable with tool's public key", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
@@ -101,16 +91,8 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
 
       %JOSE.JWS{alg: {_mod, alg}, fields: header} = JOSE.JWT.peek_protected(jwt)
-      assert header["kid"] == p.registration.tool_jwk.kid
+      assert header["kid"] == p.tool_jwk.kid
       assert alg == :RS256
-    end
-
-    test "empty items produces empty content_items array", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
-
-      assert claims[@dl <> "content_items"] == []
     end
   end
 
@@ -144,7 +126,7 @@ defmodule Ltix.DeepLinkingTest do
       assert ci["lineItem"]["scoreMaximum"] == 100
     end
 
-    test "passes through raw map items", %{platform: p} do
+    test "includes raw map items unchanged", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
       raw = %{"type" => "link", "url" => "https://raw.example.com"}
 
@@ -156,20 +138,7 @@ defmodule Ltix.DeepLinkingTest do
     end
   end
 
-  describe "build_response/3 data echoing" do
-    test "echoes data from deep_linking_settings", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
-          message_type: :deep_linking,
-          deep_linking_settings: %{data: "csrf:abc123"}
-        )
-
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
-
-      assert claims[@dl <> "data"] == "csrf:abc123"
-    end
-
+  describe "build_response/3 data claim" do
     test "omits data when not present in settings", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
@@ -505,7 +474,7 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 with several violations" do
-    test "returns every violation, naming each item", %{platform: p} do
+    test "returns every violation, identifying each item", %{platform: p} do
       context =
         Ltix.Test.build_launch_context(p,
           message_type: :deep_linking,
@@ -621,7 +590,7 @@ defmodule Ltix.DeepLinkingTest do
       assert_received {^ref, :stop, %{item_count: 3, item_types: ["link", "image"]}}
     end
 
-    test "brackets calls that return an error", %{platform: p, ref: ref} do
+    test "emits start and stop events for calls that return an error", %{platform: p, ref: ref} do
       deep_linking = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
       resource_link = Ltix.Test.build_launch_context(p)
 

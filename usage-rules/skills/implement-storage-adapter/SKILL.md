@@ -18,6 +18,14 @@ The storage adapter has 3 callbacks:
 | `get_deployment/2` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found \| term()}` |
 | `validate_nonce/3` | Callback validation, after the ID token is verified | `:ok \| {:error, :nonce_already_used \| term()}` |
 
+Two more callbacks are optional. Implement them when the tool calls Advantage services
+or builds deep linking responses:
+
+| Callback | Called During | Returns |
+|---|---|---|
+| `key_id/1` | Service authentication and deep linking responses | `{:ok, String.t()} \| {:error, term()}` |
+| `sign/3` | Service authentication and deep linking responses | `{:ok, binary()} \| {:error, term()}` |
+
 Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 
 `get_registration/2` and `get_deployment/2` can return any struct that implements
@@ -70,7 +78,8 @@ ask about the rest:
 6. **JWK strategy**: One tool key pair shared across all registrations, or one per
    registration? Per-registration allows independent rotation but adds complexity.
    Either way, keys are stored as `private_key_pem` (text) and `kid` (string) columns,
-   and reconstructed into `%Ltix.JWK{}` structs via `Ltix.JWK.new/1`.
+   and reconstructed into `%Ltix.JWK{}` structs via `Ltix.JWK.new/1`. A key held in a
+   key management service can sign from `sign/3` without ever being stored in the app.
 
 7. **Deployment policy**: Should new deployments be auto-created on first launch (upsert),
    or require manual registration? Auto-create is simpler but the user may want an admin
@@ -174,28 +183,20 @@ end
 
 defimpl Ltix.Registerable, for: MyApp.Lti.Registration do
   def to_registration(registration) do
-    {:ok, tool_jwk} =
-      Ltix.JWK.new(
-        private_key_pem: registration.jwk.private_key_pem,
-        kid: registration.jwk.kid
-      )
-
     Ltix.Registration.new(%{
       issuer: registration.issuer,
       client_id: registration.client_id,
       auth_endpoint: registration.auth_endpoint,
       jwks_uri: registration.jwks_uri,
-      token_endpoint: registration.token_endpoint,
-      tool_jwk: tool_jwk
+      token_endpoint: registration.token_endpoint
     })
   end
 end
 ```
 
 The `defimpl Ltix.Registerable` block tells Ltix how to extract a validated
-`Ltix.Registration` from your Ecto struct. Note that the JWK association must be
-preloaded before returning — the protocol implementation calls `Ltix.JWK.new/1` to
-reconstruct the `%Ltix.JWK{}` from the stored PEM and kid.
+`Ltix.Registration` from your Ecto struct. The registration holds no key. Ltix asks the
+storage adapter to sign through `key_id/1` and `sign/3`.
 
 ### Deployment Schema
 
@@ -252,21 +253,37 @@ defmodule MyApp.Lti do
   # The platform left out client_id, so look up by issuer alone. An issuer
   # with several registrations is ambiguous and needs the client_id.
   def get_registration(issuer, nil) do
-    case Repo.all(from r in Registration, where: r.issuer == ^issuer, preload: :jwk) do
+    case Repo.all(from r in Registration, where: r.issuer == ^issuer) do
       [registration] -> {:ok, registration}
       _none_or_several -> {:error, :not_found}
     end
   end
 
   def get_registration(issuer, client_id) do
-    registration =
-      Repo.get_by(Registration, issuer: issuer, client_id: client_id)
-      |> Repo.preload(:jwk)
-
-    case registration do
+    case Repo.get_by(Registration, issuer: issuer, client_id: client_id) do
       nil -> {:error, :not_found}
       registration -> {:ok, registration}
     end
+  end
+
+  # The ID of the key that signs for a registration. Platforms use it to find
+  # the public key in the tool's key set.
+  def signing_key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
+    query =
+      from r in Registration,
+        join: j in assoc(r, :jwk),
+        where: r.issuer == ^issuer and r.client_id == ^client_id,
+        select: j.kid
+
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      kid -> {:ok, kid}
+    end
+  end
+
+  def sign(key_id, message) do
+    jwk = Repo.get_by!(Jwk, kid: key_id)
+    Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid), message)
   end
 
   def get_deployment(%Ltix.Registration{issuer: issuer, client_id: client_id}, deployment_id) do
@@ -317,6 +334,12 @@ defmodule MyApp.Lti.StorageAdapter do
 
   @impl true
   def validate_nonce(nonce, _registration, expires_at), do: Lti.validate_nonce(nonce, expires_at)
+
+  @impl true
+  def key_id(registration), do: Lti.signing_key_id(registration)
+
+  @impl true
+  def sign(_registration, key_id, message), do: Lti.sign(key_id, message)
 end
 ```
 
@@ -355,17 +378,16 @@ These are non-negotiable requirements from the LTI spec and library:
   that concurrent requests with the same nonce can't both succeed. A two-step "read then
   insert" approach has a race condition.
 
-- **`tool_jwk` is private key material.** Store `private_key_pem` (text) and `kid` (string)
-  columns. These are reconstructed into `%Ltix.JWK{}` via `Ltix.JWK.new/1` in your
-  `Ltix.Registerable` protocol implementation. Treat them with the same care as any secret.
+- **The signing key is private key material.** Store `private_key_pem` (text) and `kid`
+  (string) columns. `sign/3` reconstructs them into `%Ltix.JWK{}` via `Ltix.JWK.new/1` and
+  signs with `Ltix.JWK.sign/2`. Treat them with the same care as any secret.
+
+- **`sign/3` signs with the key `key_id/1` named.** Look the key up by the `key_id`
+  argument, so a rotation between the two calls can't sign with a different key.
 
 - **`deployment_id` is case-sensitive** and at most 255 ASCII characters.
 
-- **JWK association must be preloaded** before returning a registration from
-  `get_registration/2`, because the `Ltix.Registerable` protocol implementation needs
-  the JWK fields to build the `%Ltix.JWK{}`.
-
-- **`get_deployment/2` and `validate_nonce/3` receive `%Ltix.Registration{}`**, not your
+- **`get_deployment/2`, `validate_nonce/3`, `key_id/1`, and `sign/3` receive `%Ltix.Registration{}`**, not your
   original Ecto struct. The library resolves your struct through the `Registerable`
   protocol before calling these callbacks.
 
@@ -446,13 +468,26 @@ defmodule MyApp.Lti.StorageAdapterTest do
       )
     end
 
-    test "Registerable protocol produces a valid Ltix.Registration", %{jwk: jwk, registration: registration} do
+    test "Registerable protocol produces a valid Ltix.Registration", %{registration: registration} do
       {:ok, found} = StorageAdapter.get_registration(
         registration.issuer, registration.client_id
       )
       {:ok, %Ltix.Registration{} = resolved} = Ltix.Registerable.to_registration(found)
       assert resolved.issuer == registration.issuer
-      assert resolved.tool_jwk.kid == jwk.kid
+    end
+  end
+
+  describe "signing" do
+    test "signs with the registration's key", %{jwk: jwk, registration: registration} do
+      {:ok, found} = StorageAdapter.get_registration(
+        registration.issuer, registration.client_id
+      )
+      {:ok, ltix_reg} = Ltix.Registerable.to_registration(found)
+
+      assert {:ok, key_id} = StorageAdapter.key_id(ltix_reg)
+      assert key_id == jwk.kid
+      assert {:ok, signature} = StorageAdapter.sign(ltix_reg, key_id, "message")
+      assert is_binary(signature)
     end
   end
 

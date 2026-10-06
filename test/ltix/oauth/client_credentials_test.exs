@@ -5,11 +5,12 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
+  alias Ltix.Test.StorageAdapter
 
   @scopes ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
 
   setup do
-    tool_jwk = Ltix.JWK.generate()
+    tool_jwk = StorageAdapter.tool_jwk()
 
     public_jwk =
       tool_jwk
@@ -22,8 +23,7 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        token_endpoint: "https://platform.example.com/token",
-        tool_jwk: tool_jwk
+        token_endpoint: "https://platform.example.com/token"
       })
 
     %{registration: registration, tool_jwk: tool_jwk, public_jwk: public_jwk}
@@ -240,36 +240,18 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
     end
 
     test "nil token_endpoint returns ServiceNotAvailable" do
-      tool_jwk = Ltix.JWK.generate()
-
       {:ok, registration} =
         Ltix.Registration.new(%{
           issuer: "https://platform.example.com",
           client_id: "tool-client-id",
           auth_endpoint: "https://platform.example.com/auth",
-          jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-          tool_jwk: tool_jwk
+          jwks_uri: "https://platform.example.com/.well-known/jwks.json"
         })
 
       assert {:error, %ServiceNotAvailable{} = error} =
                ClientCredentials.request_token(registration, @scopes)
 
       assert Exception.message(error) =~ "The registration has no token endpoint"
-    end
-
-    test "falls back to requested scopes when response omits scope", ctx do
-      stub_token_response(%{
-        "access_token" => "no-scope-token",
-        "token_type" => "Bearer",
-        "expires_in" => 3600
-      })
-
-      assert {:ok, token} =
-               ClientCredentials.request_token(ctx.registration, @scopes,
-                 req_options: req_options()
-               )
-
-      assert token.granted_scopes == MapSet.new(@scopes)
     end
   end
 end

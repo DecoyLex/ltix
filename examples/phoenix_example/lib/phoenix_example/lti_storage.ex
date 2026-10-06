@@ -2,8 +2,8 @@ defmodule PhoenixExample.LtiStorage do
   @moduledoc """
   In-memory LTI storage adapter for demo purposes.
 
-  Stores a hardcoded registration and deployment, tracks nonces, and
-  persists launch contexts in an Agent. Replace this with a
+  Stores a hardcoded registration and deployment, tracks nonces, signs with
+  a generated key, and persists launch contexts in an Agent. Replace this with a
   database-backed implementation in a real application.
   """
 
@@ -44,16 +44,13 @@ defmodule PhoenixExample.LtiStorage do
 
   @impl true
   def get_registration(@demo_issuer, _client_id) do
-    tool_jwk = Agent.get(__MODULE__, & &1.tool_jwk)
-
     {:ok,
      %Ltix.Registration{
        issuer: @demo_issuer,
        client_id: @demo_client_id,
        auth_endpoint: "https://lti-ri.imsglobal.org/platforms/6092/authorizations/new",
        jwks_uri: "https://lti-ri.imsglobal.org/platforms/6092/platform_keys/5405.json",
-       token_endpoint: "https://lti-ri.imsglobal.org/platforms/6092/access_tokens",
-       tool_jwk: tool_jwk
+       token_endpoint: "https://lti-ri.imsglobal.org/platforms/6092/access_tokens"
      }}
   end
 
@@ -78,6 +75,17 @@ defmodule PhoenixExample.LtiStorage do
       end
     end)
   end
+
+  @impl true
+  def key_id(_registration), do: {:ok, tool_jwk().kid}
+
+  @impl true
+  def sign(_registration, _key_id, message), do: Ltix.JWK.sign(tool_jwk(), message)
+
+  @doc """
+  Return the key the tool signs with.
+  """
+  def tool_jwk, do: Agent.get(__MODULE__, & &1.tool_jwk)
 
   # --- Context storage (example-app specific) ---
 

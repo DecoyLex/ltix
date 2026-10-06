@@ -305,8 +305,7 @@ defmodule Ltix.GradeServiceTest do
         oauth_client_id: "custom-tool-client",
         oidc_auth_url: "https://custom-lms.example.com/auth",
         platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token",
-        signing_key: Ltix.JWK.generate()
+        platform_token_url: "https://custom-lms.example.com/token"
       }
 
       endpoint = %AGSEndpoint{

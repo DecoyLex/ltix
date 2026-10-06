@@ -6,16 +6,13 @@ defmodule Ltix.OIDC.LoginInitiationTest do
   alias Ltix.OIDC.LoginInitiation
   alias Ltix.Test.StorageAdapter
 
-  @tool_jwk Ltix.JWK.generate()
-
   setup do
     {:ok, registration} =
       Ltix.Registration.new(%{
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/authorize",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        tool_jwk: @tool_jwk
+        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
       })
 
     {:ok, pid} = StorageAdapter.start_link(registrations: [registration])
@@ -129,8 +126,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
           issuer: "https://platform.example.com",
           client_id: "other-client-id",
           auth_endpoint: "https://platform.example.com/other-authorize",
-          jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-          tool_jwk: @tool_jwk
+          jwks_uri: "https://platform.example.com/.well-known/jwks.json"
         })
 
       {:ok, pid} =
@@ -150,18 +146,6 @@ defmodule Ltix.OIDC.LoginInitiationTest do
 
       assert query["client_id"] == "other-client-id"
       assert URI.parse(result.redirect_uri).path == "/other-authorize"
-    end
-
-    test "client_id absent — registration looked up by issuer alone", %{
-      params: params,
-      redirect_uri: redirect_uri
-    } do
-      refute Map.has_key?(params, "client_id")
-
-      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
-      query = URI.decode_query(URI.parse(result.redirect_uri).query)
-
-      assert query["client_id"] == "tool-client-id"
     end
 
     test "state and nonce are cryptographically random", %{

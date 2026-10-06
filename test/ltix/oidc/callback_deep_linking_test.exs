@@ -3,7 +3,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
-  alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
@@ -22,8 +21,7 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri:
-          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
-        tool_jwk: Ltix.JWK.generate()
+          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json"
       })
 
     platform = %Ltix.Test.Platform{
@@ -71,7 +69,7 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
   end
 
   # [DL §4.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-request-message)
-  describe "happy path" do
+  describe "valid deep linking launch" do
     test "deep linking launch returns LaunchContext", ctx do
       assert {:ok, %LaunchContext{} = launch} =
                Callback.call(ctx.params, ctx.state, StorageAdapter, req_options: req_options())
@@ -80,12 +78,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
       assert launch.claims.version == "1.3.0"
       assert launch.claims.deployment_id == "deployment-001"
       assert launch.claims.target_link_uri == "https://tool.example.com/launch"
-    end
-
-    # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
-    test "deep_linking_settings is parsed into struct", ctx do
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(ctx.params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert %DeepLinkingSettings{} = launch.claims.deep_linking_settings
 
@@ -100,13 +92,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
              ]
 
       assert launch.claims.deep_linking_settings.accept_multiple == true
-    end
-
-    test "succeeds without resource_link claim", ctx do
-      refute Map.has_key?(ctx.claims, @lti <> "resource_link")
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(ctx.params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.resource_link == nil
     end
@@ -129,23 +114,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
 
       assert launch.claims.subject == nil
-    end
-
-    test "succeeds with roles and sub present", ctx do
-      claims =
-        ctx.claims
-        |> Map.put("sub", "user-12345")
-        |> Map.put(@lti <> "roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.subject == "user-12345"
-      assert LaunchClaims.Role.instructor?(launch.claims.roles)
     end
   end
 

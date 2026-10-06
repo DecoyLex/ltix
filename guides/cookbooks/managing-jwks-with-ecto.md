@@ -56,32 +56,33 @@ end
 No serialization functions needed — PEM strings and kids are stored
 directly.
 
-Your storage adapter reconstructs the struct:
+## Signing
+
+Your storage adapter signs with the registration's key through the `key_id/1` and `sign/3` callbacks:
 
 ```elixir
-defp to_registration(record) do
-  %Ltix.Registration{
-    issuer: record.issuer,
-    client_id: record.client_id,
-    auth_endpoint: record.auth_endpoint,
-    jwks_uri: record.jwks_uri,
-    token_endpoint: record.token_endpoint,
-    tool_jwk: %Ltix.JWK{
-      private_key_pem: record.key.private_key_pem,
-      kid: record.key.kid
-    }
-  }
+@impl true
+def key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
+  query =
+    from r in PlatformRegistration,
+      join: k in assoc(r, :key),
+      where: r.issuer == ^issuer and r.client_id == ^client_id,
+      select: k.kid
+
+  case Repo.one(query) do
+    nil -> {:error, :not_found}
+    kid -> {:ok, kid}
+  end
+end
+
+@impl true
+def sign(_registration, key_id, message) do
+  key = Repo.get_by!(LtiKey, kid: key_id)
+  Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
 end
 ```
 
-Or use `Ltix.JWK.new/1` if you want validation on load:
-
-```elixir
-{:ok, tool_jwk} = Ltix.JWK.new(
-  private_key_pem: record.key.private_key_pem,
-  kid: record.key.kid
-)
-```
+`sign/3` looks the key up by the ID `key_id/1` returned, so a request that starts before a rotation still signs with the key its JWT names.
 
 ## JWKS controller
 

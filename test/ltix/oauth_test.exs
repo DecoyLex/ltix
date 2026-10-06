@@ -55,16 +55,13 @@ defmodule Ltix.OAuthTest do
   end
 
   setup do
-    tool_jwk = Ltix.JWK.generate()
-
     {:ok, registration} =
       Ltix.Registration.new(%{
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        token_endpoint: "https://platform.example.com/token",
-        tool_jwk: tool_jwk
+        token_endpoint: "https://platform.example.com/token"
       })
 
     custom_registration = %CustomRegistration{
@@ -74,8 +71,7 @@ defmodule Ltix.OAuthTest do
       oauth_client_id: "tool-client-id",
       oidc_auth_url: "https://platform.example.com/auth",
       platform_jwks_url: "https://platform.example.com/.well-known/jwks.json",
-      platform_token_url: "https://platform.example.com/token",
-      signing_key: tool_jwk
+      platform_token_url: "https://platform.example.com/token"
     }
 
     %{registration: registration, custom_registration: custom_registration}

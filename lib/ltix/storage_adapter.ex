@@ -21,6 +21,26 @@ defmodule Ltix.StorageAdapter do
   | `c:get_registration/2` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
   | `c:get_deployment/2` | Launch validation | Look up a deployment by registration and deployment_id |
   | `c:validate_nonce/3` | Launch validation | Record a nonce as used, and reject one already used |
+  | `c:key_id/1` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
+  | `c:sign/3` | Service authentication and deep linking responses | Sign a message with that key |
+
+  ## Signing
+
+  `c:key_id/1` and `c:sign/3` are optional. Implement them when your tool
+  calls Advantage services or builds deep linking responses. Ltix builds
+  each JWT and asks your adapter for the signature, so the private key
+  stays wherever you keep it. `Ltix.JWK.sign/2` signs with a key held in
+  your application:
+
+      @impl true
+      def key_id(registration) do
+        {:ok, MyApp.Lti.signing_key(registration).kid}
+      end
+
+      @impl true
+      def sign(_registration, key_id, message) do
+        Ltix.JWK.sign(MyApp.Lti.get_key!(key_id), message)
+      end
 
   ## Failures
 
@@ -31,6 +51,7 @@ defmodule Ltix.StorageAdapter do
   `Ltix.Deployable`, also produces a `StorageError`.
   """
 
+  alias Ltix.AppConfig
   alias Ltix.Deployable
   alias Ltix.Deployment
   alias Ltix.Errors
@@ -101,6 +122,29 @@ defmodule Ltix.StorageAdapter do
               registration :: Registration.t(),
               expires_at :: DateTime.t()
             ) :: :ok | {:error, :nonce_already_used | term()}
+
+  @doc """
+  Return the ID of the key that signs for a registration.
+
+  The ID becomes the `kid` of each JWT Ltix builds for the registration, and
+  platforms use it to find the public key in your key set. Ltix passes it
+  back to `c:sign/3`.
+  """
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
+  @callback key_id(registration :: Registration.t()) :: {:ok, String.t()} | {:error, term()}
+
+  @doc """
+  Sign a message with the key `c:key_id/1` returned.
+
+  Return `{:ok, signature}` with the RSASSA-PKCS1-v1_5 SHA-256 (RS256)
+  signature of `message`, as raw bytes. `Ltix.JWK.sign/2` returns this for a
+  key held in your application.
+  """
+  # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
+  @callback sign(registration :: Registration.t(), key_id :: String.t(), message :: binary()) ::
+              {:ok, binary()} | {:error, term()}
+
+  @optional_callbacks key_id: 1, sign: 3
 
   # The functions below call an adapter's callback and return an Ltix error
   # for any result other than success.
@@ -192,6 +236,52 @@ defmodule Ltix.StorageAdapter do
       result ->
         {:error, storage_error(:validate_nonce, result)}
     end
+  end
+
+  # Returns a compact RS256 JWT with the given claims, signed by the adapter.
+  # [RFC 7515 §7.1](https://www.rfc-editor.org/rfc/rfc7515#section-7.1)
+  @doc false
+  @spec sign_jwt(module(), Registration.t(), map()) :: {:ok, String.t()} | {:error, Exception.t()}
+  def sign_jwt(adapter, registration, claims) do
+    with :ok <- require_signing(adapter),
+         {:ok, key_id} <- key_id(adapter, registration) do
+      header = %{"alg" => "RS256", "typ" => "JWT", "kid" => key_id}
+      message = encode_segment(header) <> "." <> encode_segment(claims)
+
+      case adapter.sign(registration, key_id, message) do
+        {:ok, signature} when is_binary(signature) ->
+          {:ok, message <> "." <> Base.url_encode64(signature, padding: false)}
+
+        result ->
+          {:error, storage_error(:sign, result)}
+      end
+    end
+  end
+
+  defp require_signing(adapter) do
+    if Code.ensure_loaded?(adapter) and function_exported?(adapter, :key_id, 1) and
+         function_exported?(adapter, :sign, 3) do
+      :ok
+    else
+      {:error,
+       StorageError.exception(
+         callback: :sign,
+         reason:
+           "is not implemented. #{inspect(adapter)} must implement key_id/1 and sign/3 " <>
+             "to call Advantage services or build deep linking responses"
+       )}
+    end
+  end
+
+  defp key_id(adapter, registration) do
+    case adapter.key_id(registration) do
+      {:ok, key_id} when is_binary(key_id) and key_id != "" -> {:ok, key_id}
+      result -> {:error, storage_error(:key_id, result)}
+    end
+  end
+
+  defp encode_segment(map) do
+    Base.url_encode64(AppConfig.json_library!().encode!(map), padding: false)
   end
 
   # Ltix errors returned by the adapter are returned unchanged.

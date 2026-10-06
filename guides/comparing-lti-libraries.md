@@ -82,8 +82,8 @@ claims["https://purl.imsglobal.org/spec/lti/claim/context"]["title"]
 
 **Ltix** defines a single `Ltix.StorageAdapter` behaviour with three
 callbacks — registration lookup, deployment lookup, and recording used
-nonces. Each registration includes your tool's signing
-key as `tool_jwk`, so there are no separate key callbacks.
+nonces. Two optional callbacks sign with your tool's key, so the
+private key stays in your application or a key management service.
 
 **`lti_1p3`** provides three behaviours (`DataProvider`,
 `ToolDataProvider`, `PlatformDataProvider`) with a broader callback
@@ -168,7 +168,7 @@ service calls, giving more visibility into each step:
 
 **Ltix** is a good fit when you are building a tool and want typed
 claims, structured errors, and a small integration surface (three
-storage callbacks). It focuses on ergonomics and correctness for the
+required storage callbacks). It focuses on ergonomics and correctness for the
 tool side of LTI.
 
 **`lti_1p3`** is a good fit when you need platform-side support, want
@@ -180,7 +180,7 @@ over JWK lifecycle and platform management.
 
 - [What is Ltix?](what-is-ltix.md) — overview of Ltix's design
 - [Getting Started](getting-started.md) — integrate Ltix into a Phoenix app
-- `Ltix.StorageAdapter` — the three callbacks your app implements
+- `Ltix.StorageAdapter` — the three required callbacks your app implements
 - [Error Handling](error-handling.md) — working with structured errors
 - [Advantage Services](advantage-services.md) — OAuth and service calls
 - [Grade Service](grade-service.md) — posting scores and managing line items

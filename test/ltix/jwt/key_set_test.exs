@@ -5,8 +5,6 @@ defmodule Ltix.JWT.KeySetTest do
   alias Ltix.JWT.KeySet
   alias Ltix.JWT.KeySet.ETSCache
 
-  @tool_jwk Ltix.JWK.generate()
-
   defmodule NoCache do
     @moduledoc false
     @behaviour Ltix.JWT.KeySet.Cache
@@ -30,8 +28,7 @@ defmodule Ltix.JWT.KeySetTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json",
-        tool_jwk: @tool_jwk
+        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json"
       })
 
     %{registration: registration, platform_jwk: platform_jwk, jwks: jwks}

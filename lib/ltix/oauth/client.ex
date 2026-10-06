@@ -36,11 +36,19 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Records
   alias Ltix.Registration
 
-  defstruct [:token, :registration, :req_options, :local_network_access, endpoints: %{}]
+  defstruct [
+    :token,
+    :registration,
+    :storage_adapter,
+    :req_options,
+    :local_network_access,
+    endpoints: %{}
+  ]
 
   @type t :: %__MODULE__{
           token: AccessToken.t(),
           registration: Registration.t(),
+          storage_adapter: module() | nil,
           req_options: keyword(),
           local_network_access: :none | :local | :loopback | nil,
           endpoints: %{module() => term()}
@@ -51,6 +59,11 @@ defmodule Ltix.OAuth.Client do
       Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.request/2`.")
       |> Zoi.default([]),
     local_network_access: Ltix.HTTP.local_network_access_option(),
+    storage_adapter:
+      Zoi.module(
+        description:
+          "Module implementing `Ltix.StorageAdapter`, which signs token requests. Defaults to the application configuration."
+      ),
     require_all_scopes:
       Zoi.boolean(
         description:
@@ -203,6 +216,7 @@ defmodule Ltix.OAuth.Client do
            :refresh,
            client.registration,
            scopes,
+           storage_adapter: client.storage_adapter,
            req_options: client.req_options,
            local_network_access: client.local_network_access
          ) do
@@ -247,6 +261,7 @@ defmodule Ltix.OAuth.Client do
         %__MODULE__{
           token: token,
           registration: registration,
+          storage_adapter: Keyword.get(opts, :storage_adapter),
           req_options: req_options,
           local_network_access: Keyword.get(opts, :local_network_access),
           endpoints: endpoints

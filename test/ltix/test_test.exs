@@ -430,8 +430,7 @@ defmodule Ltix.TestTest do
           client_id: "tool-client-id",
           auth_endpoint: "https://platform.example.com/auth",
           jwks_uri:
-            "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
-          tool_jwk: Ltix.JWK.generate(key_size: 2048)
+            "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json"
         })
 
       for _platform <- 1..2 do
@@ -507,7 +506,7 @@ defmodule Ltix.TestTest do
       end
     end
 
-    test "serves processes the test starts", %{platform: platform} do
+    test "is available to processes the test starts", %{platform: platform} do
       task =
         Task.async(fn ->
           {:ok, login_result} = do_login(platform)
@@ -533,8 +532,6 @@ defmodule Ltix.TestTest do
 
   describe "setup_platform!/1 with custom structs" do
     setup do
-      tool_jwk = Ltix.JWK.generate()
-
       registration = %CustomRegistration{
         id: "reg-uuid-001",
         tenant_id: "tenant-1",
@@ -542,8 +539,7 @@ defmodule Ltix.TestTest do
         oauth_client_id: "custom-tool-client",
         oidc_auth_url: "https://custom-lms.example.com/auth",
         platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token",
-        signing_key: tool_jwk
+        platform_token_url: "https://custom-lms.example.com/token"
       }
 
       deployment = %CustomDeployment{
@@ -594,7 +590,7 @@ defmodule Ltix.TestTest do
                    end
     end
 
-    test "build_launch_context carries custom structs through",
+    test "build_launch_context returns the custom structs",
          %{custom_registration: reg, custom_deployment: dep} do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
       context = Ltix.Test.build_launch_context(platform, roles: [:instructor])
@@ -606,7 +602,7 @@ defmodule Ltix.TestTest do
       assert context.claims.deployment_id == "custom-dep-001"
     end
 
-    test "full OIDC flow carries custom structs through",
+    test "full OIDC flow returns the custom structs",
          %{custom_registration: reg, custom_deployment: dep} do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
 
@@ -730,13 +726,15 @@ defmodule Ltix.TestTest do
   describe "service stub routing" do
     @quiz %LineItem{id: "https://lms.example.com/lineitems/7", label: "Quiz", score_maximum: 10}
 
-    test "stubs for different operations answer together", %{platform: platform} do
+    test "stubs for different operations respond together", %{platform: platform} do
       Ltix.Test.stub_create_line_item(@quiz)
       Ltix.Test.stub_list_line_items([@quiz])
       Ltix.Test.stub_post_score()
       client = build_grade_client(platform)
 
-      assert {:ok, item} = GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+      assert {:ok, %LineItem{id: "https://lms.example.com/lineitems/7", label: "Quiz"} = item} =
+               GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+
       assert :ok = GradeService.post_score(client, score(), line_item: item)
       assert {:ok, [listed]} = GradeService.list_line_items(client)
       assert :ok = GradeService.post_score(client, score(), line_item: listed)
@@ -791,7 +789,7 @@ defmodule Ltix.TestTest do
                    end
     end
 
-    test "stubs answer processes allowed to use them", %{platform: platform} do
+    test "stubs respond to processes allowed to use them", %{platform: platform} do
       Ltix.Test.stub_list_line_items([@quiz])
       client = build_grade_client(platform)
       test = self()
@@ -809,7 +807,7 @@ defmodule Ltix.TestTest do
       assert_receive {:listed, {:ok, [%LineItem{label: "Quiz"}]}}
     end
 
-    test "each process keeps its own stubs", %{platform: platform} do
+    test "each process has its own stubs", %{platform: platform} do
       Ltix.Test.stub_list_line_items([@quiz])
       client = build_grade_client(platform)
 
@@ -823,7 +821,7 @@ defmodule Ltix.TestTest do
       assert {:ok, [%LineItem{label: "Quiz"}]} = GradeService.list_line_items(client)
     end
 
-    test "list stubs answer page by page", %{platform: platform} do
+    test "list stubs respond page by page", %{platform: platform} do
       items = for n <- 1..5, do: %LineItem{@quiz | id: "#{@quiz.id}#{n}", label: "Quiz #{n}"}
       results = for n <- 1..3, do: %Result{user_id: "student-#{n}", result_score: n}
       Ltix.Test.stub_list_line_items(items)
@@ -856,7 +854,7 @@ defmodule Ltix.TestTest do
                ["student-1", "student-2", "student-3"]
     end
 
-    test "memberships stubs answer page by page", %{platform: platform} do
+    test "memberships stubs respond page by page", %{platform: platform} do
       members =
         for n <- 1..3, do: %Member{user_id: "user-#{n}", roles: [Role.from_atom(:learner)]}
 

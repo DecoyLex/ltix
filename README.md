@@ -28,20 +28,20 @@ context.registration          #=> your struct from StorageAdapter.get_registrati
   cover the entire OIDC flow
 - **LTI Advantage** - Assignment and Grade Services, Names and Role
   Provisioning, and Deep Linking
-- **Storage-agnostic** - implement three callbacks in `Ltix.StorageAdapter`
-  to plug in any persistence layer
+- **Storage-agnostic** - implement three required callbacks in `Ltix.StorageAdapter`
+  to use any persistence layer
 - **Framework-agnostic** - works with Phoenix, bare Plug, or any Elixir
   web framework
 - **Structured claims** - roles, context, resource links, and service
   endpoints parsed into typed structs
 - **Spec-referenced errors** - classified as `:invalid`, `:security`, or
-  `:unknown`, and most have a `spec_ref` pointing to the relevant spec section
+  `:unknown`, and most have a `spec_ref` referencing the relevant spec section
 - **Testing utilities** - `Ltix.Test` provides a simulated platform for
   integration tests without a real LMS
 
 ## Installation
 
-Add `:ltix` to your dependencies:
+Add `:ltix` to your dependencies.
 
 ```elixir
 def deps do

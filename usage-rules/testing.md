@@ -31,19 +31,21 @@ In your test's `setup` block:
 
 ```elixir
 setup do
+  jwk = MyApp.Lti.generate_jwk!()
+
   platform = Ltix.Test.setup_platform!(
     registration: fn reg ->
-      jwk = MyApp.Lti.generate_jwk!()
-
       MyApp.Lti.create_registration!(%{
         issuer: reg.issuer,
         client_id: reg.client_id,
         auth_endpoint: reg.auth_endpoint,
         jwks_uri: reg.jwks_uri,
         token_endpoint: reg.token_endpoint,
-        tool_jwk_id: jwk.id
+        jwk_id: jwk.id
       })
-    end
+    end,
+    # The key your storage adapter signs with, for verify_deep_linking_response/2
+    tool_jwk: Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid)
   )
 
   %{platform: platform}

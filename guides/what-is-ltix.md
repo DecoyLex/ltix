@@ -1,7 +1,7 @@
 # What is Ltix?
 
 Ltix is an Elixir library for handling LTI 1.3 launches on the tool side.
-It takes care of the OIDC redirect flow, JWT signature verification, claim
+It handles the OIDC redirect flow, JWT signature verification, claim
 parsing, and spec compliance so you can focus on what your tool actually
 does.
 
@@ -10,26 +10,26 @@ does.
 LTI 1.3 connects learning platforms (Canvas, Moodle, Blackboard) with
 external tools (quiz engines, coding sandboxes, video players). When a
 student clicks a link in their course, the platform launches the tool
-through a multi-step browser redirect that tells the tool who the user
-is, what course they're in, and what role they have.
+through a multi-step browser redirect with information about who the
+user is, what course they're in, and what role they have.
 
 The protocol is built on OpenID Connect and signed JWTs. Implementing it
-correctly means handling:
+correctly means handling the following.
 
 - A three-step redirect flow with CSRF protection via state parameters
 - JWKS fetching and caching to verify platform signatures
-- JWT validation — signature, expiration, issuer, audience, nonce
-- Claim parsing — roles, context, resource links, service endpoints
+- JWT validation (signature, expiration, issuer, audience, nonce)
+- Claim parsing (roles, context, resource links, service endpoints)
 - Spec compliance across dozens of requirements from three IMS
   specifications
 
 This is security-critical work with little room for error. Getting the
-nonce check wrong opens you to replay attacks. Getting the audience
+nonce check wrong allows replay attacks. Getting the audience
 check wrong means accepting tokens meant for other tools.
 
 ## Two functions
 
-Ltix collapses all of that into two function calls:
+Ltix does all of that in two function calls.
 
 ```elixir
 # Step 1: Platform initiates login — build the redirect
@@ -41,7 +41,7 @@ Ltix collapses all of that into two function calls:
 ```
 
 The result is a `%Ltix.LaunchContext{}` containing everything about
-the launch:
+the launch.
 
 ```elixir
 context.claims.subject          #=> "user-12345"
@@ -64,15 +64,15 @@ structured data, and confirmed the deployment exists.
 > #### Two calls per launch {: .info}
 >
 > `handle_login/3` and `handle_callback/3` are the only functions a
-> launch needs. Everything else — storage lookups, key fetching, token
-> validation — happens behind them. `handle_login!/3` and
+> launch needs. Everything else (storage lookups, key fetching, token
+> validation) happens inside them. `handle_login!/3` and
 > `handle_callback!/3` do the same and raise on error. After a launch,
 > `Ltix.GradeService`, `Ltix.MembershipsService`, and `Ltix.DeepLinking`
 > take the returned context.
 
 ## What Ltix handles vs. what you handle
 
-Ltix owns the protocol. Your application owns everything around it.
+Ltix handles the protocol. Your application handles everything else.
 
 | Ltix's job | Your app's job |
 |---|---|
@@ -82,25 +82,25 @@ Ltix owns the protocol. Your application owns everything around it.
 | Parse roles, context, resource links | Decide what to do with the launch |
 | Return structured, typed launch data | Handle errors and show appropriate UI |
 
-This boundary is enforced through the `Ltix.StorageAdapter` behaviour —
-a set of three callbacks your application implements to provide
-persistence. Ltix never touches your database directly.
+This boundary is enforced through the `Ltix.StorageAdapter` behaviour,
+a set of three required callbacks your application implements to
+provide persistence, plus two optional ones for signing. Ltix never accesses your database directly.
 
 ## Design choices
 
 **Storage-agnostic.** Ltix doesn't assume your database, ORM, or
 persistence strategy. You implement `Ltix.StorageAdapter` with three
-callbacks — registration lookup, deployment lookup, and recording used
-nonces. Use Ecto, Mnesia, Redis, or anything else.
+required callbacks for registration lookup, deployment lookup, and
+recording used nonces. Use Ecto, Mnesia, Redis, or anything else.
 
 **Framework-agnostic.** Ltix works with Phoenix, bare Plug, or any
-Elixir web framework. It takes maps in and returns structs out — no
+Elixir web framework. It takes maps in and returns structs out, with no
 Plug dependencies in the core path.
 
 **Spec-referenced errors.** When something goes wrong, Ltix returns
-structured errors organized into three classes: `:invalid` (bad input),
+structured errors organized into three classes, `:invalid` (bad input),
 `:security` (failed security checks), and `:unknown` (unexpected
-failures). Most errors carry a `spec_ref` field pointing to the exact
+failures). Most errors have a `spec_ref` field referencing the exact
 spec section that was violated, so you can look up why a validation
 failed.
 
@@ -115,10 +115,10 @@ failed.
 
 ## Next steps
 
-- [LTI Advantage Concepts](concepts.md) — understand the protocol:
-  registrations, deployments, the launch flow, roles, and nonces
-- [Getting Started](getting-started.md) — integrate Ltix into a Phoenix
+- [LTI Advantage Concepts](concepts.md) - understand the protocol
+  (registrations, deployments, the launch flow, roles, and nonces)
+- [Getting Started](getting-started.md) - integrate Ltix into a Phoenix
   app step by step
-- `Ltix.StorageAdapter` — the three callbacks your app implements
-- `Ltix.LaunchContext` — what a successful launch returns
-- `Ltix.LaunchClaims.Role` — role parsing and predicates
+- `Ltix.StorageAdapter` - the three required callbacks your app implements
+- `Ltix.LaunchContext` - what a successful launch returns
+- `Ltix.LaunchClaims.Role` - role parsing and predicates

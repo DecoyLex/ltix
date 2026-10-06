@@ -27,6 +27,20 @@ returned together in an `Ltix.Errors.Invalid` error.
 Use a separate key per registration so you can rotate them
 independently.
 
+## Signing with a key
+
+Ltix never stores your private key. When it needs a signature, it calls your storage adapter's `c:Ltix.StorageAdapter.key_id/1` and `c:Ltix.StorageAdapter.sign/3` callbacks. `Ltix.JWK.sign/2` produces the signature for a key your application holds:
+
+```elixir
+@impl true
+def key_id(_registration), do: {:ok, jwk.kid}
+
+@impl true
+def sign(_registration, _key_id, message), do: Ltix.JWK.sign(jwk, message)
+```
+
+A key in a key management service never has to leave it. Call the service from `sign/3` and return its RS256 signature. See [Storage Adapters](storage-adapters.md#signing).
+
 ## Serving a JWKS endpoint
 
 Platforms fetch your public keys to verify your tool's signed
@@ -75,6 +89,6 @@ Ltix.JWK.to_jwks([old_jwk, new_jwk])
   storage, JWKS controller, and automated rotation
 - [Advantage Services](advantage-services.md): how keys are used
   in service authentication
-- [Storage Adapters](storage-adapters.md): where registrations
-  (and their keys) are stored
+- [Storage Adapters](storage-adapters.md): the callbacks that sign
+  with your keys
 - `Ltix.JWK`: API reference

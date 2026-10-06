@@ -1,8 +1,8 @@
 defmodule CustomDeployment do
   @moduledoc false
 
-  # Intentionally different shape from %Ltix.Deployment{} — includes
-  # app-specific fields that Ltix doesn't know about.
+  # Intentionally different shape from %Ltix.Deployment{}. It includes
+  # app-specific fields that %Ltix.Deployment{} doesn't have.
 
   defstruct [:id, :registration_id, :platform_deployment_id, :label]
 

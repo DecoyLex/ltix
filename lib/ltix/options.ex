@@ -21,11 +21,12 @@ defmodule Ltix.Options do
     end
   end
 
-  # Returns the option, falling back to the application environment. Raises
-  # `InvalidOption` when neither is set.
+  # Returns the option, or the application environment value when the option
+  # is unset. Raises `InvalidOption` when neither is set. A `nil` option
+  # counts as unset.
   @spec fetch_configured!(keyword(), atom()) :: term()
   def fetch_configured!(opts, key) do
-    Keyword.get_lazy(opts, key, fn -> Application.get_env(:ltix, key) end) ||
+    Keyword.get(opts, key) || Application.get_env(:ltix, key) ||
       raise InvalidOption, key: key, reason: :not_configured
   end
 

@@ -1,9 +1,9 @@
 defmodule CustomRegistration do
   @moduledoc false
 
-  # Intentionally different shape from %Ltix.Registration{} — uses
-  # DB-style field names and includes app-specific fields that Ltix
-  # doesn't know about.
+  # Intentionally different shape from %Ltix.Registration{}. Uses
+  # DB-style field names and includes app-specific fields that
+  # %Ltix.Registration{} doesn't have.
 
   defstruct [
     :id,
@@ -12,8 +12,7 @@ defmodule CustomRegistration do
     :oauth_client_id,
     :oidc_auth_url,
     :platform_jwks_url,
-    :platform_token_url,
-    :signing_key
+    :platform_token_url
   ]
 
   defimpl Ltix.Registerable do
@@ -23,8 +22,7 @@ defmodule CustomRegistration do
         client_id: reg.oauth_client_id,
         auth_endpoint: reg.oidc_auth_url,
         jwks_uri: reg.platform_jwks_url,
-        token_endpoint: reg.platform_token_url,
-        tool_jwk: reg.signing_key
+        token_endpoint: reg.platform_token_url
       })
     end
   end

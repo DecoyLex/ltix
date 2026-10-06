@@ -20,7 +20,7 @@ JWTs for the data payload.
 
 ## Launch flow
 
-An LTI launch is a three-step browser redirect:
+An LTI launch is a three-step browser redirect.
 
 ```mermaid
 sequenceDiagram
@@ -39,29 +39,30 @@ sequenceDiagram
     T->>B: Render launch
 ```
 
-1. **Login initiation** — the platform tells the tool "a user wants to
-   launch." The tool doesn't know who yet — it just gets the platform's
-   identity and a hint. Ltix handles this in `handle_login/3`.
+1. **Login initiation** - the platform sends the tool a login request
+   for a user who wants to launch. The tool doesn't have the user's
+   identity yet. It just gets the platform's identity and a hint.
+   Ltix handles this in `handle_login/3`.
 
-2. **Authorization redirect** — the tool sends the browser to the
+2. **Authorization redirect** - the tool sends the browser to the
    platform's auth endpoint with a nonce and state parameter. The
    platform authenticates the user and builds a signed JWT.
 
-3. **Launch** — the platform POSTs the signed JWT back to the tool.
+3. **Launch** - the platform POSTs the signed JWT back to the tool.
    The tool validates the signature, checks the nonce, and extracts the
    launch data. Ltix handles this in `handle_callback/3`.
 
 The state parameter (stored in the session between steps 1 and 3)
-provides CSRF protection — it proves the launch callback came from
+provides CSRF protection. It proves the launch callback came from
 the same browser session that initiated the login.
 
 ## Registrations
 
-A **registration** is what your tool knows about a platform. It's
-created out-of-band when a platform administrator sets up your tool,
+A **registration** is the information your tool has about a platform.
+It's created out-of-band when a platform administrator sets up your tool,
 typically through a configuration UI on both sides.
 
-A registration contains:
+A registration contains the following fields.
 
 | Field | What it is |
 |---|---|
@@ -70,7 +71,6 @@ A registration contains:
 | `auth_endpoint` | Where to redirect users for authentication |
 | `jwks_uri` | Where to fetch the platform's public keys |
 | `token_endpoint` | Where to request access tokens for service calls (optional) |
-| `tool_jwk` | Your tool's private signing key for this registration (`Ltix.JWK.t()`) |
 
 In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter`
 looks up registrations by issuer and client_id, both during login
@@ -79,11 +79,11 @@ initiation and again during launch validation.
 ## Deployments
 
 A **deployment** is a specific installation of your tool on a platform.
-One registration (platform + client_id) can have many deployments —
-for example, a tool installed in three different departments of the
+One registration (platform + client_id) can have many deployments,
+for example a tool installed in three different departments of the
 same university.
 
-A deployment carries a single `deployment_id` assigned by the platform.
+A deployment has a single `deployment_id` assigned by the platform.
 It's immutable, case-sensitive, and guaranteed unique within the
 registration.
 
@@ -93,8 +93,8 @@ extracted.
 
 ## Launch claims
 
-The signed JWT in step 3 contains **claims** — structured data about
-the launch. Ltix parses these into `Ltix.LaunchClaims`:
+The signed JWT in step 3 contains **claims**, which are structured data
+about the launch. Ltix parses these into `Ltix.LaunchClaims`.
 
 | Claim group | Examples | Struct field |
 |---|---|---|
@@ -106,20 +106,20 @@ the launch. Ltix parses these into `Ltix.LaunchClaims`:
 | Service endpoints | gradebook, names & roles | `claims.ags_endpoint`, `claims.memberships_endpoint` |
 | Custom | anything the platform adds | `claims.custom`, `claims.extensions` |
 
-The full launch result is `Ltix.LaunchContext`, which wraps the claims
+The full launch result is `Ltix.LaunchContext`, which contains the claims
 together with the matched registration and deployment.
 
 ## Roles
 
 Platforms send roles as URI strings. A user can have multiple roles
-simultaneously — for example, an instructor in the course and a
+simultaneously, for example an instructor in the course and a
 staff member at the institution.
 
-Roles have three scopes:
+Roles have three scopes.
 
-- **Context** — course-level: instructor, learner, TA, content developer
-- **Institution** — org-level: faculty, student, staff, administrator
-- **System** — platform-level: system admin, account admin
+- **Context** - course-level (instructor, learner, TA, content developer)
+- **Institution** - org-level (faculty, student, staff, administrator)
+- **System** - platform-level (system admin, account admin)
 
 Ltix parses role URIs into `Ltix.LaunchClaims.Role` structs and
 provides predicates like `Role.instructor?/1` for authorization. See
@@ -127,19 +127,19 @@ provides predicates like `Role.instructor?/1` for authorization. See
 
 ## Nonces
 
-A **nonce** is a one-time-use random string that prevents replay attacks. The flow is:
+A **nonce** is a one-time-use random string that prevents replay attacks. The flow is as follows.
 
 1. During login, Ltix generates a nonce tied to the login's state and registration
 2. The nonce is included in the authorization request to the platform
-3. The platform echoes it back in the signed JWT
-4. During launch validation, Ltix checks the nonce against the state and asks your adapter to record it as used
+3. The platform returns it in the signed JWT
+4. During launch validation, Ltix checks the nonce against the state and calls your adapter to record it as used
 
 If someone intercepts a JWT and tries to replay it, the nonce check fails because it was already used.
 
 ## How Ltix fits in
 
-Ltix handles the protocol — OIDC redirects, JWT parsing, signature
-verification, claim validation. Your application handles the rest:
+Ltix handles the protocol (OIDC redirects, JWT parsing, signature
+verification, claim validation). Your application handles the rest.
 
 | Ltix's job | Your app's job |
 |---|---|

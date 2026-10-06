@@ -67,7 +67,9 @@ Claim values are platform data. Escape them when you render them.
 
 ### Keys and launch contexts
 
-Keep your private key out of version control, logs, and responses. A `Ltix.LaunchContext` includes your registration and its private key, so keep contexts on the server and don't put them in a session cookie. See [JWK Management](jwk-management.md).
+Ltix asks your storage adapter for each signature and never stores your private key, so the key can stay in your database or in a key management service. Keep it out of version control, logs, and responses. See [JWK Management](jwk-management.md).
+
+A `Ltix.LaunchContext` has the user's identity and course data. Keep contexts on the server and put only an ID in the session cookie.
 
 ## Out of scope
 

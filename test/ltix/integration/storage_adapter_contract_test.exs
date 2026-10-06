@@ -269,8 +269,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
         oauth_client_id: registration.client_id,
         oidc_auth_url: registration.auth_endpoint,
         platform_jwks_url: registration.jwks_uri,
-        platform_token_url: registration.token_endpoint,
-        signing_key: registration.tool_jwk
+        platform_token_url: registration.token_endpoint
       }
 
       Agent.update(pid, &%{&1 | registrations: [record | &1.registrations]})

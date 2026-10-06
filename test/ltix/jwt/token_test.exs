@@ -23,8 +23,7 @@ defmodule Ltix.JWT.TokenTest do
         issuer: "https://platform.example.com",
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json",
-        tool_jwk: Ltix.JWK.generate()
+        jwks_uri: "https://platform.example.com/.well-known/jwks-#{unique_id}.json"
       })
 
     stub_jwks(jwks)
@@ -54,7 +53,7 @@ defmodule Ltix.JWT.TokenTest do
       end
     end
 
-    # Happy path
+    # Valid tokens
     test "valid JWT passes all checks", ctx do
       token = mint_valid_token(ctx)
 
@@ -79,7 +78,7 @@ defmodule Ltix.JWT.TokenTest do
       assert {:ok, _claims} = Token.verify(token, ctx.registration, req_options: req_options())
     end
 
-    # Algorithm validation [Sec §5.1.3 step 6; Cert §4.2]
+    # Algorithm validation [Sec §5.1.3 step 6, Cert §4.2]
 
     # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
     test "rejects alg=none", ctx do
@@ -256,9 +255,6 @@ defmodule Ltix.JWT.TokenTest do
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
-    # Issuer spoofing — attacker sends a near-miss issuer hoping the tool
-    # treats it as equivalent to the registered one.
-
     # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects issuer with trailing slash", ctx do
       claims =
@@ -293,7 +289,7 @@ defmodule Ltix.JWT.TokenTest do
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
-    # Audience confusion — attacker includes untrusted client_ids in aud array
+    # Audience confusion. Attacker includes untrusted client_ids in aud array
     # without setting azp, hoping the tool accepts the token.
     # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects aud array containing untrusted audiences without azp", ctx do

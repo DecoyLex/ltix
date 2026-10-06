@@ -4,8 +4,6 @@ defmodule Ltix.RegisterableTest do
   alias Ltix.Registerable
   alias Ltix.Registration
 
-  @tool_jwk Ltix.JWK.generate()
-
   describe "Ltix.Registration identity implementation" do
     test "returns the registration unchanged" do
       {:ok, reg} =
@@ -13,8 +11,7 @@ defmodule Ltix.RegisterableTest do
           issuer: "https://platform.example.com",
           client_id: "client-123",
           auth_endpoint: "https://platform.example.com/auth",
-          jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-          tool_jwk: @tool_jwk
+          jwks_uri: "https://platform.example.com/.well-known/jwks.json"
         })
 
       assert Registerable.to_registration(reg) == {:ok, reg}
@@ -27,8 +24,7 @@ defmodule Ltix.RegisterableTest do
         issuer: "http://platform.example.com",
         client_id: "client-123",
         auth_endpoint: "https://platform.example.com/auth",
-        jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-        tool_jwk: @tool_jwk
+        jwks_uri: "https://platform.example.com/.well-known/jwks.json"
       }
 
       assert {:error,
@@ -48,8 +44,7 @@ defmodule Ltix.RegisterableTest do
         platform_issuer: "https://canvas.example.edu",
         oauth_client_id: "10000000000042",
         oidc_auth_url: "https://canvas.example.edu/api/lti/authorize_redirect",
-        platform_jwks_url: "https://canvas.example.edu/api/lti/security/jwks",
-        signing_key: @tool_jwk
+        platform_jwks_url: "https://canvas.example.edu/api/lti/security/jwks"
       }
 
       assert {:ok, %Registration{} = reg} = Registerable.to_registration(custom)
@@ -57,15 +52,14 @@ defmodule Ltix.RegisterableTest do
       assert reg.client_id == "10000000000042"
     end
 
-    test "surfaces validation errors from Registration.new/1" do
+    test "returns validation errors from Registration.new/1" do
       custom = %CustomRegistration{
         id: 1,
         tenant_id: 1,
         platform_issuer: "not-https",
         oauth_client_id: "client",
         oidc_auth_url: "https://example.com/auth",
-        platform_jwks_url: "https://example.com/jwks",
-        signing_key: @tool_jwk
+        platform_jwks_url: "https://example.com/jwks"
       }
 
       assert {:error, error} = Registerable.to_registration(custom)

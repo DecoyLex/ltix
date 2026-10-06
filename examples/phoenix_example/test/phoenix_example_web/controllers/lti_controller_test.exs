@@ -26,7 +26,11 @@ defmodule PhoenixExampleWeb.LtiControllerTest do
 
     %{
       platform:
-        Ltix.Test.setup_platform!(registration: registration, deployment_id: "test-deployment")
+        Ltix.Test.setup_platform!(
+          registration: registration,
+          deployment_id: "test-deployment",
+          tool_jwk: LtiStorage.tool_jwk()
+        )
     }
   end
 
@@ -156,7 +160,7 @@ defmodule PhoenixExampleWeb.LtiControllerTest do
       assert html =~ "Grace Hopper"
     end
 
-    test "asks for a launch without one", %{conn: conn} do
+    test "shows an error without a launch", %{conn: conn} do
       html = conn |> get(~p"/lti/roster") |> html_response(200)
 
       assert html =~ "No active launch session"

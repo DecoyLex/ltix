@@ -14,8 +14,7 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
       platform_issuer: "https://platform.example.com",
       oauth_client_id: "tool-client-id",
       oidc_auth_url: "https://platform.example.com/auth",
-      platform_jwks_url: "https://platform.example.com/.well-known/jwks.json",
-      signing_key: Ltix.JWK.generate()
+      platform_jwks_url: "https://platform.example.com/.well-known/jwks.json"
     }
 
     custom_dep = %CustomDeployment{
@@ -83,7 +82,7 @@ defmodule Ltix.OIDC.CallbackCustomStructsTest do
                  req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
                )
 
-      # LaunchContext holds the original custom structs, not Ltix internals
+      # LaunchContext has the original custom structs
       assert %CustomRegistration{} = launch.registration
       assert launch.registration.id == 42
       assert launch.registration.tenant_id == 7

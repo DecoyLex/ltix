@@ -270,9 +270,9 @@ Key points about the controller:
   directly (e.g., `context.registration.id`).
 - **`context.deployment`** is similarly your original struct from `get_deployment/2`.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
-- **Never store `%LaunchContext{}` in the session.** Its `registration` is the struct
-  your storage adapter returned, which can include private key material such as a
-  preloaded JWK. Store only the fields you need (e.g., `user_id`, `course_id`).
+- **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
+  course data, and session cookies are signed, not encrypted. Store only the fields you
+  need (e.g., `user_id`, `course_id`).
 - **The JWKS endpoint** reconstructs `%Ltix.JWK{}` structs from your stored
   `private_key_pem` + `kid` via `Ltix.JWK.new/1`. `Ltix.JWK.to_jwks/1` strips private
   key material automatically — safe to pass private keys directly.
@@ -341,6 +341,6 @@ These are non-negotiable requirements from the LTI spec:
 - **`same_site: "None"` and `secure: true`** are required for session cookies to survive
   cross-origin redirects in iframes.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
-- **Never store `%LaunchContext{}` in the session.** Its `registration` is the struct
-  your storage adapter returned, which can include private key material such as a
-  preloaded JWK. Store only the fields you need (e.g., `subject`, `roles`, `context.id`).
+- **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
+  course data, and session cookies are signed, not encrypted. Store only the fields you
+  need (e.g., `subject`, `roles`, `context.id`).

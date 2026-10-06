@@ -23,8 +23,7 @@ defmodule Ltix.Integration.CertificationTest do
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri:
-          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
-        tool_jwk: Ltix.JWK.generate()
+          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json"
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")
@@ -139,7 +138,7 @@ defmodule Ltix.Integration.CertificationTest do
       assert {:error, %Security.TokenExpired{}} = handle_callback(params, ctx.state)
     end
 
-    # [sic] — matches cert suite spelling
+    # [sic], matches cert suite spelling
     test "messsage_type Claim Missing", ctx do
       claims = Map.delete(ctx.claims, @lti <> "message_type")
       params = mint_and_params(claims, ctx)

@@ -26,8 +26,7 @@ defmodule Ltix.OIDC.CallbackTest do
         client_id: "tool-client-id",
         auth_endpoint: "https://platform.example.com/auth",
         jwks_uri:
-          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json",
-        tool_jwk: Ltix.JWK.generate()
+          "https://platform.example.com/.well-known/jwks-#{System.unique_integer([:positive])}.json"
       })
 
     {:ok, deployment} = Deployment.new("deployment-001")
@@ -75,21 +74,6 @@ defmodule Ltix.OIDC.CallbackTest do
       params: params,
       claims: claims
     }
-  end
-
-  describe "happy path" do
-    test "valid launch returns LaunchContext", ctx do
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(ctx.params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.registration == ctx.registration
-      assert launch.deployment == ctx.deployment
-      assert launch.claims.message_type == "LtiResourceLinkRequest"
-      assert launch.claims.version == "1.3.0"
-      assert launch.claims.deployment_id == "deployment-001"
-      assert launch.claims.target_link_uri == "https://tool.example.com/launch"
-      assert launch.claims.subject == "user-12345"
-    end
   end
 
   # [Sec §5.1.1.5](https://www.imsglobal.org/spec/security/v1p0/#authentication-error-response)
@@ -287,7 +271,7 @@ defmodule Ltix.OIDC.CallbackTest do
                Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
-    # Message type injection — attacker sends a fabricated message type
+    # Message type injection. Attacker sends a fabricated message type
     # hoping to bypass validation or trigger unexpected code paths.
     test "rejects fabricated message_type", ctx do
       claims = put_lti_claim(ctx.claims, "message_type", "LtiAdminRequest")

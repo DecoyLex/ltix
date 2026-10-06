@@ -29,25 +29,28 @@ defmodule MyAppWeb.LtiControllerTest do
   use MyAppWeb.ConnCase, async: true
 
   setup do
+    jwk = MyApp.Lti.generate_jwk!()
+
     platform = Ltix.Test.setup_platform!(
       registration: fn reg ->
-        jwk = MyApp.Lti.generate_jwk!()
-
         MyApp.Lti.create_registration!(%{
           issuer: reg.issuer,
           client_id: reg.client_id,
           auth_endpoint: reg.auth_endpoint,
           jwks_uri: reg.jwks_uri,
           token_endpoint: reg.token_endpoint,
-          tool_jwk_id: jwk.id
+          jwk_id: jwk.id
         })
-      end
+      end,
+      tool_jwk: Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid)
     )
 
     %{platform: platform}
   end
 end
 ```
+
+Pass the key your storage adapter signs with as `:tool_jwk`, so `Ltix.Test.verify_deep_linking_response/2` can verify what your tool signs.
 
 If your storage adapter auto-creates deployments (common pattern), you
 don't need a deployment factory. Otherwise, pass a 2-arity

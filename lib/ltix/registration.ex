@@ -1,24 +1,20 @@
 defmodule Ltix.Registration do
   @moduledoc """
-  Everything the tool knows about a registered platform, established
+  Everything the tool stores about a registered platform, established
   out-of-band before any launch occurs.
 
-  A registration captures the values exchanged during out-of-band setup
+  A registration contains the values exchanged during out-of-band setup
   between the tool and platform. Multiple deployments on a given platform
   may share the same `client_id`.
 
   ## Fields
 
-    * `:issuer` — HTTPS URL identifying the platform (no query or fragment)
-    * `:client_id` — OAuth client ID assigned by the platform
-    * `:auth_endpoint` — HTTPS URL for the OIDC authorization endpoint
-    * `:jwks_uri` — HTTPS URL where the platform publishes its public keys
-    * `:token_endpoint` — HTTPS URL for OAuth token requests (required for
-      Advantage services; `nil` if not using them)
-    * `:tool_jwk` — the tool's private signing key (`Ltix.JWK.t()`),
-      used to sign client assertion JWTs. Generate one with
-      `Ltix.JWK.generate/1` and serve the matching public key
-      from your JWKS endpoint.
+    * `:issuer` - HTTPS URL identifying the platform (no query or fragment)
+    * `:client_id` - OAuth client ID assigned by the platform
+    * `:auth_endpoint` - HTTPS URL for the OIDC authorization endpoint
+    * `:jwks_uri` - HTTPS URL where the platform publishes its public keys
+    * `:token_endpoint` - HTTPS URL for OAuth token requests (required for
+      Advantage services, `nil` if not using them)
 
   ## Examples
 
@@ -27,19 +23,17 @@ defmodule Ltix.Registration do
         client_id: "10000000000042",
         auth_endpoint: "https://canvas.example.edu/api/lti/authorize_redirect",
         jwks_uri: "https://canvas.example.edu/api/lti/security/jwks",
-        token_endpoint: "https://canvas.example.edu/login/oauth2/token",
-        tool_jwk: tool_private_key
+        token_endpoint: "https://canvas.example.edu/login/oauth2/token"
       })
   """
 
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.HTTP
-  alias Ltix.JWK
 
-  @fields [:issuer, :client_id, :auth_endpoint, :jwks_uri, :token_endpoint, :tool_jwk]
+  @fields [:issuer, :client_id, :auth_endpoint, :jwks_uri, :token_endpoint]
 
-  @enforce_keys [:issuer, :client_id, :auth_endpoint, :jwks_uri, :tool_jwk]
+  @enforce_keys [:issuer, :client_id, :auth_endpoint, :jwks_uri]
   defstruct @fields
 
   @type t :: %__MODULE__{
@@ -47,8 +41,7 @@ defmodule Ltix.Registration do
           client_id: String.t(),
           auth_endpoint: String.t(),
           jwks_uri: String.t(),
-          token_endpoint: String.t() | nil,
-          tool_jwk: JWK.t()
+          token_endpoint: String.t() | nil
         }
 
   @doc """
@@ -57,12 +50,11 @@ defmodule Ltix.Registration do
 
   ## Validation rules
 
-  - `issuer` — HTTPS URL with no query or fragment
-  - `client_id` — non-empty string
-  - `auth_endpoint` — HTTPS URL
-  - `jwks_uri` — HTTPS URL
-  - `token_endpoint` — HTTPS URL (when present)
-  - `tool_jwk` — `Ltix.JWK.t()` (the tool's private signing key for this registration)
+  - `issuer` - HTTPS URL with no query or fragment
+  - `client_id` - non-empty string
+  - `auth_endpoint` - HTTPS URL
+  - `jwks_uri` - HTTPS URL
+  - `token_endpoint` - HTTPS URL (when present)
 
   HTTPS URLs must be absolute and must not include a userinfo component (RFC 3986 §3.2.1).
   HTTP URLs are accepted for platforms on a loopback or local host, such as
@@ -74,8 +66,7 @@ defmodule Ltix.Registration do
       ...>   issuer: "https://platform.example.com",
       ...>   client_id: "tool-123",
       ...>   auth_endpoint: "https://platform.example.com/auth",
-      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-      ...>   tool_jwk: Ltix.JWK.generate()
+      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
       ...> })
       iex> reg.issuer
       "https://platform.example.com"
@@ -92,8 +83,7 @@ defmodule Ltix.Registration do
           validate_client_id(attrs[:client_id]),
           validate_https_url(:auth_endpoint, attrs[:auth_endpoint]),
           validate_https_url(:jwks_uri, attrs[:jwks_uri]),
-          validate_optional_https_url(:token_endpoint, attrs[:token_endpoint]),
-          validate_tool_jwk(attrs[:tool_jwk])
+          validate_optional_https_url(:token_endpoint, attrs[:token_endpoint])
         ]
 
     case Errors.collect(errors) do
@@ -111,8 +101,7 @@ defmodule Ltix.Registration do
       ...>   issuer: "https://platform.example.com",
       ...>   client_id: "tool-123",
       ...>   auth_endpoint: "https://platform.example.com/auth",
-      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json",
-      ...>   tool_jwk: Ltix.JWK.generate()
+      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
       ...> )
       iex> registration.client_id
       "tool-123"
@@ -125,7 +114,7 @@ defmodule Ltix.Registration do
     end
   end
 
-  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token):
+  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   # "The `iss` value is a case-sensitive URL using the HTTPS scheme that contains:
   # scheme, host; and, optionally, port number, and path components; and, no query
   # or fragment components."
@@ -181,22 +170,6 @@ defmodule Ltix.Registration do
 
   defp validate_optional_https_url(_field, nil), do: nil
   defp validate_optional_https_url(field, url), do: validate_https_url(field, url)
-
-  # [Sec §7.2](https://www.imsglobal.org/spec/security/v1p0/#h_key-management):
-  # "A system SHOULD NOT use a single key pair to secure message signing for more
-  # than one system." Keys are per-registration, exchanged during setup [Sec §6].
-  defp validate_tool_jwk(nil), do: required(:tool_jwk)
-  defp validate_tool_jwk(%JWK{}), do: nil
-
-  # The value may hold key material, so it is redacted from the error.
-  defp validate_tool_jwk(_tool_jwk) do
-    invalid(
-      :tool_jwk,
-      "[redacted]",
-      "must be an %Ltix.JWK{} struct",
-      "Sec §7.2 (per-registration key)"
-    )
-  end
 
   defp required(field), do: InvalidField.required(__MODULE__, field)
 

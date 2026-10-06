@@ -79,6 +79,15 @@ Return types:
 
 Any other `{:error, reason}` from a callback fails the login or launch with `Ltix.Errors.Unknown.StorageError`.
 
+Two optional callbacks sign for the tool. Implement them to call Advantage services or build
+deep linking responses:
+
+- **`key_id(registration)`** — `{:ok, kid}` for the key that signs for the registration.
+- **`sign(registration, key_id, message)`** — `{:ok, signature}` with the RS256 signature of
+  `message` as raw bytes. `Ltix.JWK.sign(jwk, message)` returns this for a key the app holds.
+
+`Ltix.Registration` has no key field. Ltix never stores the tool's private key.
+
 **Nonce is used on callback.** `handle_callback/3` records the nonce as used as part of
 validation. If the callback fails for a non-security reason (e.g., `DeploymentNotFound`),
 you cannot retry `handle_callback/3` with the same params — the nonce is already used.
@@ -143,8 +152,8 @@ iframe:
   `Content-Security-Policy` header (`frame-ancestors 'self' *`) on LTI routes to allow
   this. The platform domains should be scoped down in production.
 - The login endpoint should accept both GET and POST — the LTI spec allows either.
-- **Never store `%LaunchContext{}` in the session.** The registration struct
-  may contain `tool_jwk` (private key material). Extract only the fields
+- **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
+  course data, and session cookies are signed, not encrypted. Extract only the fields
   you need (e.g., `subject`, `roles`, `context.id`).
 
 ## Service Availability

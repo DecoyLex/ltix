@@ -120,6 +120,34 @@ defmodule Ltix.Test.StorageAdapter do
     end)
   end
 
+  @doc """
+  Return the key the adapter signs with.
+
+  The key is generated the first time it is needed, and signing works
+  without starting the adapter.
+  """
+  @spec tool_jwk() :: Ltix.JWK.t()
+  def tool_jwk do
+    :persistent_term.get(__MODULE__, nil) || generate_tool_jwk()
+  end
+
+  # One process generates the key, and the others wait for it.
+  defp generate_tool_jwk do
+    :global.trans({__MODULE__, self()}, fn ->
+      with nil <- :persistent_term.get(__MODULE__, nil) do
+        tool_jwk = Ltix.JWK.generate(key_size: 2048)
+        :persistent_term.put(__MODULE__, tool_jwk)
+        tool_jwk
+      end
+    end)
+  end
+
+  @impl Ltix.StorageAdapter
+  def key_id(_registration), do: {:ok, tool_jwk().kid}
+
+  @impl Ltix.StorageAdapter
+  def sign(_registration, _key_id, message), do: Ltix.JWK.sign(tool_jwk(), message)
+
   defp registration_key(registration) do
     resolved = ok!(Records.convert!(registration, :registration, :registrations))
     {resolved.issuer, resolved.client_id}

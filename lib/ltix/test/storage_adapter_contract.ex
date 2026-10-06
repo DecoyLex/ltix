@@ -71,8 +71,7 @@ defmodule Ltix.Test.StorageAdapterContract do
               client_id: client_id,
               auth_endpoint: "#{issuer}/authorize",
               jwks_uri: "#{issuer}/jwks",
-              token_endpoint: "#{issuer}/token",
-              tool_jwk: JWK.generate(key_size: 2048)
+              token_endpoint: "#{issuer}/token"
             )
 
           record =
@@ -89,7 +88,12 @@ defmodule Ltix.Test.StorageAdapterContract do
             "registration factory must preserve issuer and client_id"
           )
 
-          platform = %Platform{registration: record, deployment: nil, jwk: registration.tool_jwk}
+          platform = %Platform{
+            registration: record,
+            deployment: nil,
+            jwk: JWK.generate(key_size: 2048)
+          }
+
           create_deployment!(platform, deployment_id, opts)
         end
       )

@@ -13,6 +13,10 @@ common pitfalls.
 | `get_registration/2` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
 | `get_deployment/2` | Launch validation | Look up a deployment by registration and deployment_id |
 | `validate_nonce/3` | Launch validation | Record a nonce as used, and reject one already used |
+| `key_id/1` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
+| `sign/3` | Service authentication and deep linking responses | Sign a message with that key |
+
+`key_id/1` and `sign/3` are optional. A tool that only handles launches doesn't need them.
 
 When storage fails, return `{:error, reason}` from any callback. The login or launch then returns `{:error, %Ltix.Errors.Unknown.StorageError{}}`, whose `result` is what the callback returned. A `reason` that is already an Ltix error is returned unchanged. Any other unexpected return value is also reported as a `StorageError`.
 
@@ -61,8 +65,7 @@ defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do
       client_id: record.client_id,
       auth_endpoint: record.auth_endpoint,
       jwks_uri: record.jwks_uri,
-      token_endpoint: record.token_endpoint,
-      tool_jwk: record.tool_jwk
+      token_endpoint: record.token_endpoint
     })
   end
 end
@@ -167,6 +170,40 @@ The insert is atomic. If two requests race with the same nonce, only one of them
 > Repo.delete_all(from n in LtiNonce, where: n.expires_at < ^DateTime.utc_now())
 > ```
 
+## Signing
+
+Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and asks your adapter for the signature, so your private key stays wherever you keep it.
+
+`key_id/1` returns the ID of the key that signs for a registration. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/3` gets the same ID back with the message to sign.
+
+For keys stored in your database, `Ltix.JWK.sign/2` produces the signature.
+
+```elixir
+@impl true
+def key_id(%Ltix.Registration{issuer: issuer, client_id: client_id}) do
+  query =
+    from r in PlatformRegistration,
+      join: k in assoc(r, :signing_key),
+      where: r.issuer == ^issuer and r.client_id == ^client_id,
+      select: k.kid
+
+  case Repo.one(query) do
+    nil -> {:error, :not_found}
+    kid -> {:ok, kid}
+  end
+end
+
+@impl true
+def sign(_registration, key_id, message) do
+  key = Repo.get_by!(SigningKey, kid: key_id)
+  Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
+end
+```
+
+For a key held in a key management service, call the service from `sign/3` and return `{:ok, signature}` with its RS256 (RSASSA-PKCS1-v1_5 with SHA-256) signature of the message.
+
+Calling a service or building a deep linking response with an adapter that lacks these callbacks returns `Ltix.Errors.Unknown.StorageError`.
+
 ## Putting it together
 
 A complete Ecto-backed adapter:
@@ -229,8 +266,7 @@ defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do
       client_id: record.client_id,
       auth_endpoint: record.auth_endpoint,
       jwks_uri: record.jwks_uri,
-      token_endpoint: record.token_endpoint,
-      tool_jwk: record.tool_jwk
+      token_endpoint: record.token_endpoint
     })
   end
 end

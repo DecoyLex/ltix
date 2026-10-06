@@ -5,7 +5,9 @@ defmodule Ltix.OAuth.ClientCredentials do
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.HTTP
   alias Ltix.OAuth.AccessToken
+  alias Ltix.Options
   alias Ltix.Registration
+  alias Ltix.StorageAdapter
 
   @grant_type "client_credentials"
   @assertion_type "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
@@ -13,11 +15,13 @@ defmodule Ltix.OAuth.ClientCredentials do
   @doc """
   Request an OAuth 2.0 access token via the client credentials grant.
 
-  Builds a signed JWT assertion and POSTs it to the platform's token
-  endpoint. Returns a parsed `AccessToken` on success.
+  Builds a JWT assertion signed by the storage adapter and POSTs it to the
+  platform's token endpoint. Returns a parsed `AccessToken` on success.
 
   ## Options
 
+    * `:storage_adapter` - module implementing `Ltix.StorageAdapter` with the
+      signing callbacks (defaults to application config)
     * `:req_options` - options passed through to `Req.request/2` (default: `[]`)
     * `:local_network_access` - see `Ltix.HTTP.local_network_access_option/0`
   """
@@ -35,8 +39,15 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   def request_token(%Registration{} = registration, scopes, opts) do
+    storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
+
+    with {:ok, assertion} <- build_assertion(registration, storage_adapter) do
+      request_token(registration, scopes, opts, assertion)
+    end
+  end
+
+  defp request_token(registration, scopes, opts, assertion) do
     req_options = req_options(opts)
-    assertion = build_assertion(registration)
 
     body =
       URI.encode_query(%{
@@ -110,10 +121,8 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)
   # Build and sign the JWT client assertion with all MUST claims.
-  defp build_assertion(%Registration{} = registration) do
+  defp build_assertion(%Registration{} = registration, storage_adapter) do
     now = System.system_time(:second)
-    jose_jwk = Ltix.JWK.to_jose(registration.tool_jwk)
-    {_kty, fields} = JOSE.JWK.to_map(jose_jwk)
 
     claims = %{
       "iss" => registration.client_id,
@@ -125,15 +134,7 @@ defmodule Ltix.OAuth.ClientCredentials do
     }
 
     # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#rsa-key)
-    jws = JOSE.JWS.from_map(%{"typ" => "JWT", "alg" => "RS256", "kid" => fields["kid"]})
-    jwt = JOSE.JWT.from_map(claims)
-
-    {_meta, token} =
-      jose_jwk
-      |> JOSE.JWT.sign(jws, jwt)
-      |> JOSE.JWS.compact()
-
-    token
+    StorageAdapter.sign_jwt(storage_adapter, registration, claims)
   end
 
   defp req_options(opts) do

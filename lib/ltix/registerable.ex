@@ -11,7 +11,7 @@ defprotocol Ltix.Registerable do
 
       defmodule MyApp.PlatformRegistration do
         defstruct [:id, :tenant_id, :issuer, :client_id,
-                   :auth_endpoint, :jwks_uri, :token_endpoint, :tool_jwk]
+                   :auth_endpoint, :jwks_uri, :token_endpoint]
 
         defimpl Ltix.Registerable do
           def to_registration(reg) do
@@ -20,8 +20,7 @@ defprotocol Ltix.Registerable do
               client_id: reg.client_id,
               auth_endpoint: reg.auth_endpoint,
               jwks_uri: reg.jwks_uri,
-              token_endpoint: reg.token_endpoint,
-              tool_jwk: reg.tool_jwk
+              token_endpoint: reg.token_endpoint
             })
           end
         end

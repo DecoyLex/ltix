@@ -30,19 +30,20 @@ defmodule Ltix.Test do
   `Ltix.Registerable`):
 
       setup do
+        jwk = MyApp.Lti.generate_jwk!()
+
         platform = Ltix.Test.setup_platform!(
           registration: fn reg ->
-            jwk = MyApp.Lti.generate_jwk!()
-
             MyApp.Lti.create_registration!(%{
               issuer: reg.issuer,
               client_id: reg.client_id,
               auth_endpoint: reg.auth_endpoint,
               jwks_uri: reg.jwks_uri,
               token_endpoint: reg.token_endpoint,
-              tool_jwk_id: jwk.id
+              jwk_id: jwk.id
             })
           end,
+          tool_jwk: Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid),
           deployment: fn dep, my_reg ->
             MyApp.Lti.create_deployment!(%{
               deployment_id: dep.deployment_id,
@@ -196,6 +197,7 @@ defmodule Ltix.Test do
   alias Ltix.Registration
   alias Ltix.Test.Platform
   alias Ltix.Test.ServiceStub
+  alias Ltix.Test.StorageAdapter
   alias Ltix.Test.StorageAdapterContract
 
   @default_issuer "https://platform.example.com"
@@ -208,7 +210,8 @@ defmodule Ltix.Test do
                              client_id: Zoi.string(),
                              deployment_id: Zoi.string(),
                              registration: Zoi.any(),
-                             deployment: Zoi.any()
+                             deployment: Zoi.any(),
+                             tool_jwk: Zoi.struct(Ltix.JWK)
                            ],
                            unrecognized_keys: :error
                          )
@@ -436,6 +439,9 @@ defmodule Ltix.Test do
       `(Ltix.Deployment, registration)` where `registration` is whatever
       the registration step returned. Lets you create a deployment record
       linked to your registration.
+    * `:tool_jwk` — the `Ltix.JWK` your tool signs with for this platform.
+      Pass the key your own storage adapter signs with. Defaults to the
+      key `Ltix.Test.StorageAdapter` signs with.
   """
   @spec setup_platform!(keyword()) :: Platform.t()
   def setup_platform!(opts \\ []) do
@@ -449,7 +455,13 @@ defmodule Ltix.Test do
 
     registration = build_or_use_registration(opts)
     deployment = build_or_use_deployment(opts, registration)
-    platform = %Platform{registration: registration, deployment: deployment, jwk: jwk}
+
+    platform = %Platform{
+      registration: registration,
+      deployment: deployment,
+      jwk: jwk,
+      tool_jwk: Keyword.get_lazy(opts, :tool_jwk, &StorageAdapter.tool_jwk/0)
+    }
 
     # Eagerly validate protocol implementations
     %Registration{jwks_uri: jwks_uri} = resolved_registration(platform)
@@ -859,8 +871,8 @@ defmodule Ltix.Test do
   @doc """
   Verify a Deep Linking response JWT signed by the tool.
 
-  Decodes the JWT using the tool's public key (derived from
-  `registration.tool_jwk`) and returns the parsed claims on success.
+  Decodes the JWT using the public key of the platform's `tool_jwk` and
+  returns the parsed claims on success.
   Returns `Ltix.Errors.Security.SignatureInvalid` when the token is
   malformed or was not signed with the tool's key.
 
@@ -872,8 +884,7 @@ defmodule Ltix.Test do
   @spec verify_deep_linking_response(Platform.t(), String.t()) ::
           {:ok, map()} | {:error, Exception.t()}
   def verify_deep_linking_response(%Platform{} = platform, jwt) do
-    tool_jwk = resolved_registration(platform).tool_jwk
-    public_key = JOSE.JWK.to_public(Ltix.JWK.to_jose(tool_jwk))
+    public_key = JOSE.JWK.to_public(Ltix.JWK.to_jose(platform.tool_jwk))
 
     # [Sec §5.2.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation-0)
     case verify_signature(public_key, jwt) do
@@ -1106,7 +1117,6 @@ defmodule Ltix.Test do
   defp build_default_registration(opts) do
     issuer = Keyword.get(opts, :issuer, @default_issuer)
     client_id = Keyword.get(opts, :client_id, @default_client_id)
-    tool_jwk = Ltix.JWK.generate(key_size: 2048)
     suffix = Base.url_encode64(:crypto.strong_rand_bytes(8), padding: false)
 
     Registration.new!(%{
@@ -1114,8 +1124,7 @@ defmodule Ltix.Test do
       client_id: client_id,
       auth_endpoint: "#{issuer}/auth",
       jwks_uri: "#{issuer}/.well-known/jwks-#{suffix}.json",
-      token_endpoint: "#{issuer}/token",
-      tool_jwk: tool_jwk
+      token_endpoint: "#{issuer}/token"
     })
   end
 

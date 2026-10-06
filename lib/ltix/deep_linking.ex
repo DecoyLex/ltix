@@ -26,6 +26,7 @@ defmodule Ltix.DeepLinking do
   alias Ltix.LaunchContext
   alias Ltix.Options
   alias Ltix.Records
+  alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
@@ -48,7 +49,8 @@ defmodule Ltix.DeepLinking do
                       message: Zoi.string(),
                       log: Zoi.string(),
                       error_message: Zoi.string(),
-                      error_log: Zoi.string()
+                      error_log: Zoi.string(),
+                      storage_adapter: Zoi.module()
                     ],
                     unrecognized_keys: :error
                   )
@@ -66,6 +68,8 @@ defmodule Ltix.DeepLinking do
     * `:log` — log message for the platform
     * `:error_message` — user-facing error message
     * `:error_log` — error log message for the platform
+    * `:storage_adapter` — module implementing `Ltix.StorageAdapter`, which
+      signs the response (defaults to application config)
 
   ## Errors
 
@@ -109,6 +113,7 @@ defmodule Ltix.DeepLinking do
           {:ok, Response.t()} | {:error, Exception.t()}
   def build_response(context, items \\ [], opts \\ []) do
     opts = Options.parse!(opts, @options_schema)
+    storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
     serialized = serialize_items(items)
 
     metadata = %{
@@ -117,7 +122,7 @@ defmodule Ltix.DeepLinking do
     }
 
     :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
-      {build(context, serialized, opts), metadata}
+      {build(context, serialized, storage_adapter, opts), metadata}
     end)
   end
 
@@ -139,6 +144,7 @@ defmodule Ltix.DeepLinking do
   defp build(
          %LaunchContext{claims: %{message_type: "LtiDeepLinkingRequest"}} = context,
          serialized,
+         storage_adapter,
          opts
        ) do
     settings = context.claims.deep_linking_settings
@@ -146,14 +152,15 @@ defmodule Ltix.DeepLinking do
     with {:ok, registration} <- Records.convert!(context.registration, :registration),
          {:ok, deployment} <- Records.convert!(context.deployment, :deployment),
          {:ok, items_json} <- collect_items(serialized),
-         :ok <- validate_items(items_json, settings) do
-      claims = build_jwt_claims(registration, deployment, settings, items_json, opts)
-      jwt = sign_jwt(claims, registration.tool_jwk)
+         :ok <- validate_items(items_json, settings),
+         claims = build_jwt_claims(registration, deployment, settings, items_json, opts),
+         # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
+         {:ok, jwt} <- StorageAdapter.sign_jwt(storage_adapter, registration, claims) do
       {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
     end
   end
 
-  defp build(%LaunchContext{claims: %{message_type: mt}}, _serialized, _opts) do
+  defp build(%LaunchContext{claims: %{message_type: mt}}, _serialized, _storage_adapter, _opts) do
     {:error, InvalidMessageType.exception(message_type: mt, spec_ref: "DL §4.5")}
   end
 
@@ -336,21 +343,6 @@ defmodule Ltix.DeepLinking do
     |> maybe_put(@dl <> "log", Keyword.get(opts, :log))
     |> maybe_put(@dl <> "errormsg", Keyword.get(opts, :error_message))
     |> maybe_put(@dl <> "errorlog", Keyword.get(opts, :error_log))
-  end
-
-  # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
-  defp sign_jwt(claims, tool_jwk) do
-    jose_jwk = Ltix.JWK.to_jose(tool_jwk)
-    {_kty, fields} = JOSE.JWK.to_map(jose_jwk)
-    jws = JOSE.JWS.from_map(%{"typ" => "JWT", "alg" => "RS256", "kid" => fields["kid"]})
-    jwt = JOSE.JWT.from_map(claims)
-
-    {_meta, token} =
-      jose_jwk
-      |> JOSE.JWT.sign(jws, jwt)
-      |> JOSE.JWS.compact()
-
-    token
   end
 
   defp maybe_put(map, _key, nil), do: map

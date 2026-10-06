@@ -32,7 +32,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
   # [LNA §2.1](https://wicg.github.io/local-network-access/#ip-address-space)
   describe "addresses" do
     for host <- ~w(127.8.8.8 0.0.0.0 198.18.0.1 [::1] [::ffff:127.0.0.1]) do
-      test "refuses the loopback address #{host} unless loopback access is granted" do
+      test "rejects the loopback address #{host} unless loopback access is granted" do
         url = "https://#{unquote(host)}:1/members"
 
         for access <- [:none, :local] do
@@ -47,7 +47,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
     for host <-
           ~w(10.0.0.1 100.64.0.1 172.31.255.255 192.168.1.1 169.254.169.254 0.1.2.3) ++
             ~w([fd12:3456::1] [fe80::1] [fec0::1]) do
-      test "refuses the local address #{host} unless local access is granted" do
+      test "rejects the local address #{host} unless local access is granted" do
         url = "https://#{unquote(host)}:1/members"
 
         assert {:error, %LocalNetworkAccessDenied{url: ^url, address_space: :local}} =
@@ -55,7 +55,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       end
     end
 
-    test "refuses a host name that resolves to a loopback address" do
+    test "rejects a host name that resolves to a loopback address" do
       {:ok, listener} = :gen_tcp.listen(0, ip: {127, 0, 0, 1}, active: false)
       on_exit(fn -> :gen_tcp.close(listener) end)
       {:ok, port} = :inet.port(listener)
@@ -73,7 +73,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       assert {:ok, _socket} = :gen_tcp.accept(listener, 100)
     end
 
-    test "refuses the host name localhost unless loopback access is granted" do
+    test "rejects the host name localhost unless loopback access is granted" do
       {port, server} = start_endpoint(["{}"])
       url = "http://localhost:#{port}/members"
 
@@ -83,7 +83,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       assert [_request] = Task.await(server)
     end
 
-    test "reaches IPv6 loopback when loopback access is granted" do
+    test "connects to IPv6 loopback when loopback access is granted" do
       {port, server} = start_endpoint(["{}"], {0, 0, 0, 0, 0, 0, 0, 1})
 
       assert {:ok, pages} = stream("http://[::1]:#{port}/members", :loopback)
@@ -103,7 +103,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       assert [_request] = Task.await(server)
     end
 
-    test "refuses options that make their own connections unless loopback access is granted" do
+    test "rejects options that make their own connections unless loopback access is granted" do
       url = "https://platform.example.com/members"
 
       for opts <- [
@@ -156,8 +156,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
           client_id: "tool-client-id",
           auth_endpoint: "http://localhost:#{port}/auth",
           jwks_uri: "http://localhost:#{port}/jwks",
-          token_endpoint: "http://localhost:#{port}/token",
-          tool_jwk: JWK.generate()
+          token_endpoint: "http://localhost:#{port}/token"
         )
 
       platform = %Ltix.Test.Platform{

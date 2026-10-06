@@ -11,7 +11,8 @@ defmodule Ltix.JWK do
       jwk = Ltix.JWK.generate()
 
   Store the struct fields (`private_key_pem` and `kid`) in your database or
-  config, and pass the struct as `tool_jwk` in your `%Ltix.Registration{}`.
+  config, and sign with the key from your storage adapter's
+  `c:Ltix.StorageAdapter.sign/3` callback using `sign/2`.
 
   ## Loading from storage
 
@@ -57,9 +58,8 @@ defmodule Ltix.JWK do
   @doc """
   Generate an RSA key pair for LTI tool authentication.
 
-  Returns a `%Ltix.JWK{}` struct. Pass it as `tool_jwk` in your
-  registration, and persist `private_key_pem` and `kid` for later
-  reconstruction via `new/1`.
+  Returns a `%Ltix.JWK{}` struct. Persist `private_key_pem` and `kid` for
+  later reconstruction via `new/1`.
 
   ## Examples
 
@@ -181,6 +181,25 @@ defmodule Ltix.JWK do
       |> JOSE.JWK.to_pem()
 
     public_pem
+  end
+
+  @doc """
+  Sign a message with the key.
+
+  Returns the RS256 signature that `c:Ltix.StorageAdapter.sign/3` expects.
+
+  ## Examples
+
+      iex> jwk = Ltix.JWK.generate(key_size: 2048)
+      iex> {:ok, signature} = Ltix.JWK.sign(jwk, "message")
+      iex> byte_size(signature)
+      256
+  """
+  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  @spec sign(t(), binary()) :: {:ok, binary()}
+  def sign(%__MODULE__{private_key_pem: pem}, message) when is_binary(message) do
+    [entry | _] = :public_key.pem_decode(pem)
+    {:ok, :public_key.sign(message, :sha256, :public_key.pem_entry_decode(entry))}
   end
 
   @doc false
