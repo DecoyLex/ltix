@@ -43,6 +43,27 @@ defmodule Ltix.RegistrationTest do
       end
     end
 
+    # [RFC 7519 §2](https://www.rfc-editor.org/rfc/rfc7519#section-2)
+    test "accepts an audience that is a URI or a string without a colon" do
+      for audience <- [
+            "https://api.platform.example.com/auth/token",
+            "urn:example:authorization-server",
+            "platform.example.com"
+          ] do
+        assert {:ok, %Registration{audience: ^audience}} =
+                 Registration.new(Map.put(@valid_attrs, :audience, audience))
+      end
+    end
+
+    test "accepts an audience without a token endpoint, and no audience" do
+      attrs = Map.delete(@valid_attrs, :token_endpoint)
+
+      assert {:ok, %Registration{audience: "platform.example.com", token_endpoint: nil}} =
+               Registration.new(Map.put(attrs, :audience, "platform.example.com"))
+
+      assert {:ok, %Registration{audience: nil}} = Registration.new(@valid_attrs)
+    end
+
     test "rejects an unknown field given nil" do
       assert {:error, %InvalidField{field: :issuer_url, reason: :unknown}} =
                Registration.new(Map.put(@valid_attrs, :issuer_url, nil))
@@ -78,11 +99,16 @@ defmodule Ltix.RegistrationTest do
              "must be an absolute HTTPS URL"},
             {:jwks_uri, "https://platform.example.com:0/jwks", "must be an absolute HTTPS URL"},
             {:token_endpoint, "https://platform.example.com/a token",
-             "must be an absolute HTTPS URL"}
+             "must be an absolute HTTPS URL"},
+            {:audience, "", "must be a non-empty string"},
+            {:audience, ["https://platform.example.com/token"], "must be a non-empty string"},
+            {:audience, "platform.example.com:token server",
+             "must be a URI when it includes a colon"},
+            {:audience, ":platform", "must be a URI when it includes a colon"}
           ] do
         assert {:error,
                 %InvalidField{struct: Registration, field: ^field, value: ^value, reason: ^reason}} =
-                 Registration.new(%{@valid_attrs | field => value})
+                 Registration.new(Map.put(@valid_attrs, field, value))
       end
     end
 

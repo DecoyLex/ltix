@@ -15,6 +15,9 @@ defmodule Ltix.Registration do
     * `:jwks_uri` - HTTPS URL where the platform publishes its public keys
     * `:token_endpoint` - HTTPS URL for OAuth token requests (required for
       Advantage services, `nil` if not using them)
+    * `:audience` - the audience the platform expects in token requests,
+      when it gives you one that differs from the token endpoint. Defaults
+      to the token endpoint.
 
   ## Examples
 
@@ -31,7 +34,7 @@ defmodule Ltix.Registration do
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.HTTP
 
-  @fields [:issuer, :client_id, :auth_endpoint, :jwks_uri, :token_endpoint]
+  @fields [:issuer, :client_id, :auth_endpoint, :jwks_uri, :token_endpoint, :audience]
 
   @enforce_keys [:issuer, :client_id, :auth_endpoint, :jwks_uri]
   defstruct @fields
@@ -41,7 +44,8 @@ defmodule Ltix.Registration do
           client_id: String.t(),
           auth_endpoint: String.t(),
           jwks_uri: String.t(),
-          token_endpoint: String.t() | nil
+          token_endpoint: String.t() | nil,
+          audience: String.t() | nil
         }
 
   @doc """
@@ -55,6 +59,7 @@ defmodule Ltix.Registration do
   - `auth_endpoint` - HTTPS URL
   - `jwks_uri` - HTTPS URL
   - `token_endpoint` - HTTPS URL (when present)
+  - `audience` - non-empty string, and a URI if it includes a colon (when present)
 
   HTTPS URLs must be absolute and must not include a userinfo component (RFC 3986 §3.2.1).
   HTTP URLs are accepted for platforms on a loopback or local host, such as
@@ -83,7 +88,8 @@ defmodule Ltix.Registration do
           validate_client_id(attrs[:client_id]),
           validate_https_url(:auth_endpoint, attrs[:auth_endpoint]),
           validate_https_url(:jwks_uri, attrs[:jwks_uri]),
-          validate_optional_https_url(:token_endpoint, attrs[:token_endpoint])
+          validate_optional_https_url(:token_endpoint, attrs[:token_endpoint]),
+          validate_audience(attrs[:audience])
         ]
 
     case Errors.collect(errors) do
@@ -170,6 +176,22 @@ defmodule Ltix.Registration do
 
   defp validate_optional_https_url(_field, nil), do: nil
   defp validate_optional_https_url(field, url), do: validate_https_url(field, url)
+
+  # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)
+  # The audience is a StringOrURI.
+  # [RFC 7519 §2](https://www.rfc-editor.org/rfc/rfc7519#section-2)
+  defp validate_audience(nil), do: nil
+
+  defp validate_audience(audience) when is_binary(audience) and audience != "" do
+    if String.contains?(audience, ":") and
+         not match?({:ok, %URI{scheme: scheme}} when scheme != nil, URI.new(audience)) do
+      invalid(:audience, audience, "must be a URI when it includes a colon", "RFC 7519 §2")
+    end
+  end
+
+  defp validate_audience(audience) do
+    invalid(:audience, audience, "must be a non-empty string", "Sec §4.1.1")
+  end
 
   defp required(field), do: InvalidField.required(__MODULE__, field)
 

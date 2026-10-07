@@ -135,7 +135,7 @@ defmodule Ltix.OAuth.ClientCredentials do
     %{
       "iss" => registration.client_id,
       "sub" => registration.client_id,
-      "aud" => registration.token_endpoint,
+      "aud" => registration.audience || registration.token_endpoint,
       "iat" => now,
       "exp" => now + 300,
       "jti" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)

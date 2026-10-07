@@ -71,6 +71,7 @@ A registration contains the following fields.
 | `auth_endpoint` | Where to redirect users for authentication |
 | `jwks_uri` | Where to fetch the platform's public keys |
 | `token_endpoint` | Where to request access tokens for service calls (optional) |
+| `audience` | The audience the platform expects in token requests, when it differs from the token endpoint (optional) |
 
 In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter`
 looks up registrations by issuer and client_id, both during login

@@ -55,7 +55,7 @@ def get_registration(issuer, client_id) do
 end
 ```
 
-Your Ecto schema implements `Ltix.Registerable` to map its fields.
+Your Ecto schema implements `Ltix.Registerable` to map its fields. If a platform gives you an audience for token requests that differs from its token endpoint, store it and pass it as `audience`.
 
 ```elixir
 defimpl Ltix.Registerable, for: MyApp.Lti.PlatformRegistration do

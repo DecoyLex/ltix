@@ -84,6 +84,19 @@ defmodule Ltix.Integration.SigningTest do
       assert {:ok, %{"iss" => "tool-client-id"}} = verify(assertion, ctx.signing_key)
     end
 
+    test "sends the registration's audience, or the token endpoint without one", ctx do
+      audience = "https://api.platform.example.com/auth/token"
+
+      for {registration, expected} <- [
+            {ctx.registration, ctx.registration.token_endpoint},
+            {%{ctx.registration | audience: audience}, audience}
+          ] do
+        assert {:ok, %Client{}} = OAuth.authenticate(registration, ctx.opts)
+        assert_received {:client_assertion, assertion}
+        assert {:ok, %{"aud" => ^expected}} = verify(assertion, ctx.signing_key)
+      end
+    end
+
     test "passes the adapter the registration record it was called with", ctx do
       record = %CustomRegistration{
         id: 42,
