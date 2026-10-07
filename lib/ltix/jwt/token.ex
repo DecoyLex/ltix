@@ -54,6 +54,7 @@ defmodule Ltix.JWT.Token do
   alias Ltix.Errors.Security.NonceMissing
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.Errors.Security.TokenExpired
+  alias Ltix.JWK
   alias Ltix.JWT.KeySet
   alias Ltix.Options
   alias Ltix.Registration
@@ -181,7 +182,7 @@ defmodule Ltix.JWT.Token do
 
   # [Sec §5.1.3 step 1] Verify the signature using the platform's public key.
   defp verify_signature(token_string, jwk) do
-    case JOSE.JWS.verify_strict(jwk, ["RS256"], token_string) do
+    case JOSE.JWS.verify_strict(JWK.to_jose(jwk), ["RS256"], token_string) do
       {true, payload, _jws} -> decode_object(payload)
       _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")}
     end

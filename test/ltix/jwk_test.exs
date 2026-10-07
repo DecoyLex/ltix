@@ -69,23 +69,29 @@ defmodule Ltix.JWKTest do
     end
 
     test "rejects unknown fields", ctx do
-      for attrs <- [
-            [private_key_pem: ctx.pem, kid: ctx.kid, key_id: "x"],
-            %{private_key_pem: ctx.pem, kid: ctx.kid, key_id: "x"}
-          ] do
-        assert {:error, %InvalidField{struct: JWK, field: :key_id, value: "x", reason: :unknown}} =
-                 JWK.new(attrs)
-      end
+      assert {:error, %InvalidField{struct: JWK, field: :key_id, value: "x", reason: :unknown}} =
+               JWK.new(private_key_pem: ctx.pem, kid: ctx.kid, key_id: "x")
     end
 
-    test "missing fields and fields given nil are required", ctx do
-      attrs = %{private_key_pem: ctx.pem, kid: ctx.kid}
+    test "a missing kid is required", ctx do
+      assert {:error, %InvalidField{struct: JWK, field: :kid, reason: :required}} =
+               JWK.new(%{private_key_pem: ctx.pem})
+    end
 
-      for field <- [:private_key_pem, :kid],
-          attrs <- [Map.delete(attrs, field), %{attrs | field => nil}] do
-        assert {:error, %InvalidField{struct: JWK, field: ^field, reason: :required}} =
-                 JWK.new(attrs)
-      end
+    test "requires one key", ctx do
+      assert {:error, %InvalidField{struct: JWK, field: :public_key_pem} = error} =
+               JWK.new(%{kid: ctx.kid})
+
+      assert Exception.message(error) =~ "one of public_key_pem, public_key_der, public_jwk"
+    end
+
+    test "rejects two keys without revealing key material", ctx do
+      public_pem = JWK.to_public_key(JWK.new!(private_key_pem: ctx.pem, kid: ctx.kid))
+
+      assert {:error, %InvalidField{struct: JWK, value: "[redacted]"} = error} =
+               JWK.new(private_key_pem: ctx.pem, public_key_pem: public_pem, kid: ctx.kid)
+
+      assert Exception.message(error) =~ "only one key can be given"
     end
 
     test "rejects an unknown field given nil", ctx do
@@ -96,10 +102,8 @@ defmodule Ltix.JWKTest do
     test "invalid kid reports its value" do
       jwk = JWK.generate()
 
-      for kid <- ["", 123] do
-        assert {:error, %InvalidField{field: :kid, value: ^kid}} =
-                 JWK.new(private_key_pem: jwk.private_key_pem, kid: kid)
-      end
+      assert {:error, %InvalidField{field: :kid, value: ""}} =
+               JWK.new(private_key_pem: jwk.private_key_pem, kid: "")
     end
 
     test "invalid private_key_pem is reported without revealing key material", ctx do
@@ -149,6 +153,107 @@ defmodule Ltix.JWKTest do
               %Ltix.Errors.Invalid{
                 errors: [%InvalidField{field: :private_key_pem}, %InvalidField{field: :kid}]
               }} = JWK.new(private_key_pem: "not-a-pem", kid: "")
+    end
+  end
+
+  describe "new/1 with other key formats" do
+    setup do
+      jwk = JWK.generate(key_size: 2048)
+      public_pem = JWK.to_public_key(jwk)
+      [public_entry] = :public_key.pem_decode(public_pem)
+      [private_entry] = :public_key.pem_decode(jwk.private_key_pem)
+      [public_map] = JWK.to_jwks(jwk)["keys"]
+
+      {_type, private_map} = JOSE.JWK.to_map(JOSE.JWK.from_pem(jwk.private_key_pem))
+
+      %{
+        jwk: jwk,
+        public_pem: public_pem,
+        public_der: elem(public_entry, 1),
+        public_map: public_map,
+        private_der: elem(private_entry, 1),
+        private_map: private_map
+      }
+    end
+
+    test "a public key in any format builds the same key without a private key", ctx do
+      for attrs <- [
+            [public_key_pem: ctx.public_pem],
+            [public_key_der: ctx.public_der],
+            [public_jwk: ctx.public_map],
+            [public_jwk: Map.delete(ctx.public_map, "kid")]
+          ] do
+        assert {:ok, %JWK{private_key_pem: nil} = jwk} = JWK.new([kid: ctx.jwk.kid] ++ attrs)
+        assert jwk.kid == ctx.jwk.kid
+        assert JWK.to_jwks(jwk) == JWK.to_jwks(ctx.jwk)
+        assert JWK.to_public_key(jwk) == ctx.public_pem
+      end
+    end
+
+    test "a private key in any format builds the same key", ctx do
+      for attrs <- [
+            [private_key_pem: ctx.jwk.private_key_pem],
+            [private_key_der: ctx.private_der],
+            [private_jwk: ctx.private_map]
+          ] do
+        assert {:ok, %JWK{} = jwk} = JWK.new([kid: ctx.jwk.kid] ++ attrs)
+        assert JWK.to_public_key(jwk) == ctx.public_pem
+        assert {:ok, signature} = JWK.sign(jwk, "message")
+        assert {:ok, ^signature} = JWK.sign(ctx.jwk, "message")
+      end
+    end
+
+    test "a JWK map's kid is used when no kid is given", ctx do
+      assert {:ok, %JWK{kid: kid}} = JWK.new(public_jwk: ctx.public_map)
+      assert kid == ctx.jwk.kid
+
+      assert {:error, %InvalidField{field: :kid, value: "other"} = error} =
+               JWK.new(public_jwk: ctx.public_map, kid: "other")
+
+      assert Exception.message(error) =~ "must match the JWK's kid"
+
+      assert {:error, %InvalidField{field: :kid, reason: :required}} =
+               JWK.new(public_jwk: Map.delete(ctx.public_map, "kid"))
+
+      assert {:error, %InvalidField{field: :public_jwk}} =
+               JWK.new(public_jwk: %{"kty" => "RSA", "kid" => ctx.jwk.kid})
+    end
+
+    test "rejects a key that is malformed or not RSA", ctx do
+      ec = JOSE.JWK.to_public(JOSE.JWK.generate_key({:ec, "P-256"}))
+      {_type, ec_public_pem} = JOSE.JWK.to_pem(ec)
+      {_type, ec_public_map} = JOSE.JWK.to_map(ec)
+
+      for {field, value} <- [
+            public_key_pem: "not-a-pem",
+            public_key_pem: ec_public_pem,
+            public_key_pem: ctx.jwk.private_key_pem,
+            public_key_der: "garbage",
+            public_key_der: 123,
+            public_jwk: ec_public_map,
+            public_jwk: %{"kty" => "RSA", "n" => 1},
+            public_jwk: ctx.private_map,
+            public_jwk: "map",
+            private_key_der: "garbage",
+            private_key_der: ctx.public_der,
+            private_jwk: ctx.public_map,
+            private_jwk: %{"kty" => "RSA"}
+          ] do
+        assert {:error, %InvalidField{struct: JWK, field: ^field, value: "[redacted]"}} =
+                 JWK.new([{field, value}, {:kid, ctx.jwk.kid}])
+      end
+    end
+
+    test "a key without a private key can't sign", ctx do
+      jwk = JWK.new!(public_key_pem: ctx.public_pem, kid: ctx.jwk.kid)
+
+      assert {:error, %InvalidField{struct: JWK, field: :private_key_pem, reason: :required}} =
+               JWK.sign(jwk, "message")
+    end
+
+    test "inspect omits the private key", ctx do
+      refute inspect(ctx.jwk) =~ "PRIVATE"
+      assert inspect(ctx.jwk) =~ ctx.jwk.kid
     end
   end
 

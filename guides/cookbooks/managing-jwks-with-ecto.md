@@ -12,7 +12,7 @@ A dedicated table keeps key management separate from registration logic and make
 ```elixir
 create table(:lti_keys) do
   add :kid, :string, null: false
-  add :public_jwk, :map, null: false
+  add :public_key_pem, :text, null: false
   add :private_key_pem, :binary, null: false
   add :active, :boolean, default: true
   timestamps()
@@ -35,7 +35,7 @@ defmodule MyApp.Lti.LtiKey do
 
   schema "lti_keys" do
     field :kid, :string
-    field :public_jwk, :map
+    field :public_key_pem, :string
     field :private_key_pem, MyApp.Encrypted.Binary, redact: true
     field :active, :boolean, default: true
     timestamps()
@@ -59,11 +59,14 @@ defmodule MyApp.Lti do
 
   def create_key! do
     jwk = Ltix.JWK.generate()
-    %{"keys" => [public_jwk]} = Ltix.JWK.to_jwks(jwk)
 
     # Ecto's debug log prints query parameters, and the key is one of them.
     Repo.insert!(
-      %LtiKey{kid: jwk.kid, public_jwk: public_jwk, private_key_pem: jwk.private_key_pem},
+      %LtiKey{
+        kid: jwk.kid,
+        public_key_pem: jwk.public_key_pem,
+        private_key_pem: jwk.private_key_pem
+      },
       log: false
     )
   end
@@ -104,9 +107,10 @@ defmodule MyAppWeb.JwksController do
   alias MyApp.Lti.LtiKey
 
   def index(conn, _params) do
-    keys = Repo.all(from k in LtiKey, where: k.active == true, select: k.public_jwk)
+    keys = Repo.all(from k in LtiKey, where: k.active == true, select: {k.kid, k.public_key_pem})
+    jwks = Enum.map(keys, fn {kid, pem} -> Ltix.JWK.new!(public_key_pem: pem, kid: kid) end)
 
-    json(conn, %{"keys" => keys})
+    json(conn, Ltix.JWK.to_jwks(jwks))
   end
 end
 ```

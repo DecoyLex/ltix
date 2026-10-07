@@ -115,7 +115,7 @@ defmodule Ltix.JWT.KeySet do
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   @spec get_key(Registration.t(), String.t(), keyword()) ::
-          {:ok, JOSE.JWK.t()} | {:error, Exception.t()}
+          {:ok, Ltix.JWK.t()} | {:error, Exception.t()}
   def get_key(%Registration{} = registration, kid, opts \\ []) do
     opts = Options.parse!(opts, @options_schema)
     key_set = Keyword.get_lazy(opts, :key_set, &AppConfig.key_set/0)
@@ -353,18 +353,12 @@ defmodule Ltix.JWT.KeySet do
   # key doesn't stop the platform's other keys from being used.
   defp parse_jwks(%{"keys" => keys}) when is_list(keys) do
     for %{"kid" => kid} = key_map when is_binary(kid) <- keys,
-        {:ok, jwk} <- [parse_key(key_map)],
+        {:ok, jwk} <- [Ltix.JWK.new(public_jwk: key_map)],
         into: %{},
         do: {kid, jwk}
   end
 
   defp parse_jwks(_jwks), do: %{}
-
-  defp parse_key(key_map) do
-    {:ok, JOSE.JWK.from_map(key_map)}
-  rescue
-    _error -> :error
-  end
 
   defp parse_max_age(headers) do
     headers

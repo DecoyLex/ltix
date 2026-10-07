@@ -1,31 +1,44 @@
 defmodule Ltix.JWK do
   @moduledoc """
-  RSA key management for LTI tool authentication.
+  RSA keys for LTI tool authentication.
 
-  Every LTI Advantage service call requires a signed JWT assertion. This module
-  stores an RSA private key and its key ID in a struct that is easy to persist
-  (PEM string + kid) and converts to JWKS documents for platform consumption.
+  Every LTI Advantage service call requires a signed JWT assertion, and
+  platforms verify it with the public keys your tool publishes. A JWK has a
+  key ID and a public key, and a private key when it was made from one.
 
   ## Generating a key
 
       jwk = Ltix.JWK.generate()
 
-  Store the struct fields (`private_key_pem` and `kid`) in your database or
-  config, encrypting the private key, and sign with the key from your storage adapter's
-  `c:Ltix.StorageAdapter.sign/3` callback using `sign/2`.
+  Store `kid`, `public_key_pem`, and `private_key_pem`, and encrypt the
+  private key.
 
-  ## Loading from storage
+  ## Signing
+
+  Load the private key and sign in your storage adapter's
+  `c:Ltix.StorageAdapter.sign/3` callback.
 
       {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: kid)
+      Ltix.JWK.sign(jwk, message)
 
-  ## Building a JWKS endpoint response
+  ## Serving your key set endpoint
+
+  Load the public keys and return them with `to_jwks/1`. The endpoint needs
+  no private key.
 
       def jwks(conn, _params) do
-        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_jwks()))
+        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
       end
+
+  Here `list_public_jwks/0` builds each JWK from what you stored.
+
+      Ltix.JWK.new!(public_key_pem: pem, kid: kid)
 
   During a rotation, include the new key and the old one so platforms can
   verify with either.
+
+  For a key in a key management service, build the JWK from the public key
+  the service returns, as a PEM, a DER binary, or a JWK map.
 
   """
 
@@ -48,20 +61,31 @@ defmodule Ltix.JWK do
                      unrecognized_keys: :error
                    )
 
+  @key_formats [
+    public_key_pem: {:pem, :public},
+    public_key_der: {:der, :public},
+    public_jwk: {:jwk, :public},
+    private_key_pem: {:pem, :private},
+    private_key_der: {:der, :private},
+    private_jwk: {:jwk, :private}
+  ]
+  @key_fields Keyword.keys(@key_formats)
+
   @derive {Inspect, except: [:private_key_pem]}
-  @enforce_keys [:private_key_pem, :kid]
-  defstruct [:private_key_pem, :kid]
+  @enforce_keys [:kid, :public_key_pem]
+  defstruct [:kid, :public_key_pem, :private_key_pem]
 
   @type t :: %__MODULE__{
-          private_key_pem: String.t(),
-          kid: String.t()
+          kid: String.t(),
+          public_key_pem: String.t(),
+          private_key_pem: String.t() | nil
         }
 
   @doc """
   Generate an RSA key pair for LTI tool authentication.
 
-  Returns a `%Ltix.JWK{}` struct. Persist `private_key_pem` and `kid` for
-  later reconstruction via `new/1`.
+  Returns a `%Ltix.JWK{}` struct. Persist `kid` and the key PEMs to build
+  the JWK again with `new/1`.
 
   ## Examples
 
@@ -82,35 +106,58 @@ defmodule Ltix.JWK do
 
     key_size = Keyword.get_lazy(opts, :key_size, &AppConfig.default_key_size/0)
     jose_jwk = JOSE.JWK.generate_key({:rsa, key_size})
-    kid = JOSE.JWK.thumbprint(jose_jwk)
-    {_kty, pem} = JOSE.JWK.to_pem(jose_jwk)
 
-    %__MODULE__{private_key_pem: pem, kid: kid}
+    %__MODULE__{
+      kid: JOSE.JWK.thumbprint(jose_jwk),
+      public_key_pem: pem(JOSE.JWK.to_public(jose_jwk)),
+      private_key_pem: pem(jose_jwk)
+    }
   end
 
   @doc """
   Construct a JWK from existing key material.
 
-  For loading keys from storage (database, config, environment variable).
-  Takes a keyword list or an atom-keyed map. Both `private_key_pem` and
-  `kid` are required, and unknown fields are rejected.
+  Takes a keyword list or an atom-keyed map with `:kid` and one key. Unknown
+  fields are rejected. A JWK made from a public key has no private key, so
+  it can't sign.
+
+  ## Fields
+
+    * `:kid` - the key ID. Optional with `:public_jwk` or `:private_jwk` when
+      the map has a `"kid"`, which a `:kid` given with it has to match.
+    * `:public_key_pem` - an RSA public key as a PEM string
+    * `:public_key_der` - an RSA public key as a DER binary
+    * `:public_jwk` - an RSA public key as a string-keyed JWK map
+    * `:private_key_pem` - an RSA private key as an unencrypted PEM string
+    * `:private_key_der` - an RSA private key as a DER binary
+    * `:private_jwk` - an RSA private key as a string-keyed JWK map
 
   ## Examples
 
       {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: "my-key-id")
+      {:ok, jwk} = Ltix.JWK.new(public_key_pem: public_pem, kid: "my-key-id")
 
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(attrs) when is_list(attrs), do: new(Map.new(attrs))
 
   def new(attrs) when is_map(attrs) do
-    errors =
-      InvalidField.unknown_fields(__MODULE__, attrs, @enforce_keys) ++
-        [validate_pem(attrs[:private_key_pem]), validate_kid(attrs[:kid])]
+    jwk_kid = jwk_kid(attrs)
+    kid = if is_nil(attrs[:kid]), do: jwk_kid, else: attrs[:kid]
 
-    case Errors.collect(errors) do
-      :ok -> {:ok, struct!(__MODULE__, attrs)}
-      {:error, _error} = error -> error
+    {key_error, public_key_pem, private_key_pem} =
+      case parse_key(attrs) do
+        {:ok, {public_key_pem, private_key_pem}} -> {nil, public_key_pem, private_key_pem}
+        {:error, error} -> {error, nil, nil}
+      end
+
+    errors =
+      InvalidField.unknown_fields(__MODULE__, attrs, [:kid | @key_fields]) ++
+        [key_error, validate_kid(kid, jwk_kid)]
+
+    with :ok <- Errors.collect(errors) do
+      {:ok,
+       %__MODULE__{kid: kid, public_key_pem: public_key_pem, private_key_pem: private_key_pem}}
     end
   end
 
@@ -132,13 +179,13 @@ defmodule Ltix.JWK do
   @doc """
   Build a JWKS (JSON Web Key Set) map from one or more JWKs.
 
-  Removes private key material, so the output is safe for public endpoints.
+  The map has only public keys, so it is safe for public endpoints.
   Accepts a single `%Ltix.JWK{}` or a list.
 
   ## Examples
 
       def jwks(conn, _params) do
-        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_jwks()))
+        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
       end
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
@@ -148,13 +195,7 @@ defmodule Ltix.JWK do
   def to_jwks(jwks) when is_list(jwks) do
     keys =
       Enum.map(jwks, fn %__MODULE__{} = jwk ->
-        jose_jwk = to_jose(jwk)
-
-        {_kty, fields} =
-          jose_jwk
-          |> JOSE.JWK.to_public()
-          |> JOSE.JWK.to_map()
-
+        {_kty, fields} = JOSE.JWK.to_map(to_jose(jwk))
         fields
       end)
 
@@ -164,8 +205,7 @@ defmodule Ltix.JWK do
   @doc """
   Export the public key as a PEM string.
 
-  Derives the public key from the private PEM. Useful for manual key
-  exchange during platform registration setup.
+  Useful for manual key exchange during platform registration setup.
 
   ## Examples
 
@@ -173,18 +213,12 @@ defmodule Ltix.JWK do
       public_pem = Ltix.JWK.to_public_key(jwk)
   """
   @spec to_public_key(t()) :: String.t()
-  def to_public_key(%__MODULE__{private_key_pem: pem}) do
-    {_kty, public_pem} =
-      pem
-      |> JOSE.JWK.from_pem()
-      |> JOSE.JWK.to_public()
-      |> JOSE.JWK.to_pem()
-
-    public_pem
-  end
+  def to_public_key(%__MODULE__{public_key_pem: pem}), do: pem
 
   @doc """
   Sign a message with RS256, as `c:Ltix.StorageAdapter.sign/3` requires.
+
+  Returns an error for a JWK without a private key.
 
   ## Examples
 
@@ -194,7 +228,11 @@ defmodule Ltix.JWK do
       256
   """
   # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
-  @spec sign(t(), binary()) :: {:ok, binary()}
+  @spec sign(t(), binary()) :: {:ok, binary()} | {:error, Exception.t()}
+  def sign(%__MODULE__{private_key_pem: nil}, message) when is_binary(message) do
+    {:error, required(:private_key_pem)}
+  end
+
   def sign(%__MODULE__{private_key_pem: pem}, message) when is_binary(message) do
     [entry | _] = :public_key.pem_decode(pem)
     {:ok, :public_key.sign(message, :sha256, :public_key.pem_entry_decode(entry))}
@@ -202,62 +240,102 @@ defmodule Ltix.JWK do
 
   @doc false
   @spec to_jose(t()) :: JOSE.JWK.t()
-  def to_jose(%__MODULE__{private_key_pem: pem, kid: kid}) do
+  def to_jose(%__MODULE__{public_key_pem: pem, kid: kid}) do
     pem
     |> JOSE.JWK.from_pem()
     |> JOSE.JWK.merge(%{"kid" => kid, "alg" => "RS256", "use" => "sig"})
   end
 
+  defp pem(jose_jwk) do
+    {_kty, pem} = JOSE.JWK.to_pem(jose_jwk)
+    pem
+  end
+
   # --- Validation ---
 
-  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
-  defp validate_kid(nil), do: required(:kid)
-  defp validate_kid(kid) when is_binary(kid) and kid != "", do: nil
+  # Returns `{:ok, {public_key_pem, private_key_pem}}` for the one key given.
+  # Key material is left out of the errors.
+  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  defp parse_key(attrs) do
+    case for field <- @key_fields, attrs[field] != nil, do: field do
+      [] ->
+        reason = "one of #{Enum.join(@key_fields, ", ")} is required"
+        {:error, invalid(:public_key_pem, nil, reason, "Sec §6.1 (RSA key)")}
 
-  defp validate_kid(kid) do
+      [field] ->
+        {format, kind} = @key_formats[field]
+
+        with {:ok, jose_jwk} <- decode_key(format, attrs[field]),
+             {:ok, private_key_pem} <- private_key_pem(format, kind, attrs[field], jose_jwk) do
+          {:ok, {pem(JOSE.JWK.to_public(jose_jwk)), private_key_pem}}
+        else
+          {:error, reason} -> {:error, invalid_key(field, reason)}
+          :error -> {:error, invalid_key(field, "expected an RSA #{kind} key")}
+        end
+
+      [_first, field | _rest] ->
+        {:error, invalid_key(field, "only one key can be given")}
+    end
+  rescue
+    # JOSE raises on malformed key data.
+    _error ->
+      field = Enum.find(@key_fields, &(attrs[&1] != nil))
+      {_format, kind} = @key_formats[field]
+      {:error, invalid_key(field, "expected an RSA #{kind} key")}
+  end
+
+  defp decode_key(:pem, pem) when is_binary(pem) do
+    case :public_key.pem_decode(pem) do
+      [] -> {:error, "must be a PEM"}
+      [{_type, _der, :not_encrypted} | _] -> jose_key(JOSE.JWK.from_pem(pem))
+      _encrypted -> {:error, "must not be encrypted"}
+    end
+  end
+
+  defp decode_key(:der, der) when is_binary(der), do: jose_key(JOSE.JWK.from_der(der))
+  defp decode_key(:jwk, map) when is_map(map), do: jose_key(JOSE.JWK.from_map(map))
+  defp decode_key(:jwk, _value), do: {:error, "must be a map"}
+  defp decode_key(_format, _value), do: {:error, "must be a binary"}
+
+  defp jose_key(%JOSE.JWK{} = jose_jwk), do: {:ok, jose_jwk}
+  defp jose_key(_other), do: :error
+
+  # Checks that the key is an RSA key of the kind the field is for. A PEM the
+  # caller gave is kept as given.
+  defp private_key_pem(format, kind, value, jose_jwk) do
+    {_kty, record} = JOSE.JWK.to_key(jose_jwk)
+
+    case {kind, elem(record, 0), format} do
+      {:public, :RSAPublicKey, _format} -> {:ok, nil}
+      {:private, :RSAPrivateKey, :pem} -> {:ok, value}
+      {:private, :RSAPrivateKey, _format} -> {:ok, pem(jose_jwk)}
+      _other -> :error
+    end
+  end
+
+  defp jwk_kid(attrs) do
+    case attrs[:public_jwk] || attrs[:private_jwk] do
+      %{"kid" => kid} when is_binary(kid) and kid != "" -> kid
+      _other -> nil
+    end
+  end
+
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
+  defp validate_kid(nil, _jwk_kid), do: required(:kid)
+
+  defp validate_kid(kid, jwk_kid) when is_binary(kid) and kid != "" and jwk_kid in [nil, kid],
+    do: nil
+
+  defp validate_kid(kid, jwk_kid) when is_binary(kid) and kid != "" and is_binary(jwk_kid) do
+    invalid(:kid, kid, "must match the JWK's kid", "Sec §6.3 (key identifier)")
+  end
+
+  defp validate_kid(kid, _jwk_kid) do
     invalid(:kid, kid, "must be a non-empty string", "Sec §6.3 (key identifier)")
   end
 
-  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
-  # Key material is redacted from errors.
-  defp validate_pem(nil), do: required(:private_key_pem)
-
-  defp validate_pem(pem) when is_binary(pem) do
-    case :public_key.pem_decode(pem) do
-      [entry | _] -> validate_pem_entry(entry)
-      [] -> invalid(:private_key_pem, "[redacted]", "must be a PEM", "Sec §6.1 (RSA key)")
-    end
-  end
-
-  defp validate_pem(_pem) do
-    invalid(:private_key_pem, "[redacted]", "must be a binary", "Sec §6.1 (RSA key)")
-  end
-
-  defp validate_pem_entry({_type, _der, :not_encrypted} = entry) do
-    case decode_pem_entry(entry) do
-      {:RSAPrivateKey, _, _, _, _, _, _, _, _, _, _} ->
-        nil
-
-      _other ->
-        invalid(
-          :private_key_pem,
-          "[redacted]",
-          "expected an RSA private key",
-          "Sec §6.1 (RSA key)"
-        )
-    end
-  end
-
-  defp validate_pem_entry(_encrypted_entry) do
-    invalid(:private_key_pem, "[redacted]", "must not be encrypted", "Sec §6.1 (RSA key)")
-  end
-
-  # Malformed key data raises inside `:public_key`.
-  defp decode_pem_entry(entry) do
-    :public_key.pem_entry_decode(entry)
-  rescue
-    _error -> :error
-  end
+  defp invalid_key(field, reason),
+    do: invalid(field, "[redacted]", reason, "Sec §6.1 (RSA key)")
 
   defp required(field), do: InvalidField.required(__MODULE__, field)
 

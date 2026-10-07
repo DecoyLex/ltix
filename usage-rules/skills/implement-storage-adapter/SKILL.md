@@ -104,7 +104,7 @@ defmodule MyApp.Repo.Migrations.CreateLtiTables do
   def change do
     create table(:lti_jwks) do
       add :kid, :string, null: false
-      add :public_jwk, :map, null: false
+      add :public_key_pem, :text, null: false
       # Encrypted at rest. See the JWK Schema below.
       add :private_key_pem, :binary, null: false
       add :active, :boolean, default: true, null: false
@@ -159,7 +159,7 @@ defmodule MyApp.Lti.Jwk do
 
   schema "lti_jwks" do
     field :kid, :string
-    field :public_jwk, :map
+    field :public_key_pem, :string
     field :private_key_pem, MyApp.Encrypted.Binary, redact: true
     field :active, :boolean, default: true
     timestamps()
@@ -178,11 +178,14 @@ next to the private one, so the key set endpoint never reads a private key.
 # lib/my_app/lti.ex
 def create_jwk! do
   jwk = Ltix.JWK.generate()
-  %{"keys" => [public_jwk]} = Ltix.JWK.to_jwks(jwk)
 
   # Ecto's debug log prints query parameters, and the key is one of them.
   Repo.insert!(
-    %MyApp.Lti.Jwk{kid: jwk.kid, public_jwk: public_jwk, private_key_pem: jwk.private_key_pem},
+    %MyApp.Lti.Jwk{
+      kid: jwk.kid,
+      public_key_pem: jwk.public_key_pem,
+      private_key_pem: jwk.private_key_pem
+    },
     log: false
   )
 end
@@ -273,7 +276,8 @@ defmodule MyApp.Lti do
   import Ecto.Query
 
   def list_public_jwks do
-    Repo.all(from j in Jwk, where: j.active == true, select: j.public_jwk)
+    keys = Repo.all(from j in Jwk, where: j.active == true, select: {j.kid, j.public_key_pem})
+    Enum.map(keys, fn {kid, pem} -> Ltix.JWK.new!(public_key_pem: pem, kid: kid) end)
   end
 
   # The platform left out client_id, so look up by issuer alone. An issuer

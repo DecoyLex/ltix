@@ -227,7 +227,7 @@ defmodule MyAppWeb.LtiController do
   end
 
   def jwks(conn, _params) do
-    json(conn, %{"keys" => Lti.list_public_jwks()})
+    json(conn, Ltix.JWK.to_jwks(Lti.list_public_jwks()))
   end
 
   # Error messages can include URLs and claim values, so they go to the

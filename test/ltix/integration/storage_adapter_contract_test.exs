@@ -498,7 +498,8 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     test "rejects a published key set that includes a private key", %{opts: opts} do
-      {_type, private_key} = JOSE.JWK.to_map(Ltix.JWK.to_jose(Process.get(:signing_key)))
+      signing_key = Process.get(:signing_key)
+      {_type, private_key} = JOSE.JWK.to_map(JOSE.JWK.from_pem(signing_key.private_key_pem))
       opts = Keyword.put(opts, :jwks, fn _registration -> %{"keys" => [private_key]} end)
 
       assert_raise ExUnit.AssertionError, ~r/jwks.*private key/s, fn ->

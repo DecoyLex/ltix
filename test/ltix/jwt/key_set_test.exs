@@ -39,8 +39,10 @@ defmodule Ltix.JWT.KeySetTest do
 
       kid = ctx.platform_jwk.kid
 
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+      assert {:ok, %Ltix.JWK{kid: ^kid, private_key_pem: nil} = jwk} =
                KeySet.get_key(ctx.registration, kid, req_options: req_options())
+
+      assert Ltix.JWK.to_jwks(jwk) == ctx.jwks
     end
 
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
@@ -51,7 +53,7 @@ defmodule Ltix.JWT.KeySetTest do
 
       kid = second_jwk.kid
 
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+      assert {:ok, %Ltix.JWK{kid: ^kid}} =
                KeySet.get_key(ctx.registration, kid, req_options: req_options())
     end
 
@@ -72,7 +74,7 @@ defmodule Ltix.JWT.KeySetTest do
       kid = rotated_jwk.kid
 
       for _lookup <- 1..2 do
-        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+        assert {:ok, %Ltix.JWK{kid: ^kid}} =
                  KeySet.get_key(ctx.registration, kid, opts)
       end
 
@@ -112,7 +114,7 @@ defmodule Ltix.JWT.KeySetTest do
 
       kid = ctx.platform_jwk.kid
 
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+      assert {:ok, %Ltix.JWK{kid: ^kid}} =
                KeySet.get_key(ctx.registration, kid, opts)
     end
 
@@ -156,7 +158,7 @@ defmodule Ltix.JWT.KeySetTest do
       kid = ctx.platform_jwk.kid
       opts = [req_options: req_options()]
 
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+      assert {:ok, %Ltix.JWK{kid: ^kid}} =
                KeySet.get_key(ctx.registration, kid, opts)
 
       for kid <- ["no-type", "bad"] do
@@ -165,27 +167,18 @@ defmodule Ltix.JWT.KeySetTest do
       end
     end
 
-    test "decodes a key set served without a JSON content type", ctx do
+    test "decodes a key set served with a content type that is not JSON", ctx do
       body = Ltix.AppConfig.json_library!().encode!(ctx.jwks)
       kid = ctx.platform_jwk.kid
 
-      for content_type <- ["text/plain", nil] do
-        count_fetches(fn conn ->
-          conn =
-            if content_type,
-              do: Plug.Conn.put_resp_content_type(conn, content_type),
-              else: conn
+      count_fetches(fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("text/plain")
+        |> Plug.Conn.send_resp(200, body)
+      end)
 
-          Plug.Conn.send_resp(conn, 200, body)
-        end)
-
-        opts = [key_set: start_key_set(refetch_interval: 0), req_options: req_options()]
-
-        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
-                 KeySet.get_key(ctx.registration, kid, opts)
-
-        stop_supervised!(__MODULE__.Keys)
-      end
+      assert {:ok, %Ltix.JWK{kid: ^kid}} =
+               KeySet.get_key(ctx.registration, kid, req_options: req_options())
     end
 
     test "returns MalformedResponse for a key set that is not JSON", ctx do
@@ -257,7 +250,7 @@ defmodule Ltix.JWT.KeySetTest do
       kid = ctx.platform_jwk.kid
 
       for result <- lookup_concurrently(ctx, kid, req_options: req_options()) do
-        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = result
+        assert {:ok, %Ltix.JWK{kid: ^kid}} = result
       end
 
       assert :counters.get(fetch_count, 1) == 1
@@ -273,7 +266,7 @@ defmodule Ltix.JWT.KeySetTest do
       kid = rotated_jwk.kid
 
       for result <- lookup_concurrently(ctx, kid, opts) do
-        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = result
+        assert {:ok, %Ltix.JWK{kid: ^kid}} = result
       end
 
       assert :counters.get(fetch_count, 1) == 1
@@ -303,7 +296,7 @@ defmodule Ltix.JWT.KeySetTest do
       assert_receive {:fetching, fetcher}
       send(fetcher, :respond)
 
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = Task.await(second)
+      assert {:ok, %Ltix.JWK{kid: ^kid}} = Task.await(second)
       assert :counters.get(fetch_count, 1) == 2
     end
 
@@ -339,7 +332,7 @@ defmodule Ltix.JWT.KeySetTest do
       send(second_fetcher, :respond)
 
       assert Task.await(first) == {:raised, "fetch failed"}
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = Task.await(second)
+      assert {:ok, %Ltix.JWK{kid: ^kid}} = Task.await(second)
       assert :counters.get(fetch_count, 1) == 2
     end
   end

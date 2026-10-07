@@ -18,8 +18,9 @@ covers generating keys, serving a JWKS endpoint, and rotating keys.
 jwk = Ltix.JWK.generate()
 ```
 
-Store `private_key_pem` and `kid` in your database or config, and encrypt
-the private key wherever you keep it. To reconstruct the struct later, pass them to `Ltix.JWK.new/1` or
+Store `kid`, `public_key_pem`, and `private_key_pem` in your database or
+config, and encrypt the private key wherever you keep it. To reconstruct the
+struct later, pass `kid` and one of the keys to `Ltix.JWK.new/1` or
 `Ltix.JWK.new!/1`. A missing, invalid, or unknown field returns an
 `Ltix.Errors.Invalid.InvalidField` error, and several bad fields are
 returned together in an `Ltix.Errors.Invalid` error.
@@ -46,7 +47,7 @@ end
 
 `sign/3` signs with the key that has the given ID and returns an error for an ID it doesn't have. A request that starts before a rotation still gets a signature from the key whose ID is in its JWT header.
 
-A key in a key management service does not have to be exported. Call the service from `sign/3` and return its RS256 signature. See [Storage Adapters](storage-adapters.md#signing).
+A key in a key management service does not have to be exported. Call the service from `sign/3` and return its RS256 signature, and build the JWK for your key set endpoint from the public key the service returns. See [Storage Adapters](storage-adapters.md#signing).
 
 ## Serving a JWKS endpoint
 
@@ -55,15 +56,24 @@ assertions. You provide the JWKS endpoint URL during tool
 registration.
 
 Each key has a unique `kid`, so platforms match signatures to the
-correct key automatically. Pass your JWKs to `to_jwks/1` and it
+correct key automatically. Serve the endpoint with `to_jwks/1`, which
 returns a JWKS map with only the public keys.
 
 ```elixir
-Ltix.JWK.to_jwks([jwk_1, jwk_2])
-#=> %{"keys" => [%{"kty" => "RSA", "kid" => "...", "n" => "...", ...}, ...]}
+def jwks(conn, _params) do
+  json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
+end
 ```
 
-Private material is removed automatically.
+A JWK built from a public key is enough for this. Store each key's
+`public_key_pem` and build the JWKs for the endpoint from that.
+
+```elixir
+Ltix.JWK.new!(public_key_pem: key.public_key_pem, kid: key.kid)
+```
+
+`Ltix.JWK.new/1` also takes a public key as a DER binary or a JWK map,
+which are the formats key management services return.
 
 For tools with a single registration, you can hard-code a single key.
 For tools managing multiple registrations, see the

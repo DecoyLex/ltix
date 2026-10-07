@@ -146,7 +146,7 @@ Ltix calls your adapter for each signature and never stores your private key.
 
 - Keep keys out of version control, logs, and responses. Encrypt them at rest, or keep them in a key management service and sign from `sign/3`.
 - Use a separate key for each registration, so you can rotate one without the others.
-- Serve only public keys from your key set endpoint. `Ltix.JWK.to_jwks/1` leaves the private half out.
+- Serve your key set endpoint from public keys. `Ltix.JWK.new/1` builds a JWK from a public key alone, and `Ltix.JWK.to_jwks/1` returns only public keys.
 - In `sign/3`, sign with the key whose ID is the `key_id` argument, and return an error for an ID you don't have.
 
 See [JWK Management](jwk-management.md) for rotation.

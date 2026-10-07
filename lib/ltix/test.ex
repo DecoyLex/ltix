@@ -898,7 +898,7 @@ defmodule Ltix.Test do
   @spec verify_deep_linking_response(Platform.t(), String.t()) ::
           {:ok, map()} | {:error, Exception.t()}
   def verify_deep_linking_response(%Platform{} = platform, jwt) do
-    public_key = JOSE.JWK.to_public(Ltix.JWK.to_jose(platform.tool_jwk))
+    public_key = Ltix.JWK.to_jose(platform.tool_jwk)
 
     # [Sec §5.2.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation-0)
     case verify_signature(public_key, jwt) do
@@ -925,7 +925,8 @@ defmodule Ltix.Test do
   #{Zoi.describe(@sign_id_token_schema)}
   """
   @spec sign_id_token(map(), Ltix.JWK.t(), keyword()) :: String.t()
-  def sign_id_token(claims, %Ltix.JWK{} = jwk, opts \\ []) do
+  def sign_id_token(claims, %Ltix.JWK{private_key_pem: pem} = jwk, opts \\ [])
+      when is_binary(pem) do
     opts = Options.parse!(opts, @sign_id_token_schema)
     kid = Keyword.get(opts, :kid, jwk.kid)
     header = maybe_put(%{"alg" => Keyword.fetch!(opts, :alg)}, "kid", kid)
