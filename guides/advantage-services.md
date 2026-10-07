@@ -42,6 +42,8 @@ endpoint from launch claims and acquires a token in one step. See
 
 Each token request is signed by your storage adapter's `key_id/2` and `sign/4` callbacks. See [Storage Adapters](storage-adapters.md#signing).
 
+A token request from a launch context includes the launch's deployment ID. When you authenticate from a registration, pass `:deployment` with your deployment struct or the deployment ID. A platform may require it before it issues a token.
+
 ## Background service calls
 
 Outside of a launch, you won't have a `%LaunchContext{}`. Authenticate
@@ -121,9 +123,7 @@ client = Ltix.OAuth.Client.refresh!(client)
 
 ## Reusing tokens across courses
 
-A token is scoped to a registration (platform + client_id), not to a
-specific course. If your tool syncs multiple courses on the same
-platform, you can reuse one token.
+A token is scoped to a registration (platform + client_id) and works for every course on it. A platform may also limit a token to the deployment it was requested for. If your tool syncs multiple courses in the same deployment, you can reuse one token.
 
 ```elixir
 # Authenticate once

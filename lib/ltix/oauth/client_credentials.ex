@@ -1,6 +1,7 @@
 defmodule Ltix.OAuth.ClientCredentials do
   @moduledoc false
 
+  alias Ltix.Deployment
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.HTTP
@@ -13,6 +14,7 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   @grant_type "client_credentials"
   @assertion_type "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+  @deployment_claim "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
 
   @doc """
   Request an OAuth 2.0 access token via the client credentials grant.
@@ -27,6 +29,8 @@ defmodule Ltix.OAuth.ClientCredentials do
       signing callbacks (defaults to application config)
     * `:storage_adapter_options` - options passed to the signing callbacks
       (defaults to `[]`)
+    * `:deployment` - the deployment the token is for, as a struct
+      implementing `Ltix.Deployable` or a deployment ID
     * `:req_options` - options passed through to `Req.request/2` (defaults to `[]`)
     * `:local_network_access` - see `Ltix.HTTP.local_network_access_option/0`
   """
@@ -35,11 +39,12 @@ defmodule Ltix.OAuth.ClientCredentials do
   def request_token(registerable, scopes, opts \\ []) do
     with {:ok, registration} <- Records.convert!(registerable, :registration),
          :ok <- require_token_endpoint(registration),
+         {:ok, deployment} <- resolve_deployment(Keyword.get(opts, :deployment)),
          {:ok, assertion} <-
            StorageAdapter.sign_jwt(
              Options.fetch_configured!(opts, :storage_adapter),
              registerable,
-             assertion_claims(registration),
+             assertion_claims(registration, deployment),
              Keyword.get(opts, :storage_adapter_options, [])
            ) do
       send_token_request(registration, scopes, opts, assertion)
@@ -56,6 +61,17 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   defp require_token_endpoint(%Registration{}), do: :ok
+
+  # Returns the `Ltix.Deployment` for a `:deployment` option, which is a
+  # struct implementing `Ltix.Deployable`, a deployment ID, or `nil`.
+  @doc false
+  @spec resolve_deployment(term()) :: {:ok, Deployment.t() | nil} | {:error, Exception.t()}
+  def resolve_deployment(nil), do: {:ok, nil}
+
+  def resolve_deployment(deployment_id) when is_binary(deployment_id),
+    do: Deployment.new(deployment_id)
+
+  def resolve_deployment(record), do: Records.convert!(record, :deployment, :deployment)
 
   defp send_token_request(registration, scopes, opts, assertion) do
     req_options = req_options(opts)
@@ -132,7 +148,7 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)
   # The MUST claims of the JWT client assertion.
-  defp assertion_claims(%Registration{} = registration) do
+  defp assertion_claims(%Registration{} = registration, nil) do
     now = System.system_time(:second)
 
     %{
@@ -143,6 +159,11 @@ defmodule Ltix.OAuth.ClientCredentials do
       "exp" => now + 300,
       "jti" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
     }
+  end
+
+  # [Core §6.2.1](https://www.imsglobal.org/spec/lti/v1p3/#deployment-id)
+  defp assertion_claims(%Registration{} = registration, %Deployment{deployment_id: deployment_id}) do
+    Map.put(assertion_claims(registration, nil), @deployment_claim, deployment_id)
   end
 
   defp req_options(opts) do

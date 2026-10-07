@@ -15,7 +15,7 @@ defmodule Ltix.OAuth do
                                description: "Map of service modules to endpoint structs."
                              )
                              |> Zoi.required()
-                         ] ++ @shared_fields,
+                         ] ++ Client.registration_option_fields(),
                          unrecognized_keys: :error
                        )
 
@@ -53,6 +53,13 @@ defmodule Ltix.OAuth do
         }
       )
 
+  A token request from a launch context includes the launch's deployment ID. With a registration, pass `:deployment` to include one. A platform may require it before it issues a token.
+
+      {:ok, client} = Ltix.OAuth.authenticate(registration,
+        endpoints: %{Ltix.GradeService => ags_endpoint},
+        deployment: deployment
+      )
+
   The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2`.
 
   ## Options (launch context)
@@ -82,8 +89,15 @@ defmodule Ltix.OAuth do
     {services, opts} = Keyword.pop!(Options.parse!(opts, @context_schema), :services)
 
     case endpoints_from_claims(context.claims, services) do
-      {:ok, endpoints} -> request_client(context.registration, endpoints, opts)
-      {:error, _} = error -> error
+      {:ok, endpoints} ->
+        request_client(
+          context.registration,
+          endpoints,
+          Keyword.put(opts, :deployment, context.deployment)
+        )
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -113,6 +127,7 @@ defmodule Ltix.OAuth do
              Keyword.take(opts, [
                :storage_adapter,
                :storage_adapter_options,
+               :deployment,
                :req_options,
                :local_network_access
              ])

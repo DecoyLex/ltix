@@ -106,7 +106,7 @@ defmodule Ltix.GradeService do
                                 endpoint:
                                   Zoi.struct(AGSEndpoint, description: "AGS endpoint struct.")
                                   |> Zoi.required()
-                              ] ++ @auth_fields,
+                              ] ++ Client.registration_option_fields(),
                               unrecognized_keys: :error
                             )
 

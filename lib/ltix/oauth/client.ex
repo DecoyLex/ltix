@@ -3,9 +3,9 @@ defmodule Ltix.OAuth.Client do
   Authenticated OAuth session for LTI Advantage service calls.
 
   Holds an `Ltix.OAuth.AccessToken` with the scopes it was granted, the
-  registration it was requested for, and the service endpoints it calls, and
-  provides explicit refresh. Pass this struct to service functions like
-  `Ltix.MembershipsService.list_members/2`.
+  registration and deployment it was requested for, and the service
+  endpoints it calls, and provides explicit refresh. Pass this struct to
+  service functions like `Ltix.MembershipsService.list_members/2`.
 
   `registration` is the struct you authenticated with, which can be your own
   struct implementing `Ltix.Registerable`.
@@ -17,7 +17,8 @@ defmodule Ltix.OAuth.Client do
   ## Reusing tokens across contexts
 
   A token is valid across contexts (courses, launches) on the same
-  registration. Reuse a cached token with different endpoints.
+  registration. A platform may also limit it to the deployment it was
+  requested for. Reuse a cached token with different endpoints.
 
       {:ok, client_b} = Ltix.OAuth.Client.with_endpoints(client, %{
         Ltix.MembershipsService => course_b_endpoint
@@ -27,10 +28,12 @@ defmodule Ltix.OAuth.Client do
 
       {:ok, client} = Ltix.OAuth.Client.from_access_token(cached_token,
         registration: registration,
+        deployment: deployment,
         endpoints: %{Ltix.MembershipsService => endpoint}
       )
   """
 
+  alias Ltix.Deployable
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.HTTP
@@ -44,6 +47,7 @@ defmodule Ltix.OAuth.Client do
   defstruct [
     :token,
     :registration,
+    :deployment,
     :storage_adapter,
     :req_options,
     :local_network_access,
@@ -54,6 +58,7 @@ defmodule Ltix.OAuth.Client do
   @type t :: %__MODULE__{
           token: AccessToken.t(),
           registration: Registerable.t(),
+          deployment: Deployable.t() | String.t() | nil,
           storage_adapter: module() | nil,
           storage_adapter_options: keyword(),
           req_options: keyword(),
@@ -84,6 +89,14 @@ defmodule Ltix.OAuth.Client do
       |> Zoi.default(false)
   ]
 
+  @registration_option_fields [
+                                deployment:
+                                  Zoi.any(
+                                    description:
+                                      "The deployment the token is for, as a struct implementing `Ltix.Deployable` or a deployment ID. Token requests include it."
+                                  )
+                              ] ++ @option_fields
+
   @with_endpoints_schema Zoi.keyword(Keyword.take(@option_fields, [:require_all_scopes]),
                            unrecognized_keys: :error
                          )
@@ -100,13 +113,18 @@ defmodule Ltix.OAuth.Client do
                                     description: "Map of service modules to endpoint structs."
                                   )
                                   |> Zoi.required()
-                              ] ++ @option_fields,
+                              ] ++ @registration_option_fields,
                               unrecognized_keys: :error
                             )
 
   # Options shared by every entry point that builds a client.
   @doc false
   def option_fields, do: @option_fields
+
+  # The options of `option_fields/0`, and the options for authenticating
+  # from a registration.
+  @doc false
+  def registration_option_fields, do: @registration_option_fields
 
   @doc """
   Check whether the client's token has expired, the same way as
@@ -295,6 +313,7 @@ defmodule Ltix.OAuth.Client do
            scopes,
            storage_adapter: client.storage_adapter,
            storage_adapter_options: client.storage_adapter_options,
+           deployment: client.deployment,
            req_options: client.req_options,
            local_network_access: client.local_network_access
          ) do
@@ -334,11 +353,14 @@ defmodule Ltix.OAuth.Client do
     req_options = Keyword.fetch!(opts, :req_options)
 
     with {:ok, _registration} <- Records.convert!(registerable, :registration, :registration),
+         {:ok, _deployment} <-
+           ClientCredentials.resolve_deployment(Keyword.get(opts, :deployment)),
          :ok <- validate_endpoints(endpoints) do
       check_granted_scopes(
         %__MODULE__{
           token: token,
           registration: registerable,
+          deployment: Keyword.get(opts, :deployment),
           storage_adapter: Keyword.get(opts, :storage_adapter),
           storage_adapter_options: Keyword.fetch!(opts, :storage_adapter_options),
           req_options: req_options,

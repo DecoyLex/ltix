@@ -2,6 +2,8 @@ defmodule Ltix.Integration.SigningTest do
   use ExUnit.Case, async: true
 
   alias Ltix.DeepLinking
+  alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
   alias Ltix.LaunchClaims.MembershipsEndpoint
@@ -9,6 +11,8 @@ defmodule Ltix.Integration.SigningTest do
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
+
+  @deployment_claim "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
 
   # Signs with a key the test chooses and sends each signing request to the test process.
   defmodule KeyStorageAdapter do
@@ -96,6 +100,102 @@ defmodule Ltix.Integration.SigningTest do
         assert_received {:client_assertion, assertion}
         assert {:ok, %{"aud" => ^expected}} = verify(assertion, ctx.signing_key)
       end
+    end
+
+    # [Core §6.2.1](https://www.imsglobal.org/spec/lti/v1p3/#deployment-id)
+    test "sends the deployment ID of a launch context, and again on refresh", ctx do
+      context =
+        Ltix.Test.build_launch_context(ctx.platform,
+          memberships_endpoint: "https://platform.example.com/members"
+        )
+
+      opts =
+        Keyword.put(Keyword.delete(ctx.opts, :endpoints), :services, [MembershipsService])
+
+      assert {:ok, %Client{} = client} = OAuth.authenticate(context, opts)
+      assert_received {:client_assertion, assertion}
+      assert {:ok, %{@deployment_claim => "deployment-001"}} = verify(assertion, ctx.signing_key)
+
+      assert {:ok, %Client{}} = Client.force_refresh(client)
+      assert_received {:client_assertion, assertion}
+      assert {:ok, %{@deployment_claim => "deployment-001"}} = verify(assertion, ctx.signing_key)
+    end
+
+    test "sends the deployment given with a registration, as a record or an ID", ctx do
+      record = %CustomDeployment{id: 7, platform_deployment_id: "deployment-007"}
+
+      for deployment <- [record, "deployment-007"] do
+        opts = Keyword.put(ctx.opts, :deployment, deployment)
+
+        assert {:ok, %Client{deployment: ^deployment} = client} =
+                 OAuth.authenticate(ctx.registration, opts)
+
+        assert_received {:client_assertion, assertion}
+
+        assert {:ok, %{@deployment_claim => "deployment-007"}} =
+                 verify(assertion, ctx.signing_key)
+
+        {:ok, cached} =
+          Client.from_access_token(client.token, [registration: ctx.registration] ++ opts)
+
+        assert {:ok, %Client{deployment: ^deployment}} = Client.force_refresh(cached)
+        assert_received {:client_assertion, assertion}
+
+        assert {:ok, %{@deployment_claim => "deployment-007"}} =
+                 verify(assertion, ctx.signing_key)
+      end
+    end
+
+    test "sends the deployment given to a service's authenticate function", ctx do
+      {endpoints, opts} = Keyword.pop!(ctx.opts, :endpoints)
+      opts = [endpoint: endpoints[MembershipsService], deployment: "deployment-007"] ++ opts
+
+      assert {:ok, %Client{}} = MembershipsService.authenticate(ctx.registration, opts)
+      assert_received {:client_assertion, assertion}
+      assert {:ok, %{@deployment_claim => "deployment-007"}} = verify(assertion, ctx.signing_key)
+
+      context =
+        Ltix.Test.build_launch_context(ctx.platform,
+          memberships_endpoint: "https://platform.example.com/members"
+        )
+
+      assert_raise InvalidOption, "Option :deployment is unknown", fn ->
+        MembershipsService.authenticate(context, deployment: "deployment-007")
+      end
+    end
+
+    test "sends no deployment ID for a registration given without a deployment", ctx do
+      assert {:ok, %Client{deployment: nil}} = OAuth.authenticate(ctx.registration, ctx.opts)
+      assert_received {:client_assertion, assertion}
+      assert {:ok, claims} = verify(assertion, ctx.signing_key)
+      refute Map.has_key?(claims, @deployment_claim)
+    end
+
+    test "rejects an invalid deployment", ctx do
+      assert {:error, %InvalidField{field: :deployment_id}} =
+               OAuth.authenticate(ctx.registration, Keyword.put(ctx.opts, :deployment, "é"))
+
+      assert_raise InvalidOption, ~r/Option :deployment is invalid.*Ltix.Deployable/, fn ->
+        OAuth.authenticate(ctx.registration, Keyword.put(ctx.opts, :deployment, %{id: 7}))
+      end
+
+      {:ok, %Client{token: token}} = OAuth.authenticate(ctx.registration, ctx.opts)
+      assert_received {:client_assertion, _assertion}
+
+      assert {:error, %InvalidField{field: :deployment_id}} =
+               Client.from_access_token(token,
+                 registration: ctx.registration,
+                 endpoints: ctx.opts[:endpoints],
+                 deployment: "é"
+               )
+
+      context = Ltix.Test.build_launch_context(ctx.platform)
+
+      assert_raise InvalidOption, "Option :deployment is unknown", fn ->
+        OAuth.authenticate(context, services: [MembershipsService], deployment: "deployment-007")
+      end
+
+      refute_received {:client_assertion, _assertion}
     end
 
     test "passes the adapter the registration record it was called with", ctx do

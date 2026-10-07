@@ -103,7 +103,7 @@ The token's granted scopes do not change. If it lacks a scope a new endpoint nee
 When many Oban workers call the same platform concurrently (say, one
 job per course), each authenticates independently by default. To share
 tokens, cache them in ETS. A token has only the scopes it was
-requested for, so key the cache by the registration and the scopes the
+requested for, and a platform may limit it to the deployment it was requested for, so key the cache by the registration, the deployment, and the scopes the
 service requests. Workers calling the same service share one token, and
 a service that needs other scopes gets a separate token.
 
@@ -118,27 +118,31 @@ defmodule MyApp.LTI.TokenCache do
     :ok
   end
 
-  def get_or_authenticate(registration, service, endpoint) do
-    key = {registration.issuer, registration.client_id, Enum.sort(service.scopes(endpoint))}
+  def get_or_authenticate(registration, deployment, service, endpoint) do
+    key =
+      {registration.issuer, registration.client_id, deployment.deployment_id,
+       Enum.sort(service.scopes(endpoint))}
 
     case :ets.lookup(@table, key) do
       [{^key, token}] ->
         if AccessToken.expired?(token) do
-          authenticate_and_cache(key, registration, service, endpoint)
+          authenticate_and_cache(key, registration, deployment, service, endpoint)
         else
           Client.from_access_token(token,
             registration: registration,
+            deployment: deployment,
             endpoints: %{service => endpoint}
           )
         end
 
       [] ->
-        authenticate_and_cache(key, registration, service, endpoint)
+        authenticate_and_cache(key, registration, deployment, service, endpoint)
     end
   end
 
-  defp authenticate_and_cache(key, registration, service, endpoint) do
-    {:ok, client} = service.authenticate(registration, endpoint: endpoint)
+  defp authenticate_and_cache(key, registration, deployment, service, endpoint) do
+    {:ok, client} =
+      service.authenticate(registration, endpoint: endpoint, deployment: deployment)
 
     :ets.insert(@table, {key, client.token})
     {:ok, client}
@@ -167,10 +171,12 @@ Use the cache in an Oban worker.
 ```elixir
 def perform(%{args: %{"course_id" => course_id}}) do
   registration = MyApp.Courses.get_registration(course_id)
+  deployment = MyApp.Courses.get_deployment(course_id)
   endpoint = MyApp.Courses.get_memberships_endpoint(course_id)
 
   {:ok, client} = MyApp.LTI.TokenCache.get_or_authenticate(
     registration,
+    deployment,
     Ltix.MembershipsService,
     endpoint
   )

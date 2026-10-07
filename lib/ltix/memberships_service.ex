@@ -90,7 +90,7 @@ defmodule Ltix.MembershipsService do
                                       "MembershipsEndpoint struct for the service endpoint."
                                   )
                                   |> Zoi.required()
-                              ] ++ @auth_fields,
+                              ] ++ Client.registration_option_fields(),
                               unrecognized_keys: :error
                             )
 
