@@ -96,6 +96,12 @@ defmodule Ltix.StorageAdapter do
   and audience. The `client_id` may be `nil` when the platform doesn't
   include it in the login request. Your adapter must handle both cases.
 
+  When the platform sends a deployment ID, `opts[:deployment_id]` has
+  it. It comes from the login request's `lti_deployment_id` during login
+  initiation and from the ID Token during launch validation. Ltix has not
+  verified it at either point, and it replaces a `:deployment_id` you pass
+  in `:storage_adapter_options`.
+
   Return any struct that implements `Ltix.Registerable`. The library
   extracts the `Ltix.Registration` it needs via the protocol and
   preserves your original struct in the `Ltix.LaunchContext`.
@@ -189,6 +195,15 @@ defmodule Ltix.StorageAdapter do
 
   # The functions below call an adapter's callback and return an Ltix error
   # for any result other than success.
+
+  # Returns the options for `c:get_registration/3`, with the deployment ID
+  # the platform sent.
+  @doc false
+  @spec registration_options(keyword(), String.t() | nil) :: keyword()
+  def registration_options(opts, nil), do: opts
+
+  def registration_options(opts, deployment_id),
+    do: Keyword.put(opts, :deployment_id, deployment_id)
 
   # Returns the adapter's record and the `Ltix.Registration` converted from it.
   @doc false

@@ -8,7 +8,7 @@ defmodule Ltix.OIDC.LoginInitiation do
   alias Ltix.Errors.Invalid.MissingParameter
 
   @required_params ~w(iss login_hint target_link_uri)
-  @optional_params ~w(client_id lti_message_hint)
+  @optional_params ~w(client_id lti_message_hint lti_deployment_id)
 
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
   @spec call(map(), module(), String.t(), keyword()) ::
@@ -19,8 +19,11 @@ defmodule Ltix.OIDC.LoginInitiation do
            StorageAdapter.get_registration(
              callback_module,
              params["iss"],
-             client_id(params),
-             opts
+             optional(params, "client_id"),
+             StorageAdapter.registration_options(
+               opts,
+               optional(params, "lti_deployment_id")
+             )
            ) do
       {state, nonce} = State.generate(registration)
 
@@ -37,10 +40,15 @@ defmodule Ltix.OIDC.LoginInitiation do
     end
   end
 
-  # An empty client_id is treated as absent.
+  # An empty client_id or lti_deployment_id is treated as absent.
+  # [Core §4.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti_deployment_id-login-parameter)
   # [Core §4.1.3](https://www.imsglobal.org/spec/lti/v1p3/#client_id-login-parameter)
-  defp client_id(%{"client_id" => ""}), do: nil
-  defp client_id(params), do: params["client_id"]
+  defp optional(params, parameter) do
+    case params[parameter] do
+      "" -> nil
+      value -> value
+    end
+  end
 
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
   defp validate_login_params(params) do

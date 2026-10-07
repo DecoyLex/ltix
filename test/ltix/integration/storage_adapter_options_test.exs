@@ -3,6 +3,7 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
 
   alias Ltix.DeepLinking
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
   alias Ltix.OAuth
@@ -101,6 +102,36 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
       assert {:ok, _context} = launch(ctx, login, storage_adapter: OptionsStorageAdapter)
       assert_received {:validate_nonce, []}
       assert_received {:get_deployment, []}
+    end
+
+    # [Core §4.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti_deployment_id-login-parameter)
+    test "give the registration lookup the platform's deployment ID", ctx do
+      assert {:ok, login} =
+               login(ctx, %{"lti_deployment_id" => "deployment-001"}, ctx.adapter)
+
+      assert_received {:get_registration, opts}
+      assert Keyword.equal?(opts, tenant: "acme", deployment_id: "deployment-001")
+
+      assert {:ok, _context} = launch(ctx, login, ctx.adapter)
+      assert_received {:get_registration, opts}
+      assert Keyword.equal?(opts, tenant: "acme", deployment_id: "deployment-001")
+    end
+
+    test "replace a deployment ID the host passes with the platform's", ctx do
+      opts = Keyword.put(ctx.adapter, :storage_adapter_options, deployment_id: "host")
+
+      assert {:ok, _login} = login(ctx, %{"lti_deployment_id" => "deployment-001"}, opts)
+      assert_received {:get_registration, [deployment_id: "deployment-001"]}
+    end
+
+    test "treat an empty lti_deployment_id as absent and reject a nonstring one", ctx do
+      assert {:ok, _login} = login(ctx, %{"lti_deployment_id" => ""}, ctx.adapter)
+      assert_received {:get_registration, [tenant: "acme"]}
+
+      for value <- [%{"hostile" => "value"}, ["value"], 123, nil] do
+        assert {:error, %MissingParameter{parameter: "lti_deployment_id"}} =
+                 login(ctx, %{"lti_deployment_id" => value}, ctx.adapter)
+      end
     end
 
     test "raise for storage adapter options given as a map", ctx do

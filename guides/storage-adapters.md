@@ -348,6 +348,10 @@ end
 
 Ltix stores nothing between login and launch, so pass the same options to `Ltix.handle_callback/3`. `Ltix.OAuth.authenticate/2`, the service `authenticate/2` functions, `Ltix.OAuth.Client.from_access_token/2`, and `Ltix.DeepLinking.build_response/3` take the option too, and pass it to `key_id/2` and `sign/4`. An `Ltix.OAuth.Client` keeps the options it was created with and uses them when it refreshes its token.
 
+### Deployment ID in registration lookups
+
+Platforms usually send the deployment ID with the login request. When they do, `get_registration/3` receives it as `opts[:deployment_id]`, during login and again during the launch. Ltix has not verified it at that point. Use it to choose where to look. `get_deployment/3` checks that the deployment exists.
+
 To check an adapter that needs options, pass the same `:storage_adapter_options` to `Ltix.Test.assert_storage_adapter!/2`.
 
 ## Per-call override

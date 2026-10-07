@@ -48,9 +48,14 @@ defmodule Ltix.OIDC.Callback do
     with :ok <- check_error_response(params),
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
-         {:ok, iss, client_id} <- peek_issuer_and_audience(id_token),
+         {:ok, iss, client_id, deployment_id} <- peek_lookup_claims(id_token),
          {:ok, user_registration, registration} <-
-           StorageAdapter.get_registration(callback_module, iss, client_id, adapter_options),
+           StorageAdapter.get_registration(
+             callback_module,
+             iss,
+             client_id,
+             StorageAdapter.registration_options(adapter_options, deployment_id)
+           ),
          {:ok, raw_claims} <- Token.verify(id_token, registration, token_opts),
          :ok <- verify_nonce_binding(raw_claims, expected_state, registration),
          :ok <-
@@ -112,15 +117,21 @@ defmodule Ltix.OIDC.Callback do
     end
   end
 
-  # Read unverified JWT claims to get iss and aud for registration lookup.
-  # Safe because Token.verify/3 validates iss and aud against the registration
-  # after signature verification.
-  defp peek_issuer_and_audience(id_token) do
+  # Read unverified JWT claims to get iss, aud, and deployment_id for
+  # registration lookup. Safe because Token.verify/3 validates iss and aud
+  # against the registration after signature verification, and the deployment
+  # is looked up from the verified claims.
+  defp peek_lookup_claims(id_token) do
     with {:ok, claims} <- Token.peek_claims(id_token),
          {:ok, issuer} <- issuer(claims) do
-      {:ok, issuer, audience(claims["aud"])}
+      {:ok, issuer, audience(claims["aud"]), deployment_id(claims[@lti <> "deployment_id"])}
     end
   end
+
+  defp deployment_id(deployment_id) when is_binary(deployment_id) and deployment_id != "",
+    do: deployment_id
+
+  defp deployment_id(_deployment_id), do: nil
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   defp issuer(%{"iss" => issuer}) when is_binary(issuer), do: {:ok, issuer}
