@@ -14,21 +14,21 @@ The storage adapter has 3 callbacks.
 
 | Callback | Called During | Returns |
 |---|---|---|
-| `get_registration/2` | Login initiation and callback validation | `{:ok, Registerable.t()} \| {:error, :not_found \| term()}` |
-| `get_deployment/2` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found \| term()}` |
-| `validate_nonce/3` | Callback validation, after the ID token is verified | `:ok \| {:error, :nonce_already_used \| term()}` |
+| `get_registration/3` | Login initiation and callback validation | `{:ok, Registerable.t()} \| {:error, :not_found \| term()}` |
+| `get_deployment/3` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found \| term()}` |
+| `validate_nonce/4` | Callback validation, after the ID token is verified | `:ok \| {:error, :nonce_already_used \| term()}` |
 
 Two more callbacks are optional. Implement them when the tool calls Advantage services
 or builds deep linking responses.
 
 | Callback | Called During | Returns |
 |---|---|---|
-| `key_id/1` | Service authentication and deep linking responses | `{:ok, String.t()} \| {:error, term()}` |
-| `sign/3` | Service authentication and deep linking responses | `{:ok, binary()} \| {:error, term()}` |
+| `key_id/2` | Service authentication and deep linking responses | `{:ok, String.t()} \| {:error, term()}` |
+| `sign/4` | Service authentication and deep linking responses | `{:ok, binary()} \| {:error, term()}` |
 
 Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 
-`get_registration/2` and `get_deployment/2` can return any struct that implements
+`get_registration/3` and `get_deployment/3` can return any struct that implements
 the `Ltix.Registerable` or `Ltix.Deployable` protocol. This means you return your
 own Ecto schemas directly and the library extracts what it needs via the protocol.
 Your original struct is preserved in the `Ltix.LaunchContext` after a successful
@@ -79,7 +79,7 @@ ask about the rest.
    registration? Per-registration allows independent rotation but adds complexity.
    Either way, private keys are stored encrypted in `private_key_pem`, with the `kid` and
    the public JWK next to them, and reconstructed into `%Ltix.JWK{}` structs via
-   `Ltix.JWK.new/1` to sign. A key held in a key management service can sign from `sign/3`
+   `Ltix.JWK.new/1` to sign. A key held in a key management service can sign from `sign/4`
    without ever being stored in the app.
 
 7. **Deployment policy.** Should new deployments be auto-created on first launch (upsert),
@@ -225,7 +225,7 @@ end
 
 The `defimpl Ltix.Registerable` block defines how Ltix extracts a validated
 `Ltix.Registration` from your Ecto struct. The registration holds no key. Ltix calls the
-storage adapter's `key_id/1` and `sign/3` to sign.
+storage adapter's `key_id/2` and `sign/4` to sign.
 
 ### Deployment Schema
 
@@ -327,7 +327,7 @@ defmodule MyApp.Lti do
 end
 ```
 
-Note that `get_deployment/2` receives the struct `get_registration/2` returned, so it
+Note that `get_deployment/3` receives the struct `get_registration/3` returned, so it
 pattern-matches on your Ecto schema. The nonce and signing callbacks receive it too.
 
 ## Step 4: Storage Adapter Module
@@ -342,19 +342,19 @@ defmodule MyApp.Lti.StorageAdapter do
   alias MyApp.Lti
 
   @impl true
-  def get_registration(issuer, client_id), do: Lti.get_registration(issuer, client_id)
+  def get_registration(issuer, client_id, _opts), do: Lti.get_registration(issuer, client_id)
 
   @impl true
-  def get_deployment(registration, deployment_id), do: Lti.get_deployment(registration, deployment_id)
+  def get_deployment(registration, deployment_id, _opts), do: Lti.get_deployment(registration, deployment_id)
 
   @impl true
-  def validate_nonce(nonce, _registration, expires_at), do: Lti.validate_nonce(nonce, expires_at)
+  def validate_nonce(nonce, _registration, expires_at, _opts), do: Lti.validate_nonce(nonce, expires_at)
 
   @impl true
-  def key_id(registration), do: Lti.signing_key_id(registration)
+  def key_id(registration, _opts), do: Lti.signing_key_id(registration)
 
   @impl true
-  def sign(_registration, key_id, message), do: Lti.sign(key_id, message)
+  def sign(_registration, key_id, message, _opts), do: Lti.sign(key_id, message)
 end
 ```
 
@@ -386,7 +386,7 @@ end
 
 These are requirements from the LTI spec and library.
 
-- **`client_id` can be nil** in `get_registration/2` when the platform omits it from the
+- **`client_id` can be nil** in `get_registration/3` when the platform omits it from the
   login request. The implementation must query by issuer alone in that case.
 
 - **Nonce recording must be atomic.** The `INSERT ... ON CONFLICT DO NOTHING` pattern ensures
@@ -394,22 +394,22 @@ These are requirements from the LTI spec and library.
   insert" approach has a race condition.
 
 - **The signing key is private key material.** Encrypt `private_key_pem` at rest and keep
-  it out of logs (`redact: true`). `sign/3` reconstructs the key into `%Ltix.JWK{}` via
+  it out of logs (`redact: true`). `sign/4` reconstructs the key into `%Ltix.JWK{}` via
   `Ltix.JWK.new/1` and signs with `Ltix.JWK.sign/2`. Treat it with the same care as any
   secret.
 
-- **`sign/3` signs with the key whose ID `key_id/1` returned.** Look the key up by the `key_id`
+- **`sign/4` signs with the key whose ID `key_id/2` returned.** Look the key up by the `key_id`
   argument, so a rotation between the two calls can't sign with a different key.
 
 - **`deployment_id` is case-sensitive** and at most 255 ASCII characters.
 
-- **`get_deployment/2`, `validate_nonce/3`, `key_id/1`, and `sign/3` receive your own
-  registration struct**, the one `get_registration/2` returned or the one you passed to
+- **`get_deployment/3`, `validate_nonce/4`, `key_id/2`, and `sign/4` receive your own
+  registration struct**, the one `get_registration/3` returned or the one you passed to
   the function that needed a signature. `Ltix.OAuth.Client.registration` holds it too.
 
 ## Optional Patterns (Discuss with User First)
 
-**Auto-creating deployments.** Upsert in `get_deployment/2`.
+**Auto-creating deployments.** Upsert in `get_deployment/3`.
 
 ```elixir
 Repo.insert(%MyApp.Lti.Deployment{registration_id: reg_id, deployment_id: deployment_id},
@@ -418,7 +418,7 @@ Repo.insert(%MyApp.Lti.Deployment{registration_id: reg_id, deployment_id: deploy
 )
 ```
 
-This is safe because `get_deployment/2` is called after JWT signature verification, so the
+This is safe because `get_deployment/3` is called after JWT signature verification, so the
 `deployment_id` comes from a verified token. But the user may prefer a manual approval step.
 
 **Nonce cleanup.** A periodic job removes expired nonces.
@@ -465,28 +465,28 @@ defmodule MyApp.Lti.StorageAdapterTest do
     %{jwk: jwk, registration: registration, deployment: deployment}
   end
 
-  describe "get_registration/2" do
+  describe "get_registration/3" do
     test "finds by issuer and client_id", %{registration: registration} do
       assert {:ok, found} = StorageAdapter.get_registration(
-        registration.issuer, registration.client_id
+        registration.issuer, registration.client_id, []
       )
       assert found.id == registration.id
     end
 
     test "finds by issuer alone when client_id is nil", %{registration: registration} do
-      assert {:ok, found} = StorageAdapter.get_registration(registration.issuer, nil)
+      assert {:ok, found} = StorageAdapter.get_registration(registration.issuer, nil, [])
       assert found.id == registration.id
     end
 
     test "returns :not_found for unknown issuer" do
       assert {:error, :not_found} = StorageAdapter.get_registration(
-        "https://unknown.example.com", "client-123"
+        "https://unknown.example.com", "client-123", []
       )
     end
 
     test "Registerable protocol produces a valid Ltix.Registration", %{registration: registration} do
       {:ok, found} = StorageAdapter.get_registration(
-        registration.issuer, registration.client_id
+        registration.issuer, registration.client_id, []
       )
       {:ok, %Ltix.Registration{} = resolved} = Ltix.Registerable.to_registration(found)
       assert resolved.issuer == registration.issuer
@@ -495,17 +495,17 @@ defmodule MyApp.Lti.StorageAdapterTest do
 
   describe "signing" do
     test "signs with the registration's key", %{jwk: jwk, registration: registration} do
-      assert {:ok, key_id} = StorageAdapter.key_id(registration)
+      assert {:ok, key_id} = StorageAdapter.key_id(registration, [])
       assert key_id == jwk.kid
-      assert {:ok, signature} = StorageAdapter.sign(registration, key_id, "message")
+      assert {:ok, signature} = StorageAdapter.sign(registration, key_id, "message", [])
       assert is_binary(signature)
     end
   end
 
-  describe "get_deployment/2" do
+  describe "get_deployment/3" do
     test "finds by registration and deployment_id", %{registration: registration, deployment: deployment} do
       assert {:ok, found_dep} =
-               StorageAdapter.get_deployment(registration, deployment.deployment_id)
+               StorageAdapter.get_deployment(registration, deployment.deployment_id, [])
 
       assert found_dep.id == deployment.id
     end
@@ -515,10 +515,10 @@ defmodule MyApp.Lti.StorageAdapterTest do
     test "accepts a nonce once", %{registration: registration} do
       expires_at = DateTime.add(DateTime.utc_now(:second), 300)
 
-      assert :ok = StorageAdapter.validate_nonce("test-nonce", registration, expires_at)
+      assert :ok = StorageAdapter.validate_nonce("test-nonce", registration, expires_at, [])
 
       assert {:error, :nonce_already_used} =
-               StorageAdapter.validate_nonce("test-nonce", registration, expires_at)
+               StorageAdapter.validate_nonce("test-nonce", registration, expires_at, [])
     end
   end
 end

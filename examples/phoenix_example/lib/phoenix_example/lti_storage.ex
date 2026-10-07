@@ -43,7 +43,7 @@ defmodule PhoenixExample.LtiStorage do
   # --- StorageAdapter callbacks ---
 
   @impl true
-  def get_registration(@demo_issuer, _client_id) do
+  def get_registration(@demo_issuer, _client_id, _opts) do
     {:ok,
      %Ltix.Registration{
        issuer: @demo_issuer,
@@ -54,19 +54,20 @@ defmodule PhoenixExample.LtiStorage do
      }}
   end
 
-  def get_registration(_issuer, _client_id), do: {:error, :not_found}
+  def get_registration(_issuer, _client_id, _opts), do: {:error, :not_found}
 
   @impl true
   def get_deployment(
         %Ltix.Registration{issuer: @demo_issuer, client_id: @demo_client_id},
-        @demo_deployment_id
+        @demo_deployment_id,
+        _opts
       ),
       do: {:ok, @demo_deployment}
 
-  def get_deployment(_registration, _deployment_id), do: {:error, :not_found}
+  def get_deployment(_registration, _deployment_id, _opts), do: {:error, :not_found}
 
   @impl true
-  def validate_nonce(nonce, _registration, _expires_at) do
+  def validate_nonce(nonce, _registration, _expires_at, _opts) do
     Agent.get_and_update(__MODULE__, fn state ->
       if MapSet.member?(state.used_nonces, nonce) do
         {{:error, :nonce_already_used}, state}
@@ -77,10 +78,10 @@ defmodule PhoenixExample.LtiStorage do
   end
 
   @impl true
-  def key_id(_registration), do: {:ok, tool_jwk().kid}
+  def key_id(_registration, _opts), do: {:ok, tool_jwk().kid}
 
   @impl true
-  def sign(_registration, key_id, message) do
+  def sign(_registration, key_id, message, _opts) do
     case tool_jwk() do
       %Ltix.JWK{kid: ^key_id} = tool_jwk -> Ltix.JWK.sign(tool_jwk, message)
       _other_key -> {:error, :unknown_key}

@@ -7,7 +7,7 @@ per-deployment configuration. Their configuration is per platform
 auto-create deployments the first time a new `deployment_id` appears in
 a launch.
 
-This works because `get_deployment/2` runs after JWT signature
+This works because `get_deployment/3` runs after JWT signature
 verification and nonce validation, so the `deployment_id` is already
 verified by the time your adapter receives it.
 
@@ -15,13 +15,13 @@ verified by the time your adapter receives it.
 
 ### Storage adapter
 
-The simplest approach is to make `get_deployment/2` upsert. The first
+The simplest approach is to make `get_deployment/3` upsert. The first
 launch creates the deployment row, and subsequent launches find it. No
 controller changes needed.
 
 ```elixir
 @impl true
-def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id) do
+def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id, _opts) do
   %PlatformDeployment{registration_id: registration_id, deployment_id: deployment_id}
   |> Repo.insert(on_conflict: :nothing, conflict_target: [:registration_id, :deployment_id])
 
@@ -37,7 +37,7 @@ end
 
 The insert-then-select pattern handles the race condition where two
 concurrent launches for the same new deployment both call
-`get_deployment/2` at the same time. `on_conflict: :nothing` means the
+`get_deployment/3` at the same time. `on_conflict: :nothing` means the
 second insert silently succeeds without duplicating the row, and both
 calls find the same record on the subsequent select.
 

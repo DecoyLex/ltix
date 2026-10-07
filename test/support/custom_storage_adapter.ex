@@ -25,7 +25,7 @@ defmodule CustomStorageAdapter do
   defp get_pid, do: Process.get(:custom_storage_adapter_pid)
 
   @impl Ltix.StorageAdapter
-  def get_registration(issuer, client_id) do
+  def get_registration(issuer, client_id, _opts) do
     Agent.get(get_pid(), fn state ->
       state.registrations
       |> Enum.find(fn reg ->
@@ -40,7 +40,7 @@ defmodule CustomStorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def get_deployment(%CustomRegistration{id: registration_id}, deployment_id) do
+  def get_deployment(%CustomRegistration{id: registration_id}, deployment_id, _opts) do
     Agent.get(get_pid(), fn state ->
       deployment =
         Enum.find(state.deployments, fn deployment ->
@@ -56,7 +56,7 @@ defmodule CustomStorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def validate_nonce(nonce, %CustomRegistration{}, _expires_at) do
+  def validate_nonce(nonce, %CustomRegistration{}, _expires_at, _opts) do
     Agent.get_and_update(get_pid(), fn state ->
       if MapSet.member?(state.used_nonces, nonce),
         do: {{:error, :nonce_already_used}, state},

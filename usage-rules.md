@@ -61,30 +61,30 @@ preferred structure before creating modules.
 
 These are the 3 required callbacks.
 
-1. **`get_registration(issuer, client_id)`** - `client_id` can be `nil` when the platform
+1. **`get_registration(issuer, client_id, opts)`** - `client_id` can be `nil` when the platform
    omits it from the login request. You must handle both cases.
-2. **`get_deployment(registration, deployment_id)`** - called after JWT verification.
-   `deployment_id` is case-sensitive. `registration` is the struct your `get_registration/2`
+2. **`get_deployment(registration, deployment_id, opts)`** - called after JWT verification.
+   `deployment_id` is case-sensitive. `registration` is the struct your `get_registration/3`
    returned, as it is for every callback that takes one.
-3. **`validate_nonce(nonce, registration, expires_at)`** - record the nonce as used, called
+3. **`validate_nonce(nonce, registration, expires_at, opts)`** - record the nonce as used, called
    after the ID token is verified. Must prevent replay attacks. Use an atomic
    `INSERT ... ON CONFLICT DO NOTHING` to avoid race conditions, and keep the record until
    `expires_at`.
 
 The callbacks return these types.
-- `get_registration/2` returns `{:ok, Registerable.t()} | {:error, :not_found}`, with any
+- `get_registration/3` returns `{:ok, Registerable.t()} | {:error, :not_found}`, with any
   struct implementing `Ltix.Registerable` (including `%Registration{}` itself)
-- `get_deployment/2` returns `{:ok, Deployable.t()} | {:error, :not_found}`, with any
+- `get_deployment/3` returns `{:ok, Deployable.t()} | {:error, :not_found}`, with any
   struct implementing `Ltix.Deployable` (including `%Deployment{}` itself)
-- `validate_nonce/3` returns `:ok | {:error, :nonce_already_used}`
+- `validate_nonce/4` returns `:ok | {:error, :nonce_already_used}`
 
 Any other `{:error, reason}` from a callback fails the login or launch with `Ltix.Errors.Unknown.StorageError`.
 
 Two optional callbacks sign for the tool. Implement them to call Advantage services or build
 deep linking responses.
 
-- **`key_id(registration)`** - `{:ok, kid}` for the key that signs for the registration.
-- **`sign(registration, key_id, message)`** - `{:ok, signature}` with the RS256 signature of
+- **`key_id(registration, opts)`** - `{:ok, kid}` for the key that signs for the registration.
+- **`sign(registration, key_id, message, opts)`** - `{:ok, signature}` with the RS256 signature of
   `message` as raw bytes. `Ltix.JWK.sign(jwk, message)` returns this for a key the app holds.
 
 `Ltix.Registration` has no key field. Ltix never stores the tool's private key.

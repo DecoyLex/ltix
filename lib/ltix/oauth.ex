@@ -110,7 +110,12 @@ defmodule Ltix.OAuth do
              :authenticate,
              registerable,
              Client.collect_scopes(endpoints),
-             Keyword.take(opts, [:storage_adapter, :req_options, :local_network_access])
+             Keyword.take(opts, [
+               :storage_adapter,
+               :storage_adapter_options,
+               :req_options,
+               :local_network_access
+             ])
            ) do
       Client.from_access_token(token, [registration: registerable, endpoints: endpoints] ++ opts)
     end

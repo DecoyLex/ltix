@@ -136,7 +136,7 @@ Registering a platform is the decision to trust it. Ltix accepts what a register
 
 ## Storage adapter
 
-Your adapter's `c:Ltix.StorageAdapter.validate_nonce/3` has to accept each nonce only once, even when two launches arrive at the same moment. Use an atomic insert, and delete records after their `expires_at`. See [Storage Adapters](storage-adapters.md#nonce-management).
+Your adapter's `c:Ltix.StorageAdapter.validate_nonce/4` has to accept each nonce only once, even when two launches arrive at the same moment. Use an atomic insert, and delete records after their `expires_at`. See [Storage Adapters](storage-adapters.md#nonce-management).
 
 Run `Ltix.Test.assert_storage_adapter!/2` against your adapter in your test suite. It checks registration and deployment scoping, concurrent nonce use, and signatures.
 
@@ -144,10 +144,10 @@ Run `Ltix.Test.assert_storage_adapter!/2` against your adapter in your test suit
 
 Ltix calls your adapter for each signature and never stores your private key.
 
-- Keep keys out of version control, logs, and responses. Encrypt them at rest, or keep them in a key management service and sign from `sign/3`.
+- Keep keys out of version control, logs, and responses. Encrypt them at rest, or keep them in a key management service and sign from `sign/4`.
 - Use a separate key for each registration, so you can rotate one without the others.
 - Serve your key set endpoint from public keys. `Ltix.JWK.new/1` builds a JWK from a public key alone, and `Ltix.JWK.to_jwks/1` returns only public keys.
-- In `sign/3`, sign with the key whose ID is the `key_id` argument, and return an error for an ID you don't have.
+- In `sign/4`, sign with the key whose ID is the `key_id` argument, and return an error for an ID you don't have.
 
 See [JWK Management](jwk-management.md) for rotation.
 

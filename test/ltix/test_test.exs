@@ -481,10 +481,11 @@ defmodule Ltix.TestTest do
       {:ok, pid} = StorageAdapter.start_link(platforms: [first, second])
       StorageAdapter.set_pid(pid)
 
-      assert {:ok, _deployment} = StorageAdapter.get_deployment(second.registration, "second-dep")
+      assert {:ok, _deployment} =
+               StorageAdapter.get_deployment(second.registration, "second-dep", [])
 
       assert {:error, :not_found} =
-               StorageAdapter.get_deployment(second.registration, "first-dep")
+               StorageAdapter.get_deployment(second.registration, "first-dep", [])
     end
 
     test "launches from each of two platforms set up in one test" do
@@ -523,10 +524,10 @@ defmodule Ltix.TestTest do
       StorageAdapter.set_pid(pid)
 
       assert {:ok, registration} =
-               StorageAdapter.get_registration(platform.registration.issuer, "new-tool")
+               StorageAdapter.get_registration(platform.registration.issuer, "new-tool", [])
 
       assert {:error, :not_found} =
-               StorageAdapter.get_deployment(registration, platform.deployment.deployment_id)
+               StorageAdapter.get_deployment(registration, platform.deployment.deployment_id, [])
     end
   end
 

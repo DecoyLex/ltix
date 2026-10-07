@@ -50,7 +50,8 @@ defmodule Ltix.DeepLinking do
                       log: Zoi.string(),
                       error_message: Zoi.string(),
                       error_log: Zoi.string(),
-                      storage_adapter: Zoi.module()
+                      storage_adapter: Zoi.module(),
+                      storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([])
                     ],
                     unrecognized_keys: :error
                   )
@@ -70,6 +71,8 @@ defmodule Ltix.DeepLinking do
     * `:error_log` - error log message for the platform
     * `:storage_adapter` - module implementing `Ltix.StorageAdapter`, which
       signs the response (defaults to application config)
+    * `:storage_adapter_options` - options passed to the storage adapter's
+      signing callbacks (defaults to `[]`)
 
   ## Errors
 
@@ -155,7 +158,13 @@ defmodule Ltix.DeepLinking do
          :ok <- validate_items(items_json, settings),
          claims = build_jwt_claims(registration, deployment, settings, items_json, opts),
          # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
-         {:ok, jwt} <- StorageAdapter.sign_jwt(storage_adapter, context.registration, claims) do
+         {:ok, jwt} <-
+           StorageAdapter.sign_jwt(
+             storage_adapter,
+             context.registration,
+             claims,
+             Keyword.fetch!(opts, :storage_adapter_options)
+           ) do
       {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
     end
   end

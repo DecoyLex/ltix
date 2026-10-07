@@ -16,22 +16,23 @@ defmodule Ltix.Integration.SigningTest do
     @behaviour Ltix.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate get_registration(issuer, client_id), to: Ltix.Test.StorageAdapter
+    defdelegate get_registration(issuer, client_id, opts), to: Ltix.Test.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate get_deployment(registration, deployment_id), to: Ltix.Test.StorageAdapter
+    defdelegate get_deployment(registration, deployment_id, opts), to: Ltix.Test.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate validate_nonce(nonce, registration, expires_at), to: Ltix.Test.StorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at, opts),
+      to: Ltix.Test.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    def key_id(registration) do
+    def key_id(registration, _opts) do
       send(self(), {:key_id, registration})
       Process.get(:key_id_result, {:ok, Process.get(:signing_key).kid})
     end
 
     @impl Ltix.StorageAdapter
-    def sign(registration, key_id, message) do
+    def sign(registration, key_id, message, _opts) do
       send(self(), {:sign, registration, key_id})
       Process.get(:sign_result) || JWK.sign(Process.get(:signing_key), message)
     end
@@ -124,7 +125,7 @@ defmodule Ltix.Integration.SigningTest do
       assert {:error, %StorageError{callback: :sign} = error} =
                OAuth.authenticate(ctx.registration, opts)
 
-      assert Exception.message(error) =~ "must implement key_id/1 and sign/3"
+      assert Exception.message(error) =~ "must implement key_id/2 and sign/4"
       refute_received {:client_assertion, _assertion}
     end
 

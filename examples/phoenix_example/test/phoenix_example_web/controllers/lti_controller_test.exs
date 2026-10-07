@@ -22,7 +22,7 @@ defmodule PhoenixExampleWeb.LtiControllerTest do
   @memberships_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
 
   setup do
-    {:ok, registration} = LtiStorage.get_registration(@issuer, "test")
+    {:ok, registration} = LtiStorage.get_registration(@issuer, "test", [])
 
     %{
       platform:

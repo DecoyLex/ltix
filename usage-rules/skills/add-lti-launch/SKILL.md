@@ -271,10 +271,10 @@ These are the key points about the controller.
 - **`Ltix.Errors.status_code/1`** returns the HTTP status code for any Ltix error
   (400 for invalid, 401 for security, 500 for unknown). Use this to set the response
   status.
-- **`context.registration`** is whatever your `get_registration/2` callback returned
+- **`context.registration`** is whatever your `get_registration/3` callback returned
   (your Ecto schema). Access your own fields directly (e.g.,
   `context.registration.id`).
-- **`context.deployment`** is similarly your original struct from `get_deployment/2`.
+- **`context.deployment`** is similarly your original struct from `get_deployment/3`.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
   course data, and session cookies are signed, not encrypted. Store only the fields you

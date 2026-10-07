@@ -10,20 +10,26 @@ common mistakes.
 
 | Callback | When it's called | What it does |
 |---|---|---|
-| `get_registration/2` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
-| `get_deployment/2` | Launch validation | Look up a deployment by registration and deployment_id |
-| `validate_nonce/3` | Launch validation | Record a nonce as used, and reject one already used |
-| `key_id/1` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
-| `sign/3` | Service authentication and deep linking responses | Sign a message with that key |
+| `get_registration/3` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
+| `get_deployment/3` | Launch validation | Look up a deployment by registration and deployment_id |
+| `validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
+| `key_id/2` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
+| `sign/4` | Service authentication and deep linking responses | Sign a message with that key |
 
-`key_id/1` and `sign/3` are optional. A tool that only handles launches doesn't need them.
+`key_id/2` and `sign/4` are optional. A tool that only handles launches doesn't need them.
+
+The last argument of every callback is a keyword list of [adapter options](#adapter-options). It is `[]` when you pass none.
 
 When storage fails, return `{:error, reason}` from any callback. The login or launch then returns `{:error, %Ltix.Errors.Unknown.StorageError{}}`, whose `result` is what the callback returned. A `reason` that is already an Ltix error is returned unchanged. Any other unexpected return value is also reported as a `StorageError`.
 
 ## Registration lookups
 
 ```elixir
-@callback get_registration(issuer :: String.t(), client_id :: String.t() | nil) ::
+@callback get_registration(
+            issuer :: String.t(),
+            client_id :: String.t() | nil,
+            opts :: keyword()
+          ) ::
             {:ok, Registerable.t()} | {:error, :not_found | term()}
 ```
 
@@ -33,21 +39,21 @@ your original struct is preserved in the `Ltix.LaunchContext`, so
 you can access your own fields (database IDs, tenant info, etc.)
 after a successful launch without an extra query.
 
-Ltix calls `get_registration/2` during login initiation with the login
+Ltix calls `get_registration/3` during login initiation with the login
 request's issuer and client_id, and again during launch validation
 with the ID Token's issuer and audience.
 The `client_id` may be `nil` because some platforms don't include it in
 the login initiation request. Your adapter must handle both cases.
 
 ```elixir
-def get_registration(issuer, nil) do
+def get_registration(issuer, nil, _opts) do
   case Repo.all(from r in PlatformRegistration, where: r.issuer == ^issuer) do
     [record] -> {:ok, record}
     _none_or_several -> {:error, :not_found}
   end
 end
 
-def get_registration(issuer, client_id) do
+def get_registration(issuer, client_id, _opts) do
   case Repo.get_by(PlatformRegistration, issuer: issuer, client_id: client_id) do
     nil -> {:error, :not_found}
     record -> {:ok, record}
@@ -78,17 +84,21 @@ end
 ## Deployment lookups
 
 ```elixir
-@callback get_deployment(registration :: Registration.t(), deployment_id :: String.t()) ::
+@callback get_deployment(
+            registration :: Registerable.t(),
+            deployment_id :: String.t(),
+            opts :: keyword()
+          ) ::
             {:ok, Deployable.t()} | {:error, :not_found | term()}
 ```
 
 Return any struct that implements `Ltix.Deployable`. Like registrations,
 your original struct is preserved in the `Ltix.LaunchContext`.
 
-The `registration` parameter is the struct your `get_registration/2` returned. The `deployment_id` is case-sensitive and assigned by the platform.
+The `registration` parameter is the struct your `get_registration/3` returned. The `deployment_id` is case-sensitive and assigned by the platform.
 
 ```elixir
-def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id) do
+def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id, _opts) do
   case Repo.get_by(PlatformDeployment,
          registration_id: registration_id,
          deployment_id: deployment_id
@@ -109,7 +119,7 @@ end
 
 ## Nonce management
 
-Nonces prevent replayed launches. After Ltix verifies an ID token, it calls `validate_nonce/3` with the token's nonce and the time the token expires. Record the nonce as used and return `:ok`, or return `{:error, :nonce_already_used}` if it's already recorded. Logins don't write anything to storage.
+Nonces prevent replayed launches. After Ltix verifies an ID token, it calls `validate_nonce/4` with the token's nonce and the time the token expires. Record the nonce as used and return `:ok`, or return `{:error, :nonce_already_used}` if it's already recorded. Logins don't write anything to storage.
 
 Recording has to be atomic, so only one of two launches with the same nonce succeeds. Keep each record until `expires_at`, then delete it.
 
@@ -123,7 +133,7 @@ def start_link(_opts) do
 end
 
 @impl true
-def validate_nonce(nonce, _registration, _expires_at) do
+def validate_nonce(nonce, _registration, _expires_at, _opts) do
   Agent.get_and_update(__MODULE__, fn used ->
     if MapSet.member?(used, nonce),
       do: {{:error, :nonce_already_used}, used},
@@ -146,7 +156,7 @@ end
 
 ```elixir
 @impl true
-def validate_nonce(nonce, _registration, expires_at) do
+def validate_nonce(nonce, _registration, expires_at, _opts) do
   case Repo.insert_all(LtiNonce, [%{nonce: nonce, expires_at: expires_at}], on_conflict: :nothing) do
     {1, _} -> :ok
     {0, _} -> {:error, :nonce_already_used}
@@ -168,18 +178,18 @@ The insert is atomic. If two requests race with the same nonce, only one of them
 
 Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and calls your adapter to get the signature, so your private key stays wherever you keep it.
 
-Both callbacks receive the registration struct you gave Ltix, either from `get_registration/2` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/1` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/3` receives the same ID with the message to sign.
+Both callbacks receive the registration struct you gave Ltix, either from `get_registration/3` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/2` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/4` receives the same ID with the message to sign.
 
 For keys stored in your database, `Ltix.JWK.sign/2` produces the signature.
 
 ```elixir
 @impl true
-def key_id(%PlatformRegistration{signing_key_id: signing_key_id}) do
+def key_id(%PlatformRegistration{signing_key_id: signing_key_id}, _opts) do
   {:ok, Repo.get!(SigningKey, signing_key_id).kid}
 end
 
 @impl true
-def sign(_registration, key_id, message) do
+def sign(_registration, key_id, message, _opts) do
   case Repo.get_by(SigningKey, kid: key_id) do
     nil -> {:error, :unknown_key}
     key -> Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
@@ -187,7 +197,7 @@ def sign(_registration, key_id, message) do
 end
 ```
 
-For a key stored in a key management service, call the service from `sign/3` and return `{:ok, signature}` with its RS256 (RSASSA-PKCS1-v1_5 with SHA-256) signature of the message.
+For a key stored in a key management service, call the service from `sign/4` and return `{:ok, signature}` with its RS256 (RSASSA-PKCS1-v1_5 with SHA-256) signature of the message.
 
 Calling a service or building a deep linking response with an adapter that lacks these callbacks returns `Ltix.Errors.Unknown.StorageError`.
 
@@ -204,14 +214,14 @@ defmodule MyApp.LtiStorage do
   alias MyApp.Lti.{LtiNonce, PlatformDeployment, PlatformRegistration}
 
   @impl true
-  def get_registration(issuer, nil) do
+  def get_registration(issuer, nil, _opts) do
     case Repo.all(from r in PlatformRegistration, where: r.issuer == ^issuer) do
       [record] -> {:ok, record}
       _none_or_several -> {:error, :not_found}
     end
   end
 
-  def get_registration(issuer, client_id) do
+  def get_registration(issuer, client_id, _opts) do
     case Repo.get_by(PlatformRegistration, issuer: issuer, client_id: client_id) do
       nil -> {:error, :not_found}
       record -> {:ok, record}
@@ -219,7 +229,7 @@ defmodule MyApp.LtiStorage do
   end
 
   @impl true
-  def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id) do
+  def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id, _opts) do
     case Repo.get_by(PlatformDeployment,
            registration_id: registration_id,
            deployment_id: deployment_id
@@ -230,7 +240,7 @@ defmodule MyApp.LtiStorage do
   end
 
   @impl true
-  def validate_nonce(nonce, _registration, expires_at) do
+  def validate_nonce(nonce, _registration, expires_at, _opts) do
     case Repo.insert_all(LtiNonce, [%{nonce: nonce, expires_at: expires_at}], on_conflict: :nothing) do
       {1, _} -> :ok
       {0, _} -> {:error, :nonce_already_used}
@@ -299,11 +309,46 @@ test "storage adapter satisfies the contract" do
 end
 ```
 
-When your adapter has `key_id/1` and `sign/3`, pass `:jwks` a function that returns the key set your JWKS endpoint serves. The check signs a message through your adapter and verifies it against the key in that key set whose ID `key_id/1` returned. Leave `:jwks` out for an adapter without the signing callbacks.
+When your adapter has `key_id/2` and `sign/4`, pass `:jwks` a function that returns the key set your JWKS endpoint serves. The check signs a message through your adapter and verifies it against the key in that key set whose ID `key_id/2` returned. Leave `:jwks` out for an adapter without the signing callbacks.
 
 Preserve the lookup identifiers supplied to your factories. If lookups preload associations or change metadata, pass `registration_identity: & &1.id` and `deployment_identity: & &1.id`, or projections suited to your records.
 
 Omit `:prepare_process` when your adapter needs neither database sandbox access nor process-local setup. For adapters that [auto-create deployments](auto-create-deployments.md), pass `auto_create_deployments: true` and return distinct storage identities to check deployment ownership. See `Ltix.Test.assert_storage_adapter!/2` for all options.
+
+## Adapter options
+
+Pass `:storage_adapter_options` to give your adapter values from the request, such as a tenant. Every callback receives the list as its last argument.
+
+```elixir
+def login(conn, params) do
+  {:ok, %{redirect_uri: url, state: state}} =
+    Ltix.handle_login(params, url(conn, ~p"/lti/launch"),
+      storage_adapter_options: [tenant: conn.assigns.tenant]
+    )
+
+  conn
+  |> put_session(:lti_state, state)
+  |> redirect(external: url)
+end
+```
+
+```elixir
+@impl true
+def get_registration(issuer, client_id, opts) do
+  case Repo.get_by(PlatformRegistration,
+         tenant_id: opts[:tenant].id,
+         issuer: issuer,
+         client_id: client_id
+       ) do
+    nil -> {:error, :not_found}
+    record -> {:ok, record}
+  end
+end
+```
+
+Ltix stores nothing between login and launch, so pass the same options to `Ltix.handle_callback/3`. `Ltix.OAuth.authenticate/2`, the service `authenticate/2` functions, `Ltix.OAuth.Client.from_access_token/2`, and `Ltix.DeepLinking.build_response/3` take the option too, and pass it to `key_id/2` and `sign/4`. An `Ltix.OAuth.Client` keeps the options it was created with and uses them when it refreshes its token.
+
+To check an adapter that needs options, pass the same `:storage_adapter_options` to `Ltix.Test.assert_storage_adapter!/2`.
 
 ## Per-call override
 

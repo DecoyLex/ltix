@@ -25,6 +25,8 @@ defmodule Ltix.OAuth.ClientCredentials do
 
     * `:storage_adapter` - module implementing `Ltix.StorageAdapter` with the
       signing callbacks (defaults to application config)
+    * `:storage_adapter_options` - options passed to the signing callbacks
+      (defaults to `[]`)
     * `:req_options` - options passed through to `Req.request/2` (defaults to `[]`)
     * `:local_network_access` - see `Ltix.HTTP.local_network_access_option/0`
   """
@@ -37,7 +39,8 @@ defmodule Ltix.OAuth.ClientCredentials do
            StorageAdapter.sign_jwt(
              Options.fetch_configured!(opts, :storage_adapter),
              registerable,
-             assertion_claims(registration)
+             assertion_claims(registration),
+             Keyword.get(opts, :storage_adapter_options, [])
            ) do
       send_token_request(registration, scopes, opts, assertion)
     end

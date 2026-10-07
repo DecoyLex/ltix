@@ -496,7 +496,7 @@ defmodule Ltix.Test do
   Assert that a storage adapter satisfies `Ltix.StorageAdapter`.
 
   Checks registration and deployment lookups, returned records, and nonce
-  replay prevention. For an adapter that exports `key_id/1` and `sign/3`,
+  replay prevention. For an adapter that exports `key_id/2` and `sign/4`,
   also checks that its signatures verify against your published key set
   and that it returns an error for a key ID it can't sign with. Returns
   `:ok` or raises `ExUnit.AssertionError` with the failing contract check.
@@ -506,7 +506,7 @@ defmodule Ltix.Test do
   return `{:error, reason}`.
 
   The deployment, nonce, and signing callbacks receive the registration
-  record your adapter's `get_registration/2` returns, as they do in a launch.
+  record your adapter's `get_registration/3` returns, as they do in a launch.
 
   Use isolated test storage and your application's normal test cleanup.
 
@@ -526,9 +526,11 @@ defmodule Ltix.Test do
       Protocol-converted fields must still match.
     * `:jwks` is a 1-arity function that receives a registration record and
       returns the key set your tool publishes for it, such as the result of
-      `Ltix.JWK.to_jwks/1`. Required when the adapter exports `key_id/1` and
-      `sign/3`, and rejected when it exports neither. The key set must
-      include the key `key_id/1` returns, without private keys.
+      `Ltix.JWK.to_jwks/1`. Required when the adapter exports `key_id/2` and
+      `sign/4`, and rejected when it exports neither. The key set must
+      include the key `key_id/2` returns, without private keys.
+    * `:storage_adapter_options` is the keyword list each callback receives
+      as its last argument. Defaults to `[]`.
     * `:prepare_process` is a 0-arity function called in each concurrent
       callback process. Use it to allow database sandbox access or set
       process-local adapter state. Defaults to a no-op.

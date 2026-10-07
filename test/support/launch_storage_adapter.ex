@@ -10,14 +10,14 @@ defmodule LaunchStorageAdapter do
   alias Ltix.Test.StorageAdapter
 
   @impl Ltix.StorageAdapter
-  defdelegate get_registration(issuer, client_id), to: StorageAdapter
+  defdelegate get_registration(issuer, client_id, opts), to: StorageAdapter
 
   @impl Ltix.StorageAdapter
-  defdelegate get_deployment(registration, deployment_id), to: StorageAdapter
+  defdelegate get_deployment(registration, deployment_id, opts), to: StorageAdapter
 
   @impl Ltix.StorageAdapter
-  def validate_nonce(nonce, registration, expires_at) do
+  def validate_nonce(nonce, registration, expires_at, opts) do
     send(self(), {:validate_nonce, nonce, expires_at})
-    StorageAdapter.validate_nonce(nonce, registration, expires_at)
+    StorageAdapter.validate_nonce(nonce, registration, expires_at, opts)
   end
 end

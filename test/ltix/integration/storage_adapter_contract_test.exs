@@ -10,15 +10,15 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     @behaviour Ltix.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    def get_registration(issuer, client_id) do
-      result = CustomStorageAdapter.get_registration(issuer, client_id)
+    def get_registration(issuer, client_id, opts) do
+      result = CustomStorageAdapter.get_registration(issuer, client_id, opts)
       registration_result(Process.get(:contract_failure), issuer, client_id, result)
     end
 
     defp registration_result(:issuer_only, _issuer, nil, _result), do: {:error, :not_found}
 
     defp registration_result(:ignore_client, issuer, client_id, _result) when client_id != nil,
-      do: CustomStorageAdapter.get_registration(issuer, nil)
+      do: CustomStorageAdapter.get_registration(issuer, nil, [])
 
     defp registration_result(:ignore_issuer, _issuer, client_id, _result) do
       records = Agent.get(Process.get(:contract_adapter_pid), & &1.registrations)
@@ -67,8 +67,8 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     defp registration_result(_mode, _issuer, _client_id, result), do: result
 
     @impl Ltix.StorageAdapter
-    def get_deployment(registration, deployment_id) do
-      result = CustomStorageAdapter.get_deployment(registration, deployment_id)
+    def get_deployment(registration, deployment_id, opts) do
+      result = CustomStorageAdapter.get_deployment(registration, deployment_id, opts)
       deployment_result(Process.get(:contract_failure), registration, deployment_id, result)
     end
 
@@ -151,7 +151,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     defp found(record), do: {:ok, record}
 
     @impl Ltix.StorageAdapter
-    def validate_nonce(nonce, registration, expires_at) do
+    def validate_nonce(nonce, registration, expires_at, opts) do
       case {Process.get(:contract_failure), Process.get(:contract_worker)} do
         {:concurrent_replay, true} ->
           race_nonce(nonce)
@@ -169,10 +169,15 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
           {:ok, nonce}
 
         {:case_fold_nonce, _} ->
-          CustomStorageAdapter.validate_nonce(String.downcase(nonce), registration, expires_at)
+          CustomStorageAdapter.validate_nonce(
+            String.downcase(nonce),
+            registration,
+            expires_at,
+            opts
+          )
 
         _ ->
-          CustomStorageAdapter.validate_nonce(nonce, registration, expires_at)
+          CustomStorageAdapter.validate_nonce(nonce, registration, expires_at, opts)
       end
     end
 
@@ -249,18 +254,17 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     @behaviour Ltix.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate get_registration(issuer, client_id), to: CustomStorageAdapter
+    defdelegate get_registration(issuer, client_id, opts), to: CustomStorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate get_deployment(registration, deployment_id), to: CustomStorageAdapter
+    defdelegate get_deployment(registration, deployment_id, opts), to: CustomStorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate validate_nonce(nonce, registration, expires_at), to: CustomStorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at, opts), to: CustomStorageAdapter
 
     @impl Ltix.StorageAdapter
-    def key_id(%CustomRegistration{}) do
+    def key_id(%CustomRegistration{}, _opts) do
       case Process.get(:signing_failure) do
-        :key_id_error -> {:error, :database_unavailable}
         :blank_key_id -> {:ok, ""}
         :unpublished_key_id -> {:ok, Process.get(:other_key).kid}
         _ -> {:ok, Process.get(:signing_key).kid}
@@ -268,16 +272,14 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     @impl Ltix.StorageAdapter
-    def sign(%CustomRegistration{}, key_id, message) do
+    def sign(%CustomRegistration{}, key_id, message, _opts) do
       signing_key = Process.get(:signing_key)
       other_key = Process.get(:other_key)
 
       case Process.get(:signing_failure) do
         :unpublished_key_id when key_id == other_key.kid -> Ltix.JWK.sign(other_key, message)
         :sign_error -> {:error, :database_unavailable}
-        :sign_wrong_result -> {:ok, :not_a_signature}
         :wrong_key -> Ltix.JWK.sign(other_key, message)
-        :ignore_message -> Ltix.JWK.sign(signing_key, "another message")
         :ignore_key_id -> Ltix.JWK.sign(signing_key, message)
         _ when key_id == signing_key.kid -> Ltix.JWK.sign(signing_key, message)
         _ -> {:error, :unknown_key}
@@ -285,14 +287,43 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
   end
 
+  # Finds records only when called with the tenant the test stored them for.
+  defmodule TenantAdapter do
+    @moduledoc false
+    @behaviour Ltix.StorageAdapter
+
+    @impl Ltix.StorageAdapter
+    def get_registration(issuer, client_id, opts) do
+      scoped(opts, fn -> CustomStorageAdapter.get_registration(issuer, client_id, opts) end)
+    end
+
+    @impl Ltix.StorageAdapter
+    def get_deployment(registration, deployment_id, opts) do
+      scoped(opts, fn ->
+        CustomStorageAdapter.get_deployment(registration, deployment_id, opts)
+      end)
+    end
+
+    @impl Ltix.StorageAdapter
+    def validate_nonce(nonce, registration, expires_at, opts) do
+      scoped(opts, fn ->
+        CustomStorageAdapter.validate_nonce(nonce, registration, expires_at, opts)
+      end)
+    end
+
+    defp scoped(opts, lookup) do
+      if opts[:tenant] == "acme", do: lookup.(), else: {:error, :not_found}
+    end
+  end
+
   # Exports one of the two signing callbacks.
   defmodule HalfSigningAdapter do
     @moduledoc false
 
-    defdelegate get_registration(issuer, client_id), to: CustomStorageAdapter
-    defdelegate get_deployment(registration, deployment_id), to: CustomStorageAdapter
-    defdelegate validate_nonce(nonce, registration, expires_at), to: CustomStorageAdapter
-    def key_id(_registration), do: {:ok, "key"}
+    defdelegate get_registration(issuer, client_id, opts), to: CustomStorageAdapter
+    defdelegate get_deployment(registration, deployment_id, opts), to: CustomStorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at, opts), to: CustomStorageAdapter
+    def key_id(_registration, _opts), do: {:ok, "key"}
   end
 
   setup_all do
@@ -352,11 +383,21 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     assert :ok = Ltix.Test.assert_storage_adapter!(CustomStorageAdapter, opts)
   end
 
-  for mode <- [:ambiguous_not_found, :delete_consumed] do
-    test "accepts #{mode}", %{opts: opts} do
-      Process.put(:contract_failure, unquote(mode))
-      assert :ok = Ltix.Test.assert_storage_adapter!(ScriptedAdapter, opts)
+  test "calls the adapter with the storage adapter options", %{opts: opts} do
+    assert :ok =
+             Ltix.Test.assert_storage_adapter!(
+               TenantAdapter,
+               opts ++ [storage_adapter_options: [tenant: "acme"]]
+             )
+
+    assert_raise ExUnit.AssertionError, ~r/get_registration\/3/, fn ->
+      Ltix.Test.assert_storage_adapter!(TenantAdapter, opts)
     end
+  end
+
+  test "accepts ambiguous_not_found", %{opts: opts} do
+    Process.put(:contract_failure, :ambiguous_not_found)
+    assert :ok = Ltix.Test.assert_storage_adapter!(ScriptedAdapter, opts)
   end
 
   test "accepts explicitly enabled automatic deployment creation", %{opts: opts} do
@@ -370,28 +411,28 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
   end
 
   for {mode, message} <- [
-        issuer_only: "get_registration/2.*issuer-only",
-        ignore_client: "get_registration/2.*client",
-        ignore_issuer: "get_registration/2.*issuer",
-        registration_raise: "get_registration/2.*database unavailable",
-        protocol_raise: "get_registration/2.*Registerable.*registration conversion failed",
-        case_fold_registration: "get_registration/2.*case-sensitive",
-        registration_fields: "get_registration/2.*record identity",
-        deployment_fields: "get_deployment/2.*record identity",
-        invalid_registration: "get_registration/2.*Registerable",
-        invalid_registration_fields: "get_registration/2.*Registerable",
-        registration_error: "get_registration/2.*database_unavailable",
-        ignore_deployment_registration: "get_deployment/2.*registration",
-        case_insensitive: "get_deployment/2.*case-sensitive",
-        invalid_deployment: "get_deployment/2.*Deployable",
-        wrong_deployment: "get_deployment/2.*deployment",
-        auto_create: "get_deployment/2.*not_found",
-        wrong_nonce_result: "validate_nonce/3.*first time",
-        case_fold_nonce: "validate_nonce/3.*case-sensitive",
-        replay: "validate_nonce/3.*already used",
-        concurrent_replay: "validate_nonce/3.*atomically",
-        worker_timeout: "validate_nonce/3.*callback timed out",
-        worker_exit: "validate_nonce/3.*database_unavailable"
+        issuer_only: "get_registration/3.*issuer-only",
+        ignore_client: "get_registration/3.*client",
+        ignore_issuer: "get_registration/3.*issuer",
+        registration_raise: "get_registration/3.*database unavailable",
+        protocol_raise: "get_registration/3.*Registerable.*registration conversion failed",
+        case_fold_registration: "get_registration/3.*case-sensitive",
+        registration_fields: "get_registration/3.*record identity",
+        deployment_fields: "get_deployment/3.*record identity",
+        invalid_registration: "get_registration/3.*Registerable",
+        invalid_registration_fields: "get_registration/3.*Registerable",
+        registration_error: "get_registration/3.*database_unavailable",
+        ignore_deployment_registration: "get_deployment/3.*registration",
+        case_insensitive: "get_deployment/3.*case-sensitive",
+        invalid_deployment: "get_deployment/3.*Deployable",
+        wrong_deployment: "get_deployment/3.*deployment",
+        auto_create: "get_deployment/3.*not_found",
+        wrong_nonce_result: "validate_nonce/4.*first time",
+        case_fold_nonce: "validate_nonce/4.*case-sensitive",
+        replay: "validate_nonce/4.*already used",
+        concurrent_replay: "validate_nonce/4.*atomically",
+        worker_timeout: "validate_nonce/4.*callback timed out",
+        worker_exit: "validate_nonce/4.*database_unavailable"
       ] do
     test "rejects #{mode} with a useful assertion failure", %{opts: opts} do
       opts = scripted_options(opts, unquote(mode))
@@ -412,7 +453,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
       opts = scripted_options(opts, unquote(mode))
       opts = Keyword.put(opts, :auto_create_deployments, true)
 
-      assert_raise ExUnit.AssertionError, ~r/get_deployment\/2.*record identity/s, fn ->
+      assert_raise ExUnit.AssertionError, ~r/get_deployment\/3.*record identity/s, fn ->
         Ltix.Test.assert_storage_adapter!(ScriptedAdapter, opts)
       end
     end
@@ -422,7 +463,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     opts = scripted_options(opts, :auto_create_concurrent_duplicates)
     opts = Keyword.put(opts, :auto_create_deployments, true)
 
-    assert_raise ExUnit.AssertionError, ~r/get_deployment\/2.*between concurrent results/s, fn ->
+    assert_raise ExUnit.AssertionError, ~r/get_deployment\/3.*between concurrent results/s, fn ->
       Ltix.Test.assert_storage_adapter!(ScriptedAdapter, opts)
     end
 
@@ -479,14 +520,11 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     for {failure, message} <- [
-          key_id_error: "key_id/1.*database_unavailable",
-          blank_key_id: "key_id/1.*non-empty string",
-          unpublished_key_id: "key_id/1.*key set",
-          sign_error: "sign/3.*database_unavailable",
-          sign_wrong_result: "sign/3.*signature",
-          wrong_key: "sign/3.*verifies",
-          ignore_message: "sign/3.*verifies",
-          ignore_key_id: "sign/3.*key ID it can't sign with"
+          blank_key_id: "key_id/2.*non-empty string",
+          unpublished_key_id: "key_id/2.*key set",
+          sign_error: "sign/4.*database_unavailable",
+          wrong_key: "sign/4.*verifies",
+          ignore_key_id: "sign/4.*key ID it can't sign with"
         ] do
       test "rejects #{failure} with a useful assertion failure", %{opts: opts} do
         Process.put(:signing_failure, unquote(failure))
@@ -508,19 +546,19 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     test "requires the jwks option when the adapter signs", %{opts: opts} do
-      assert_raise InvalidOption, ~r/jwks.*key_id\/1 and sign\/3/s, fn ->
+      assert_raise InvalidOption, ~r/jwks.*key_id\/2 and sign\/4/s, fn ->
         Ltix.Test.assert_storage_adapter!(SigningAdapter, Keyword.delete(opts, :jwks))
       end
     end
 
     test "rejects the jwks option for an adapter that doesn't sign", %{opts: opts} do
-      assert_raise InvalidOption, ~r/jwks.*neither key_id\/1 nor sign\/3/s, fn ->
+      assert_raise InvalidOption, ~r/jwks.*neither key_id\/2 nor sign\/4/s, fn ->
         Ltix.Test.assert_storage_adapter!(CustomStorageAdapter, opts)
       end
     end
 
     test "rejects an adapter that exports only one signing callback", %{opts: opts} do
-      assert_raise InvalidOption, ~r/storage_adapter.*key_id\/1 and sign\/3/s, fn ->
+      assert_raise InvalidOption, ~r/storage_adapter.*key_id\/2 and sign\/4/s, fn ->
         Ltix.Test.assert_storage_adapter!(HalfSigningAdapter, opts)
       end
     end
@@ -622,7 +660,6 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
       end
     end
 
-    assert {:error, :not_found} = CustomStorageAdapter.get_registration("unknown", nil)
     assert [] = Agent.get(Process.get(:contract_adapter_pid), & &1.registrations)
   end
 

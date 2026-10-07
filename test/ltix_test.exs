@@ -21,13 +21,13 @@ defmodule LtixTest do
     @behaviour Ltix.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    def get_registration(_issuer, _client_id), do: {:error, :not_found}
+    def get_registration(_issuer, _client_id, _opts), do: {:error, :not_found}
 
     @impl Ltix.StorageAdapter
-    defdelegate get_deployment(registration, deployment_id), to: StorageAdapter
+    defdelegate get_deployment(registration, deployment_id, opts), to: StorageAdapter
 
     @impl Ltix.StorageAdapter
-    defdelegate validate_nonce(nonce, registration, expires_at), to: StorageAdapter
+    defdelegate validate_nonce(nonce, registration, expires_at, opts), to: StorageAdapter
   end
 
   # Returns a result sent by the test for a callback, otherwise delegates.
@@ -36,21 +36,23 @@ defmodule LtixTest do
     @behaviour Ltix.StorageAdapter
 
     @impl Ltix.StorageAdapter
-    def get_registration(issuer, client_id) do
-      scripted(:get_registration, fn -> StorageAdapter.get_registration(issuer, client_id) end)
-    end
-
-    @impl Ltix.StorageAdapter
-    def get_deployment(registration, deployment_id) do
-      scripted(:get_deployment, fn ->
-        StorageAdapter.get_deployment(registration, deployment_id)
+    def get_registration(issuer, client_id, opts) do
+      scripted(:get_registration, fn ->
+        StorageAdapter.get_registration(issuer, client_id, opts)
       end)
     end
 
     @impl Ltix.StorageAdapter
-    def validate_nonce(nonce, registration, expires_at) do
+    def get_deployment(registration, deployment_id, opts) do
+      scripted(:get_deployment, fn ->
+        StorageAdapter.get_deployment(registration, deployment_id, opts)
+      end)
+    end
+
+    @impl Ltix.StorageAdapter
+    def validate_nonce(nonce, registration, expires_at, opts) do
       scripted(:validate_nonce, fn ->
-        StorageAdapter.validate_nonce(nonce, registration, expires_at)
+        StorageAdapter.validate_nonce(nonce, registration, expires_at, opts)
       end)
     end
 

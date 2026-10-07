@@ -40,7 +40,7 @@ Each service provides an `authenticate/2` shorthand that extracts the
 endpoint from launch claims and acquires a token in one step. See
 [Memberships Service](memberships-service.md) for the full roster API.
 
-Each token request is signed by your storage adapter's `key_id/1` and `sign/3` callbacks. See [Storage Adapters](storage-adapters.md#signing).
+Each token request is signed by your storage adapter's `key_id/2` and `sign/4` callbacks. See [Storage Adapters](storage-adapters.md#signing).
 
 ## Background service calls
 

@@ -35,7 +35,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params: params,
       redirect_uri: redirect_uri
     } do
-      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
 
       uri = URI.parse(result.redirect_uri)
       assert uri.host == "platform.example.com"
@@ -61,7 +61,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.delete(params, "iss")
 
       assert {:error, %MissingParameter{parameter: "iss"}} =
-               LoginInitiation.call(params, StorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
@@ -72,7 +72,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.delete(params, "login_hint")
 
       assert {:error, %MissingParameter{parameter: "login_hint"}} =
-               LoginInitiation.call(params, StorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
     end
 
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
@@ -83,7 +83,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.delete(params, "target_link_uri")
 
       assert {:error, %MissingParameter{parameter: "target_link_uri"}} =
-               LoginInitiation.call(params, StorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
     end
 
     test "unknown issuer returns RegistrationNotFound error", %{
@@ -93,14 +93,14 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params = Map.put(params, "iss", "https://unknown.example.com")
 
       assert {:error, %RegistrationNotFound{issuer: "https://unknown.example.com"}} =
-               LoginInitiation.call(params, StorageAdapter, redirect_uri)
+               LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
     end
 
     # [Core §4.1.1](https://www.imsglobal.org/spec/lti/v1p3/#lti_message_hint-login-parameter)
     test "lti_message_hint preserved when present", %{params: params, redirect_uri: redirect_uri} do
       params = Map.put(params, "lti_message_hint", "platform-hint-456")
 
-      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
       query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       assert query["lti_message_hint"] == "platform-hint-456"
@@ -110,7 +110,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params: params,
       redirect_uri: redirect_uri
     } do
-      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
       query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       refute Map.has_key?(query, "lti_message_hint")
@@ -141,7 +141,7 @@ defmodule Ltix.OIDC.LoginInitiationTest do
         "client_id" => "other-client-id"
       }
 
-      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      assert {:ok, result} = LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
       query = URI.decode_query(URI.parse(result.redirect_uri).query)
 
       assert query["client_id"] == "other-client-id"
@@ -152,8 +152,8 @@ defmodule Ltix.OIDC.LoginInitiationTest do
       params: params,
       redirect_uri: redirect_uri
     } do
-      assert {:ok, result1} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
-      assert {:ok, result2} = LoginInitiation.call(params, StorageAdapter, redirect_uri)
+      assert {:ok, result1} = LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
+      assert {:ok, result2} = LoginInitiation.call(params, StorageAdapter, redirect_uri, [])
 
       refute result1.state == result2.state
 

@@ -378,31 +378,31 @@ defmodule MyApp.Lti.Storage do
   alias MyApp.Lti
 
   @impl true
-  def get_registration(issuer, client_id), do: Lti.get_registration(issuer, client_id)
+  def get_registration(issuer, client_id, _opts), do: Lti.get_registration(issuer, client_id)
 
   @impl true
-  def get_deployment(registration, deployment_id), do: Lti.get_deployment(registration, deployment_id)
+  def get_deployment(registration, deployment_id, _opts), do: Lti.get_deployment(registration, deployment_id)
 
   @impl true
-  def validate_nonce(nonce, _registration, expires_at), do: Lti.validate_nonce(nonce, expires_at)
+  def validate_nonce(nonce, _registration, expires_at, _opts), do: Lti.validate_nonce(nonce, expires_at)
 
   @impl true
-  def key_id(registration), do: Lti.signing_key_id(registration)
+  def key_id(registration, _opts), do: Lti.signing_key_id(registration)
 
   @impl true
-  def sign(_registration, key_id, message), do: Lti.sign(key_id, message)
+  def sign(_registration, key_id, message, _opts), do: Lti.sign(key_id, message)
 end
 ```
 
 The storage adapter is a thin wrapper that delegates to your context
 module, where the actual queries are.
 
-`key_id/1` and `sign/3` are optional. Ltix calls them to sign requests for Advantage services and deep linking responses, so a tool that only handles launches can leave them out.
+`key_id/2` and `sign/4` are optional. Ltix calls them to sign requests for Advantage services and deep linking responses, so a tool that only handles launches can leave them out.
 
 > #### Nil client_id {: .tip}
 >
 > Older versions of some platforms may omit `client_id` from the login
-> request, in which case `get_registration/2` receives `nil` as the
+> request, in which case `get_registration/3` receives `nil` as the
 > second argument. The issuer-only clause above handles that. See
 > [Storage Adapters](storage-adapters.md) for details.
 

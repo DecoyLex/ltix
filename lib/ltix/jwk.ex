@@ -16,7 +16,7 @@ defmodule Ltix.JWK do
   ## Signing
 
   Load the private key and sign in your storage adapter's
-  `c:Ltix.StorageAdapter.sign/3` callback.
+  `c:Ltix.StorageAdapter.sign/4` callback.
 
       {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: kid)
       Ltix.JWK.sign(jwk, message)
@@ -216,7 +216,7 @@ defmodule Ltix.JWK do
   def to_public_key(%__MODULE__{public_key_pem: pem}), do: pem
 
   @doc """
-  Sign a message with RS256, as `c:Ltix.StorageAdapter.sign/3` requires.
+  Sign a message with RS256, as `c:Ltix.StorageAdapter.sign/4` requires.
 
   Returns an error for a JWK without a private key.
 

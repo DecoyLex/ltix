@@ -65,7 +65,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         end
 
         @impl Ltix.StorageAdapter
-        def get_registration(issuer, nil) do
+        def get_registration(issuer, nil, _opts) do
           Agent.get(__MODULE__, fn state ->
             case Enum.find(Map.values(state.registrations), &(&1.issuer == issuer)) do
               nil -> {:error, :not_found}
@@ -74,7 +74,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
           end)
         end
 
-        def get_registration(issuer, client_id) do
+        def get_registration(issuer, client_id, _opts) do
           result = Agent.get(__MODULE__, &Map.fetch(&1.registrations, {issuer, client_id}))
           case result do
             :error -> {:error, :not_found}
@@ -83,7 +83,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         end
 
         @impl Ltix.StorageAdapter
-        def get_deployment(registration, deployment_id) do
+        def get_deployment(registration, deployment_id, _opts) do
           key = {registration.issuer, registration.client_id, deployment_id}
           Agent.get_and_update(__MODULE__, fn state ->
             case Map.fetch(state.deployments, key) do
@@ -103,7 +103,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         end
 
         @impl Ltix.StorageAdapter
-        def validate_nonce(nonce, _registration, _expires_at) do
+        def validate_nonce(nonce, _registration, _expires_at, _opts) do
           Agent.get_and_update(__MODULE__, fn state ->
             if MapSet.member?(state.used_nonces, nonce) do
               {{:error, :nonce_already_used}, state}
@@ -118,12 +118,12 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         @moduledoc false
         @behaviour Ltix.StorageAdapter
         @impl Ltix.StorageAdapter
-        defdelegate get_registration(issuer, client_id), to: ConsumerStorage
+        defdelegate get_registration(issuer, client_id, opts), to: ConsumerStorage
         @impl Ltix.StorageAdapter
-        defdelegate validate_nonce(nonce, registration, expires_at), to: ConsumerStorage
+        defdelegate validate_nonce(nonce, registration, expires_at, opts), to: ConsumerStorage
 
         @impl Ltix.StorageAdapter
-        def get_deployment(registration, deployment_id) do
+        def get_deployment(registration, deployment_id, _opts) do
           Agent.get(ConsumerStorage, fn state ->
             found = Enum.find(state.deployments, fn {{_issuer, client_id, identifier}, _} ->
               client_id == registration.client_id and identifier == deployment_id
@@ -173,7 +173,7 @@ defmodule Ltix.Integration.ConsumerBuildTest do
           assert :ok = Ltix.Test.assert_storage_adapter!(ConsumerStorage,
             registration: &ConsumerStorage.create_registration/1,
             deployment: &ConsumerStorage.create_deployment/2)
-          assert_raise ExUnit.AssertionError, ~r/get_deployment\\/2.*scoped.*issuer/s, fn ->
+          assert_raise ExUnit.AssertionError, ~r/get_deployment\\/3.*scoped.*issuer/s, fn ->
             Ltix.Test.assert_storage_adapter!(ConsumerUnscopedStorage,
               registration: &ConsumerStorage.create_registration/1,
               deployment: &ConsumerStorage.create_deployment/2)

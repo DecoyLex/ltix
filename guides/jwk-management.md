@@ -30,14 +30,14 @@ independently.
 
 ## Signing with a key
 
-Ltix never stores your private key. When it needs a signature, it calls your storage adapter's `c:Ltix.StorageAdapter.key_id/1` and `c:Ltix.StorageAdapter.sign/3` callbacks. `Ltix.JWK.sign/2` produces the signature for a key your application has.
+Ltix never stores your private key. When it needs a signature, it calls your storage adapter's `c:Ltix.StorageAdapter.key_id/2` and `c:Ltix.StorageAdapter.sign/4` callbacks. `Ltix.JWK.sign/2` produces the signature for a key your application has.
 
 ```elixir
 @impl true
-def key_id(_registration), do: {:ok, current_jwk().kid}
+def key_id(_registration, _opts), do: {:ok, current_jwk().kid}
 
 @impl true
-def sign(_registration, key_id, message) do
+def sign(_registration, key_id, message, _opts) do
   case Enum.find(active_jwks(), &(&1.kid == key_id)) do
     nil -> {:error, :unknown_key}
     jwk -> Ltix.JWK.sign(jwk, message)
@@ -45,9 +45,9 @@ def sign(_registration, key_id, message) do
 end
 ```
 
-`sign/3` signs with the key that has the given ID and returns an error for an ID it doesn't have. A request that starts before a rotation still gets a signature from the key whose ID is in its JWT header.
+`sign/4` signs with the key that has the given ID and returns an error for an ID it doesn't have. A request that starts before a rotation still gets a signature from the key whose ID is in its JWT header.
 
-A key in a key management service does not have to be exported. Call the service from `sign/3` and return its RS256 signature, and build the JWK for your key set endpoint from the public key the service returns. See [Storage Adapters](storage-adapters.md#signing).
+A key in a key management service does not have to be exported. Call the service from `sign/4` and return its RS256 signature, and build the JWK for your key set endpoint from the public key the service returns. See [Storage Adapters](storage-adapters.md#signing).
 
 ## Serving a JWKS endpoint
 

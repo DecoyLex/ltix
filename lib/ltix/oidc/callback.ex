@@ -43,12 +43,14 @@ defmodule Ltix.OIDC.Callback do
         :local_network_access
       ])
 
+    adapter_options = Keyword.get(opts, :storage_adapter_options, [])
+
     with :ok <- check_error_response(params),
          {:ok, id_token} <- extract_id_token(params),
          :ok <- verify_state(params, expected_state),
          {:ok, iss, client_id} <- peek_issuer_and_audience(id_token),
          {:ok, user_registration, registration} <-
-           StorageAdapter.get_registration(callback_module, iss, client_id),
+           StorageAdapter.get_registration(callback_module, iss, client_id, adapter_options),
          {:ok, raw_claims} <- Token.verify(id_token, registration, token_opts),
          :ok <- verify_nonce_binding(raw_claims, expected_state, registration),
          :ok <-
@@ -56,14 +58,16 @@ defmodule Ltix.OIDC.Callback do
              callback_module,
              raw_claims["nonce"],
              user_registration,
-             Token.expires_at(raw_claims, token_opts)
+             Token.expires_at(raw_claims, token_opts),
+             adapter_options
            ),
          :ok <- validate_required_lti_claims(raw_claims, opts),
          {:ok, user_deployment} <-
            StorageAdapter.get_deployment(
              callback_module,
              user_registration,
-             raw_claims[@lti <> "deployment_id"]
+             raw_claims[@lti <> "deployment_id"],
+             adapter_options
            ),
          {:ok, claims} <-
            LaunchClaims.from_json(raw_claims, Keyword.take(opts, [:claim_parsers, :role_parsers])) do

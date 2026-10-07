@@ -20,8 +20,8 @@ defmodule Ltix do
       config :ltix,
         storage_adapter: MyApp.LtiStorage
 
-  `handle_login/3` takes `:storage_adapter`, and `handle_callback/3` takes
-  `:storage_adapter`, `:allow_anonymous`, `:max_token_age`,
+  `handle_login/3` takes `:storage_adapter` and `:storage_adapter_options`,
+  and `handle_callback/3` takes both of those, `:allow_anonymous`, `:max_token_age`,
   `:local_network_access`, `:req_options`, and `:key_set`, to override the
   setting for a single call. Unknown or invalid options raise
   `Ltix.Errors.Invalid.InvalidOption`.
@@ -163,13 +163,18 @@ defmodule Ltix do
   alias Ltix.OIDC.LoginInitiation
   alias Ltix.Options
 
-  @login_schema Zoi.keyword([storage_adapter: Zoi.module()],
+  @login_schema Zoi.keyword(
+                  [
+                    storage_adapter: Zoi.module(),
+                    storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([])
+                  ],
                   unrecognized_keys: :error
                 )
 
   @callback_schema Zoi.keyword(
                      [
                        storage_adapter: Zoi.module(),
+                       storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
                        allow_anonymous: Zoi.boolean(),
                        req_options: Zoi.keyword(Zoi.any()),
                        claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
@@ -197,6 +202,8 @@ defmodule Ltix do
 
     * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
       (defaults to application config)
+    * `:storage_adapter_options` - keyword list passed to each storage
+      adapter callback (defaults to `[]`)
   """
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
   # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
@@ -209,7 +216,14 @@ defmodule Ltix do
     meta = %{issuer: params["iss"], client_id: params["client_id"], redirect_uri: redirect_uri}
 
     :telemetry.span([:ltix, :login], meta, fn ->
-      result = LoginInitiation.call(params, storage_adapter, redirect_uri)
+      result =
+        LoginInitiation.call(
+          params,
+          storage_adapter,
+          redirect_uri,
+          Keyword.fetch!(opts, :storage_adapter_options)
+        )
+
       {result, meta}
     end)
   end
@@ -243,6 +257,8 @@ defmodule Ltix do
 
     * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
       (defaults to application config)
+    * `:storage_adapter_options` - keyword list passed to each storage
+      adapter callback (defaults to `[]`)
     * `:allow_anonymous` - allow launches without a `sub` claim
       (defaults to application config, then `false`)
     * `:req_options` - options passed to the HTTP client for JWKS fetching

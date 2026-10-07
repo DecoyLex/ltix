@@ -9,10 +9,10 @@ defmodule Ltix.LaunchContext do
   ## Fields
 
     * `:claims` — parsed claim data from the ID Token
-    * `:registration` — whatever your `c:Ltix.StorageAdapter.get_registration/2`
+    * `:registration` — whatever your `c:Ltix.StorageAdapter.get_registration/3`
       returned. Access your own fields (database IDs, tenant info, etc.)
       directly on this struct.
-    * `:deployment` — whatever your `c:Ltix.StorageAdapter.get_deployment/2`
+    * `:deployment` — whatever your `c:Ltix.StorageAdapter.get_deployment/3`
       returned.
   """
 

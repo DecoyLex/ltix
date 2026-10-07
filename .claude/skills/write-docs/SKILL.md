@@ -272,7 +272,7 @@ Use tables for comparisons, quick reference, and callback summaries:
 ```markdown
 | Callback | Called during | Purpose |
 |---|---|---|
-| `get_registration/2` | Login initiation | Look up a platform |
+| `get_registration/3` | Login initiation | Look up a platform |
 ```
 
 ### Admonitions

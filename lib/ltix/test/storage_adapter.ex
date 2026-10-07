@@ -85,7 +85,7 @@ defmodule Ltix.Test.StorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def get_registration(issuer, client_id) do
+  def get_registration(issuer, client_id, _opts) do
     registrations = Agent.get(pid(), & &1.registrations)
 
     matches =
@@ -100,7 +100,7 @@ defmodule Ltix.Test.StorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def get_deployment(registration, deployment_id) do
+  def get_deployment(registration, deployment_id, _opts) do
     key = {registration_key(registration), deployment_id}
 
     Agent.get(pid(), fn state ->
@@ -112,7 +112,7 @@ defmodule Ltix.Test.StorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def validate_nonce(nonce, _registration, _expires_at) do
+  def validate_nonce(nonce, _registration, _expires_at, _opts) do
     Agent.get_and_update(pid(), fn state ->
       if MapSet.member?(state.used_nonces, nonce),
         do: {{:error, :nonce_already_used}, state},
@@ -143,10 +143,10 @@ defmodule Ltix.Test.StorageAdapter do
   end
 
   @impl Ltix.StorageAdapter
-  def key_id(_registration), do: {:ok, tool_jwk().kid}
+  def key_id(_registration, _opts), do: {:ok, tool_jwk().kid}
 
   @impl Ltix.StorageAdapter
-  def sign(_registration, key_id, message) do
+  def sign(_registration, key_id, message, _opts) do
     case tool_jwk() do
       %Ltix.JWK{kid: ^key_id} = tool_jwk -> Ltix.JWK.sign(tool_jwk, message)
       _other_key -> {:error, :unknown_key}

@@ -21,6 +21,7 @@ defmodule Ltix.Test.StorageAdapterContract do
               deployment_identity: Zoi.function(arity: 1),
               prepare_process: Zoi.function(arity: 0),
               jwks: Zoi.function(arity: 1),
+              storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
               auto_create_deployments: Zoi.boolean() |> Zoi.default(false),
               timeout:
                 Zoi.integer()
@@ -51,7 +52,7 @@ defmodule Ltix.Test.StorageAdapterContract do
   end
 
   defp validate_adapter!(adapter) do
-    callbacks = [get_registration: 2, get_deployment: 2, validate_nonce: 3]
+    callbacks = [get_registration: 3, get_deployment: 3, validate_nonce: 4]
 
     unless is_atom(adapter) and Code.ensure_loaded?(adapter) and
              Enum.all?(callbacks, fn {name, arity} -> function_exported?(adapter, name, arity) end) do
@@ -66,7 +67,7 @@ defmodule Ltix.Test.StorageAdapterContract do
   # and the key set is given exactly when it exports them.
   defp validate_signing!(adapter, key_set_given?) do
     exported =
-      Enum.count([key_id: 1, sign: 3], fn {name, arity} ->
+      Enum.count([key_id: 2, sign: 4], fn {name, arity} ->
         function_exported?(adapter, name, arity)
       end)
 
@@ -79,20 +80,20 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp validate_signing!(_adapter, 2, false) do
     raise InvalidOption,
       key: :jwks,
-      reason: "the key set is required to check an adapter that exports key_id/1 and sign/3"
+      reason: "the key set is required to check an adapter that exports key_id/2 and sign/4"
   end
 
   defp validate_signing!(_adapter, 0, true) do
     raise InvalidOption,
       key: :jwks,
-      reason: "the adapter exports neither key_id/1 nor sign/3, so no signature can be checked"
+      reason: "the adapter exports neither key_id/2 nor sign/4, so no signature can be checked"
   end
 
   defp validate_signing!(adapter, 1, _key_set_given?) do
     raise InvalidOption,
       key: :storage_adapter,
       value: adapter,
-      reason: "must export both key_id/1 and sign/3, or neither"
+      reason: "must export both key_id/2 and sign/4, or neither"
   end
 
   defp create_platforms!(opts) do
@@ -172,10 +173,16 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp check_registrations!(adapter, [first, second, third | _] = platforms, opts) do
     Enum.each(platforms, fn platform ->
       registration = resolve!(platform.registration, Registerable, "registration factory")
-      label = "#{inspect(adapter)} get_registration/2 must match issuer and client_id"
+      label = "#{inspect(adapter)} get_registration/3 must match issuer and client_id"
 
       result =
-        call!(adapter, :get_registration, [registration.issuer, registration.client_id], label)
+        call!(
+          adapter,
+          :get_registration,
+          [registration.issuer, registration.client_id],
+          label,
+          opts
+        )
 
       check_record!(result, platform.registration, Registerable, label, opts)
     end)
@@ -183,15 +190,15 @@ defmodule Ltix.Test.StorageAdapterContract do
     unique = resolve!(third.registration, Registerable, "registration factory")
 
     label =
-      "#{inspect(adapter)} get_registration/2 must support an unambiguous issuer-only lookup"
+      "#{inspect(adapter)} get_registration/3 must support an unambiguous issuer-only lookup"
 
-    result = call!(adapter, :get_registration, [unique.issuer, nil], label)
+    result = call!(adapter, :get_registration, [unique.issuer, nil], label, opts)
     check_record!(result, third.registration, Registerable, label, opts)
 
     shared = resolve!(first.registration, Registerable, "registration factory")
     other = resolve!(second.registration, Registerable, "registration factory")
-    label = "#{inspect(adapter)} get_registration/2 must handle an ambiguous issuer-only lookup"
-    result = call!(adapter, :get_registration, [shared.issuer, nil], label)
+    label = "#{inspect(adapter)} get_registration/3 must handle an ambiguous issuer-only lookup"
+    result = call!(adapter, :get_registration, [shared.issuer, nil], label, opts)
     check_ambiguous!(result, [first.registration, second.registration], label, opts)
 
     missing_issuer =
@@ -210,10 +217,10 @@ defmodule Ltix.Test.StorageAdapterContract do
         {shared.issuer, String.downcase(shared.client_id), "case-sensitive client_id"}
       ],
       fn {issuer, client_id, scenario} ->
-        label = "#{inspect(adapter)} get_registration/2 must reject #{scenario}"
+        label = "#{inspect(adapter)} get_registration/3 must reject #{scenario}"
 
         expect!(
-          call!(adapter, :get_registration, [issuer, client_id], label),
+          call!(adapter, :get_registration, [issuer, client_id], label, opts),
           {:error, :not_found},
           label
         )
@@ -238,20 +245,22 @@ defmodule Ltix.Test.StorageAdapterContract do
          [first, second, third, first_extra, third_extra] = platforms,
          opts
        ) do
-    label = "#{inspect(adapter)} get_deployment/2"
+    label = "#{inspect(adapter)} get_deployment/3"
 
     ownership_visible =
       record_identity!(first.deployment, Deployable, opts, label) !=
         record_identity!(third.deployment, Deployable, opts, label)
 
     Enum.each(platforms, fn platform ->
-      registration = stored_registration!(adapter, platform)
+      registration = stored_registration!(adapter, platform, opts)
       deployment = resolve!(platform.deployment, Deployable, "deployment factory")
 
       label =
-        "#{inspect(adapter)} get_deployment/2 must return the deployment for this registration"
+        "#{inspect(adapter)} get_deployment/3 must return the deployment for this registration"
 
-      result = call!(adapter, :get_deployment, [registration, deployment.deployment_id], label)
+      result =
+        call!(adapter, :get_deployment, [registration, deployment.deployment_id], label, opts)
+
       check_record!(result, platform.deployment, Deployable, label, opts)
 
       missing = "Missing-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}"
@@ -270,7 +279,7 @@ defmodule Ltix.Test.StorageAdapterContract do
     Enum.each(
       [{first, second}, {second, first}, {first, third_extra}, {third, first_extra}],
       fn {target, source} ->
-        registration = stored_registration!(adapter, target)
+        registration = stored_registration!(adapter, target, opts)
         deployment = resolve!(source.deployment, Deployable, "deployment factory")
         forbidden = if ownership_visible, do: source.deployment
 
@@ -289,8 +298,8 @@ defmodule Ltix.Test.StorageAdapterContract do
   end
 
   defp check_missing_deployment!(adapter, registration, deployment_id, opts, scenario, forbidden) do
-    label = "#{inspect(adapter)} get_deployment/2 must handle #{scenario}"
-    result = call!(adapter, :get_deployment, [registration, deployment_id], label)
+    label = "#{inspect(adapter)} get_deployment/3 must handle #{scenario}"
+    result = call!(adapter, :get_deployment, [registration, deployment_id], label, opts)
 
     check_deployment_policy!(
       result,
@@ -348,7 +357,7 @@ defmodule Ltix.Test.StorageAdapterContract do
       )
     end
 
-    repeated = call!(adapter, :get_deployment, [registration, deployment_id], label)
+    repeated = call!(adapter, :get_deployment, [registration, deployment_id], label, opts)
     check_record!(repeated, record, Deployable, "#{label} on repeated lookup", opts)
   end
 
@@ -364,16 +373,16 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp check_concurrent_deployment!(_adapter, _platform, _opts, false), do: :ok
 
   defp check_concurrent_deployment!(adapter, platform, opts, true) do
-    registration = stored_registration!(adapter, platform)
+    registration = stored_registration!(adapter, platform, opts)
 
     deployment_id =
       "Concurrent-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}"
 
-    label = "#{inspect(adapter)} get_deployment/2"
+    label = "#{inspect(adapter)} get_deployment/3"
     creation_label = "#{label} during concurrent creation"
 
     operation = fn ->
-      call!(adapter, :get_deployment, [registration, deployment_id], creation_label)
+      call!(adapter, :get_deployment, [registration, deployment_id], creation_label, opts)
     end
 
     [first, second] = concurrent_results!(operation, opts, creation_label)
@@ -384,13 +393,13 @@ defmodule Ltix.Test.StorageAdapterContract do
   end
 
   defp check_nonces!(adapter, platform, opts) do
-    registration = stored_registration!(adapter, platform)
+    registration = stored_registration!(adapter, platform, opts)
     expires_at = DateTime.add(DateTime.utc_now(:second), 300)
     nonce = "Nonce-#{Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)}"
-    label = "#{inspect(adapter)} validate_nonce/3"
+    label = "#{inspect(adapter)} validate_nonce/4"
 
     validate = fn nonce, label ->
-      call!(adapter, :validate_nonce, [nonce, registration, expires_at], label)
+      call!(adapter, :validate_nonce, [nonce, registration, expires_at], label, opts)
     end
 
     check = fn nonce, expected, requirement ->
@@ -422,12 +431,12 @@ defmodule Ltix.Test.StorageAdapterContract do
   # set the tool publishes.
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   defp check_signing!(adapter, platform, opts) do
-    registration = stored_registration!(adapter, platform)
-    jwt = sign_jwt!(adapter, registration)
+    registration = stored_registration!(adapter, platform, opts)
+    jwt = sign_jwt!(adapter, registration, opts)
     %JOSE.JWS{fields: %{"kid" => key_id}} = JOSE.JWT.peek_protected(jwt)
     keys = published_keys!(registration, opts)
 
-    label = "#{inspect(adapter)} key_id/1 must return the ID of a key in the published key set"
+    label = "#{inspect(adapter)} key_id/2 must return the ID of a key in the published key set"
 
     public_key =
       case Enum.find(keys, &(&1["kid"] == key_id)) do
@@ -436,7 +445,7 @@ defmodule Ltix.Test.StorageAdapterContract do
       end
 
     label =
-      "#{inspect(adapter)} sign/3 must return a signature that verifies against the published key"
+      "#{inspect(adapter)} sign/4 must return a signature that verifies against the published key"
 
     case JOSE.JWS.verify_strict(public_key, ["RS256"], jwt) do
       {true, _payload, _jws} -> :ok
@@ -444,21 +453,28 @@ defmodule Ltix.Test.StorageAdapterContract do
     end
 
     label =
-      "#{inspect(adapter)} sign/3 must return {:error, reason} for a key ID it can't sign with"
+      "#{inspect(adapter)} sign/4 must return {:error, reason} for a key ID it can't sign with"
 
     unknown_key_id = "Unknown-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}"
 
-    case call!(adapter, :sign, [registration, unknown_key_id, "message"], label) do
+    case call!(adapter, :sign, [registration, unknown_key_id, "message"], label, opts) do
       {:error, _reason} -> :ok
       result -> fail!(label, "{:error, reason}", result)
     end
   end
 
-  defp sign_jwt!(adapter, registration) do
+  defp sign_jwt!(adapter, registration, opts) do
     label = "#{inspect(adapter)} signing"
 
     case invoke!(
-           fn -> StorageAdapter.sign_jwt(adapter, registration, %{"sub" => "check"}) end,
+           fn ->
+             StorageAdapter.sign_jwt(
+               adapter,
+               registration,
+               %{"sub" => "check"},
+               Keyword.fetch!(opts, :storage_adapter_options)
+             )
+           end,
            label
          ) do
       {:ok, jwt} ->
@@ -466,14 +482,14 @@ defmodule Ltix.Test.StorageAdapterContract do
 
       {:error, %StorageError{callback: :key_id, result: result}} ->
         fail!(
-          "#{inspect(adapter)} key_id/1 must return {:ok, key_id} with a non-empty string",
+          "#{inspect(adapter)} key_id/2 must return {:ok, key_id} with a non-empty string",
           "{:ok, key_id}",
           result
         )
 
       {:error, %StorageError{callback: :sign, result: result}} ->
         fail!(
-          "#{inspect(adapter)} sign/3 must return {:ok, signature} with the RS256 signature",
+          "#{inspect(adapter)} sign/4 must return {:ok, signature} with the RS256 signature",
           "{:ok, signature}",
           result
         )
@@ -602,20 +618,23 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp validated!(result, protocol, label),
     do: fail!(label, "a valid #{inspect(protocol)} conversion", result)
 
-  # Returns the record the adapter's `get_registration/2` returns for a
+  # Returns the record the adapter's `get_registration/3` returns for a
   # platform, which is the record a launch passes to the other callbacks.
-  defp stored_registration!(adapter, platform) do
-    label = "#{inspect(adapter)} get_registration/2 must return the registration"
+  defp stored_registration!(adapter, platform, opts) do
+    label = "#{inspect(adapter)} get_registration/3 must return the registration"
     resolved = resolve!(platform.registration, Registerable, "registration factory")
 
-    case call!(adapter, :get_registration, [resolved.issuer, resolved.client_id], label) do
+    case call!(adapter, :get_registration, [resolved.issuer, resolved.client_id], label, opts) do
       {:ok, registration} -> registration
       result -> fail!(label, "{:ok, registration}", result)
     end
   end
 
-  defp call!(adapter, callback, args, label),
-    do: invoke!(fn -> apply(adapter, callback, args) end, label)
+  # Calls a callback with the storage adapter options as its last argument.
+  defp call!(adapter, callback, args, label, opts) do
+    args = args ++ [Keyword.fetch!(opts, :storage_adapter_options)]
+    invoke!(fn -> apply(adapter, callback, args) end, label)
+  end
 
   # User callbacks and protocol implementations can fail with any exception.
   # Preserve their stacktrace while adding the contract scenario to the failure.

@@ -47,6 +47,7 @@ defmodule Ltix.OAuth.Client do
     :storage_adapter,
     :req_options,
     :local_network_access,
+    storage_adapter_options: [],
     endpoints: %{}
   ]
 
@@ -54,6 +55,7 @@ defmodule Ltix.OAuth.Client do
           token: AccessToken.t(),
           registration: Registerable.t(),
           storage_adapter: module() | nil,
+          storage_adapter_options: keyword(),
           req_options: keyword(),
           local_network_access: :none | :local | :loopback | nil,
           endpoints: %{module() => term()}
@@ -69,6 +71,11 @@ defmodule Ltix.OAuth.Client do
         description:
           "Module implementing `Ltix.StorageAdapter`, which signs token requests. Defaults to the application configuration."
       ),
+    storage_adapter_options:
+      Zoi.keyword(Zoi.any(),
+        description: "Options passed to the storage adapter's signing callbacks."
+      )
+      |> Zoi.default([]),
     require_all_scopes:
       Zoi.boolean(
         description:
@@ -287,6 +294,7 @@ defmodule Ltix.OAuth.Client do
            client.registration,
            scopes,
            storage_adapter: client.storage_adapter,
+           storage_adapter_options: client.storage_adapter_options,
            req_options: client.req_options,
            local_network_access: client.local_network_access
          ) do
@@ -332,6 +340,7 @@ defmodule Ltix.OAuth.Client do
           token: token,
           registration: registerable,
           storage_adapter: Keyword.get(opts, :storage_adapter),
+          storage_adapter_options: Keyword.fetch!(opts, :storage_adapter_options),
           req_options: req_options,
           local_network_access: Keyword.get(opts, :local_network_access),
           endpoints: endpoints

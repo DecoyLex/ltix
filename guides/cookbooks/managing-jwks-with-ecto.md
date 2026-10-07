@@ -75,16 +75,16 @@ end
 
 ## Signing
 
-Your storage adapter signs with the registration's key through the `key_id/1` and `sign/3` callbacks.
+Your storage adapter signs with the registration's key through the `key_id/2` and `sign/4` callbacks.
 
 ```elixir
 @impl true
-def key_id(%PlatformRegistration{key_id: key_id}) do
+def key_id(%PlatformRegistration{key_id: key_id}, _opts) do
   {:ok, Repo.get!(LtiKey, key_id).kid}
 end
 
 @impl true
-def sign(_registration, key_id, message) do
+def sign(_registration, key_id, message, _opts) do
   case Repo.get_by(LtiKey, kid: key_id, active: true) do
     nil -> {:error, :unknown_key}
     key -> Ltix.JWK.sign(Ltix.JWK.new!(private_key_pem: key.private_key_pem, kid: key.kid), message)
@@ -92,7 +92,7 @@ def sign(_registration, key_id, message) do
 end
 ```
 
-`sign/3` looks the key up by the ID `key_id/1` returned, so a request that starts before a rotation still signs with the key whose ID is in its JWT header.
+`sign/4` looks the key up by the ID `key_id/2` returned, so a request that starts before a rotation still signs with the key whose ID is in its JWT header.
 
 ## JWKS controller
 

@@ -11,12 +11,17 @@ defmodule Ltix.OIDC.LoginInitiation do
   @optional_params ~w(client_id lti_message_hint)
 
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
-  @spec call(map(), module(), String.t()) ::
+  @spec call(map(), module(), String.t(), keyword()) ::
           {:ok, %{redirect_uri: String.t(), state: String.t()}} | {:error, Exception.t()}
-  def call(params, callback_module, redirect_uri) do
+  def call(params, callback_module, redirect_uri, opts) do
     with :ok <- validate_login_params(params),
          {:ok, _user_registration, registration} <-
-           StorageAdapter.get_registration(callback_module, params["iss"], client_id(params)) do
+           StorageAdapter.get_registration(
+             callback_module,
+             params["iss"],
+             client_id(params),
+             opts
+           ) do
       {state, nonce} = State.generate(registration)
 
       auth_redirect =
