@@ -6,24 +6,24 @@ deep linking).
 
 ## Two-Function API
 
-The entire OIDC launch flow is two functions:
+The entire OIDC launch flow is two functions.
 
-1. `Ltix.handle_login(params, redirect_uri, opts)` — called when the platform sends the
+1. `Ltix.handle_login(params, redirect_uri, opts)` - called when the platform sends the
    user to your login endpoint. Returns `{:ok, %{redirect_uri: url, state: state}}`. Store
    `state` in the session, redirect the user to `redirect_uri`.
 
-2. `Ltix.handle_callback(params, state, opts)` — called when the platform POSTs back to
+2. `Ltix.handle_callback(params, state, opts)` - called when the platform POSTs back to
    your launch endpoint. Returns `{:ok, %LaunchContext{}}` with parsed claims, registration,
    and deployment.
 
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use
   the two public functions, or their raising variants `handle_login!/3` and
   `handle_callback!/3`.
-- `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:jwks_cache`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:key_set`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 ## Required Configuration
 
-Every app must configure a storage adapter:
+Every app must configure a storage adapter.
 
 ```elixir
 config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
@@ -41,9 +41,9 @@ preferred structure before creating modules.
 - Construct with `Registration.new/1` and `Deployment.new/1` (validated), or their raising
   variants `new!/1`. `Registration.new/1` takes a keyword list or map and returns
   `Ltix.Errors.Invalid.InvalidField` for unknown, missing, or invalid fields. **Never**
-  build `%Registration{}` or `%Deployment{}` structs directly — always go through `new/1`.
+  build `%Registration{}` or `%Deployment{}` structs directly. Always use `new/1`.
 - Storage adapters return structs implementing `Ltix.Registerable` and `Ltix.Deployable`
-  protocols. These can be your own Ecto schemas — the library extracts the `Registration`
+  protocols. These can be your own Ecto schemas. The library extracts the `Registration`
   and `Deployment` it needs internally. `%Registration{}` and `%Deployment{}` implement
   both protocols, so returning them directly still works.
 - The original struct from the storage adapter is preserved in `LaunchContext`, so you can
@@ -59,59 +59,59 @@ preferred structure before creating modules.
 
 ## StorageAdapter Callbacks
 
-These are the 3 required callbacks:
+These are the 3 required callbacks.
 
-1. **`get_registration(issuer, client_id)`** — `client_id` can be `nil` when the platform
+1. **`get_registration(issuer, client_id)`** - `client_id` can be `nil` when the platform
    omits it from the login request. You must handle both cases.
-2. **`get_deployment(registration, deployment_id)`** — called after JWT verification.
+2. **`get_deployment(registration, deployment_id)`** - called after JWT verification.
    `deployment_id` is case-sensitive. `registration` is the struct your `get_registration/2`
    returned, as it is for every callback that takes one.
-3. **`validate_nonce(nonce, registration, expires_at)`** — record the nonce as used, called
+3. **`validate_nonce(nonce, registration, expires_at)`** - record the nonce as used, called
    after the ID token is verified. Must prevent replay attacks. Use an atomic
    `INSERT ... ON CONFLICT DO NOTHING` to avoid race conditions, and keep the record until
    `expires_at`.
 
-Return types:
-- `get_registration/2`: `{:ok, Registerable.t()} | {:error, :not_found}` — any struct
-  implementing `Ltix.Registerable` (including `%Registration{}` itself)
-- `get_deployment/2`: `{:ok, Deployable.t()} | {:error, :not_found}` — any struct
-  implementing `Ltix.Deployable` (including `%Deployment{}` itself)
-- `validate_nonce/3`: `:ok | {:error, :nonce_already_used}`
+The callbacks return these types.
+- `get_registration/2` returns `{:ok, Registerable.t()} | {:error, :not_found}`, with any
+  struct implementing `Ltix.Registerable` (including `%Registration{}` itself)
+- `get_deployment/2` returns `{:ok, Deployable.t()} | {:error, :not_found}`, with any
+  struct implementing `Ltix.Deployable` (including `%Deployment{}` itself)
+- `validate_nonce/3` returns `:ok | {:error, :nonce_already_used}`
 
 Any other `{:error, reason}` from a callback fails the login or launch with `Ltix.Errors.Unknown.StorageError`.
 
 Two optional callbacks sign for the tool. Implement them to call Advantage services or build
-deep linking responses:
+deep linking responses.
 
-- **`key_id(registration)`** — `{:ok, kid}` for the key that signs for the registration.
-- **`sign(registration, key_id, message)`** — `{:ok, signature}` with the RS256 signature of
+- **`key_id(registration)`** - `{:ok, kid}` for the key that signs for the registration.
+- **`sign(registration, key_id, message)`** - `{:ok, signature}` with the RS256 signature of
   `message` as raw bytes. `Ltix.JWK.sign(jwk, message)` returns this for a key the app holds.
 
 `Ltix.Registration` has no key field. Ltix never stores the tool's private key.
 
 **Nonce is used on callback.** `handle_callback/3` records the nonce as used as part of
 validation. If the callback fails for a non-security reason (e.g., `DeploymentNotFound`),
-you cannot retry `handle_callback/3` with the same params — the nonce is already used.
-Handle recoverable errors (like auto-creating a deployment) in the storage adapter itself,
-not by retrying the callback.
+you cannot retry `handle_callback/3` with the same params, because the nonce is already
+used. Handle recoverable errors (like auto-creating a deployment) in the storage adapter
+itself.
 
 ## Error Handling
 
-Errors use the Splode framework with three classes:
+Errors use the Splode framework with three classes.
 
-- `:invalid` — bad input, missing claims, malformed JWT (HTTP 400)
-- `:security` — bad signature, expired token, nonce replay (HTTP 401)
-- `:unknown` — network errors, unexpected failures (HTTP 500)
+- `:invalid` - bad input, missing claims, malformed JWT (HTTP 400)
+- `:security` - bad signature, expired token, nonce replay (HTTP 401)
+- `:unknown` - network errors, unexpected failures (HTTP 500)
 
-Most errors carry a `.spec_ref` field pointing to the violated spec passage. Use
+Most errors have a `.spec_ref` field that references the violated spec passage. Use
 `Ltix.Errors.status_code/1` to get the HTTP status for any error (invalid=400,
 security=401, unknown=500). When Plug is a dependency, all errors also implement
-`Plug.Exception`, so Phoenix error views pick up the correct status automatically.
+`Plug.Exception`, so Phoenix error views use the correct status automatically.
 
 A single failure is returned directly. Several simultaneous failures are grouped in their class, such as `%Ltix.Errors.Invalid{errors: [...]}`.
 
-Match on specific error modules for targeted handling, or fall back to `.class` for broad
-categories:
+Match on specific error modules for targeted handling, or match on `.class` for broad
+categories.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -134,17 +134,17 @@ end
   **context roles only** (course-level).
 - `Role.administrator?/1` checks the **institution** administrator role. Use `Role.context_administrator?/1` for course administrators.
 - For other institution or system roles, use `Role.has_role?/4`.
-- Platform granularity varies wildly:
-  - Canvas: sends sub-roles (e.g., `Instructor#TeachingAssistant`)
-  - Moodle: only `Instructor` or `Learner` (no sub-roles)
-  - Others: varies by admin configuration
-- **Design for the lowest common denominator** — only reliably expect Instructor vs Learner
+- Platform granularity varies.
+  - Canvas sends sub-roles (e.g., `Instructor#TeachingAssistant`)
+  - Moodle sends only `Instructor` or `Learner` (no sub-roles)
+  - Others vary by admin configuration
+- **Design for the roles every platform sends.** Only reliably expect Instructor vs Learner
   across all platforms.
 
 ## Cross-Origin & Iframe Considerations
 
 LTI launches are cross-origin POSTs (platform domain to tool domain), often inside an
-iframe:
+iframe.
 
 - Phoenix defaults to `SameSite=Lax`, which blocks cross-origin POST cookies.
   Set `same_site: "None"`, `secure: true`, and `extra: "Partitioned"` in your endpoint
@@ -154,7 +154,8 @@ iframe:
 - LTI tools are typically embedded in an iframe by the platform. Set a
   `Content-Security-Policy` header (`frame-ancestors 'self' *`) on LTI routes to allow
   this. The platform domains should be scoped down in production.
-- The login endpoint should accept both GET and POST — the LTI spec allows either.
+- The login endpoint should accept both GET and POST, because the LTI spec allows
+  either.
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
   course data, and session cookies are signed, not encrypted. Extract only the fields
   you need (e.g., `subject`, `roles`, `context.id`).
@@ -163,7 +164,7 @@ iframe:
 
 Advantage Service endpoints (grading, roster, deep linking) are optional per-launch. The
 platform decides what to include based on tool configuration. **Always** check for
-`ServiceNotAvailable` before assuming a service is present:
+`ServiceNotAvailable` before assuming a service is present.
 
 ```elixir
 case Ltix.GradeService.authenticate(context) do
@@ -175,13 +176,14 @@ end
 
 ## Optional Configuration
 
-- `:allow_anonymous` — allow launches without a `sub` claim (default: `false`)
-- `:json_library` — auto-detected (`JSON` on Elixir 1.18+/OTP 27+, else `Jason`)
-- `:req_options` — default HTTP options for all outgoing requests
-- `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` (default:
-  `Ltix.JWT.KeySet.ETSCache`). The default ETS cache is a GenServer that must be started
-  in your supervision tree: `children = [Ltix.JWT.KeySet.ETSCache]`. Pass `jwks_cache:` to
-  `handle_callback/3` to override it per call.
+- `:allow_anonymous` - allow launches without a `sub` claim (defaults to `false`)
+- `:json_library` - auto-detected (`JSON` on Elixir 1.18+/OTP 27+, else `Jason`)
+- `:req_options` - default HTTP options for all outgoing requests
+- `:key_set` - name of the `Ltix.JWT.KeySet` to get platform public keys from
+  (defaults to `Ltix.JWT.KeySet`). It must be started in your supervision tree, as
+  `children = [Ltix.JWT.KeySet]`, or `{Ltix.JWT.KeySet, name: MyApp.LtiKeys}` with
+  `config :ltix, key_set: MyApp.LtiKeys`. Pass `key_set:` to `handle_callback/3` to
+  override it per call.
 - Custom claim/role parsers under the `Ltix.LaunchClaims` config key as `:claim_parsers`
   and `:role_parsers`. Pass the same options to `handle_callback/3` to override them for
   one call.
@@ -192,19 +194,19 @@ Ltix emits `:telemetry` events across the OIDC flow, Advantage services, OAuth, 
 cache, and deep linking. All span events follow the `[:ltix, <component>, ...]` naming
 convention with `:start`, `:stop`, and `:exception` suffixes.
 
-Key event prefixes:
-- `[:ltix, :login, ...]` and `[:ltix, :callback, ...]` — OIDC launch flow
-- `[:ltix, :grade_service, <action>, ...]` — grade service operations
-- `[:ltix, :memberships_service, <action>, ...]` — memberships service operations
-- `[:ltix, :deep_linking, :build_response, ...]` — deep linking response building
-- `[:ltix, :oauth, :authenticate, ...]` and `[:ltix, :oauth, :refresh, ...]` — OAuth token acquisition
-- `[:ltix, :jwks, :cache_hit]` and `[:ltix, :jwks, :cache_miss]` — single events (not spans)
+These are the key event prefixes.
+- `[:ltix, :login, ...]` and `[:ltix, :callback, ...]` - OIDC launch flow
+- `[:ltix, :grade_service, <action>, ...]` - grade service operations
+- `[:ltix, :memberships_service, <action>, ...]` - memberships service operations
+- `[:ltix, :deep_linking, :build_response, ...]` - deep linking response building
+- `[:ltix, :oauth, :authenticate, ...]` and `[:ltix, :oauth, :refresh, ...]` - OAuth token acquisition
+- `[:ltix, :jwks, :cache_hit]` and `[:ltix, :jwks, :cache_miss]` - single events (not spans)
 
 See the [telemetry guide](https://hexdocs.pm/ltix/telemetry.md) for full metadata details.
 
 ## Finding Documentation
 
-Use the `usage_rules.docs` and `usage_rules.search_docs` mix tasks:
+Use the `usage_rules.docs` and `usage_rules.search_docs` mix tasks.
 
 ```
 mix usage_rules.docs Ltix.GradeService
@@ -214,7 +216,7 @@ mix usage_rules.search_docs "storage adapter" -p ltix
 ```
 
 Hexdocs can serve raw markdown, which is much easier to read than HTML. Fetch module
-docs and guides directly:
+docs and guides directly.
 
 ```
 # Module docs
@@ -249,11 +251,11 @@ tasks don't give enough context.
 
 ## Skills
 
-Ltix ships two pre-built skills for common integration tasks. These are step-by-step
-guides with collaboration checkpoints — they prompt you to ask the user about app-specific
+Ltix includes two pre-built skills for common integration tasks. These are step-by-step
+guides with collaboration checkpoints. They prompt you to ask the user about app-specific
 decisions before writing code.
 
-- **`implement-storage-adapter`** — implement `Ltix.StorageAdapter` with Ecto schemas,
+- **`implement-storage-adapter`** - implement `Ltix.StorageAdapter` with Ecto schemas,
   nonce management, and deployment policy decisions
-- **`add-lti-launch`** — wire up LTI 1.3 launch endpoints in a Phoenix app (routes,
+- **`add-lti-launch`** - set up LTI 1.3 launch endpoints in a Phoenix app (routes,
   session config, CSRF pipeline, controller skeleton)

@@ -69,8 +69,7 @@ defmodule Ltix.MixProject do
       {:jason, "~> 1.4", optional: true},
       {:splode, "~> 0.3"},
       {:usage_rules, "~> 1.2", only: [:dev, :test], runtime: false},
-      {:plug, "~> 1.19", optional: true},
-      {:cachex, "~> 4.0", optional: true}
+      {:plug, "~> 1.19", optional: true}
     ]
   end
 
@@ -214,10 +213,7 @@ defmodule Ltix.MixProject do
         ],
         JWT: [
           Ltix.JWT.Token,
-          Ltix.JWT.KeySet,
-          Ltix.JWT.KeySet.Cache,
-          Ltix.JWT.KeySet.ETSCache,
-          Ltix.JWT.KeySet.CachexCache
+          Ltix.JWT.KeySet
         ],
         "Launch Claims": [
           Ltix.LaunchClaims,

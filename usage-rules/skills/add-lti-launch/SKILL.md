@@ -5,83 +5,80 @@ description: "Use this skill when adding LTI 1.3 launch support to a Phoenix app
 
 # Add LTI Launch to a Phoenix App
 
-This skill walks through wiring up LTI 1.3 launch endpoints in a Phoenix application.
+This skill describes how to set up LTI 1.3 launch endpoints in a Phoenix application.
 
 ## Prerequisites
 
 - Ltix is installed as a dependency
 - A storage adapter is implemented (see the `implement-storage-adapter` skill)
 - `config :ltix, storage_adapter: MyApp.Lti.StorageAdapter` is set
-- `Ltix.JWT.KeySet.ETSCache` is started in the supervision tree (see Step 1)
+- `Ltix.JWT.KeySet` is started in the supervision tree (see Step 1)
 
 ## Before You Start — Survey the User
 
 These decisions are app-specific and affect security, UX, and architecture. **Enter plan
 mode** (or use a tool that asks the user questions) to gather answers before writing any
 code. Explore the codebase first to pre-fill what you can infer (existing router
-structure, session config, endpoint setup), then ask about the rest:
+structure, session config, endpoint setup), then ask about the rest.
 
-1. **Route paths**: Where should the LTI endpoints live? (e.g., `/lti/login` and
+1. **Route paths.** Where should the LTI endpoints be? (e.g., `/lti/login` and
    `/lti/launch`, or nested under an existing scope?) Check the existing router for
    conventions.
 
-2. **CSRF strategy**: Phoenix's default CSRF protection blocks cross-origin POSTs. The
+2. **CSRF strategy.** Phoenix's default CSRF protection blocks cross-origin POSTs. The
    LTI spec uses nonces for replay protection instead. The recommended approach is two
-   pipelines:
-   - `:lti_launch` — no CSRF protection, for the login and launch POST endpoints
-   - `:lti` — with CSRF protection, for post-launch routes that need it
+   pipelines.
+   - `:lti_launch` - no CSRF protection, for the login and launch POST endpoints
+   - `:lti` - with CSRF protection, for post-launch routes that need it
 
-3. **Iframe strategy**: Most LTI tools render inside the platform's iframe. Three
-   approaches exist:
-   - **Full iframe** (most common): set `same_site: "None"`, `secure: true`, and
+3. **Iframe strategy.** Most LTI tools render inside the platform's iframe. Three
+   approaches exist.
+   - **Full iframe** (most common). Set `same_site: "None"`, `secure: true`, and
      `extra: "Partitioned"` on your session cookie in the endpoint. Your entire app works
-     in the iframe with a single session cookie. This is the simplest path.
-   - **New tab launches**: set `target` to `_blank` in the platform's tool
+     in the iframe with a single session cookie. This is the simplest approach.
+   - **New tab launches.** Set `target` to `_blank` in the platform's tool
      configuration. The launch opens a new browser tab, where browsers that block
      third-party cookies still accept yours. The launch is still a cross-site POST, which
      `SameSite=Lax` cookies are left off, so the cookie that holds the login state still
      needs `SameSite=None`.
-   - **Split rendering**: serve a lightweight iframe view for the launch, then link out
+   - **Split rendering.** Serve a lightweight iframe view for the launch, then link out
      to the full app in a new tab for deeper interaction. Lets you keep `SameSite=Lax`
      on most routes.
 
    The examples below assume the iframe approach.
 
-4. **Post-launch behavior**: What should happen after a successful launch?
+4. **Post-launch behavior.** What should happen after a successful launch?
    - Redirect to a specific page based on `target_link_uri`?
    - Create a local user session? Map to an existing user?
    - Store claims for later use? Which ones?
    - The controller's launch logic is entirely product-specific.
 
-5. **Deep linking**: Does the app need to support deep linking (content selection)?
-   If yes, where should the content picker UI live?
+5. **Deep linking.** Does the app need to support deep linking (content selection)?
+   If yes, where should the content picker UI be?
 
-6. **Error rendering**: Should launch errors render a user-friendly error page, return
+6. **Error rendering.** Should launch errors render a user-friendly error page, return
    JSON, or something else?
 
 ## Step 1: Supervision Tree
 
-Ltix caches platform public keys in ETS so it doesn't re-fetch them on every launch.
-The cache is backed by a GenServer that must be started in your supervision tree:
+Ltix verifies launches with each platform's public keys, which it gets from a key set.
+The key set must be started in your supervision tree.
 
 ```elixir
 # lib/my_app/application.ex
 children = [
   # ... your existing children (Repo, Endpoint, etc.)
-  Ltix.JWT.KeySet.ETSCache
+  Ltix.JWT.KeySet
 ]
 ```
-
-If you already use Cachex, you can use `Ltix.JWT.KeySet.CachexCache` instead. See its
-docs for setup instructions.
 
 ## Step 2: HTTPS & Session Configuration
 
 LTI launches are cross-origin POSTs inside an iframe. Session cookies must be configured
 for this.
 
-**Confirm with the user** before modifying the endpoint session config — this change
-affects all routes:
+**Confirm with the user** before modifying the endpoint session config, because this
+change affects all routes.
 
 ```elixir
 # lib/my_app_web/endpoint.ex — update the session plug
@@ -94,13 +91,13 @@ plug Plug.Session,
   extra: "Partitioned" # <-- Add this line
 ```
 
-Without `same_site: "None"`, the browser silently drops the session cookie inside the
+Without `same_site: "None"`, the browser does not send the session cookie inside the
 iframe and the state check fails. This is the most common source of "launch just
 silently fails" issues. `Partitioned` keeps the cookie working in browsers that block
 third-party cookies. A partitioned cookie is only sent inside that platform's iframe.
 
 For development, HTTPS is required. If your user isn't using a reverse proxy that handles TLS (like Caddy),
-they'll need to set up a self-signed certificate and configure the Phoenix endpoint to use it:
+they'll need to set up a self-signed certificate and configure the Phoenix endpoint to use it.
 
 ```elixir
 # config/dev.exs — generate certs with: mix phx.gen.cert
@@ -115,7 +112,7 @@ config :my_app, MyAppWeb.Endpoint,
 
 You can generate self-signed certs with `mix phx.gen.cert`.
 
-**Dev tip**: Have the user visit `https://localhost:4001` and accept the self-signed
+**Dev tip.** Have the user visit `https://localhost:4001` and accept the self-signed
 certificate warning before attempting LTI launches. The platform's redirect will fail
 if the cert is not trusted by the browser.
 
@@ -179,7 +176,7 @@ defmodule MyAppWeb.Router do
 end
 ```
 
-Two things to note:
+Note two things.
 
 - `protect_from_forgery` is omitted in `:lti_launch` because platforms POST directly to
   your tool. The LTI specification provides CSRF protection through `state` and `nonce`
@@ -190,8 +187,8 @@ Two things to note:
 
 ## Step 4: Controller
 
-The login action is mostly mechanical. The launch action's success path is where the
-app-specific decisions from "Before You Start" come in:
+The login action needs few app-specific changes. The launch action's success path
+implements the app-specific decisions from "Before You Start".
 
 ```elixir
 defmodule MyAppWeb.LtiController do
@@ -269,14 +266,14 @@ defmodule MyAppWeb.LtiController do
 end
 ```
 
-Key points about the controller:
+These are the key points about the controller.
 
 - **`Ltix.Errors.status_code/1`** returns the HTTP status code for any Ltix error
-  (400 for invalid, 401 for security, 500 for unknown). Use this instead of manually
-  mapping error classes.
+  (400 for invalid, 401 for security, 500 for unknown). Use this to set the response
+  status.
 - **`context.registration`** is whatever your `get_registration/2` callback returned
-  (your Ecto schema), not the internal `Ltix.Registration`. Access your own fields
-  directly (e.g., `context.registration.id`).
+  (your Ecto schema). Access your own fields directly (e.g.,
+  `context.registration.id`).
 - **`context.deployment`** is similarly your original struct from `get_deployment/2`.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
@@ -296,7 +293,7 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}]
 ```
 
-Example controller test — adapt route paths and assertions to match the app:
+Example controller test. Adapt route paths and assertions to match the app.
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do
@@ -339,17 +336,16 @@ end
 
 ## Technical Constraints
 
-These are non-negotiable requirements from the LTI spec:
+These are requirements from the LTI spec.
 
-- **`Ltix.JWT.KeySet.ETSCache` must be in the supervision tree.** It's a GenServer that
-  owns the ETS table for caching platform public keys. Without it, launch validation
-  will fail.
-- **State goes in the session**, not in query params or cookies. Store during login,
+- **`Ltix.JWT.KeySet` must be in the supervision tree.** Without it, a launch raises
+  `Ltix.Errors.Unknown.KeySetNotStarted`.
+- **State is stored in the session**, not in query params or cookies. Store during login,
   retrieve during launch, delete after successful launch.
 - **The login endpoint accepts both GET and POST, and the launch endpoint accepts POST.** The platform may initiate login with either method, and it sends the launch as a form-encoded POST.
 - **HTTPS is mandatory** in both production and development.
 - **`same_site: "None"`, `secure: true`, and `extra: "Partitioned"`** are required for
-  session cookies to survive cross-origin redirects in iframes.
+  the browser to send session cookies after cross-origin redirects in iframes.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
   course data, and session cookies are signed, not encrypted. Store only the fields you

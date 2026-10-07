@@ -32,15 +32,15 @@ defmodule Ltix.JWT.Token do
 
   ## Options
 
-    * `:clock_skew` — seconds of tolerance for `exp` and `iat` validation
-      (default: `5`)
-    * `:max_token_age` — seconds after `iat` that a token is still accepted,
+    * `:clock_skew` - seconds of tolerance for `exp` and `iat` validation
+      (defaults to `5`)
+    * `:max_token_age` - seconds after `iat` that a token is still accepted,
       or `:infinity` to accept any age (defaults to application config, then
       `3600`)
-    * `:now` — override current time in unix seconds (useful for testing)
-    * `:req_options` — extra options passed through to `Ltix.JWT.KeySet`
-    * `:jwks_cache` — cache module passed through to `Ltix.JWT.KeySet`
-    * `:local_network_access` — passed through to `Ltix.JWT.KeySet`
+    * `:now` - override current time in unix seconds (useful for testing)
+    * `:req_options` - extra options passed through to `Ltix.JWT.KeySet`
+    * `:key_set` - key set name passed through to `Ltix.JWT.KeySet`
+    * `:local_network_access` - passed through to `Ltix.JWT.KeySet`
   """
 
   alias Ltix.AppConfig
@@ -67,7 +67,7 @@ defmodule Ltix.JWT.Token do
                         Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)]),
                       now: Zoi.integer(),
                       req_options: Zoi.keyword(Zoi.any()),
-                      jwks_cache: Zoi.module(),
+                      key_set: Zoi.atom(),
                       local_network_access: Ltix.HTTP.local_network_access_option()
                     ],
                     unrecognized_keys: :error
@@ -96,7 +96,7 @@ defmodule Ltix.JWT.Token do
            KeySet.get_key(
              registration,
              kid,
-             Keyword.take(opts, [:req_options, :jwks_cache, :local_network_access])
+             Keyword.take(opts, [:req_options, :key_set, :local_network_access])
            ),
          {:ok, claims} <- verify_signature(token_string, jwk),
          :ok <- validate_claims(claims, registration, opts) do
@@ -237,7 +237,7 @@ defmodule Ltix.JWT.Token do
       is_binary(aud) and aud == client_id ->
         validate_azp(azp, client_id)
 
-      # Array audience — must contain only client_id, no untrusted audiences
+      # Array audience. It must contain only client_id, no untrusted audiences
       is_list(aud) and aud == [client_id] ->
         validate_azp(azp, client_id)
 

@@ -39,7 +39,7 @@ defmodule Ltix.OIDC.Callback do
         :clock_skew,
         :max_token_age,
         :req_options,
-        :jwks_cache,
+        :key_set,
         :local_network_access
       ])
 
@@ -108,7 +108,7 @@ defmodule Ltix.OIDC.Callback do
     end
   end
 
-  # Peek at unverified JWT claims to get iss and aud for registration lookup.
+  # Read unverified JWT claims to get iss and aud for registration lookup.
   # Safe because Token.verify/3 validates iss and aud against the registration
   # after signature verification.
   defp peek_issuer_and_audience(id_token) do

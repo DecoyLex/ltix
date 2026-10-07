@@ -3,18 +3,6 @@ defmodule Ltix.JWT.KeySetTest do
 
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.JWT.KeySet
-  alias Ltix.JWT.KeySet.ETSCache
-
-  defmodule NoCache do
-    @moduledoc false
-    @behaviour Ltix.JWT.KeySet.Cache
-
-    @impl Ltix.JWT.KeySet.Cache
-    def get(_jwks_uri), do: :miss
-
-    @impl Ltix.JWT.KeySet.Cache
-    def put(_jwks_uri, _entry, _max_age), do: :ok
-  end
 
   setup do
     platform_jwk = Ltix.JWK.generate()
@@ -40,14 +28,14 @@ defmodule Ltix.JWT.KeySetTest do
         KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, request_options: [])
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :jwks_cache is invalid/, fn ->
-        KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, jwks_cache: "cache")
+      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :key_set is invalid/, fn ->
+        KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, key_set: "keys")
       end
     end
 
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
     test "fetches and selects key by kid", ctx do
-      stub_jwks(ctx.jwks)
+      count_fetches(jwks(ctx.jwks))
 
       kid = ctx.platform_jwk.kid
 
@@ -59,7 +47,7 @@ defmodule Ltix.JWT.KeySetTest do
     test "selects correct key from multi-key JWKS", ctx do
       second_jwk = Ltix.JWK.generate()
       jwks = Ltix.JWK.to_jwks([ctx.platform_jwk, second_jwk])
-      stub_jwks(jwks)
+      count_fetches(jwks(jwks))
 
       kid = second_jwk.kid
 
@@ -69,31 +57,31 @@ defmodule Ltix.JWT.KeySetTest do
 
     # [Cert §6.1.1] "Incorrect KID in JWT header"
     test "returns KidNotFound when kid not in JWKS", ctx do
-      stub_jwks(ctx.jwks)
+      count_fetches(jwks(ctx.jwks))
 
       assert {:error, %Ltix.Errors.Security.KidNotFound{kid: "wrong-kid"}} =
                KeySet.get_key(ctx.registration, "wrong-kid", req_options: req_options())
     end
 
     # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
-    test "re-fetches an unknown kid when the cached keys are at least 30 seconds old", ctx do
+    test "re-fetches an unknown kid once the refetch interval has passed", ctx do
       rotated_jwk = Ltix.JWK.generate()
-      fetch_count = count_fetches(Ltix.JWK.to_jwks([ctx.platform_jwk, rotated_jwk]))
-      cache_keys(ctx, fetched_seconds_ago: 30)
+      opts = cache_keys(ctx, refetch_interval: 0)
+      fetch_count = count_fetches(jwks(Ltix.JWK.to_jwks([ctx.platform_jwk, rotated_jwk])))
 
       kid = rotated_jwk.kid
 
-      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
-               KeySet.get_key(ctx.registration, kid, req_options: req_options())
+      for _lookup <- 1..2 do
+        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
+                 KeySet.get_key(ctx.registration, kid, opts)
+      end
 
       assert :counters.get(fetch_count, 1) == 1
-
-      assert {:ok, %{keys: %{^kid => _jwk}}} = ETSCache.get(ctx.registration.jwks_uri)
     end
 
     # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
     test "does not re-fetch an unknown kid within 30 seconds of the last fetch", ctx do
-      fetch_count = count_fetches(ctx.jwks)
+      fetch_count = count_fetches(jwks(ctx.jwks))
       opts = [req_options: req_options()]
 
       assert {:ok, _jwk} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
@@ -107,7 +95,7 @@ defmodule Ltix.JWT.KeySetTest do
     end
 
     test "does not re-fetch a kid missing from a key set it just fetched", ctx do
-      fetch_count = count_fetches(ctx.jwks)
+      fetch_count = count_fetches(jwks(ctx.jwks))
 
       assert {:error, %Ltix.Errors.Security.KidNotFound{}} =
                KeySet.get_key(ctx.registration, "unknown-kid", req_options: req_options())
@@ -116,47 +104,30 @@ defmodule Ltix.JWT.KeySetTest do
     end
 
     test "keeps the cached keys when re-fetching for an unknown kid fails", ctx do
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(503, "unavailable")
-      end)
-
-      cache_keys(ctx, fetched_seconds_ago: 60)
+      opts = cache_keys(ctx, refetch_interval: 0)
+      count_fetches(status(503))
 
       assert {:error, %TransportError{status: 503}} =
-               KeySet.get_key(ctx.registration, "unknown-kid",
-                 req_options: req_options() ++ [retry: false]
-               )
+               KeySet.get_key(ctx.registration, "unknown-kid", opts)
 
       kid = ctx.platform_jwk.kid
 
       assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
-               KeySet.get_key(ctx.registration, kid, req_options: req_options())
+               KeySet.get_key(ctx.registration, kid, opts)
     end
 
     test "returns error for non-200 HTTP response", ctx do
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(404, "Not Found")
-      end)
-
+      count_fetches(status(404))
       jwks_uri = ctx.registration.jwks_uri
 
       assert {:error, %TransportError{status: 404, url: ^jwks_uri, spec_ref: "Sec §6.3"}} =
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
-                 req_options: req_options() ++ [retry: false]
+                 req_options: req_options(retry: false)
                )
     end
 
-    test "returns AccessDenied when the key set endpoint answers HTTP 401", ctx do
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(401, "denied")
-      end)
-
+    test "returns AccessDenied when the key set endpoint responds with HTTP 401", ctx do
+      count_fetches(status(401))
       jwks_uri = ctx.registration.jwks_uri
 
       assert {:error,
@@ -166,16 +137,12 @@ defmodule Ltix.JWT.KeySetTest do
                 spec_ref: "Sec §6.3"
               }} =
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
-                 req_options: req_options() ++ [retry: false]
+                 req_options: req_options(retry: false)
                )
     end
 
-    test "handles JWKS with no keys array gracefully", ctx do
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
-        |> Req.Test.json(%{"not_keys" => []})
-      end)
+    test "returns KidNotFound for a JWKS with no keys array", ctx do
+      count_fetches(jwks(%{"not_keys" => []}))
 
       assert {:error, %Ltix.Errors.Security.KidNotFound{}} =
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, req_options: req_options())
@@ -184,7 +151,7 @@ defmodule Ltix.JWT.KeySetTest do
     test "skips malformed keys in the key set", ctx do
       [platform_key] = ctx.jwks["keys"]
       keys = [123, "key", %{"kid" => "no-type"}, %{"kty" => "RSA", "kid" => "bad", "n" => 1}]
-      stub_jwks(%{"keys" => keys ++ [platform_key]})
+      count_fetches(jwks(%{"keys" => keys ++ [platform_key]}))
 
       kid = ctx.platform_jwk.kid
       opts = [req_options: req_options()]
@@ -200,9 +167,10 @@ defmodule Ltix.JWT.KeySetTest do
 
     test "decodes a key set served without a JSON content type", ctx do
       body = Ltix.AppConfig.json_library!().encode!(ctx.jwks)
+      kid = ctx.platform_jwk.kid
 
       for content_type <- ["text/plain", nil] do
-        Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+        count_fetches(fn conn ->
           conn =
             if content_type,
               do: Plug.Conn.put_resp_content_type(conn, content_type),
@@ -211,18 +179,17 @@ defmodule Ltix.JWT.KeySetTest do
           Plug.Conn.send_resp(conn, 200, body)
         end)
 
-        kid = ctx.platform_jwk.kid
+        opts = [key_set: start_key_set(refetch_interval: 0), req_options: req_options()]
 
         assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} =
-                 KeySet.get_key(ctx.registration, kid,
-                   jwks_cache: NoCache,
-                   req_options: req_options()
-                 )
+                 KeySet.get_key(ctx.registration, kid, opts)
+
+        stop_supervised!(__MODULE__.Keys)
       end
     end
 
     test "returns MalformedResponse for a key set that is not JSON", ctx do
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+      count_fetches(fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("text/html")
         |> Plug.Conn.send_resp(200, "<html>maintenance</html>")
@@ -233,116 +200,210 @@ defmodule Ltix.JWT.KeySetTest do
     end
 
     test "returns TransportError on network failure", ctx do
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        Req.Test.transport_error(conn, :timeout)
-      end)
-
+      count_fetches(&Req.Test.transport_error(&1, :timeout))
       jwks_uri = ctx.registration.jwks_uri
 
       assert {:error, %TransportError{status: nil, url: ^jwks_uri}} =
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
-                 req_options: req_options() ++ [retry: false]
+                 req_options: req_options(retry: false)
                )
     end
 
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
     test "caches JWKS and serves from cache on subsequent calls", ctx do
-      fetch_count = :counters.new(1, [:atomics])
-
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        :counters.add(fetch_count, 1, 1)
-
-        conn
-        |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
-        |> Req.Test.json(ctx.jwks)
-      end)
-
+      fetch_count = count_fetches(jwks(ctx.jwks))
       opts = [req_options: req_options()]
 
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      for _lookup <- 1..3 do
+        assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      end
 
-      # Only one HTTP fetch
       assert :counters.get(fetch_count, 1) == 1
     end
 
-    # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
-    test "does not cache when max-age=0", ctx do
-      fetch_count = :counters.new(1, [:atomics])
-
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        :counters.add(fetch_count, 1, 1)
-
-        conn
-        |> Plug.Conn.put_resp_header("cache-control", "max-age=0")
-        |> Req.Test.json(ctx.jwks)
-      end)
-
+    test "keeps a key set served with max-age=0 for the refetch interval", ctx do
+      fetch_count = count_fetches(jwks(ctx.jwks, "max-age=0"))
       opts = [req_options: req_options()]
 
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      for _lookup <- 1..2 do
+        assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      end
 
-      # max-age=0 means no caching, so two fetches
-      assert :counters.get(fetch_count, 1) == 2
+      assert :counters.get(fetch_count, 1) == 1
     end
 
     # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
     test "uses default max-age when no cache-control header", ctx do
-      fetch_count = :counters.new(1, [:atomics])
+      fetch_count =
+        count_fetches(fn conn ->
+          conn
+          |> Plug.Conn.delete_resp_header("cache-control")
+          |> Req.Test.json(ctx.jwks)
+        end)
 
-      Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
-        :counters.add(fetch_count, 1, 1)
+      opts = [key_set: start_key_set(refetch_interval: 0), req_options: req_options()]
 
-        conn
-        |> Plug.Conn.delete_resp_header("cache-control")
-        |> Req.Test.json(ctx.jwks)
-      end)
+      for _lookup <- 1..2 do
+        assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      end
 
-      opts = [req_options: req_options()]
-
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
-      assert {:ok, _} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
-
-      # Default max-age applies, so only one fetch
       assert :counters.get(fetch_count, 1) == 1
     end
   end
 
-  defp count_fetches(jwks) do
+  describe "get_key/3 with lookups at the same time" do
+    test "fetches a key set once for lookups that miss the cache together", ctx do
+      fetch_count = count_fetches(jwks(ctx.jwks), delay: 100)
+      kid = ctx.platform_jwk.kid
+
+      for result <- lookup_concurrently(ctx, kid, req_options: req_options()) do
+        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = result
+      end
+
+      assert :counters.get(fetch_count, 1) == 1
+    end
+
+    test "re-fetches once for lookups of a rotated key", ctx do
+      rotated_jwk = Ltix.JWK.generate()
+      opts = cache_keys(ctx, refetch_interval: 0)
+
+      fetch_count =
+        count_fetches(jwks(Ltix.JWK.to_jwks([ctx.platform_jwk, rotated_jwk])), delay: 100)
+
+      kid = rotated_jwk.kid
+
+      for result <- lookup_concurrently(ctx, kid, opts) do
+        assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = result
+      end
+
+      assert :counters.get(fetch_count, 1) == 1
+    end
+
+    test "fetches again when the process that was fetching is killed", ctx do
+      owner = self()
+      kid = ctx.platform_jwk.kid
+
+      fetch_count =
+        count_fetches(fn conn ->
+          send(owner, {:fetching, self()})
+
+          receive do
+            :respond -> Req.Test.json(conn, ctx.jwks)
+          end
+        end)
+
+      lookup = fn -> KeySet.get_key(ctx.registration, kid, req_options: req_options()) end
+
+      first = Task.async(lookup)
+      assert_receive {:fetching, _first}
+      second = Task.async(lookup)
+      Process.sleep(50)
+      Task.shutdown(first, :brutal_kill)
+
+      assert_receive {:fetching, fetcher}
+      send(fetcher, :respond)
+
+      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = Task.await(second)
+      assert :counters.get(fetch_count, 1) == 2
+    end
+
+    test "fetches again when the fetch raises", ctx do
+      owner = self()
+      kid = ctx.platform_jwk.kid
+
+      fetch_count =
+        count_fetches(fn conn ->
+          send(owner, {:fetching, self()})
+
+          receive do
+            :raise -> raise "fetch failed"
+            :respond -> Req.Test.json(conn, ctx.jwks)
+          end
+        end)
+
+      lookup = fn ->
+        try do
+          KeySet.get_key(ctx.registration, kid, req_options: req_options())
+        rescue
+          error in RuntimeError -> {:raised, error.message}
+        end
+      end
+
+      first = Task.async(lookup)
+      assert_receive {:fetching, first_fetcher}
+      second = Task.async(lookup)
+      Process.sleep(50)
+      send(first_fetcher, :raise)
+
+      assert_receive {:fetching, second_fetcher}
+      send(second_fetcher, :respond)
+
+      assert Task.await(first) == {:raised, "fetch failed"}
+      assert {:ok, %JOSE.JWK{fields: %{"kid" => ^kid}}} = Task.await(second)
+      assert :counters.get(fetch_count, 1) == 2
+    end
+  end
+
+  describe "get_key/3 after a failed fetch" do
+    test "returns the error without fetching again for 30 seconds", ctx do
+      fetch_count = count_fetches(status(503))
+      opts = [req_options: req_options(retry: false)]
+
+      for _attempt <- 1..3 do
+        assert {:error, %TransportError{status: 503}} =
+                 KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+      end
+
+      assert :counters.get(fetch_count, 1) == 1
+    end
+  end
+
+  # Stubs the key set endpoint with `respond` and counts the requests to it.
+  defp count_fetches(respond, opts \\ []) do
     fetch_count = :counters.new(1, [:atomics])
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       :counters.add(fetch_count, 1, 1)
-
-      conn
-      |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
-      |> Req.Test.json(jwks)
+      Process.sleep(Keyword.get(opts, :delay, 0))
+      respond.(conn)
     end)
 
     fetch_count
   end
 
-  # Caches the test's platform key as fetched the given number of seconds ago.
-  defp cache_keys(ctx, fetched_seconds_ago: seconds) do
-    entry = %{
-      keys: %{ctx.platform_jwk.kid => JOSE.JWK.from_map(hd(ctx.jwks["keys"]))},
-      fetched_at: DateTime.add(DateTime.utc_now(), -seconds)
-    }
-
-    ETSCache.put(ctx.registration.jwks_uri, entry, 300)
-  end
-
-  defp stub_jwks(jwks) do
-    Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
+  defp jwks(jwks, cache_control \\ "max-age=300") do
+    fn conn ->
       conn
-      |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
+      |> Plug.Conn.put_resp_header("cache-control", cache_control)
       |> Req.Test.json(jwks)
-    end)
+    end
   end
 
-  defp req_options do
-    [plug: {Req.Test, Ltix.JWT.KeySet}]
+  defp status(status), do: &Plug.Conn.send_resp(&1, status, "")
+
+  defp start_key_set(opts) do
+    start_supervised!({KeySet, [name: __MODULE__.Keys] ++ opts})
+    __MODULE__.Keys
+  end
+
+  # Fetches the test's platform key into a new key set and returns the
+  # options for looking keys up in it.
+  defp cache_keys(ctx, opts) do
+    count_fetches(jwks(ctx.jwks))
+    opts = [key_set: start_key_set(opts), req_options: req_options(retry: false)]
+    {:ok, _jwk} = KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, opts)
+    opts
+  end
+
+  defp lookup_concurrently(ctx, kid, opts) do
+    1..20
+    |> Enum.map(fn _index ->
+      Task.async(fn -> KeySet.get_key(ctx.registration, kid, opts) end)
+    end)
+    |> Task.await_many()
+  end
+
+  defp req_options(extra \\ []) do
+    [plug: {Req.Test, Ltix.JWT.KeySet}] ++ extra
   end
 end

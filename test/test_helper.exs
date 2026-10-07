@@ -1,5 +1,5 @@
-# Create the JWKS cache ETS table owned by the test runner process
-# so it persists for the entire test suite (async-safe).
-:ets.new(:ltix_jwks_cache, [:set, :public, :named_table])
+# The key set is linked to the test runner process, so it runs for the
+# entire test suite.
+{:ok, _key_set} = Ltix.JWT.KeySet.start_link()
 
 ExUnit.start()

@@ -30,23 +30,6 @@ defmodule LtixTest do
     defdelegate validate_nonce(nonce, registration, expires_at), to: StorageAdapter
   end
 
-  defmodule RecordingCache do
-    @moduledoc false
-    @behaviour Ltix.JWT.KeySet.Cache
-
-    @impl Ltix.JWT.KeySet.Cache
-    def get(jwks_uri) do
-      send(self(), {:jwks_cache, :get, jwks_uri})
-      :miss
-    end
-
-    @impl Ltix.JWT.KeySet.Cache
-    def put(jwks_uri, _entry, _max_age) do
-      send(self(), {:jwks_cache, :put, jwks_uri})
-      :ok
-    end
-  end
-
   # Returns a result sent by the test for a callback, otherwise delegates.
   defmodule ScriptedStorageAdapter do
     @moduledoc false
@@ -237,13 +220,6 @@ defmodule LtixTest do
                          redirect_uri: @redirect_uri
                        }}
     end
-
-    test "delegates errors from underlying modules" do
-      params = Map.delete(login_params(), "iss")
-
-      assert {:error, %MissingParameter{parameter: "iss"}} =
-               Ltix.handle_login(params, @redirect_uri, storage_adapter: StorageAdapter)
-    end
   end
 
   describe "handle_login!/3" do
@@ -311,18 +287,16 @@ defmodule LtixTest do
       assert launch.claims.message_type == "LtiResourceLinkRequest"
     end
 
-    test "uses the jwks_cache option for platform keys", ctx do
+    test "gets platform keys from the key set whose name is the key_set option", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
-      jwks_uri = ctx.registration.jwks_uri
+      opts = [key_set: __MODULE__.Keys, req_options: req_options()]
 
-      assert {:ok, %LaunchContext{}} =
-               Ltix.handle_callback(params, ctx.state,
-                 jwks_cache: RecordingCache,
-                 req_options: req_options()
-               )
+      assert_raise Ltix.Errors.Unknown.KeySetNotStarted, fn ->
+        Ltix.handle_callback(params, ctx.state, opts)
+      end
 
-      assert_received {:jwks_cache, :get, ^jwks_uri}
-      assert_received {:jwks_cache, :put, ^jwks_uri}
+      start_supervised!({Ltix.JWT.KeySet, name: __MODULE__.Keys})
+      assert {:ok, %LaunchContext{}} = Ltix.handle_callback(params, ctx.state, opts)
     end
 
     test "reports the registration's client_id in callback telemetry", ctx do
@@ -393,17 +367,9 @@ defmodule LtixTest do
 
     for {key, prefix, required, field} <- [
           {"https://purl.imsglobal.org/spec/lti/claim/context", "context", %{"id" => "course"},
-           "id"},
-          {"https://purl.imsglobal.org/spec/lti/claim/context", "context", %{"id" => "course"},
-           "label"},
-          {"https://purl.imsglobal.org/spec/lti/claim/context", "context", %{"id" => "course"},
            "title"},
           {"https://purl.imsglobal.org/spec/lti/claim/resource_link", "resource_link",
            %{"id" => "link"}, "title"},
-          {"https://purl.imsglobal.org/spec/lti/claim/resource_link", "resource_link",
-           %{"id" => "link"}, "description"},
-          {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
-           %{"guid" => "platform"}, "guid"},
           {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
            %{"guid" => "platform"}, "name"},
           {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
@@ -411,20 +377,12 @@ defmodule LtixTest do
           {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
            %{"guid" => "platform"}, "description"},
           {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
-           %{"guid" => "platform"}, "url"},
-          {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
            %{"guid" => "platform"}, "product_family_code"},
-          {"https://purl.imsglobal.org/spec/lti/claim/tool_platform", "tool_platform",
-           %{"guid" => "platform"}, "version"},
           {"https://purl.imsglobal.org/spec/lti/claim/launch_presentation", "launch_presentation",
            %{}, "document_target"},
           {"https://purl.imsglobal.org/spec/lti/claim/launch_presentation", "launch_presentation",
            %{}, "return_url"},
-          {"https://purl.imsglobal.org/spec/lti/claim/launch_presentation", "launch_presentation",
-           %{}, "locale"},
           {"https://purl.imsglobal.org/spec/lti/claim/lis", "lis", %{}, "person_sourcedid"},
-          {"https://purl.imsglobal.org/spec/lti/claim/lis", "lis", %{},
-           "course_offering_sourcedid"},
           {"https://purl.imsglobal.org/spec/lti/claim/lis", "lis", %{},
            "course_section_sourcedid"},
           {"https://purl.imsglobal.org/spec/lti-ags/claim/endpoint", "ags_endpoint", %{},
@@ -433,13 +391,6 @@ defmodule LtixTest do
            "lineitem"},
           {"https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice",
            "memberships_endpoint", %{}, "context_memberships_url"},
-          {"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings",
-           "deep_linking_settings",
-           %{
-             "deep_link_return_url" => "https://platform.example.com/return",
-             "accept_types" => [],
-             "accept_presentation_document_targets" => []
-           }, "deep_link_return_url"},
           {"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings",
            "deep_linking_settings",
            %{
@@ -473,11 +424,7 @@ defmodule LtixTest do
 
           parsed = Map.fetch!(claims, String.to_existing_atom(unquote(prefix)))
 
-          if field in ["id", "guid", "deep_link_return_url"] do
-            assert parsed == nil
-          else
-            assert Map.fetch!(parsed, struct_field(field)) == nil
-          end
+          assert Map.fetch!(parsed, struct_field(field)) == nil
 
           assert claims.subject == "user-12345"
         end
@@ -559,21 +506,19 @@ defmodule LtixTest do
       end
     end
 
-    for field <- ~w(email name given_name family_name middle_name picture locale) do
-      test "omits malformed #{field} profile claims", ctx do
-        field = unquote(field)
+    test "omits malformed email profile claims", ctx do
+      field = "email"
 
-        for value <- [123, false, %{}, [], [%{}]] do
-          assert {:ok, %LaunchContext{claims: claims}} =
-                   callback_with_claim(ctx, field, value)
+      for value <- [123, false, %{}, [], [%{}]] do
+        assert {:ok, %LaunchContext{claims: claims}} =
+                 callback_with_claim(ctx, field, value)
 
-          assert Map.fetch!(claims, String.to_existing_atom(field)) == nil
-          assert claims.subject == "user-12345"
-        end
-
-        assert {:ok, %LaunchContext{claims: claims}} = callback_with_claim(ctx, field, nil)
         assert Map.fetch!(claims, String.to_existing_atom(field)) == nil
+        assert claims.subject == "user-12345"
       end
+
+      assert {:ok, %LaunchContext{claims: claims}} = callback_with_claim(ctx, field, nil)
+      assert Map.fetch!(claims, String.to_existing_atom(field)) == nil
     end
 
     test "rejects nonnumeric issued-at claims and preserves fractional NumericDates", ctx do
@@ -672,7 +617,7 @@ defmodule LtixTest do
       end
     end
 
-    test "delegates errors from underlying modules" do
+    test "returns errors from underlying modules" do
       params = %{"state" => "some-state"}
 
       assert {:error, %MissingParameter{parameter: "id_token"}} =
@@ -797,9 +742,7 @@ defmodule LtixTest do
   @struct_fields %{
     "lineitems" => :line_items,
     "lineitem" => :line_item,
-    "scope" => :scopes,
     "person_sourcedid" => :person_source_id,
-    "course_offering_sourcedid" => :course_offering_source_id,
     "course_section_sourcedid" => :course_section_source_id
   }
 

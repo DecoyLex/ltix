@@ -4,7 +4,7 @@ Ltix authenticates LTI launches and calls platform services for your tool. This 
 
 ## Trust
 
-Ltix follows the trust model of the LTI specifications. Registering a platform is the decision to trust it. After that, Ltix believes what the platform signs and what its services return, including the roles it assigns, the URLs in its launch claims, and the data in its responses.
+Ltix follows the trust model of the LTI specifications. Registering a platform is the decision to trust it. After that, Ltix accepts what the platform signs and what its services return, including the roles it assigns, the URLs in its launch claims, and the data in its responses.
 
 Ltix also trusts your application's code and configuration, such as your storage adapter, claim parsers, role parsers, and options.
 
@@ -28,7 +28,7 @@ A successful `Ltix.handle_callback/3` means all of the following hold.
 - **Replay.** The nonce hasn't been used before, as long as your storage adapter records each nonce once.
 - **Deployment.** Your storage adapter returned a deployment for the token's deployment ID.
 
-When a token's key ID isn't in the cached key set, Ltix fetches the key set again only if the cached copy is at least 30 seconds old. Launches that arrive at the same time can each fetch it. A key set URL with no cached copy is fetched on every launch, which happens while fetches fail or when the platform sends `max-age=0`.
+Ltix fetches a key set URL at most once every 30 seconds, however many launches arrive and whatever key IDs they have. A fetch retries a temporary failure up to three times. While a platform's key set URL is failing, launches for that platform return the error until 30 seconds have passed. The limit applies to each node separately.
 
 Ltix rejects input only when authenticating the launch or doing what you asked depends on it. A launch with a malformed optional field still succeeds, and that field is left out.
 
@@ -45,7 +45,7 @@ Inspecting a `Ltix.JWK`, `Ltix.OAuth.AccessToken`, or `Ltix.OAuth.Client` hides 
 
 ## Your application
 
-These guarantees depend on your application doing its part. It keeps the login state in the user's session, records each nonce once, protects the routes it serves after a launch, and keeps its signing keys secret. [Hardening Your Tool](hardening.md) covers each step.
+These guarantees depend on what your application does. It keeps the login state in the user's session, records each nonce once, protects the routes it serves after a launch, and keeps its signing keys secret. [Hardening Your Tool](hardening.md) covers each step.
 
 ## Out of scope
 
@@ -59,6 +59,6 @@ Report vulnerabilities privately through GitHub's private vulnerability reportin
 
 ## Next steps
 
-- [Hardening Your Tool](hardening.md): what your application has to do
-- [Concepts](concepts.md): how a launch works
-- [Storage Adapters](storage-adapters.md): the callbacks your application implements
+- [Hardening Your Tool](hardening.md) - what your application has to do
+- [Concepts](concepts.md) - how a launch works
+- [Storage Adapters](storage-adapters.md) - the callbacks your application implements

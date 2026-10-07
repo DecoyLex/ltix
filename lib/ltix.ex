@@ -1,18 +1,18 @@
 defmodule Ltix do
   @moduledoc """
   Ltix handles the LTI 1.3 OIDC launch flow for tool applications. It is
-  built around 4 main components:
+  built around 4 main components.
 
-    * `Ltix.Registration` — what the tool knows about a platform (issuer,
+    * `Ltix.Registration` - what the tool stores about a platform (issuer,
       client_id, endpoints). Created during out-of-band registration
 
-    * `Ltix.StorageAdapter` — behaviour your app implements to look up
+    * `Ltix.StorageAdapter` - behaviour your app implements to look up
       registrations, deployments, and manage nonces
 
-    * `Ltix.LaunchContext` — the validated output of a successful launch,
+    * `Ltix.LaunchContext` - the validated output of a successful launch,
       containing the parsed claims, registration, and deployment
 
-    * `Ltix.LaunchClaims` — structured data parsed from the ID Token
+    * `Ltix.LaunchClaims` - structured data parsed from the ID Token
       (roles, context, resource link, and more)
 
   ## Configuration
@@ -22,59 +22,54 @@ defmodule Ltix do
 
   `handle_login/3` takes `:storage_adapter`, and `handle_callback/3` takes
   `:storage_adapter`, `:allow_anonymous`, `:max_token_age`,
-  `:local_network_access`, `:req_options`, and `:jwks_cache`, to override the
+  `:local_network_access`, `:req_options`, and `:key_set`, to override the
   setting for a single call. Unknown or invalid options raise
   `Ltix.Errors.Invalid.InvalidOption`.
 
   ### Required
 
-    * `:storage_adapter` — module implementing `Ltix.StorageAdapter`.
+    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`.
       Looked up at runtime, so it works with releases.
 
   ### Optional
 
-    * `:allow_anonymous` — when `true`, allow launches without a `sub`
+    * `:allow_anonymous` - when `true`, allow launches without a `sub`
       claim in the ID Token. Defaults to `false`.
 
-    * `:max_token_age` — seconds after the platform issued the ID Token
+    * `:max_token_age` - seconds after the platform issued the ID Token
       that the launch is still accepted, or `:infinity` to accept any age.
       Defaults to `3600`.
 
-    * `:local_network_access` — the addresses platform requests may reach
-      besides public ones. `:local` adds private network addresses, and
-      `:loopback` adds those and this machine. Defaults to `:none`. The
-      functions that send platform requests take the same option. The
-      `:finch`, `:adapter`, `:unix_socket`, and proxy options in
-      `:req_options` need `:loopback`, because Ltix can't check the
+    * `:local_network_access` - the addresses platform requests may
+      connect to besides public ones. `:local` adds private network
+      addresses, and `:loopback` adds those and this machine. Defaults to
+      `:none`. The functions that send platform requests take the same
+      option. The `:finch`, `:adapter`, `:unix_socket`, and proxy options
+      in `:req_options` need `:loopback`, because Ltix can't check the
       addresses they connect to.
 
-    * `:json_library` — JSON encoder/decoder module. Detected at
-      compile time: uses `JSON` (Elixir 1.18+/OTP 27+) if available,
+    * `:json_library` - JSON encoder/decoder module. Detected at
+      compile time, using `JSON` (Elixir 1.18+/OTP 27+) if available,
       then `Jason`. Only set this if you need a different library.
 
-    * `:req_options` — default options passed to `Req.request/2` for
+    * `:req_options` - default options passed to `Req.request/2` for
       all HTTP calls (JWKS fetching, OAuth token requests, service
       calls). Useful for setting timeouts, middleware, or test
-      adapters:
+      adapters.
 
           config :ltix, req_options: [receive_timeout: 10_000]
 
-    * `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` for
-      caching platform public keys. Defaults to
-      `Ltix.JWT.KeySet.ETSCache`, which must be started in your
-      supervision tree. A `Ltix.JWT.KeySet.CachexCache` adapter is
-      also provided.
+    * `:key_set` - name of the `Ltix.JWT.KeySet` to get platform public
+      keys from. Defaults to `Ltix.JWT.KeySet`. The key set must be
+      started in your supervision tree.
 
-    * `:cachex_cache_name` — Cachex cache name when using
-      `Ltix.JWT.KeySet.CachexCache`. Defaults to `:ltix_jwks`.
-
-    * `:default_key_size` — RSA key size in bits for `Ltix.JWK.generate/1`
+    * `:default_key_size` - RSA key size in bits for `Ltix.JWK.generate/1`
       when no `:key_size` is given. Defaults to `4096`.
 
   ### Launch claim parsers
 
   Custom claim and role parsers are configured under the
-  `Ltix.LaunchClaims` key:
+  `Ltix.LaunchClaims` key.
 
       config :ltix, Ltix.LaunchClaims,
         claim_parsers: %{
@@ -91,7 +86,7 @@ defmodule Ltix do
 
   The LTI launch flow requires two endpoints. In your login endpoint,
   call `handle_login/3` with the platform's initiation params and your
-  launch URL:
+  launch URL.
 
       def login(conn, params) do
         launch_url = url(conn, ~p"/lti/launch")
@@ -104,7 +99,7 @@ defmodule Ltix do
       end
 
   In your launch endpoint, call `handle_callback/3` with the POST
-  params and the stored state:
+  params and the stored state.
 
       def launch(conn, params) do
         state = get_session(conn, :lti_state)
@@ -119,7 +114,7 @@ defmodule Ltix do
 
   After a successful launch, call platform services like roster queries
   and grade passback. Authenticate with the platform's token endpoint,
-  then call service functions:
+  then call service functions.
 
       {:ok, client} = Ltix.MembershipsService.authenticate(context)
       {:ok, roster} = Ltix.MembershipsService.list_members(client)
@@ -128,7 +123,7 @@ defmodule Ltix do
         IO.puts("\#{member.name}: \#{inspect(member.roles)}")
       end)
 
-  Post grades back to the platform's gradebook:
+  Post grades back to the platform's gradebook.
 
       {:ok, client} = Ltix.GradeService.authenticate(context)
       :ok = Ltix.GradeService.post_score(client, score)
@@ -140,7 +135,7 @@ defmodule Ltix do
 
   When a platform sends an `LtiDeepLinkingRequest` launch, the same
   `handle_callback/3` returns a `%LaunchContext{}`. Branch on the
-  message type and build a response:
+  message type and build a response.
 
       {:ok, context} = Ltix.handle_callback(params, state)
 
@@ -179,7 +174,7 @@ defmodule Ltix do
                        req_options: Zoi.keyword(Zoi.any()),
                        claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
                        role_parsers: Zoi.map(Zoi.string(), Zoi.any()),
-                       jwks_cache: Zoi.module(),
+                       key_set: Zoi.atom(),
                        clock_skew: Zoi.integer() |> Zoi.non_negative(),
                        max_token_age:
                          Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)]),
@@ -200,7 +195,7 @@ defmodule Ltix do
 
   ## Options
 
-    * `:storage_adapter` — module implementing `Ltix.StorageAdapter`
+    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
       (defaults to application config)
   """
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
@@ -246,21 +241,20 @@ defmodule Ltix do
 
   ## Options
 
-    * `:storage_adapter` — module implementing `Ltix.StorageAdapter`
+    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
       (defaults to application config)
-    * `:allow_anonymous` — allow launches without a `sub` claim
+    * `:allow_anonymous` - allow launches without a `sub` claim
       (defaults to application config, then `false`)
-    * `:req_options` — options passed to the HTTP client for JWKS fetching
-    * `:jwks_cache` — module implementing `Ltix.JWT.KeySet.Cache` for caching
-      platform public keys (defaults to application config, then
-      `Ltix.JWT.KeySet.ETSCache`)
-    * `:claim_parsers` — custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
-    * `:role_parsers` — custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
-    * `:clock_skew` — seconds of tolerance for token expiration (default: `5`)
-    * `:max_token_age` — seconds after the platform issued the ID Token that
+    * `:req_options` - options passed to the HTTP client for JWKS fetching
+    * `:key_set` - name of the `Ltix.JWT.KeySet` to get platform public keys
+      from (defaults to application config, then `Ltix.JWT.KeySet`)
+    * `:claim_parsers` - custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
+    * `:role_parsers` - custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
+    * `:clock_skew` - seconds of tolerance for token expiration (defaults to `5`)
+    * `:max_token_age` - seconds after the platform issued the ID Token that
       the launch is still accepted, or `:infinity` to accept any age
       (defaults to application config, then `3600`)
-    * `:local_network_access` — `:local` or `:loopback` to fetch the
+    * `:local_network_access` - `:local` or `:loopback` to fetch the
       platform's keys from a private network address or this machine
       (defaults to application config, then `:none`)
   """

@@ -10,13 +10,13 @@ without knowing every individual error type.
 
 | Class | Module | Meaning |
 |---|---|---|
-| `:invalid` | `Ltix.Errors.Invalid` | Bad input — malformed JWT, missing claims, unknown registration |
-| `:security` | `Ltix.Errors.Security` | Security violation — bad signature, expired token, nonce replay |
-| `:unknown` | `Ltix.Errors.Unknown` | Unexpected failure — network errors, bugs |
+| `:invalid` | `Ltix.Errors.Invalid` | Bad input (malformed JWT, missing claims, unknown registration) |
+| `:security` | `Ltix.Errors.Security` | Security violation (bad signature, expired token, nonce replay) |
+| `:unknown` | `Ltix.Errors.Unknown` | Unexpected failure (network errors, bugs) |
 
 ## HTTP status codes
 
-Every error carries an HTTP status code derived from its class:
+Every error has an HTTP status code derived from its class.
 
 | Class | Status |
 |---|---|
@@ -24,7 +24,7 @@ Every error carries an HTTP status code derived from its class:
 | `:security` | 401 |
 | `:unknown` | 500 |
 
-Use `Ltix.Errors.status_code/1` to get it:
+Use `Ltix.Errors.status_code/1` to get it.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -42,12 +42,12 @@ end
 
 If your application depends on Plug, Ltix errors automatically implement
 the `Plug.Exception` protocol. Phoenix error views and `Plug.Debugger`
-pick up the correct status code without any extra work on your part.
+use the correct status code without any extra work on your part.
 
 ## Matching on class
 
 Every Ltix error struct has a `class` field you can match on for
-different handling per category:
+different handling per category.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -73,7 +73,7 @@ end
 
 ## Matching on specific errors
 
-For finer control, match on the error struct directly:
+For finer control, match on the error struct directly.
 
 ```elixir
 case Ltix.handle_login(params, launch_url) do
@@ -123,7 +123,7 @@ Ltix.JWK.generate(key_sise: 4096)
 ## Error messages and spec references
 
 Every error produces a human-readable message via `Exception.message/1`
-and most carry a `spec_ref` field pointing to the violated spec section:
+and most have a `spec_ref` field with the violated spec section.
 
 ```elixir
 error = %Ltix.Errors.Security.TokenExpired{spec_ref: "Sec §5.1.3 step 7"}
@@ -135,12 +135,12 @@ error.spec_ref
 #=> "Sec §5.1.3 step 7"
 ```
 
-The spec reference is useful for debugging — it tells you exactly which
-validation step failed.
+The spec reference is useful for debugging because it identifies exactly
+which validation step failed.
 
 ## Invalid errors
 
-These indicate problems with the incoming data or the calling code:
+These indicate problems with the incoming data or the calling code.
 
 | Error | Fields | When |
 |---|---|---|
@@ -155,7 +155,7 @@ These indicate problems with the incoming data or the calling code:
 
 ## Security errors
 
-These indicate the launch failed a security check:
+These indicate the launch failed a security check.
 
 | Error | Fields | When |
 |---|---|---|
@@ -182,8 +182,7 @@ These indicate an unexpected failure outside the incoming request.
 | `StorageError` | `callback`, `result`, `reason` | A storage adapter callback returned `{:error, reason}`, an unexpected value, or a deployment for a different `deployment_id` |
 | `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | An HTTP request to the platform failed |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
-| `KeySetCacheNotStarted` | `cache`, `child_spec` | Raised when a launch needs a key set cache that is not started in the supervision tree |
-| `KeySetCacheFailed` | `cache`, `operation`, `reason` | Raised when the key set cache backend fails to get or store keys |
+| `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set that is not started in the supervision tree |
 | `Unknown` | `error` | Any other unexpected failure |
 
 ## Deep linking errors
@@ -231,14 +230,13 @@ etc.) and OAuth authentication.
 |---|---|---|
 | `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is neither an absolute HTTPS URL nor an HTTP URL for a loopback or local host |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | The platform redirected to a different origin or an invalid location |
-| `KeySetCacheNotStarted` | `cache`, `child_spec` | Raised when a launch needs a key set cache that is not started in the supervision tree |
-| `KeySetCacheFailed` | `cache`, `operation`, `reason` | Raised when the key set cache backend fails to get or store keys |
+| `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set that is not started in the supervision tree |
 
 ## Logging recommendations
 
 Invalid errors are usually the platform's fault (misconfiguration,
 bad requests). Security errors could be attacks or clock skew. Unknown
-errors need investigation:
+errors need investigation.
 
 ```elixir
 {:error, error} ->

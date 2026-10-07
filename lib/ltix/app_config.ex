@@ -44,6 +44,10 @@ defmodule Ltix.AppConfig do
     Application.get_env(:ltix, :max_token_age, 3600)
   end
 
+  def key_set do
+    Application.get_env(:ltix, :key_set, Ltix.JWT.KeySet)
+  end
+
   def local_network_access do
     Application.get_env(:ltix, :local_network_access, :none)
   end

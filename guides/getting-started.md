@@ -1,12 +1,12 @@
 # Getting Started
 
-This guide walks you through adding LTI 1.3 launch support to a Phoenix
+This guide shows you how to add LTI 1.3 launch support to a Phoenix
 application. By the end, your app will handle launches from Canvas,
 Moodle, Blackboard, or any other LTI 1.3 platform. You'll also have a
 clear list of what's left to get it production-ready.
 
 You'll need an existing Phoenix app with Ecto. If you'd like to
-understand the protocol before diving in, read [LTI Advantage
+understand the protocol before starting, read [LTI Advantage
 Concepts](concepts.md) first.
 
 ## Installation
@@ -24,23 +24,17 @@ end
 
 Run `mix deps.get` to fetch the package.
 
-### Start the key cache
+### Start the key set
 
-Ltix caches platform public keys in ETS so it doesn't re-fetch them on
-every launch. Add the cache to your supervision tree:
+Ltix verifies launches with each platform's public keys, which it gets from a key set. Add the key set to your supervision tree.
 
 ```elixir
 # lib/my_app/application.ex
 children = [
   # ... your existing children (Repo, Endpoint, etc.)
-  Ltix.JWT.KeySet.ETSCache
+  Ltix.JWT.KeySet
 ]
 ```
-
-> #### Cachex alternative {: .tip}
->
-> If you already use Cachex, you can use `Ltix.JWT.KeySet.CachexCache`
-> instead. See `Ltix.JWT.KeySet.CachexCache` for setup instructions.
 
 ### Set up key encryption
 
@@ -52,7 +46,7 @@ Use the encryption your app already has, or a key management service. If you hav
 
 You need tables for four LTI concerns (signing keys, registrations,
 deployments, and replay-prevention tokens) plus application tables for
-users and courses. All the LTI schemas live under a `MyApp.Lti` context.
+users and courses. All the LTI schemas are under a `MyApp.Lti` context.
 
 ### Migration
 
@@ -249,7 +243,7 @@ end
 ### Context module
 
 The `MyApp.Lti` context module handles persistence for launch data and
-key management:
+key management.
 
 ```elixir
 # lib/my_app/lti.ex
@@ -353,15 +347,15 @@ end
 ### Multitenancy
 
 Where you draw tenant boundaries depends on your application. Two
-common approaches:
+approaches are common.
 
-- **Tenant per registration**: each platform + `client_id` pair is a
+- **Tenant per registration** - each platform + `client_id` pair is a
   tenant. This works well for cloud-hosted platforms like Canvas Cloud
   or Schoology, where many institutions share a common issuer URL but
   each institution gets its own `client_id`. The registration is your
   natural tenant boundary.
 
-- **Tenant per deployment**: a single registration can have multiple
+- **Tenant per deployment** - a single registration can have multiple
   deployments (e.g., a tool installed across departments). If you need
   isolation within a single institution, use the deployment as your
   tenant boundary instead.
@@ -397,7 +391,7 @@ end
 ```
 
 The storage adapter is a thin wrapper that delegates to your context
-module, where the actual queries live.
+module, where the actual queries are.
 
 `key_id/1` and `sign/3` are optional. Ltix calls them to sign requests for Advantage services and deep linking responses, so a tool that only handles launches can leave them out.
 
@@ -413,7 +407,7 @@ overrides, see [Storage Adapters](storage-adapters.md).
 
 ## Configuration
 
-Tell Ltix which storage adapter to use:
+Set which storage adapter Ltix uses.
 
 ```elixir
 # config/config.exs
@@ -421,13 +415,13 @@ config :ltix,
   storage_adapter: MyApp.Lti.Storage
 ```
 
-To override settings for a single call, pass options to the call. `Ltix.handle_login/3` takes `:storage_adapter`. `Ltix.handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:jwks_cache`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. See `Ltix.handle_login/3` and `Ltix.handle_callback/3` for what each option does.
+To override settings for a single call, pass options to the call. `Ltix.handle_login/3` takes `:storage_adapter`. `Ltix.handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:key_set`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. See `Ltix.handle_login/3` and `Ltix.handle_callback/3` for what each option does.
 
 ## Registering a platform
 
 Before your tool can accept launches, you need to exchange configuration
 with the platform. The 1EdTech specs leave this as an out-of-band
-process: the platform gives you its URLs and a client ID, and you give
+process. The platform gives you its URLs and a client ID, and you give
 it your tool's launch URL and public key endpoint.
 [LTI Dynamic Registration](https://www.imsglobal.org/spec/lti-dr/v1p0)
 automates this exchange, but Ltix does not currently support it.
@@ -440,7 +434,7 @@ guide, we'll seed the data through IEx.
 ### Generate a signing key
 
 Your tool needs at least one RSA signing key to get started. Open IEx
-and generate one:
+and generate one.
 
 ```
 $ iex -S mix
@@ -456,7 +450,7 @@ For key rotation in production, see [JWK Management](jwk-management.md).
 
 Each platform you connect to needs a registration and at least one
 deployment. Construct an `Ltix.Registration` before persisting to
-validate that all the fields are correct and the launch will work:
+validate that all the fields are correct and the launch will work.
 
 ```
 iex> attrs = %{
@@ -470,7 +464,7 @@ iex> attrs = %{
 iex> {:ok, _} = Ltix.Registration.new(attrs)
 ```
 
-Once it passes validation, persist it:
+Once it passes validation, persist it.
 
 ```
 iex> registration = Repo.insert!(%Lti.Registration{
@@ -495,7 +489,7 @@ LTI developer documentation for where to find them.
 
 ### Routes and pipeline
 
-LTI launches differ from normal browser requests in two ways:
+LTI launches differ from normal browser requests in two ways.
 
 1. Platforms POST directly to your tool, so CSRF protection must be
    disabled on LTI routes.
@@ -507,7 +501,7 @@ LTI launches differ from normal browser requests in two ways:
 
 Most LTI tools render inside the platform's iframe. If that's your
 plan, configure `SameSite=None` and `Partitioned` on your session
-cookie in the endpoint so it applies to all routes:
+cookie in the endpoint so it applies to all routes.
 
 ```elixir
 # lib/my_app_web/endpoint.ex
@@ -522,7 +516,7 @@ plug Plug.Session,
   extra: "Partitioned"
 ```
 
-This is the simplest path. Your entire app works in the iframe with a
+This is the simplest approach. Your entire app works in the iframe with a
 single session cookie.
 
 `Partitioned` gives the cookie a separate jar for each platform site that embeds your tool. Browsers that block third-party cookies still accept a partitioned one, so the session works inside the iframe in current versions of Chrome, Firefox, and Safari.
@@ -540,17 +534,17 @@ single session cookie.
 > your tool opens itself in a new tab after the launch, the tab starts
 > without the session.
 
-Two other approaches exist if rendering everything in an iframe doesn't
-fit your app:
+Three other approaches exist if rendering everything in an iframe doesn't
+fit your app.
 
-- **New tab launches**: set `target` to `_blank` in the platform's tool configuration. The launch opens a new browser tab, where browsers that block third-party cookies still accept yours. The platform still sends the launch as a cross-site POST, and browsers leave `SameSite=Lax` cookies off those, so the cookie that holds the login state still needs `SameSite=None`. This works well for apps with complex navigation that doesn't fit an iframe.
+- **New tab launches** - set `target` to `_blank` in the platform's tool configuration. The launch opens a new browser tab, where browsers that block third-party cookies still accept yours. The platform still sends the launch as a cross-site POST, and browsers leave `SameSite=Lax` cookies off those, so the cookie that holds the login state still needs `SameSite=None`. This works well for apps with complex navigation that doesn't fit an iframe.
 
-- **Split rendering**: serve a lightweight iframe view for the launch,
+- **Split rendering** - serve a lightweight iframe view for the launch,
   then link out to the full app in a new tab for deeper interaction.
   This lets you keep `SameSite=Lax` on most routes while only the LTI
   endpoints use `SameSite=None`.
 
-- **Platform storage**: keep the login state in the platform's window, for browsers that block your cookie during the launch. See [Keeping Login State in Platform Storage](cookbooks/platform-storage.md).
+- **Platform storage** - keep the login state in the platform's window, for browsers that block your cookie during the launch. See [Keeping Login State in Platform Storage](cookbooks/platform-storage.md).
 
 The examples below assume the iframe approach.
 
@@ -610,7 +604,7 @@ defmodule MyAppWeb.Router do
 end
 ```
 
-Two things to note about these pipelines:
+Note two things about these pipelines.
 
 - `protect_from_forgery` is omitted in the `:lti_launch` pipeline
   because platforms POST directly to your tool. The LTI specification
@@ -622,7 +616,7 @@ Two things to note about these pipelines:
 - `put_secure_browser_headers` overrides the default CSP to set
   `frame-ancestors 'self' https:`, allowing any HTTPS origin to embed the
   tool. Phoenix defaults to `frame-ancestors 'self'`, which blocks
-  iframe embedding. If your tool knows each platform's origin, you
+  iframe embedding. If your tool has each platform's origin, you
   could restrict `frame-ancestors` per tenant after launch, but the
   login endpoint (and registration endpoint, if you implement dynamic
   registration) must remain open. Whether the extra complexity is
@@ -688,7 +682,7 @@ defmodule MyAppWeb.LtiController do
 end
 ```
 
-The view module and templates:
+The view module and templates follow.
 
 ```elixir
 # lib/my_app_web/controllers/lti_html.ex
@@ -714,8 +708,8 @@ end
 <p>{@message}</p>
 ```
 
-The create-on-launch pattern shown here is common: extract the user
-and course from the launch data, persist them, and set up a session.
+The create-on-launch pattern shown here is common. It extracts the user
+and course from the launch data, persists them, and sets up a session.
 
 This particular setup aligns with the platform-centric approach described in the
 [Best Practices for LTI Assessment Tools](https://www.imsglobal.org/spec/lti/v1p3/impl-assess#account-binding).
@@ -741,29 +735,29 @@ The endpoint serves the public keys stored with each signing key, so it never re
 
 ## Next steps
 
-You now have a working LTI launch. Here's what to tackle next on the
-way to production:
+You now have a working LTI launch. Here's what to do next before
+going to production.
 
-- **Nonce cleanup**: the nonces table grows with every launch. Add a periodic job (e.g., Oban) that deletes nonces past their `expires_at`. See [Storage Adapters](storage-adapters.md) for an example.
+- **Nonce cleanup** - the nonces table grows with every launch. Add a periodic job (e.g., Oban) that deletes nonces past their `expires_at`. See [Storage Adapters](storage-adapters.md) for an example.
 
-- **Key rotation**: signing keys should be rotated periodically.
+- **Key rotation** - signing keys should be rotated periodically.
   Serve both the old and new key from your public key endpoint during
   the transition. See [JWK Management](jwk-management.md).
 
-- **Hardening**: CSRF protection after the launch, authorization from roles, redirect checks, and key handling. See [Hardening Your Tool](hardening.md).
+- **Hardening** - CSRF protection after the launch, authorization from roles, redirect checks, and key handling. See [Hardening Your Tool](hardening.md).
 
-- **Error handling**: the controller above shows one general message.
+- **Error handling** - the controller above shows one general message.
   Match on error classes to show users more helpful messages and choose
   log levels. See [Error Handling](error-handling.md).
 
-- **Role-based authorization**: decide what instructors, learners,
+- **Role-based authorization** - decide what instructors, learners,
   and TAs can do in your tool. See
   [Working with Roles](working-with-roles.md).
 
-- **Grades and roster**: send scores back to the LMS gradebook
+- **Grades and roster** - send scores back to the LMS gradebook
   and fetch class lists. See
   [Advantage Services](advantage-services.md).
 
-- **Tests**: Ltix provides test helpers that simulate the full
-  launch flow without hitting a real platform. See
+- **Tests** - Ltix provides test helpers that simulate the full
+  launch flow without calling a real platform. See
   [Testing LTI Launches](cookbooks/testing-lti-launches.md).

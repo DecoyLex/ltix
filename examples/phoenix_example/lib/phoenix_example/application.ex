@@ -11,7 +11,7 @@ defmodule PhoenixExample.Application do
       PhoenixExampleWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:phoenix_example, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PhoenixExample.PubSub},
-      Ltix.JWT.KeySet.ETSCache,
+      Ltix.JWT.KeySet,
       PhoenixExample.LtiStorage,
       PhoenixExampleWeb.Endpoint
     ]
@@ -22,7 +22,7 @@ defmodule PhoenixExample.Application do
     Supervisor.start_link(children, opts)
   end
 
-  # Tell Phoenix to update the endpoint configuration
+  # Update the endpoint configuration
   # whenever the application is updated.
   @impl true
   def config_change(changed, _new, removed) do

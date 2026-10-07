@@ -2,9 +2,9 @@ defmodule Ltix.Test do
   @moduledoc """
   Helpers for testing applications that use Ltix.
 
-  Reduces LTI test setup to a single call. Instead of manually generating
-  RSA keys, building JWKS payloads, and creating registrations and
-  deployments, call `setup_platform!/1`:
+  Reduces LTI test setup to a single call. `setup_platform!/1` generates
+  RSA keys, builds JWKS payloads, and creates registrations and
+  deployments.
 
       setup do
         %{platform: Ltix.Test.setup_platform!()}
@@ -12,8 +12,8 @@ defmodule Ltix.Test do
 
   Your application's own storage adapter (configured in `config/test.exs`)
   handles persistence. `setup_platform!/1` provides the platform-side
-  simulation: RSA keys, a JWKS endpoint stub, and registration/deployment
-  data your adapter can look up. Without an adapter of your own, start the
+  simulation, which is RSA keys, a JWKS endpoint stub, and
+  registration/deployment data your adapter can look up. Without an adapter of your own, start the
   in-memory `Ltix.Test.StorageAdapter` with the platform.
 
   Add the optional `:plug` dependency to your test environment to use
@@ -27,7 +27,7 @@ defmodule Ltix.Test do
   Pass a `:registration` function to create records in your own persistence
   layer. The function receives a valid `Ltix.Registration` with the
   platform details and returns your app's struct (which must implement
-  `Ltix.Registerable`):
+  `Ltix.Registerable`).
 
       setup do
         jwk = MyApp.Lti.generate_jwk!()
@@ -59,7 +59,7 @@ defmodule Ltix.Test do
 
   Simulate a platform-initiated launch against your controller endpoints.
   Your app's storage adapter resolves registrations and nonces as it would
-  in production:
+  in production.
 
       test "instructor launch renders dashboard", %{conn: conn, platform: platform} do
         conn = post(conn, ~p"/lti/login", Ltix.Test.login_params(platform))
@@ -86,7 +86,7 @@ defmodule Ltix.Test do
   ## Unit tests (direct context construction)
 
   When testing business logic that receives a `%LaunchContext{}`, skip
-  the OIDC flow entirely with `build_launch_context/2`:
+  the OIDC flow entirely with `build_launch_context/2`.
 
       test "instructors can manage grades", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
@@ -417,29 +417,28 @@ defmodule Ltix.Test do
   Set up a simulated LTI platform in one call.
 
   Generates platform-side RSA keys, builds a registration and deployment,
-  stubs the JWKS HTTP endpoint, and expires keys cached for the platform's
-  key set URL in the configured `Ltix.JWT.KeySet.Cache`, which must be
+  and stubs the JWKS HTTP endpoint. The configured `Ltix.JWT.KeySet` must be
   started. Your app's own storage adapter (configured via
   `config :ltix, storage_adapter: ...`) handles persistence during the OIDC
   flow.
 
   ## Options
 
-    * `:issuer` — platform issuer URL (default: `"https://platform.example.com"`)
-    * `:client_id` — OAuth client ID (default: `"tool-client-id"`)
-    * `:deployment_id` — deployment identifier (default: `"deployment-001"`)
-    * `:registration` — either an app struct implementing `Ltix.Registerable`
+    * `:issuer` - platform issuer URL (defaults to `"https://platform.example.com"`)
+    * `:client_id` - OAuth client ID (defaults to `"tool-client-id"`)
+    * `:deployment_id` - deployment identifier (defaults to `"deployment-001"`)
+    * `:registration` - either an app struct implementing `Ltix.Registerable`
       (mutually exclusive with `:issuer` and `:client_id`), or a 1-arity
       function that receives an `Ltix.Registration` and returns your app's
       struct. The function form lets you create a matching record in your
       own persistence layer using the platform details (issuer, client_id,
       endpoints). Works with `:issuer` and `:client_id` overrides.
-    * `:deployment` — either an app struct implementing `Ltix.Deployable`
+    * `:deployment` - either an app struct implementing `Ltix.Deployable`
       (mutually exclusive with `:deployment_id`), or a 2-arity function
       `(Ltix.Deployment, registration)` where `registration` is whatever
       the registration step returned. Lets you create a deployment record
       linked to your registration.
-    * `:tool_jwk` — the `Ltix.JWK` your tool signs with for this platform.
+    * `:tool_jwk` - the `Ltix.JWK` your tool signs with for this platform.
       Pass the key your own storage adapter signs with. Defaults to the
       key `Ltix.Test.StorageAdapter` signs with.
   """
@@ -499,8 +498,8 @@ defmodule Ltix.Test do
   Checks registration and deployment lookups, returned records, and nonce
   replay prevention. For an adapter that exports `key_id/1` and `sign/3`,
   also checks that its signatures verify against your published key set
-  and that it refuses a key ID it can't sign with. Returns `:ok` or raises
-  `ExUnit.AssertionError` with the failing contract check.
+  and that it returns an error for a key ID it can't sign with. Returns
+  `:ok` or raises `ExUnit.AssertionError` with the failing contract check.
 
   Two parts of the contract can't be checked from outside your storage,
   that nonce records are kept until `expires_at` and that storage failures
@@ -536,7 +535,8 @@ defmodule Ltix.Test do
     * `:auto_create_deployments` defaults to `false`, requiring missing
       deployments to return `{:error, :not_found}`. Set to `true` for adapters
       that create a deployment when none exists. Return distinct storage
-      identities to check ownership of automatically created deployments.
+      identities to check that registrations with the same deployment ID
+      get separate automatically created deployments.
     * `:timeout` is the positive timeout in milliseconds for concurrent
       process preparation and validation. Defaults to `5000`.
 
@@ -569,8 +569,8 @@ defmodule Ltix.Test do
 
   ## Options
 
-    * `:login_hint` — login hint value (default: `"user-hint"`)
-    * `:target_link_uri` — launch URL (default: `"https://tool.example.com/launch"`)
+    * `:login_hint` - login hint value (defaults to `"user-hint"`)
+    * `:target_link_uri` - launch URL (defaults to `"https://tool.example.com/launch"`)
   """
   @spec login_params(Platform.t(), keyword()) :: map()
   def login_params(%Platform{} = platform, opts \\ []) do
@@ -633,7 +633,7 @@ defmodule Ltix.Test do
         context: %{id: "course-1", title: "Elixir 101"}
       )
 
-  For Deep Linking contexts, pass `message_type: :deep_linking`:
+  For Deep Linking contexts, pass `message_type: :deep_linking`.
 
       context = Ltix.Test.build_launch_context(platform,
         message_type: :deep_linking,
@@ -671,10 +671,10 @@ defmodule Ltix.Test do
 
   ## Options
 
-    * `:scopes` - list of granted scope URIs (default: `[]`). An empty list
+    * `:scopes` - list of granted scope URIs (defaults to `[]`). An empty list
       grants the requested scopes.
-    * `:access_token` — token string (default: `"test-token"`)
-    * `:expires_in` — token lifetime in seconds (default: `3600`)
+    * `:access_token` - token string (defaults to `"test-token"`)
+    * `:expires_in` - token lifetime in seconds (defaults to `3600`)
   """
   @spec stub_token_response(keyword()) :: :ok
   def stub_token_response(opts \\ []) do
@@ -1094,8 +1094,8 @@ defmodule Ltix.Test do
     deployment = Keyword.get(opts, :deployment)
 
     # Struct registrations are mutually exclusive with :issuer/:client_id.
-    # Function registrations are not — the function receives a registration
-    # built from those values.
+    # Function registrations are not, because the function receives a
+    # registration built from those values.
     if not is_nil(registration) and not is_function(registration) do
       reject_combined_option!(opts, :issuer, :registration)
       reject_combined_option!(opts, :client_id, :registration)

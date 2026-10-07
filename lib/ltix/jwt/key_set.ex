@@ -1,60 +1,78 @@
 defmodule Ltix.JWT.KeySet do
   @moduledoc """
-  Fetches and caches platform public keys for JWT signature verification.
+  Platform public keys for verifying ID Token signatures.
 
-  Platforms publish their public keys at a JWKS (JSON Web Key Set) endpoint.
-  This module fetches those keys, caches them, and looks up the correct key
-  by `kid` (Key ID) when verifying an ID Token signature.
+  Platforms publish their public keys at a key set URL. Ltix gets the keys
+  it needs to verify a launch from a key set that your application starts.
 
-  You won't normally call this module directly — `Ltix.JWT.Token.verify/3`
-  calls it internally. It is public so that cache configuration and custom
-  cache backends can integrate with it.
+  ## Setup
 
-  ## Examples
+  Add a key set to your application's supervision tree.
 
-      {:ok, jwk} = Ltix.JWT.KeySet.get_key(registration, "some-kid")
+      # lib/my_app/application.ex
+      children = [
+        Ltix.JWT.KeySet
+      ]
 
-  ## Caching
+  To run more than one, or to choose the name, pass `:name` and set the
+  name in your config.
 
-  By default, keys are cached in an ETS table (`Ltix.JWT.KeySet.ETSCache`).
-  The cache respects the platform's `cache-control: max-age` header.
+      children = [
+        {Ltix.JWT.KeySet, name: MyApp.LtiKeys}
+      ]
 
-  You can swap the cache backend by implementing `Ltix.JWT.KeySet.Cache`:
+      config :ltix, key_set: MyApp.LtiKeys
 
-      config :ltix, :jwks_cache, MyApp.JWKSCache
+  You can also choose the key set for one call.
 
-  Or per-call, including through `Ltix.handle_callback/3`:
+      Ltix.handle_callback(params, state, key_set: MyApp.LtiKeys)
 
-      Ltix.JWT.KeySet.get_key(registration, kid, jwks_cache: MyApp.JWKSCache)
+  ## Keys
 
-  A `Ltix.JWT.KeySet.CachexCache` adapter is provided for projects that
-  already use Cachex.
+  A platform's keys are kept for the number of seconds in its
+  `cache-control: max-age`, or 5 minutes without one. A key the platform has
+  rotated in is available on the first launch signed with it.
 
-  ## Key Rotation
+  ## Fetch limit
 
-  When a `kid` is not found in the cached keys, the module re-fetches the key
-  set to pick up keys the platform has rotated in. It re-fetches at most once
-  every 30 seconds for each key set URL, so unknown key IDs can't make it
-  fetch on every launch. The cached keys stay in use until a re-fetch
-  succeeds.
+  Each key set URL is fetched at most once every 30 seconds, however many
+  launches arrive and whatever key IDs they have. Change the 30 seconds with
+  the `:refetch_interval` option of `start_link/1`. After a failed fetch,
+  launches for that platform return its error until the interval has passed.
+
+  A fetch retries a temporary failure up to three times. Pass `retry: false`
+  in `:req_options` to disable retries.
   """
+
+  use GenServer
 
   alias Ltix.AppConfig
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Security.KidNotFound
+  alias Ltix.Errors.Security.LocalNetworkAccessDenied
+  alias Ltix.Errors.Unknown.KeySetNotStarted
   alias Ltix.HTTP
-  alias Ltix.JWT.KeySet.ETSCache
   alias Ltix.Options
   alias Ltix.Registration
 
   @default_max_age 300
 
-  # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
-  @refetch_interval 30
+  @start_schema Zoi.keyword(
+                  [
+                    name:
+                      Zoi.atom(description: "Name of the key set.")
+                      |> Zoi.default(__MODULE__),
+                    refetch_interval:
+                      Zoi.integer(description: "Seconds between fetches of one key set URL.")
+                      |> Zoi.non_negative()
+                      |> Zoi.default(30)
+                  ],
+                  unrecognized_keys: :error
+                )
 
   @options_schema Zoi.keyword(
                     [
-                      jwks_cache: Zoi.module(),
+                      key_set: Zoi.atom(),
                       req_options: Zoi.keyword(Zoi.any()),
                       local_network_access: HTTP.local_network_access_option()
                     ],
@@ -62,19 +80,36 @@ defmodule Ltix.JWT.KeySet do
                   )
 
   @doc """
-  Fetch the platform's public key matching `kid`.
-
-  Checks the cache first. On a cache miss, fetches from the platform's JWKS
-  endpoint. If the `kid` is not found in cached keys fetched at least 30
-  seconds ago, re-fetches to support key rotation.
+  Start a key set.
 
   ## Options
 
-    * `:jwks_cache` — cache module implementing `Ltix.JWT.KeySet.Cache`
-      (default: the application configuration, then
-      `Ltix.JWT.KeySet.ETSCache`)
-    * `:req_options` — extra options passed to `Req.get/2`
-    * `:local_network_access` — `:local` or `:loopback` to fetch a key set
+  #{Zoi.describe(@start_schema)}
+  """
+  @spec start_link(keyword()) :: GenServer.on_start()
+  def start_link(opts \\ []) do
+    opts = Options.parse!(opts, @start_schema)
+    GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
+  end
+
+  @doc false
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
+  def child_spec(opts) do
+    Supervisor.child_spec(super(opts), id: Keyword.get(opts, :name, __MODULE__))
+  end
+
+  @doc """
+  Get the platform's public key with the key ID `kid`.
+
+  Returns `Ltix.Errors.Security.KidNotFound` when the platform has no key
+  with that ID.
+
+  ## Options
+
+    * `:key_set` - name of the key set to use (defaults to the application
+      configuration, then `Ltix.JWT.KeySet`)
+    * `:req_options` - `Req` options for requests to the key set URL
+    * `:local_network_access` - `:local` or `:loopback` to fetch a key set
       from a private network address or this machine (defaults to
       application config, then `:none`)
   """
@@ -83,10 +118,10 @@ defmodule Ltix.JWT.KeySet do
           {:ok, JOSE.JWK.t()} | {:error, Exception.t()}
   def get_key(%Registration{} = registration, kid, opts \\ []) do
     opts = Options.parse!(opts, @options_schema)
-    cache = resolve_cache(opts)
+    key_set = Keyword.get_lazy(opts, :key_set, &AppConfig.key_set/0)
     jwks_uri = registration.jwks_uri
 
-    case find_key(jwks_uri, kid, cache, opts) do
+    case find_key(key_set, jwks_uri, kid, opts) do
       {:ok, status, jwk} ->
         :telemetry.execute([:ltix, :jwks, status], %{}, %{jwks_uri: jwks_uri, kid: kid})
         {:ok, jwk}
@@ -100,41 +135,175 @@ defmodule Ltix.JWT.KeySet do
     end
   end
 
-  # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
-  defp find_key(jwks_uri, kid, cache, opts) do
-    case cache.get(jwks_uri) do
-      {:ok, %{keys: %{^kid => jwk}}} ->
-        {:ok, :cache_hit, jwk}
-
-      {:ok, %{fetched_at: fetched_at}} ->
-        if DateTime.diff(DateTime.utc_now(), fetched_at) >= @refetch_interval,
-          do: fetch_key(jwks_uri, kid, cache, opts),
-          else: :not_found
-
-      :miss ->
-        fetch_key(jwks_uri, kid, cache, opts)
-    end
-  end
-
-  defp fetch_key(jwks_uri, kid, cache, opts) do
-    with {:ok, keys, max_age} <- fetch_jwks(jwks_uri, opts) do
-      if max_age > 0,
-        do: cache.put(jwks_uri, %{keys: keys, fetched_at: DateTime.utc_now()}, max_age)
-
-      case Map.fetch(keys, kid) do
-        {:ok, jwk} -> {:ok, :cache_miss, jwk}
-        :error -> :not_found
-      end
-    end
-  end
-
-  # Replaces the configured cache's keys for a key set URL with an empty set
-  # that is due for a re-fetch, so the next lookup fetches the key set again.
+  # Removes the configured key set's keys for a key set URL, so the next
+  # lookup fetches them again.
   @doc false
   @spec expire_keys(String.t()) :: :ok
   def expire_keys(jwks_uri) do
-    fetched_at = DateTime.add(DateTime.utc_now(), -@refetch_interval)
-    resolve_cache([]).put(jwks_uri, %{keys: %{}, fetched_at: fetched_at}, @default_max_age)
+    key_set = AppConfig.key_set()
+    if :ets.whereis(key_set) == :undefined, do: raise(KeySetNotStarted, key_set: key_set)
+    GenServer.call(key_set, {:expire, jwks_uri})
+  end
+
+  # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
+  defp find_key(key_set, jwks_uri, kid, opts) do
+    with :fetch <- cached_key(key_set, jwks_uri, kid),
+         :fetch <- GenServer.call(key_set, {:claim, jwks_uri}, :infinity),
+         {:ok, %{^kid => jwk}} <- fetch_claimed(key_set, jwks_uri, opts) do
+      {:ok, :cache_miss, jwk}
+    else
+      # Another caller's fetch finished, so the cached keys are read again.
+      :fetched -> find_key(key_set, jwks_uri, kid, opts)
+      {:ok, _keys} -> :not_found
+      result -> result
+    end
+  end
+
+  # Returns `:fetch` when the key set is due for a fetch.
+  defp cached_key(key_set, jwks_uri, kid) do
+    now = System.monotonic_time(:second)
+
+    case cached(key_set, jwks_uri) do
+      [{_uri, %{keys: %{^kid => jwk}, expires_at: expires_at}}] when now < expires_at ->
+        {:ok, :cache_hit, jwk}
+
+      [{_uri, %{refetch_at: refetch_at, error: error}}] when now < refetch_at ->
+        if error, do: {:error, error}, else: :not_found
+
+      _due ->
+        :fetch
+    end
+  end
+
+  defp cached(key_set, jwks_uri) do
+    :ets.lookup(key_set, jwks_uri)
+  rescue
+    ArgumentError ->
+      reraise KeySetNotStarted.exception(key_set: key_set), __STACKTRACE__
+  end
+
+  # The fetch's outcome is reported to the key set even when it raises,
+  # because callers waiting for it would otherwise wait forever.
+  defp fetch_claimed(key_set, jwks_uri, opts) do
+    result =
+      try do
+        fetch_jwks(jwks_uri, opts)
+      catch
+        kind, reason ->
+          GenServer.call(key_set, {:finish, jwks_uri, :raised}, :infinity)
+          :erlang.raise(kind, reason, __STACKTRACE__)
+      end
+
+    GenServer.call(key_set, {:finish, jwks_uri, result}, :infinity)
+    with {:ok, keys, _max_age} <- result, do: {:ok, keys}
+  end
+
+  @impl GenServer
+  def init(opts) do
+    table = Keyword.fetch!(opts, :name)
+    :ets.new(table, [:set, :protected, :named_table, read_concurrency: true])
+    {:ok, %{table: table, interval: Keyword.fetch!(opts, :refetch_interval), fetches: %{}}}
+  end
+
+  # One caller fetches a key set URL at a time. The others are replied to
+  # when that fetch finishes.
+  @impl GenServer
+  def handle_call({:claim, jwks_uri}, {pid, _tag} = from, state) do
+    case state.fetches do
+      %{^jwks_uri => fetch} ->
+        fetch = %{fetch | waiting: [from | fetch.waiting]}
+        {:noreply, put_in(state.fetches[jwks_uri], fetch)}
+
+      _fetches ->
+        # A fetch may have finished after the caller read the table.
+        if fetch_due?(state.table, jwks_uri),
+          do: {:reply, :fetch, put_in(state.fetches[jwks_uri], fetch_by(pid, []))},
+          else: {:reply, :fetched, state}
+    end
+  end
+
+  def handle_call({:finish, jwks_uri, result}, {pid, _tag}, state) do
+    case state.fetches do
+      %{^jwks_uri => %{fetcher: ^pid} = fetch} ->
+        Process.demonitor(fetch.monitor)
+        {:reply, :ok, finish(state, jwks_uri, fetch, result)}
+
+      _fetches ->
+        {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:expire, jwks_uri}, _from, state) do
+    :ets.delete(state.table, jwks_uri)
+    {:reply, :ok, state}
+  end
+
+  # The fetching caller died.
+  @impl GenServer
+  def handle_info({:DOWN, monitor, :process, _pid, _reason}, state) do
+    case Enum.find(state.fetches, fn {_uri, fetch} -> fetch.monitor == monitor end) do
+      {jwks_uri, fetch} -> {:noreply, hand_over(state, jwks_uri, fetch)}
+      nil -> {:noreply, state}
+    end
+  end
+
+  # A refused connection or a raised error is not a result from the
+  # platform. It can depend on the caller's options, so the next caller
+  # fetches.
+  defp finish(state, jwks_uri, fetch, result)
+       when result == :raised or
+              (is_tuple(result) and is_struct(elem(result, 1), LocalNetworkAccessDenied)) do
+    hand_over(state, jwks_uri, fetch)
+  end
+
+  defp finish(state, jwks_uri, fetch, result) do
+    :ets.insert(state.table, {jwks_uri, entry(state, jwks_uri, result)})
+    Enum.each(fetch.waiting, &GenServer.reply(&1, :fetched))
+    %{state | fetches: Map.delete(state.fetches, jwks_uri)}
+  end
+
+  defp hand_over(state, jwks_uri, %{waiting: [{pid, _tag} = from | waiting]}) do
+    GenServer.reply(from, :fetch)
+    put_in(state.fetches[jwks_uri], fetch_by(pid, waiting))
+  end
+
+  defp hand_over(state, jwks_uri, %{waiting: []}) do
+    %{state | fetches: Map.delete(state.fetches, jwks_uri)}
+  end
+
+  defp fetch_by(pid, waiting) do
+    %{fetcher: pid, monitor: Process.monitor(pid), waiting: waiting}
+  end
+
+  defp fetch_due?(table, jwks_uri) do
+    case :ets.lookup(table, jwks_uri) do
+      [{_uri, %{refetch_at: refetch_at}}] -> System.monotonic_time(:second) >= refetch_at
+      [] -> true
+    end
+  end
+
+  defp entry(state, _jwks_uri, {:ok, keys, max_age}) do
+    now = System.monotonic_time(:second)
+
+    %{
+      keys: keys,
+      expires_at: now + max(max_age, state.interval),
+      refetch_at: now + state.interval,
+      error: nil
+    }
+  end
+
+  # Keys cached before a failed fetch stay in use until they expire.
+  defp entry(state, jwks_uri, {:error, error}) do
+    now = System.monotonic_time(:second)
+
+    cached =
+      case :ets.lookup(state.table, jwks_uri) do
+        [{_uri, %{expires_at: expires_at} = cached}] when now < expires_at -> cached
+        _expired -> %{keys: %{}, expires_at: now}
+      end
+
+    Map.merge(cached, %{refetch_at: now + state.interval, error: error})
   end
 
   defp fetch_jwks(jwks_uri, opts) do
@@ -210,11 +379,5 @@ defmodule Ltix.JWT.KeySet do
 
   defp req_options(opts) do
     HTTP.req_options(Keyword.get(opts, :req_options, []), __MODULE__)
-  end
-
-  defp resolve_cache(opts) do
-    Keyword.get_lazy(opts, :jwks_cache, fn ->
-      Application.get_env(:ltix, :jwks_cache, ETSCache)
-    end)
   end
 end

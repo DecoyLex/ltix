@@ -1,7 +1,7 @@
 # Comparing Elixir LTI Libraries
 
 Elixir's LTI ecosystem is small. If you need LTI 1.3 support, there are
-two real options: Ltix and `lti_1p3`. This guide compares their design
+two real options, Ltix and `lti_1p3`. This guide compares their design
 philosophies so you can choose the right fit for your project.
 
 ## Landscape
@@ -21,14 +21,14 @@ a large Phoenix/LiveView learning platform, and has been in production
 since 2021. The same team maintains `lightbulb`, a Gleam LTI library
 targeting the BEAM.
 
-Ltix would not exist without `lti_1p3`. It was born from extensive
+Ltix would not exist without `lti_1p3`. It was written after extensive
 experience building tools on top of `lti_1p3` and reflects lessons
 learned about what a tool-focused LTI library could look like when
 designed from scratch.
 
 ## Different starting points
 
-The libraries come from different contexts, which shaped their designs:
+The libraries come from different contexts, which shaped their designs.
 
 **`lti_1p3`** was extracted from a production LMS. It supports both the
 platform and tool sides of LTI, includes database-backed storage with
@@ -39,7 +39,7 @@ its own registrations, JWKs, and platform instances.
 focuses on the tool side only, keeps storage abstract, and tries to
 minimize the surface area a host app needs to implement.
 
-Neither approach is wrong — they serve different audiences.
+Neither approach is wrong. They serve different audiences.
 
 ## API comparison
 
@@ -48,7 +48,7 @@ Neither approach is wrong — they serve different audiences.
 Both libraries handle the three-step OIDC launch. The main difference
 is how claims are returned.
 
-**Ltix** parses claims into typed structs during validation:
+**Ltix** parses claims into typed structs during validation.
 
 ```elixir
 {:ok, %{redirect_uri: url, state: state}} =
@@ -62,7 +62,7 @@ context.claims.target_link_uri  #=> "https://mytool.example.com/launch"
 ```
 
 **`lti_1p3`** returns the validated JWT as a map, preserving the
-original claim URIs:
+original claim URIs.
 
 ```elixir
 {:ok, state, redirect_url} =
@@ -81,7 +81,7 @@ claims["https://purl.imsglobal.org/spec/lti/claim/context"]["title"]
 ### Storage
 
 **Ltix** defines a single `Ltix.StorageAdapter` behaviour with three
-callbacks — registration lookup, deployment lookup, and recording used
+callbacks for registration lookup, deployment lookup, and recording used
 nonces. Two optional callbacks sign with your tool's key, so the
 private key stays in your application or a key management service.
 
@@ -97,7 +97,7 @@ login hints, and platform instances. The companion package
 structured exception hierarchy. Errors are grouped into three classes
 (`:invalid`, `:security`, `:unknown`) and most have a `spec_ref` field.
 A single failure is returned as an error struct, and several
-failures found at once are grouped in their class struct:
+failures found at once are grouped in their class struct.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -107,7 +107,7 @@ case Ltix.handle_callback(params, state) do
 end
 ```
 
-**`lti_1p3`** returns error maps with `:reason` and `:msg` keys:
+**`lti_1p3`** returns error maps with `:reason` and `:msg` keys.
 
 ```elixir
 case Lti_1p3.Tool.LaunchValidation.validate(params, state) do
@@ -119,7 +119,7 @@ end
 ### Advantage services
 
 **Ltix** wraps service authentication and queries behind an
-authenticate-then-call pattern:
+authenticate-then-call pattern.
 
 ```elixir
 {:ok, client} = Ltix.MembershipsService.authenticate(context)
@@ -127,7 +127,7 @@ authenticate-then-call pattern:
 ```
 
 **`lti_1p3`** provides separate modules for token acquisition and
-service calls, giving more visibility into each step:
+service calls, giving more visibility into each step.
 
 ```elixir
 {:ok, token} = Lti_1p3.Tool.Services.AccessToken.fetch_access_token(
@@ -145,7 +145,7 @@ service calls, giving more visibility into each step:
 | **NRPS** | Yes | Yes |
 | **Deep Linking** | Claim parsing and response building | Claim parsing |
 | **Platform side** | No (tool only) | Yes |
-| **Ecto provider** | No (bring your own adapter) | Yes (`lti_1p3_ecto_provider`) |
+| **Ecto provider** | No (you implement the adapter) | Yes (`lti_1p3_ecto_provider`) |
 | **Test helpers** | Yes (`Ltix.Test`) | In-memory provider |
 
 ### Dependencies
@@ -159,7 +159,6 @@ service calls, giving more visibility into each step:
 | `telemetry` | — |
 | `recase` | — |
 | `plug` (optional) | — |
-| `cachex` (optional) | — |
 | — | `timex` |
 | — | `uuid` |
 | `jason` (optional) | `jason` |
@@ -178,9 +177,9 @@ over JWK lifecycle and platform management.
 
 ## Next steps
 
-- [What is Ltix?](what-is-ltix.md) — overview of Ltix's design
-- [Getting Started](getting-started.md) — integrate Ltix into a Phoenix app
-- `Ltix.StorageAdapter` — the three required callbacks your app implements
-- [Error Handling](error-handling.md) — working with structured errors
-- [Advantage Services](advantage-services.md) — OAuth and service calls
-- [Grade Service](grade-service.md) — posting scores and managing line items
+- [What is Ltix?](what-is-ltix.md) - overview of Ltix's design
+- [Getting Started](getting-started.md) - integrate Ltix into a Phoenix app
+- `Ltix.StorageAdapter` - the three required callbacks your app implements
+- [Error Handling](error-handling.md) - working with structured errors
+- [Advantage Services](advantage-services.md) - OAuth and service calls
+- [Grade Service](grade-service.md) - posting scores and managing line items

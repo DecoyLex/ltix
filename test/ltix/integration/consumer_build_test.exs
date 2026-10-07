@@ -140,7 +140,6 @@ defmodule Ltix.Integration.ConsumerBuildTest do
         use ExUnit.Case
         test "core parsing and signing work without HTTP stubs" do
           refute Code.ensure_loaded?(Plug.Conn)
-          refute Code.ensure_loaded?(Cachex)
           tool_key = Ltix.JWK.generate(key_size: 2048)
           {:ok, registration} = Ltix.Registration.new(%{
             issuer: "https://platform.example.com", client_id: "consumer",
