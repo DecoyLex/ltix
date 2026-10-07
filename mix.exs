@@ -85,6 +85,7 @@ defmodule Ltix.MixProject do
         "guides/getting-started.md",
         "guides/testing-with-ims-ri.md",
         "guides/storage-adapters.md",
+        "guides/upgrading-to-0.2.md",
         "guides/working-with-roles.md",
         "guides/custom-role-parsers.md",
         "guides/custom-claim-parsers.md",
@@ -152,7 +153,8 @@ defmodule Ltix.MixProject do
         "Getting started": [
           "guides/getting-started.md",
           "guides/testing-with-ims-ri.md",
-          "guides/storage-adapters.md"
+          "guides/storage-adapters.md",
+          "guides/upgrading-to-0.2.md"
         ],
         "Launch flow": [
           "guides/working-with-roles.md",
