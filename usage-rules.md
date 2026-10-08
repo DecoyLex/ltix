@@ -19,7 +19,7 @@ The entire OIDC launch flow is two functions.
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use
   the two public functions, or their raising variants `handle_login!/3` and
   `handle_callback!/3`.
-- `handle_login/3` takes `:storage_adapter`. `handle_callback/3` takes `:storage_adapter`, `:allow_anonymous`, `:req_options`, `:key_set`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `handle_login/3` takes `:storage_adapter` and `:storage_adapter_options`. `handle_callback/3` takes `:storage_adapter`, `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:storage_adapter_options` and `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 ## Required Configuration
 
