@@ -17,7 +17,7 @@ Concepts](concepts.md) first.
 # mix.exs
 defp deps do
   [
-    {:ltix, "~> 0.1"}
+    {:ltix, "~> 0.2"}
   ]
 end
 ```

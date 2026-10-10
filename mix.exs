@@ -4,7 +4,7 @@ defmodule Ltix.MixProject do
   def project do
     [
       app: :ltix,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -78,6 +78,7 @@ defmodule Ltix.MixProject do
       main: "Ltix",
       extras: [
         "README.md",
+        "CHANGELOG.md",
         "guides/what-is-ltix.md",
         "guides/concepts.md",
         "guides/comparing-lti-libraries.md",
