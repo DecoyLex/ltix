@@ -266,7 +266,8 @@ defmodule Ltix do
       from (defaults to application config, then `Ltix.JWT.KeySet`)
     * `:claim_parsers` - custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
     * `:role_parsers` - custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
-    * `:clock_skew` - seconds of tolerance for token expiration (defaults to `5`)
+    * `:clock_skew` - seconds of tolerance for the token's `exp`, `iat`, and
+      `nbf` (defaults to `5`)
     * `:max_token_age` - seconds after the platform issued the ID Token that
       the launch is still accepted, or `:infinity` to accept any age
       (defaults to application config, then `3600`)

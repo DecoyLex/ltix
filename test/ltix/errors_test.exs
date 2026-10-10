@@ -35,6 +35,7 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.Errors.Security.StateMismatch
   alias Ltix.Errors.Security.TokenExpired
+  alias Ltix.Errors.Security.TokenNotYetValid
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.Errors.Unknown.Unknown
 
@@ -269,6 +270,12 @@ defmodule Ltix.ErrorsTest do
     test "TokenExpired includes spec ref" do
       error = TokenExpired.exception(spec_ref: "Sec §5.1.3 step 7")
       assert Exception.message(error) =~ "Sec §5.1.3 step 7"
+    end
+
+    test "TokenNotYetValid includes the claim and spec ref" do
+      error = TokenNotYetValid.exception(claim: "nbf", spec_ref: "RFC 7519 §4.1.5")
+      assert Exception.message(error) =~ "nbf"
+      assert Exception.message(error) =~ "RFC 7519 §4.1.5"
     end
 
     test "IssuerMismatch includes expected and actual values" do

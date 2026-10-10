@@ -25,15 +25,18 @@ defmodule Ltix.JWT.Token do
   5. Validate `iss` matches the registration's issuer
   6. Validate `aud` is the tool's `client_id`, or a list containing only it
   7. Validate `azp` matches `client_id` (when present)
-  8. Validate `iat` is a NumericDate
-  9. Validate `exp` is not in the past and `iat` is within the maximum
-     token age (with configurable clock skew)
-  10. Validate `nonce` is present
+  8. Validate `iat` is a NumericDate that is not in the future
+  9. Validate `nbf` is not in the future (when present)
+  10. Validate `exp` is not in the past and `iat` is within the maximum
+      token age
+  11. Validate `nonce` is present
+
+  Steps 8 to 10 allow for clock skew.
 
   ## Options
 
-    * `:clock_skew` - seconds of tolerance for `exp` and `iat` validation
-      (defaults to `5`)
+    * `:clock_skew` - seconds of tolerance for `exp`, `iat`, and `nbf`
+      validation (defaults to `5`)
     * `:max_token_age` - seconds after `iat` that a token is still accepted,
       or `:infinity` to accept any age (defaults to application config, then
       `3600`)
@@ -54,6 +57,7 @@ defmodule Ltix.JWT.Token do
   alias Ltix.Errors.Security.NonceMissing
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.Errors.Security.TokenExpired
+  alias Ltix.Errors.Security.TokenNotYetValid
   alias Ltix.JWK
   alias Ltix.JWT.KeySet
   alias Ltix.Options
@@ -200,10 +204,14 @@ defmodule Ltix.JWT.Token do
 
   # Validate claims per [Sec §5.1.3] steps 2-5, 7-9.
   defp validate_claims(claims, registration, opts) do
+    now = Keyword.get(opts, :now, System.system_time(:second))
+    latest_start = now + Keyword.get(opts, :clock_skew, @default_clock_skew)
+
     with :ok <- validate_issuer(claims, registration),
          :ok <- validate_audience(claims, registration),
-         :ok <- validate_issued_at(claims),
-         :ok <- validate_expiration(claims, opts) do
+         :ok <- validate_issued_at(claims, latest_start),
+         :ok <- validate_not_before(claims, latest_start),
+         :ok <- validate_expiration(claims, now, opts) do
       validate_nonce(claims)
     end
   end
@@ -269,9 +277,7 @@ defmodule Ltix.JWT.Token do
 
   # [Sec §5.1.3 step 7] exp MUST be in the future (with clock skew tolerance).
   # [Sec §5.1.3 step 8] The Tool MAY reject tokens issued too long ago.
-  defp validate_expiration(%{"exp" => exp} = claims, opts) when is_number(exp) do
-    now = Keyword.get(opts, :now, System.system_time(:second))
-
+  defp validate_expiration(%{"exp" => exp} = claims, now, opts) when is_number(exp) do
     if now < deadline(claims, opts) do
       :ok
     else
@@ -280,11 +286,11 @@ defmodule Ltix.JWT.Token do
   end
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
-  defp validate_expiration(%{"exp" => exp}, _opts) do
+  defp validate_expiration(%{"exp" => exp}, _now, _opts) do
     {:error, InvalidClaim.exception(claim: "exp", value: exp, spec_ref: "Sec §5.1.2")}
   end
 
-  defp validate_expiration(_claims, _opts) do
+  defp validate_expiration(_claims, _now, _opts) do
     {:error, MissingClaim.exception(claim: "exp", spec_ref: "Sec §5.1.2")}
   end
 
@@ -300,14 +306,33 @@ defmodule Ltix.JWT.Token do
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   # [RFC 7519 §4.1.6](https://www.rfc-editor.org/rfc/rfc7519#section-4.1.6)
-  defp validate_issued_at(%{"iat" => issued_at}) when is_number(issued_at), do: :ok
+  # [Sec §5.1.3 step 8](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+  defp validate_issued_at(%{"iat" => issued_at}, latest_start) when is_number(issued_at),
+    do: validate_not_future("iat", issued_at, "Sec §5.1.3 step 8", latest_start)
 
-  defp validate_issued_at(%{"iat" => issued_at}) do
+  defp validate_issued_at(%{"iat" => issued_at}, _latest_start) do
     {:error, InvalidClaim.exception(claim: "iat", value: issued_at, spec_ref: "Sec §5.1.2")}
   end
 
-  defp validate_issued_at(_claims) do
+  defp validate_issued_at(_claims, _latest_start) do
     {:error, MissingClaim.exception(claim: "iat", spec_ref: "Sec §5.1.2")}
+  end
+
+  # [RFC 7519 §4.1.5](https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5)
+  defp validate_not_before(%{"nbf" => not_before}, latest_start) when is_number(not_before),
+    do: validate_not_future("nbf", not_before, "RFC 7519 §4.1.5", latest_start)
+
+  defp validate_not_before(%{"nbf" => not_before}, _latest_start) do
+    {:error, InvalidClaim.exception(claim: "nbf", value: not_before, spec_ref: "RFC 7519 §4.1.5")}
+  end
+
+  defp validate_not_before(_claims, _latest_start), do: :ok
+
+  defp validate_not_future(_claim, time, _spec_ref, latest_start) when time <= latest_start,
+    do: :ok
+
+  defp validate_not_future(claim, _time, spec_ref, _latest_start) do
+    {:error, TokenNotYetValid.exception(claim: claim, spec_ref: spec_ref)}
   end
 
   # [Sec §5.1.3 step 9] nonce MUST be present.

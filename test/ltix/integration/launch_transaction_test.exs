@@ -137,6 +137,55 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       assert_received {:validate_nonce, _nonce, expires_at}
       assert expires_at == DateTime.from_unix!(now + 600 + 5)
     end
+
+    test "rejects a token issued in the future without consuming the nonce", ctx do
+      now = System.system_time(:second)
+      {login, launch} = signed_launch(ctx.platform, %{"iat" => now + 600, "exp" => now + 1_200})
+
+      assert {:error, %Security.TokenNotYetValid{claim: "iat"}} =
+               callback(launch, login.state, LaunchStorageAdapter)
+
+      refute_received {:validate_nonce, _nonce, _expires_at}
+    end
+  end
+
+  # [RFC 7519 §4.1.5](https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5)
+  describe "not before" do
+    test "rejects a token before its nbf without consuming the nonce", ctx do
+      now = System.system_time(:second)
+      {login, launch} = signed_launch(ctx.platform, %{"nbf" => now + 600})
+
+      assert {:error, %Security.TokenNotYetValid{claim: "nbf"}} =
+               callback(launch, login.state, LaunchStorageAdapter)
+
+      refute_received {:validate_nonce, _nonce, _expires_at}
+    end
+
+    test "rejects an nbf that is not a number", ctx do
+      {login, launch} = signed_launch(ctx.platform, %{"nbf" => "tomorrow"})
+
+      assert {:error, %Ltix.Errors.Invalid.InvalidClaim{claim: "nbf", value: "tomorrow"}} =
+               callback(launch, login.state)
+    end
+  end
+
+  describe "clock skew" do
+    test "accepts iat and nbf a few seconds in the future", ctx do
+      now = System.system_time(:second)
+      {login, launch} = signed_launch(ctx.platform, %{"iat" => now + 3, "nbf" => now + 3})
+
+      assert {:ok, %LaunchContext{}} = callback(launch, login.state)
+    end
+
+    test "applies a clock_skew option to exp, iat, and nbf", ctx do
+      now = System.system_time(:second)
+      claims = %{"exp" => now - 30, "iat" => now + 30, "nbf" => now + 30}
+
+      {login, launch} = signed_launch(ctx.platform, claims)
+
+      assert {:ok, %LaunchContext{}} =
+               callback(launch, login.state, StorageAdapter, clock_skew: 60)
+    end
   end
 
   describe "malformed browser state" do
