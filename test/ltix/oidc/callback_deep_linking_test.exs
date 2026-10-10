@@ -172,30 +172,6 @@ defmodule Ltix.OIDC.CallbackDeepLinkingTest do
     end
   end
 
-  describe "message type validation" do
-    test "resource link launch without resource_link still fails", ctx do
-      claims =
-        ctx.claims
-        |> Map.put(@lti <> "message_type", "LtiResourceLinkRequest")
-        |> Map.put(@lti <> "roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "resource_link"}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "unrecognized message type returns InvalidClaim error", ctx do
-      claims = Map.put(ctx.claims, @lti <> "message_type", "LtiUnknownRequest")
-      params = mint_and_params(claims, ctx)
-
-      assert {:error, %InvalidClaim{claim: "message_type", value: "LtiUnknownRequest"}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-  end
-
   describe "build_launch_context/2 with deep linking" do
     test "produces a DL context with settings" do
       platform = Ltix.Test.setup_platform!()

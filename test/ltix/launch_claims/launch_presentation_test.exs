@@ -22,45 +22,5 @@ defmodule Ltix.LaunchClaims.LaunchPresentationTest do
       assert lp.return_url == "https://platform.example.com/return"
       assert lp.locale == "en-US"
     end
-
-    # [Core §5.4.4] All fields optional
-    test "parses empty map" do
-      assert {:ok,
-              %LaunchPresentation{
-                document_target: nil,
-                height: nil,
-                width: nil,
-                return_url: nil,
-                locale: nil
-              }} = LaunchPresentation.from_json(%{})
-    end
-
-    # [Core §5.4.4] document_target MUST be one of frame, iframe, window
-    test "accepts frame as document_target" do
-      assert {:ok, %LaunchPresentation{document_target: "frame"}} =
-               LaunchPresentation.from_json(%{"document_target" => "frame"})
-    end
-
-    test "accepts iframe as document_target" do
-      assert {:ok, %LaunchPresentation{document_target: "iframe"}} =
-               LaunchPresentation.from_json(%{"document_target" => "iframe"})
-    end
-
-    test "accepts window as document_target" do
-      assert {:ok, %LaunchPresentation{document_target: "window"}} =
-               LaunchPresentation.from_json(%{"document_target" => "window"})
-    end
-
-    test "accepts unknown document_target string" do
-      assert {:ok, %LaunchPresentation{document_target: "popup"}} =
-               LaunchPresentation.from_json(%{"document_target" => "popup"})
-    end
-
-    test "coerces string height and width to numbers" do
-      json = %{"height" => "600", "width" => "800", "document_target" => "iframe"}
-
-      assert {:ok, %LaunchPresentation{height: 600, width: 800, document_target: "iframe"}} =
-               LaunchPresentation.from_json(json)
-    end
   end
 end

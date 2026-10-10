@@ -28,19 +28,10 @@ defmodule Ltix.LaunchClaims.ToolPlatformTest do
       assert tp.version == "2.1"
     end
 
-    test "parses with only required guid" do
-      assert {:ok, %ToolPlatform{guid: "guid-1", name: nil}} =
-               ToolPlatform.from_json(%{"guid" => "guid-1"})
-    end
-
     # [Core §5.4.2] guid is REQUIRED
     test "returns error when guid missing" do
       assert {:error, error} = ToolPlatform.from_json(%{"name" => "No GUID"})
       assert Exception.message(error) =~ "tool_platform.guid"
-    end
-
-    test "returns error for empty map" do
-      assert {:error, _} = ToolPlatform.from_json(%{})
     end
   end
 end

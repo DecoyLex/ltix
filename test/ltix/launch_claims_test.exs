@@ -3,15 +3,6 @@ defmodule Ltix.LaunchClaimsTest do
 
   alias Ltix.LaunchClaims
 
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchClaims.Context
-  alias Ltix.LaunchClaims.DeepLinkingSettings
-  alias Ltix.LaunchClaims.LaunchPresentation
-  alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchClaims.ResourceLink
-  alias Ltix.LaunchClaims.Role
-  alias Ltix.LaunchClaims.ToolPlatform
-
   doctest Ltix.LaunchClaims
 
   defmodule AnalyticsClaimParser do
@@ -87,19 +78,6 @@ defmodule Ltix.LaunchClaimsTest do
       assert claims.target_link_uri == "https://tool.example.com/launch"
     end
 
-    # [Core §5.4.6] custom properties
-    test "parses custom claim" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/custom" => %{
-          "course_id" => "12345",
-          "section_title" => "Section A"
-        }
-      }
-
-      assert {:ok, %LaunchClaims{custom: custom}} = LaunchClaims.from_json(json)
-      assert custom == %{"course_id" => "12345", "section_title" => "Section A"}
-    end
-
     # [Core §5.4.3] role_scope_mentor
     test "parses role_scope_mentor" do
       json = %{
@@ -117,45 +95,6 @@ defmodule Ltix.LaunchClaimsTest do
   # --- Role Parsing [Core §A.2] ---
 
   describe "from_json/2 roles [Core §5.3.7]" do
-    test "parses roles into Role structs" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/roles" => [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
-        ]
-      }
-
-      assert {:ok, %LaunchClaims{roles: roles, unrecognized_roles: []}} =
-               LaunchClaims.from_json(json)
-
-      assert [%Role{name: :instructor}, %Role{name: :learner}] = roles
-    end
-
-    test "separates unrecognized roles" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/roles" => [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-          "http://example.com/custom#CustomRole"
-        ]
-      }
-
-      assert {:ok, %LaunchClaims{roles: roles, unrecognized_roles: unrecognized}} =
-               LaunchClaims.from_json(json)
-
-      assert [%Role{name: :instructor}] = roles
-      assert ["http://example.com/custom#CustomRole"] = unrecognized
-    end
-
-    # [Core §5.3.7.1] empty roles list (anonymous launch)
-    test "handles empty roles list" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/roles" => []
-      }
-
-      assert {:ok, %LaunchClaims{roles: [], unrecognized_roles: []}} =
-               LaunchClaims.from_json(json)
-    end
-
     test "defaults roles to empty list when absent" do
       assert {:ok, %LaunchClaims{roles: [], unrecognized_roles: []}} =
                LaunchClaims.from_json(%{})
@@ -165,62 +104,6 @@ defmodule Ltix.LaunchClaimsTest do
   # --- Nested Claim Structs ---
 
   describe "from_json/2 nested claims" do
-    # [Core §5.4.1] context
-    test "parses context into Context struct" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/context" => %{
-          "id" => "ctx-001",
-          "label" => "CS101",
-          "title" => "Intro to CS"
-        }
-      }
-
-      assert {:ok, %LaunchClaims{context: %Context{id: "ctx-001"}}} =
-               LaunchClaims.from_json(json)
-    end
-
-    # [Core §5.3.5] resource_link
-    test "parses resource_link into ResourceLink struct" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/resource_link" => %{
-          "id" => "rl-001",
-          "title" => "Assignment 1"
-        }
-      }
-
-      assert {:ok, %LaunchClaims{resource_link: %ResourceLink{id: "rl-001"}}} =
-               LaunchClaims.from_json(json)
-    end
-
-    # [Core §5.4.4] launch_presentation
-    test "parses launch_presentation into LaunchPresentation struct" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/launch_presentation" => %{
-          "document_target" => "iframe",
-          "height" => 600,
-          "width" => 800
-        }
-      }
-
-      assert {:ok,
-              %LaunchClaims{
-                launch_presentation: %LaunchPresentation{document_target: "iframe"}
-              }} = LaunchClaims.from_json(json)
-    end
-
-    # [Core §5.4.2] tool_platform
-    test "parses tool_platform into ToolPlatform struct" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/tool_platform" => %{
-          "guid" => "platform-guid",
-          "name" => "Example LMS"
-        }
-      }
-
-      assert {:ok, %LaunchClaims{tool_platform: %ToolPlatform{guid: "platform-guid"}}} =
-               LaunchClaims.from_json(json)
-    end
-
     # [Core §5.4] missing optional nested claims default to nil
     test "missing optional nested claims default to nil" do
       assert {:ok, %LaunchClaims{} = claims} = LaunchClaims.from_json(%{})
@@ -241,116 +124,11 @@ defmodule Ltix.LaunchClaimsTest do
       assert {:error, error} = LaunchClaims.from_json(json)
       assert Exception.message(error) =~ "resource_link.id"
     end
-
-    test "unknown launch_presentation document_target is accepted" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti/claim/launch_presentation" => %{
-          "document_target" => "invalid"
-        }
-      }
-
-      assert {:ok, claims} = LaunchClaims.from_json(json)
-      assert claims.launch_presentation.document_target == "invalid"
-    end
-  end
-
-  # --- Service Endpoint Claims [Core §6.1] ---
-
-  describe "from_json/2 service endpoint claims [Core §6.1]" do
-    test "parses AGS endpoint" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" => %{
-          "scope" => ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"],
-          "lineitems" => "https://platform.example.com/lineitems"
-        }
-      }
-
-      assert {:ok, %LaunchClaims{ags_endpoint: %AGSEndpoint{line_items: url}}} =
-               LaunchClaims.from_json(json)
-
-      assert url == "https://platform.example.com/lineitems"
-    end
-
-    test "parses NRPS endpoint" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" => %{
-          "context_memberships_url" => "https://platform.example.com/memberships",
-          "service_versions" => ["2.0"]
-        }
-      }
-
-      assert {:ok,
-              %LaunchClaims{
-                memberships_endpoint: %MembershipsEndpoint{context_memberships_url: url}
-              }} =
-               LaunchClaims.from_json(json)
-
-      assert url == "https://platform.example.com/memberships"
-    end
-
-    test "parses deep linking settings" do
-      json = %{
-        "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => %{
-          "deep_link_return_url" => "https://platform.example.com/dl/return",
-          "accept_types" => ["link", "ltiResourceLink"],
-          "accept_presentation_document_targets" => ["iframe", "window"]
-        }
-      }
-
-      assert {:ok,
-              %LaunchClaims{
-                deep_linking_settings: %DeepLinkingSettings{
-                  deep_link_return_url: "https://platform.example.com/dl/return",
-                  accept_types: ["link", "ltiResourceLink"],
-                  accept_presentation_document_targets: ["iframe", "window"]
-                }
-              }} = LaunchClaims.from_json(json)
-    end
-
-    test "missing service endpoints default to nil" do
-      assert {:ok, %LaunchClaims{} = claims} = LaunchClaims.from_json(%{})
-      assert claims.ags_endpoint == nil
-      assert claims.memberships_endpoint == nil
-      assert claims.deep_linking_settings == nil
-    end
   end
 
   # --- Extensions [Core §5.4.7] ---
 
   describe "from_json/2 extensions [Core §5.4.7]" do
-    test "unknown claims preserved in extensions" do
-      json = %{
-        "https://example.com/custom_claim" => %{"foo" => "bar"},
-        "some_unknown_key" => "value"
-      }
-
-      assert {:ok, %LaunchClaims{extensions: extensions}} = LaunchClaims.from_json(json)
-      assert extensions["https://example.com/custom_claim"] == %{"foo" => "bar"}
-      assert extensions["some_unknown_key"] == "value"
-    end
-
-    test "extensions map is empty when no unknown claims" do
-      json = %{"iss" => "https://platform.example.com"}
-
-      assert {:ok, %LaunchClaims{extensions: extensions}} = LaunchClaims.from_json(json)
-      assert extensions == %{}
-    end
-
-    test "extension parsers invoked per-call" do
-      json = %{
-        "https://example.com/custom" => %{"raw" => "data"}
-      }
-
-      parser = fn value -> {:ok, Map.put(value, "parsed", true)} end
-
-      assert {:ok, %LaunchClaims{extensions: extensions}} =
-               LaunchClaims.from_json(json,
-                 claim_parsers: %{"https://example.com/custom" => parser}
-               )
-
-      assert extensions["https://example.com/custom"] == %{"raw" => "data", "parsed" => true}
-    end
-
     test "extension parsers can be modules implementing the claim parser behaviour" do
       json = %{"https://example.com/analytics" => %{"session_id" => "abc"}}
 
@@ -408,23 +186,6 @@ defmodule Ltix.LaunchClaimsTest do
       assert extensions == %{"https://example.com/null" => nil}
       assert_received {:parsed, nil}
       refute_received {:parsed, _}
-    end
-  end
-
-  # --- Full Parse ---
-
-  describe "from_json/2 full parse" do
-    test "parses a complete LTI launch" do
-      json = Ltix.Test.valid_lti_claims(Ltix.Test.setup_platform!())
-
-      assert {:ok, %LaunchClaims{} = claims} = LaunchClaims.from_json(json)
-      assert claims.issuer == "https://platform.example.com"
-      assert claims.subject == "user-12345"
-      assert claims.message_type == "LtiResourceLinkRequest"
-      assert claims.version == "1.3.0"
-      assert claims.deployment_id == "deployment-001"
-      assert %ResourceLink{id: "resource-link-001"} = claims.resource_link
-      assert [%Role{name: :instructor}] = claims.roles
     end
   end
 

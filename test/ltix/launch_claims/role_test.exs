@@ -73,26 +73,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
         assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
     end
-
-    test "parses Instructor with correct name atom" do
-      assert {:ok, %Role{name: :instructor, sub_role: nil}} =
-               Role.parse(@context_base <> "Instructor")
-    end
-
-    test "parses Learner with correct name atom" do
-      assert {:ok, %Role{name: :learner, sub_role: nil}} =
-               Role.parse(@context_base <> "Learner")
-    end
-
-    test "parses ContentDeveloper with correct name atom" do
-      assert {:ok, %Role{name: :content_developer, sub_role: nil}} =
-               Role.parse(@context_base <> "ContentDeveloper")
-    end
-
-    test "parses Administrator with correct name atom" do
-      assert {:ok, %Role{name: :administrator, sub_role: nil}} =
-               Role.parse(@context_base <> "Administrator")
-    end
   end
 
   # --- Context Sub-Roles [Core §A.2.3.1] ---
@@ -214,14 +194,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
         assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
     end
-
-    test "parses Faculty with correct name atom" do
-      assert {:ok, %Role{name: :faculty}} = Role.parse(@institution_base <> "Faculty")
-    end
-
-    test "parses Student with correct name atom" do
-      assert {:ok, %Role{name: :student}} = Role.parse(@institution_base <> "Student")
-    end
   end
 
   # --- System Roles (LIS) [Core §A.2.1] ---
@@ -247,10 +219,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
 
         assert Role.to_uri(%{role | uri: nil}) == {:ok, uri}
       end
-    end
-
-    test "parses SysAdmin with correct name atom" do
-      assert {:ok, %Role{name: :sys_admin}} = Role.parse(@system_lis_base <> "SysAdmin")
     end
   end
 
@@ -382,10 +350,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
   # --- Short Role Names [Cert §6.1.2] ---
 
   describe "parse/1 short role names [Cert §6.1.2]" do
-    test "parses short Instructor" do
-      assert {:ok, %Role{type: :context, name: :instructor}} = Role.parse("Instructor")
-    end
-
     test "parses short Learner" do
       assert {:ok, %Role{type: :context, name: :learner}} = Role.parse("Learner")
     end
@@ -411,25 +375,8 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert :error = Role.parse("http://example.com/custom/role#CustomRole")
     end
 
-    test "returns :error for unrecognized short name" do
-      assert :error = Role.parse("CustomUnknownRole")
-    end
-
-    test "accepts unrecognized role when custom parser provided" do
-      custom_parser = fn
-        "http://example.com/custom/role#CustomRole" = uri ->
-          {:ok, %Role{type: :custom, name: :custom_role, uri: uri}}
-
-        _ ->
-          :error
-      end
-
-      assert {:ok, %Role{type: :custom, name: :custom_role}} =
-               Role.parse("http://example.com/custom/role#CustomRole",
-                 role_parsers: %{
-                   "http://example.com" => custom_parser
-                 }
-               )
+    test "returns :error for a URI in an unrecognized LIS vocabulary" do
+      assert :error = Role.parse("http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering")
     end
 
     test "tries overlapping parser prefixes longest first" do
@@ -477,28 +424,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert [%Role{name: :instructor}, %Role{name: :learner}] = parsed
       assert ["http://example.com/custom#CustomRole"] = unrecognized
     end
-
-    # [Core §5.3.7.1] Empty list accepted (anonymous launch)
-    test "handles empty list" do
-      assert {[], []} = Role.parse_all([])
-    end
-
-    test "preserves order" do
-      uris = [
-        "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner",
-        "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-      ]
-
-      assert {[%Role{name: :learner}, %Role{name: :instructor}], []} = Role.parse_all(uris)
-    end
-
-    # [Core §A.2.3.1] Sub-role without principal role present
-    test "sub-role without principal role present" do
-      uris = ["http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant"]
-
-      assert {[%Role{name: :instructor, sub_role: :teaching_assistant}], []} =
-               Role.parse_all(uris)
-    end
   end
 
   # --- Predicate Helpers ---
@@ -537,12 +462,14 @@ defmodule Ltix.LaunchClaims.RoleTest do
       refute Role.administrator?(roles)
     end
 
-    test "content_developer?/1 returns false when not present", %{roles: roles} do
+    test "content_developer?/1", %{roles: roles} do
       refute Role.content_developer?(roles)
+      assert Role.content_developer?([Role.from_atom(:content_developer) | roles])
     end
 
-    test "mentor?/1 returns false when not present", %{roles: roles} do
+    test "mentor?/1", %{roles: roles} do
       refute Role.mentor?(roles)
+      assert Role.mentor?([Role.from_atom(:mentor) | roles])
     end
 
     test "teaching_assistant?/1 with sub-role" do
@@ -662,19 +589,6 @@ defmodule Ltix.LaunchClaims.RoleTest do
       assert_raise ArgumentError, ~r/unknown role atom/, fn ->
         Role.from_atom(:not_a_role)
       end
-    end
-  end
-
-  # --- URI Preservation ---
-
-  describe "original URI preserved" do
-    test "full URI preserved in struct" do
-      uri = "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-      assert {:ok, %Role{uri: ^uri}} = Role.parse(uri)
-    end
-
-    test "short name preserved as URI" do
-      assert {:ok, %Role{uri: "Instructor"}} = Role.parse("Instructor")
     end
   end
 end

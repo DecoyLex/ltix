@@ -24,18 +24,6 @@ defmodule Ltix.LaunchClaims.ClaimHelpersTest do
   end
 
   describe "from_json/4" do
-    test "returns {:ok, struct} on valid input" do
-      json = %{"id" => "abc", "type" => ["foo"]}
-
-      assert {:ok, %TestClaim{id: "abc", type: ["foo"]}} =
-               ClaimHelpers.from_json(TestClaim.schema(), json, "test", "Spec §1")
-    end
-
-    test "missing required field produces MissingClaim" do
-      assert {:error, %MissingClaim{claim: "test.id"}} =
-               ClaimHelpers.from_json(TestClaim.schema(), %{}, "test", "Spec §1")
-    end
-
     test "invalid type produces InvalidClaim with the bad value" do
       json = %{"id" => "ok", "type" => "not_a_list"}
 

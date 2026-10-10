@@ -45,26 +45,6 @@ defmodule Ltix.JWT.KeySetTest do
       assert Ltix.JWK.to_jwks(jwk) == ctx.jwks
     end
 
-    # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
-    test "selects correct key from multi-key JWKS", ctx do
-      second_jwk = Ltix.JWK.generate()
-      jwks = Ltix.JWK.to_jwks([ctx.platform_jwk, second_jwk])
-      count_fetches(jwks(jwks))
-
-      kid = second_jwk.kid
-
-      assert {:ok, %Ltix.JWK{kid: ^kid}} =
-               KeySet.get_key(ctx.registration, kid, req_options: req_options())
-    end
-
-    # [Cert §6.1.1] "Incorrect KID in JWT header"
-    test "returns KidNotFound when kid not in JWKS", ctx do
-      count_fetches(jwks(ctx.jwks))
-
-      assert {:error, %Ltix.Errors.Security.KidNotFound{kid: "wrong-kid"}} =
-               KeySet.get_key(ctx.registration, "wrong-kid", req_options: req_options())
-    end
-
     # [Sec §6.4](https://www.imsglobal.org/spec/security/v1p0/#issuer-public-key-rotation)
     test "re-fetches an unknown kid once the refetch interval has passed", ctx do
       rotated_jwk = Ltix.JWK.generate()

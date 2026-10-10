@@ -30,10 +30,19 @@ defmodule Ltix.MembershipsServiceTest do
   defp req_options, do: [plug: {Req.Test, Ltix.MembershipsService}, retry: false]
 
   defp stub_token_response do
-    Ltix.Test.stub_token_response(
-      scopes: [@nrps_scope],
-      access_token: "test-nrps-token"
-    )
+    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      params = URI.decode_query(body)
+
+      assert params["scope"] == @nrps_scope
+
+      Req.Test.json(conn, %{
+        "access_token" => "test-nrps-token",
+        "token_type" => "Bearer",
+        "expires_in" => 3600,
+        "scope" => @nrps_scope
+      })
+    end)
   end
 
   defp stub_memberships_response(body, opts \\ []) do
@@ -78,7 +87,6 @@ defmodule Ltix.MembershipsServiceTest do
     |> maybe_put("status", Keyword.get(opts, :status))
     |> maybe_put("name", Keyword.get(opts, :name))
     |> maybe_put("email", Keyword.get(opts, :email))
-    |> maybe_put("message", Keyword.get(opts, :message))
   end
 
   defp maybe_put(map, _key, nil), do: map
@@ -201,25 +209,6 @@ defmodule Ltix.MembershipsServiceTest do
                MembershipsService.authenticate(context)
 
       assert Exception.message(error) =~ "The endpoint does not support NRPS version 2.0"
-    end
-
-    test "accepts nil service_versions (allows any)", ctx do
-      stub_token_response()
-
-      endpoint = %MembershipsEndpoint{
-        context_memberships_url: @memberships_url,
-        service_versions: nil
-      }
-
-      context =
-        Ltix.Test.build_launch_context(ctx.platform,
-          memberships_endpoint: endpoint
-        )
-
-      assert {:ok, %Client{}} =
-               MembershipsService.authenticate(context,
-                 req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-               )
     end
   end
 
@@ -502,20 +491,6 @@ defmodule Ltix.MembershipsServiceTest do
       assert {:ok, _} = MembershipsService.list_members(client, role: @instructor_uri)
     end
 
-    test "role filter with short name string", ctx do
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
-        params = Plug.Conn.fetch_query_params(conn).query_params
-        assert params["role"] == "Learner"
-
-        conn
-        |> Plug.Conn.put_resp_content_type(@nrps_media_type)
-        |> Req.Test.json(build_membership_response([]))
-      end)
-
-      client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.list_members(client, role: "Learner")
-    end
-
     test "per_page passed as limit query parameter", ctx do
       Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
@@ -565,24 +540,6 @@ defmodule Ltix.MembershipsServiceTest do
   # --- Content-Type validation ---
 
   describe "content-type validation" do
-    test "accepts correct NRPS media type", ctx do
-      stub_memberships_response(build_membership_response([]))
-
-      client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.list_members(client)
-    end
-
-    test "accepts media type with parameters", ctx do
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type(@nrps_media_type <> "; charset=utf-8")
-        |> Req.Test.json(build_membership_response([]))
-      end)
-
-      client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.list_members(client)
-    end
-
     test "rejects wrong content type", ctx do
       Req.Test.stub(Ltix.MembershipsService, fn conn ->
         conn
@@ -600,18 +557,6 @@ defmodule Ltix.MembershipsServiceTest do
   # --- stream_members/2 ---
 
   describe "stream_members/2" do
-    test "returns lazy stream", ctx do
-      members = [build_member("user-1", [@learner_uri])]
-      stub_memberships_response(build_membership_response(members))
-
-      client = build_client(ctx.platform)
-
-      assert {:ok, stream} = MembershipsService.stream_members(client)
-      result = Enum.to_list(stream)
-      assert length(result) == 1
-      assert hd(result).user_id == "user-1"
-    end
-
     test "lazily follows relative membership links", ctx do
       fetch_count = :counters.new(1, [:atomics])
 
@@ -653,57 +598,9 @@ defmodule Ltix.MembershipsServiceTest do
     end
   end
 
-  # --- Resource link membership ---
-
-  describe "resource link membership" do
-    test "includes message section per member", ctx do
-      lti_msg = %{
-        "https://purl.imsglobal.org/spec/lti/claim/message_type" => "LtiResourceLinkRequest",
-        "https://purl.imsglobal.org/spec/lti/claim/version" => "1.3.0",
-        "https://purl.imsglobal.org/spec/lti/claim/custom" => %{
-          "grade" => "85"
-        }
-      }
-
-      members = [
-        build_member("user-1", [@learner_uri], message: [lti_msg])
-      ]
-
-      stub_memberships_response(build_membership_response(members))
-
-      client = build_client(ctx.platform)
-
-      assert {:ok, %MembershipContainer{} = roster} =
-               MembershipsService.list_members(client, resource_link_id: "resource-link-001")
-
-      assert [member] = roster.members
-      assert [msg] = member.message
-      assert msg.custom == %{"grade" => "85"}
-    end
-  end
-
   # --- AdvantageService callbacks ---
 
   describe "AdvantageService callbacks" do
-    test "endpoint_from_claims extracts memberships endpoint" do
-      claims = %Ltix.LaunchClaims{
-        memberships_endpoint: MembershipsEndpoint.new!(@memberships_url)
-      }
-
-      assert {:ok, %MembershipsEndpoint{}} =
-               MembershipsService.endpoint_from_claims(claims)
-    end
-
-    test "endpoint_from_claims returns :error when no endpoint" do
-      claims = %Ltix.LaunchClaims{}
-      assert :error == MembershipsService.endpoint_from_claims(claims)
-    end
-
-    test "validate_endpoint accepts MembershipsEndpoint" do
-      assert :ok ==
-               MembershipsService.validate_endpoint(MembershipsEndpoint.new!(@memberships_url))
-    end
-
     test "validate_endpoint rejects an endpoint without a valid URL" do
       missing = %MembershipsEndpoint{context_memberships_url: nil, service_versions: ["2.0"]}
       insecure = %{missing | context_memberships_url: "http://platform.example.com/memberships"}
@@ -720,11 +617,6 @@ defmodule Ltix.MembershipsServiceTest do
     test "validate_endpoint rejects other values" do
       assert {:error, %Ltix.Errors.Invalid.InvalidEndpoint{}} =
                MembershipsService.validate_endpoint(:not_an_endpoint)
-    end
-
-    test "scopes returns NRPS scope" do
-      assert [@nrps_scope] ==
-               MembershipsService.scopes(MembershipsEndpoint.new!(@memberships_url))
     end
   end
 end

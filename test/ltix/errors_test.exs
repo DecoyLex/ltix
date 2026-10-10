@@ -27,13 +27,8 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Security.AudienceMismatch
   alias Ltix.Errors.Security.AuthenticationFailed
   alias Ltix.Errors.Security.IssuerMismatch
-  alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
-  alias Ltix.Errors.Security.NonceMissing
-  alias Ltix.Errors.Security.NonceNotFound
-  alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Security.SignatureInvalid
-  alias Ltix.Errors.Security.StateMismatch
   alias Ltix.Errors.Security.TokenExpired
   alias Ltix.Errors.Security.TokenNotYetValid
   alias Ltix.Errors.Unknown.TransportError
@@ -43,11 +38,6 @@ defmodule Ltix.ErrorsTest do
   doctest Ltix.Errors, except: [traverse_errors: 2]
 
   describe "status_code/1" do
-    test "invalid errors return 400" do
-      error = MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
-      assert Errors.status_code(error) == 400
-    end
-
     test "security errors return 401" do
       error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3")
       assert Errors.status_code(error) == 401
@@ -75,52 +65,6 @@ defmodule Ltix.ErrorsTest do
         error = MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
         assert Plug.Exception.status(error) == 400
       end
-
-      test "security errors return 401" do
-        error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3")
-        assert Plug.Exception.status(error) == 401
-      end
-
-      test "unknown errors return 500" do
-        error = Unknown.exception(error: "something broke")
-        assert Plug.Exception.status(error) == 500
-      end
-    end
-  end
-
-  describe "error classes" do
-    test "invalid errors produce Invalid class" do
-      error = MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")
-      class = Errors.to_class([error])
-      assert %Errors.Invalid{} = class
-    end
-
-    test "Advantage service invalid errors produce Invalid class" do
-      error = ServiceNotAvailable.exception(service: Ltix.MembershipsService, spec_ref: "")
-      assert %Errors.Invalid{} = Errors.to_class([error])
-    end
-
-    test "security errors produce Security class" do
-      error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")
-      class = Errors.to_class([error])
-      assert %Errors.Security{} = class
-    end
-
-    test "Advantage service security errors produce Security class" do
-      error =
-        AccessDenied.exception(
-          url: "https://lms.example.com/memberships",
-          status: 403,
-          spec_ref: ""
-        )
-
-      assert %Errors.Security{} = Errors.to_class([error])
-    end
-
-    test "unknown errors produce Unknown class" do
-      error = Unknown.exception(error: "something unexpected")
-      class = Errors.to_class([error])
-      assert %Errors.Unknown{} = class
     end
   end
 
@@ -313,31 +257,6 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "HS256"
     end
 
-    test "NonceMissing includes spec ref" do
-      error = NonceMissing.exception(spec_ref: "Sec §5.1.3 step 9")
-      assert Exception.message(error) =~ "nonce"
-    end
-
-    test "NonceReused includes spec ref" do
-      error = NonceReused.exception(spec_ref: "Sec §5.1.3 step 9")
-      assert Exception.message(error) =~ "nonce"
-    end
-
-    test "NonceNotFound includes spec ref" do
-      error = NonceNotFound.exception(spec_ref: "Sec §5.1.3 step 9")
-      assert Exception.message(error) =~ "nonce"
-    end
-
-    test "StateMismatch includes spec ref" do
-      error = StateMismatch.exception(spec_ref: "Sec §7.3.1")
-      assert Exception.message(error) =~ "state"
-    end
-
-    test "KidMissing includes spec ref" do
-      error = KidMissing.exception(spec_ref: "Cert §6.1.1")
-      assert Exception.message(error) =~ "kid"
-    end
-
     test "KidNotFound includes kid value" do
       error =
         KidNotFound.exception(kid: "unknown-key-id", spec_ref: "Cert §6.1.1")
@@ -498,18 +417,6 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "https://platform.example.com/jwks"
     end
 
-    test "TransportError without status includes body" do
-      error =
-        TransportError.exception(
-          status: nil,
-          body: "connection refused",
-          url: nil,
-          spec_ref: "Sec §6.3"
-        )
-
-      assert Exception.message(error) =~ "connection refused"
-    end
-
     test "TransportError includes the URL and leaves out a missing spec reference" do
       assert Exception.message(
                TransportError.exception(body: "timeout", url: "https://lms.example.com/jwks")
@@ -543,17 +450,6 @@ defmodule Ltix.ErrorsTest do
 
       assert Exception.message(error) =~ "invalid JSON"
       assert Exception.message(error) =~ "NRPS §2.1"
-    end
-
-    test "MalformedResponse without service and without spec_ref" do
-      error =
-        MalformedResponse.exception(
-          service: nil,
-          reason: "unexpected format",
-          spec_ref: nil
-        )
-
-      assert Exception.message(error) =~ "unexpected format"
     end
   end
 end

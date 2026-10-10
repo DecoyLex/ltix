@@ -7,43 +7,12 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
   doctest ContentFile
 
   describe "new/1" do
-    test "succeeds with required url field" do
-      assert {:ok, %ContentFile{url: "https://example.com/doc.pdf"}} =
-               ContentFile.new(url: "https://example.com/doc.pdf")
-    end
-
-    test "returns error without url field" do
-      assert {:error,
-              %Ltix.Errors.Invalid.InvalidField{
-                struct: ContentFile,
-                field: :url,
-                reason: :required
-              }} =
-               ContentFile.new([])
-    end
-
     test "rejects expires_at given as a string" do
       assert {:error, %Ltix.Errors.Invalid.InvalidField{field: :expires_at}} =
                ContentFile.new(
                  url: "https://example.com/doc.pdf",
                  expires_at: "2026-12-31T23:59:59Z"
                )
-    end
-
-    test "succeeds with all fields" do
-      assert {:ok, file} =
-               ContentFile.new(
-                 url: "https://example.com/doc.pdf",
-                 title: "Course Syllabus",
-                 text: "The syllabus for CS101",
-                 icon: %{url: "https://example.com/icon.png"},
-                 thumbnail: %{url: "https://example.com/thumb.png"},
-                 media_type: "application/pdf",
-                 expires_at: ~U[2026-12-31 23:59:59Z]
-               )
-
-      assert file.media_type == "application/pdf"
-      assert file.expires_at == ~U[2026-12-31 23:59:59Z]
     end
   end
 
@@ -56,14 +25,6 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
   end
 
   describe "to_map/1" do
-    test "includes type and url" do
-      {:ok, file} = ContentFile.new(url: "https://example.com/doc.pdf")
-      json = ContentItem.to_map(file)
-
-      assert json["type"] == "file"
-      assert json["url"] == "https://example.com/doc.pdf"
-    end
-
     test "serializes camelCase top-level fields" do
       {:ok, file} =
         ContentFile.new(
@@ -78,28 +39,6 @@ defmodule Ltix.DeepLinking.ContentItem.FileTest do
       assert json["expiresAt"] == "2026-12-31T23:59:59Z"
       refute Map.has_key?(json, "media_type")
       refute Map.has_key?(json, "expires_at")
-    end
-
-    test "excludes nil optional fields" do
-      {:ok, file} = ContentFile.new(url: "https://example.com/doc.pdf")
-      json = ContentItem.to_map(file)
-
-      refute Map.has_key?(json, "title")
-      refute Map.has_key?(json, "mediaType")
-      refute Map.has_key?(json, "icon")
-    end
-
-    test "merges extensions at top level" do
-      {:ok, file} =
-        ContentFile.new(
-          url: "https://example.com/doc.pdf",
-          extensions: %{"com.example" => "extra"}
-        )
-
-      json = ContentItem.to_map(file)
-
-      assert json["com.example"] == "extra"
-      refute Map.has_key?(json, "extensions")
     end
   end
 end

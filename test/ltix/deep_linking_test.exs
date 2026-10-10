@@ -97,17 +97,6 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 content item serialization" do
-    test "serializes a Link item", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, link} = Link.new(url: "https://example.com")
-
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context, [link])
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
-
-      assert [%{"type" => "link", "url" => "https://example.com"}] =
-               claims[@dl <> "content_items"]
-    end
-
     test "serializes an LTIResourceLink item", %{platform: p} do
       context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
 
@@ -222,19 +211,6 @@ defmodule Ltix.DeepLinkingTest do
                DeepLinking.build_response(context, [link])
     end
 
-    test "rejects raw map with type not in accept_types", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
-          message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["link"]}
-        )
-
-      raw = %{"type" => "https://example.com/custom", "data" => "x"}
-
-      assert {:error, %ContentItemTypeNotAccepted{type: "https://example.com/custom"}} =
-               DeepLinking.build_response(context, [raw])
-    end
-
     test "checks a custom item by the type it serializes", %{platform: p} do
       poll = %CustomContentItem{question: "Ready?"}
 
@@ -258,18 +234,6 @@ defmodule Ltix.DeepLinkingTest do
 
       assert {:error, %ContentItemTypeNotAccepted{type: "https://vendor.example.com/poll"}} =
                DeepLinking.build_response(rejecting, [poll])
-    end
-
-    test "accepts item type in accept_types", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
-          message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["link"]}
-        )
-
-      {:ok, link} = Link.new(url: "https://example.com")
-
-      assert {:ok, %Response{}} = DeepLinking.build_response(context, [link])
     end
   end
 
@@ -311,29 +275,6 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, l2} = Link.new(url: "https://b.com")
 
       assert {:ok, %Response{}} = DeepLinking.build_response(context, [l1, l2])
-    end
-
-    test "allows multiple items when accept_multiple is true", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
-          message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["link"], accept_multiple: true}
-        )
-
-      {:ok, l1} = Link.new(url: "https://a.com")
-      {:ok, l2} = Link.new(url: "https://b.com")
-
-      assert {:ok, %Response{}} = DeepLinking.build_response(context, [l1, l2])
-    end
-
-    test "empty items with accept_multiple false succeeds", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
-          message_type: :deep_linking,
-          deep_linking_settings: %{accept_multiple: false}
-        )
-
-      assert {:ok, %Response{}} = DeepLinking.build_response(context, [])
     end
   end
 

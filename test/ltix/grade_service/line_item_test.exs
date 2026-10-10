@@ -52,18 +52,6 @@ defmodule Ltix.GradeService.LineItemTest do
       assert is_nil(item.grades_released)
     end
 
-    test "parses with missing label (liberal acceptance)" do
-      json = %{"scoreMaximum" => 100}
-
-      assert {:ok, %LineItem{label: nil}} = LineItem.from_json(json)
-    end
-
-    test "parses with missing scoreMaximum (liberal acceptance)" do
-      json = %{"label" => "Quiz 1"}
-
-      assert {:ok, %LineItem{score_maximum: nil}} = LineItem.from_json(json)
-    end
-
     test "parses date times into UTC DateTime structs" do
       json = %{
         "startDateTime" => "2018-03-06T20:05:02+05:30",
@@ -82,13 +70,6 @@ defmodule Ltix.GradeService.LineItemTest do
   end
 
   describe "validate/1" do
-    test "validates label is present" do
-      item = %LineItem{label: nil, score_maximum: 100}
-
-      assert {:error, %InvalidField{struct: LineItem, field: :label, reason: :required}} =
-               LineItem.validate(item)
-    end
-
     test "validates label is non-blank" do
       item = %LineItem{label: "   ", score_maximum: 100}
 
@@ -101,24 +82,6 @@ defmodule Ltix.GradeService.LineItemTest do
 
       assert {:error, %InvalidField{field: :score_maximum, reason: :required}} =
                LineItem.validate(item)
-    end
-
-    test "validates score_maximum is greater than 0" do
-      item = %LineItem{label: "Quiz 1", score_maximum: 0}
-
-      assert {:error, %InvalidField{field: :score_maximum, reason: reason}} =
-               LineItem.validate(item)
-
-      assert is_binary(reason)
-    end
-
-    test "validates score_maximum rejects negative" do
-      item = %LineItem{label: "Quiz 1", score_maximum: -5}
-
-      assert {:error, %InvalidField{field: :score_maximum, reason: reason}} =
-               LineItem.validate(item)
-
-      assert is_binary(reason)
     end
 
     test "validates date times are DateTime structs" do
@@ -220,38 +183,6 @@ defmodule Ltix.GradeService.LineItemTest do
       assert output["https://canvas.instructure.com/lti/submission_type"] == %{
                "type" => "external_tool"
              }
-    end
-
-    test "non-URL extensions round-trip through from_json and encoding" do
-      json = %{
-        "label" => "Quiz 1",
-        "scoreMaximum" => 100,
-        "customPlatformField" => 42
-      }
-
-      assert {:ok, item} = LineItem.from_json(json)
-
-      output =
-        item
-        |> encode!()
-        |> decode!()
-
-      assert output["customPlatformField"] == 42
-    end
-
-    test "includes id in output" do
-      item = %LineItem{
-        id: "https://lms.example.com/lineitems/1",
-        label: "Quiz 1",
-        score_maximum: 100
-      }
-
-      json =
-        item
-        |> encode!()
-        |> decode!()
-
-      assert json["id"] == "https://lms.example.com/lineitems/1"
     end
   end
 

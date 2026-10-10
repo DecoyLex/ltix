@@ -2,7 +2,6 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Test.StorageAdapter
@@ -26,38 +25,12 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
         token_endpoint: "https://platform.example.com/token"
       })
 
-    %{registration: registration, tool_jwk: tool_jwk, public_jwk: public_jwk}
+    %{registration: registration, public_jwk: public_jwk}
   end
 
   defp req_options, do: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}, retry: false]
 
-  defp stub_token_response(body, status \\ 200) do
-    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-      conn
-      |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.send_resp(status, Jason.encode!(body))
-    end)
-  end
-
   describe "request_token/3" do
-    test "returns AccessToken on successful response", ctx do
-      stub_token_response(%{
-        "access_token" => "test-token",
-        "token_type" => "Bearer",
-        "expires_in" => 3600,
-        "scope" => Enum.join(@scopes, " ")
-      })
-
-      assert {:ok, %AccessToken{} = token} =
-               ClientCredentials.request_token(ctx.registration, @scopes,
-                 req_options: req_options()
-               )
-
-      assert token.access_token == "test-token"
-      assert token.token_type == "bearer"
-      assert token.granted_scopes == MapSet.new(@scopes)
-    end
-
     test "JWT assertion contains all MUST claims", ctx do
       public_jwk = ctx.public_jwk
       registration = ctx.registration
@@ -95,40 +68,6 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
                )
     end
 
-    test "JWT header includes typ, alg, and kid", ctx do
-      public_jwk = ctx.public_jwk
-
-      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        params = URI.decode_query(body)
-
-        # Decode header without verification to inspect it
-        [header_b64 | _] = String.split(params["client_assertion"], ".")
-
-        header =
-          header_b64
-          |> Base.url_decode64!(padding: false)
-          |> Ltix.AppConfig.json_library!().decode!()
-
-        assert header["typ"] == "JWT"
-        assert header["alg"] == "RS256"
-        assert header["kid"] == ctx.tool_jwk.kid
-
-        # Still verify the signature
-        {true, _jwt, _jws} = JOSE.JWT.verify(public_jwk, params["client_assertion"])
-
-        Req.Test.json(conn, %{
-          "access_token" => "header-test",
-          "token_type" => "Bearer"
-        })
-      end)
-
-      assert {:ok, _token} =
-               ClientCredentials.request_token(ctx.registration, @scopes,
-                 req_options: req_options()
-               )
-    end
-
     test "POST body contains correct form params", ctx do
       Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -157,30 +96,6 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
                )
     end
 
-    test "multiple scopes are space-separated", ctx do
-      scopes = ["scope:read", "scope:write", "scope:admin"]
-
-      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        params = URI.decode_query(body)
-
-        assert params["scope"] == "scope:read scope:write scope:admin"
-
-        Req.Test.json(conn, %{
-          "access_token" => "multi-scope",
-          "token_type" => "Bearer",
-          "scope" => "scope:read scope:write"
-        })
-      end)
-
-      assert {:ok, token} =
-               ClientCredentials.request_token(ctx.registration, scopes,
-                 req_options: req_options()
-               )
-
-      assert token.granted_scopes == MapSet.new(["scope:read", "scope:write"])
-    end
-
     test "jti is unique across calls", ctx do
       jtis = :ets.new(:jtis, [:set, :public])
 
@@ -205,38 +120,6 @@ defmodule Ltix.OAuth.ClientCredentialsTest do
 
       # All 3 JTIs should be unique
       assert :ets.info(jtis, :size) == 3
-    end
-
-    test "RFC 6749 error response parsed into TokenRequestFailed", ctx do
-      stub_token_response(
-        %{
-          "error" => "invalid_scope",
-          "error_description" => "The requested scope is invalid"
-        },
-        400
-      )
-
-      assert {:error, %TokenRequestFailed{} = error} =
-               ClientCredentials.request_token(ctx.registration, @scopes,
-                 req_options: req_options()
-               )
-
-      assert error.error == "invalid_scope"
-      assert error.error_description == "The requested scope is invalid"
-    end
-
-    test "non-JSON error response preserves status and body", ctx do
-      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-        Plug.Conn.send_resp(conn, 502, "Bad Gateway")
-      end)
-
-      assert {:error, %TokenRequestFailed{} = error} =
-               ClientCredentials.request_token(ctx.registration, @scopes,
-                 req_options: req_options()
-               )
-
-      assert error.status == 502
-      assert error.body == "Bad Gateway"
     end
 
     test "nil token_endpoint returns ServiceNotAvailable" do

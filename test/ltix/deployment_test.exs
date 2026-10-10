@@ -7,11 +7,6 @@ defmodule Ltix.DeploymentTest do
   doctest Ltix.Deployment
 
   describe "new/1" do
-    test "valid deployment" do
-      assert {:ok, %Deployment{deployment_id: "deploy-123"}} =
-               Deployment.new("deploy-123")
-    end
-
     test "requires a deployment_id" do
       assert {:error, %InvalidField{struct: Deployment, field: :deployment_id, reason: :required}} =
                Deployment.new(nil)

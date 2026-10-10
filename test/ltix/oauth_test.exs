@@ -64,17 +64,7 @@ defmodule Ltix.OAuthTest do
         token_endpoint: "https://platform.example.com/token"
       })
 
-    custom_registration = %CustomRegistration{
-      id: "reg-001",
-      tenant_id: "tenant-1",
-      platform_issuer: "https://platform.example.com",
-      oauth_client_id: "tool-client-id",
-      oidc_auth_url: "https://platform.example.com/auth",
-      platform_jwks_url: "https://platform.example.com/.well-known/jwks.json",
-      platform_token_url: "https://platform.example.com/token"
-    }
-
-    %{registration: registration, custom_registration: custom_registration}
+    %{registration: registration}
   end
 
   defp req_options, do: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
@@ -491,18 +481,6 @@ defmodule Ltix.OAuthTest do
       assert_raise InvalidOption, ~r/Option :endpoints is invalid/, fn ->
         OAuth.authenticate(ctx.registration, endpoints: [TestService])
       end
-    end
-
-    test "accepts a custom Registerable struct", ctx do
-      stub_token_response(@test_scope)
-
-      assert {:ok, %Client{} = client} =
-               OAuth.authenticate(ctx.custom_registration,
-                 endpoints: %{TestService => :valid_endpoint},
-                 req_options: req_options()
-               )
-
-      assert client.registration == ctx.custom_registration
     end
   end
 

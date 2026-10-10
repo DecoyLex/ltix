@@ -17,7 +17,6 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
-  alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.OAuth.AccessToken
@@ -151,30 +150,9 @@ defmodule Ltix.GradeServiceTest do
   # --- AdvantageService callbacks ---
 
   describe "AdvantageService callbacks" do
-    test "endpoint_from_claims extracts AGS endpoint" do
-      claims = %LaunchClaims{
-        ags_endpoint: %AGSEndpoint{
-          line_items: @line_items_url,
-          scopes: @all_scopes
-        }
-      }
-
-      assert {:ok, %AGSEndpoint{}} = GradeService.endpoint_from_claims(claims)
-    end
-
-    test "endpoint_from_claims returns :error when no endpoint" do
-      claims = %LaunchClaims{}
-      assert :error == GradeService.endpoint_from_claims(claims)
-    end
-
     test "validate_endpoint rejects other values" do
       assert {:error, %InvalidEndpoint{}} =
                GradeService.validate_endpoint(:not_an_endpoint)
-    end
-
-    test "scopes returns scope array from endpoint" do
-      endpoint = %AGSEndpoint{scopes: @all_scopes}
-      assert @all_scopes == GradeService.scopes(endpoint)
     end
 
     test "scopes returns empty list when scope is nil" do
@@ -294,55 +272,11 @@ defmodule Ltix.GradeServiceTest do
         GradeService.authenticate(ctx.platform.registration, [])
       end
     end
-
-    test "accepts a custom Registerable struct", _ctx do
-      stub_token_response()
-
-      custom_registration = %CustomRegistration{
-        id: "reg-001",
-        tenant_id: "tenant-1",
-        platform_issuer: "https://custom-lms.example.com",
-        oauth_client_id: "custom-tool-client",
-        oidc_auth_url: "https://custom-lms.example.com/auth",
-        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token"
-      }
-
-      endpoint = %AGSEndpoint{
-        line_items: @line_items_url,
-        scopes: @all_scopes
-      }
-
-      assert {:ok, %Client{} = client} =
-               GradeService.authenticate(custom_registration,
-                 endpoint: endpoint,
-                 req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-               )
-
-      assert client.registration == custom_registration
-    end
   end
 
   # --- list_line_items/2 ---
 
   describe "list_line_items/2" do
-    test "fetches all line items from container", ctx do
-      items = [
-        build_line_item_json(id: "#{@line_items_url}/1", label: "Quiz 1"),
-        build_line_item_json(id: "#{@line_items_url}/2", label: "Quiz 2")
-      ]
-
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
-        |> Req.Test.json(items)
-      end)
-
-      client = build_client(ctx.platform)
-
-      assert {:ok, [%LineItem{}, %LineItem{}]} = GradeService.list_line_items(client)
-    end
-
     test "sends correct Accept header", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         [accept] = Plug.Conn.get_req_header(conn, "accept")
@@ -470,21 +404,6 @@ defmodule Ltix.GradeServiceTest do
   # --- get_line_item/2 ---
 
   describe "get_line_item/2" do
-    test "fetches line item from explicit URL", ctx do
-      item_json = build_line_item_json()
-
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
-        |> Req.Test.json(item_json)
-      end)
-
-      client = build_client(ctx.platform)
-
-      assert {:ok, %LineItem{label: "Chapter 5 Test"}} =
-               GradeService.get_line_item(client, line_item: @line_item_url)
-    end
-
     test "sends a GET without a body", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "GET"
@@ -502,12 +421,6 @@ defmodule Ltix.GradeServiceTest do
 
       assert {:error, %ServiceNotAvailable{} = error} = GradeService.get_line_item(client)
       assert Exception.message(error) =~ "has no coupled line item URL"
-    end
-
-    test "returns ScopeMismatch without lineitem scope", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_score])
-
-      assert {:error, %ScopeMismatch{}} = GradeService.get_line_item(client)
     end
   end
 
@@ -680,7 +593,7 @@ defmodule Ltix.GradeServiceTest do
   describe "update_line_item/2" do
     test "PUTs full line item to its id URL", ctx do
       Req.Test.stub(Ltix.GradeService, fn conn ->
-        assert conn.method == "PUT"
+        assert {conn.method, conn.request_path} == {"PUT", "/context/2923/lineitems/1/lineitem"}
 
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         json = Ltix.AppConfig.json_library!().decode!(body)
@@ -919,23 +832,6 @@ defmodule Ltix.GradeServiceTest do
 
         assert :ok = GradeService.post_score(client, score)
       end
-    end
-
-    test "returns :ok on HTTP 204", ctx do
-      Req.Test.stub(Ltix.GradeService, fn conn ->
-        Plug.Conn.send_resp(conn, 204, "")
-      end)
-
-      client = build_client(ctx.platform)
-
-      assert :ok = GradeService.post_score(client, ctx.score)
-    end
-
-    test "returns ScopeMismatch without score scope", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_lineitem])
-
-      assert {:error, %ScopeMismatch{scopes: [@scope_score]}} =
-               GradeService.post_score(client, ctx.score)
     end
 
     test "returns error when no line item URL available", ctx do

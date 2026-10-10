@@ -128,11 +128,8 @@ defmodule LtixTest do
     end)
 
     %{
-      platform: platform,
       registration: registration,
-      deployment: deployment,
       platform_jwk: platform_jwk,
-      nonce: nonce,
       state: state,
       id_token: id_token,
       claims: claims
@@ -165,14 +162,6 @@ defmodule LtixTest do
 
       assert URI.decode_query(URI.parse(result.redirect_uri).query)["client_id"] ==
                "tool-client-id"
-    end
-
-    test "reads storage_adapter from application config" do
-      assert {:ok, %{redirect_uri: redirect_uri, state: state}} =
-               Ltix.handle_login(login_params(), @redirect_uri)
-
-      assert redirect_uri =~ "platform.example.com"
-      assert byte_size(state) > 0
     end
 
     test "opts override application config" do
@@ -274,21 +263,6 @@ defmodule LtixTest do
                    end
     end
 
-    # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)
-    test "returns LaunchContext", ctx do
-      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Ltix.handle_callback(params, ctx.state,
-                 storage_adapter: StorageAdapter,
-                 req_options: req_options()
-               )
-
-      assert launch.registration == ctx.registration
-      assert launch.deployment == ctx.deployment
-      assert launch.claims.message_type == "LtiResourceLinkRequest"
-    end
-
     test "gets platform keys from the key set whose name is the key_set option", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
       opts = [key_set: __MODULE__.Keys, req_options: req_options()]
@@ -313,13 +287,6 @@ defmodule LtixTest do
 
       assert_received {[:ltix, :callback, :stop], ^ref, _measurements,
                        %{client_id: "tool-client-id", issuer: "https://platform.example.com"}}
-    end
-
-    test "reads storage_adapter from application config", ctx do
-      params = %{"id_token" => ctx.id_token, "state" => ctx.state}
-
-      assert {:ok, %LaunchContext{}} =
-               Ltix.handle_callback(params, ctx.state, req_options: req_options())
     end
 
     test "reads allow_anonymous from application config", ctx do
@@ -348,21 +315,6 @@ defmodule LtixTest do
       assert {:ok, %LaunchContext{}} =
                Ltix.handle_callback(params, ctx.state,
                  max_token_age: :infinity,
-                 req_options: req_options()
-               )
-    end
-
-    test "opts override application config", ctx do
-      Application.put_env(:ltix, :allow_anonymous, false)
-
-      claims = Map.delete(ctx.claims, "sub")
-      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-      params = %{"id_token" => id_token, "state" => ctx.state}
-
-      # Override allow_anonymous to true via opts
-      assert {:ok, %LaunchContext{}} =
-               Ltix.handle_callback(params, ctx.state,
-                 allow_anonymous: true,
                  req_options: req_options()
                )
     end

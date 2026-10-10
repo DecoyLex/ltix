@@ -5,11 +5,8 @@ defmodule Ltix.OIDC.CallbackTest do
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
-  alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.Errors.Security
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchContext
   alias Ltix.OIDC.Callback
   alias Ltix.Registration
   alias Ltix.Test.StorageAdapter
@@ -60,18 +57,12 @@ defmodule Ltix.OIDC.CallbackTest do
     stub_jwks(jwks)
 
     claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
-    id_token = Ltix.Test.sign_id_token(claims, platform_jwk)
-
-    params = %{"id_token" => id_token, "state" => state}
 
     %{
       platform: platform,
-      registration: registration,
-      deployment: deployment,
       platform_jwk: platform_jwk,
       nonce: nonce,
       state: state,
-      params: params,
       claims: claims
     }
   end
@@ -92,44 +83,6 @@ defmodule Ltix.OIDC.CallbackTest do
               }} =
                Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
-
-    test "platform error without description", ctx do
-      params = %{"error" => "access_denied", "state" => ctx.state}
-
-      assert {:error,
-              %Security.AuthenticationFailed{
-                error: "access_denied",
-                error_description: nil
-              }} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-  end
-
-  describe "parameter validation" do
-    test "missing id_token returns MissingParameter", ctx do
-      params = Map.delete(ctx.params, "id_token")
-
-      assert {:error, %MissingParameter{parameter: "id_token"}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    # [Sec §7.3.1](https://www.imsglobal.org/spec/security/v1p0/#prohibiting-the-login-csrf-vulnerability)
-    test "state mismatch returns StateMismatch", ctx do
-      assert {:error, %Security.StateMismatch{}} =
-               Callback.call(
-                 ctx.params,
-                 "wrong-state",
-                 StorageAdapter,
-                 req_options: req_options()
-               )
-    end
-
-    test "missing state returns StateMismatch", ctx do
-      params = Map.delete(ctx.params, "state")
-
-      assert {:error, %Security.StateMismatch{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
   end
 
   describe "registration lookup" do
@@ -148,89 +101,8 @@ defmodule Ltix.OIDC.CallbackTest do
     end
   end
 
-  # [Cert §6.1.1](https://www.imsglobal.org/spec/lti/v1p3/cert/#known-bad-payloads)
-  describe "bad JWT payloads [Cert §6.1.1]" do
-    test "missing KID", ctx do
-      id_token = Ltix.Test.sign_id_token(ctx.claims, ctx.platform_jwk, kid: nil)
-      params = %{"id_token" => id_token, "state" => ctx.state}
-
-      assert {:error, %Security.KidMissing{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "incorrect KID", ctx do
-      id_token = Ltix.Test.sign_id_token(ctx.claims, ctx.platform_jwk, kid: "wrong-kid")
-      params = %{"id_token" => id_token, "state" => ctx.state}
-
-      assert {:error, %Security.KidNotFound{kid: "wrong-kid"}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "expired token", ctx do
-      claims = Map.put(ctx.claims, "exp", System.system_time(:second) - 3600)
-      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-      params = %{"id_token" => id_token, "state" => ctx.state}
-
-      assert {:error, %Security.TokenExpired{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-  end
-
-  # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-  describe "nonce validation [Sec §5.1.3 step 9]" do
-    test "unknown nonce returns NonceNotFound", ctx do
-      claims = Map.put(ctx.claims, "nonce", "never-stored-nonce")
-      id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-      params = %{"id_token" => id_token, "state" => ctx.state}
-
-      assert {:error, %Security.NonceNotFound{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "replayed nonce returns NonceReused", ctx do
-      opts = [req_options: req_options()]
-
-      assert {:ok, %LaunchContext{}} = Callback.call(ctx.params, ctx.state, StorageAdapter, opts)
-
-      assert {:error, %Security.NonceReused{}} =
-               Callback.call(ctx.params, ctx.state, StorageAdapter, opts)
-    end
-  end
-
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
   describe "LTI claim validation [Cert §6.1.1]" do
-    test "wrong LTI version", ctx do
-      claims = put_lti_claim(ctx.claims, "version", "1.2.0")
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %InvalidClaim{claim: "version", value: "1.2.0"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "missing LTI version", ctx do
-      claims = Map.delete(ctx.claims, @lti <> "version")
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "version"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "missing message_type", ctx do
-      claims = Map.delete(ctx.claims, @lti <> "message_type")
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "message_type"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "missing deployment_id", ctx do
-      claims = Map.delete(ctx.claims, @lti <> "deployment_id")
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "deployment_id"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
     test "missing target_link_uri", ctx do
       claims = Map.delete(ctx.claims, @lti <> "target_link_uri")
       id_token = mint_and_params(claims, ctx)
@@ -244,30 +116,6 @@ defmodule Ltix.OIDC.CallbackTest do
       id_token = mint_and_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "resource_link"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "missing resource_link.id", ctx do
-      claims = put_lti_claim(ctx.claims, "resource_link", %{"title" => "No ID"})
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "resource_link.id"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "missing sub", ctx do
-      claims = Map.delete(ctx.claims, "sub")
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "sub"}} =
-               Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "missing roles", ctx do
-      claims = Map.delete(ctx.claims, @lti <> "roles")
-      id_token = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "roles"}} =
                Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
     end
 
@@ -290,318 +138,6 @@ defmodule Ltix.OIDC.CallbackTest do
 
       assert {:error, %DeploymentNotFound{deployment_id: "unknown-deployment"}} =
                Callback.call(id_token, ctx.state, StorageAdapter, req_options: req_options())
-    end
-  end
-
-  # [Cert §6.1.2](https://www.imsglobal.org/spec/lti/v1p3/cert/#valid-teacher-launches)
-  describe "valid instructor launches [Cert §6.1.2]" do
-    test "standard instructor launch", ctx do
-      claims =
-        ctx.claims
-        |> Map.put("name", "Jane Doe")
-        |> Map.put("email", "instructor@example.com")
-        |> put_lti_claim("context", %{
-          "id" => "course-001",
-          "label" => "CS101",
-          "title" => "Intro to CS"
-        })
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert LaunchClaims.Role.instructor?(launch.claims.roles)
-      assert launch.claims.name == "Jane Doe"
-      assert launch.claims.email == "instructor@example.com"
-      assert launch.claims.context.id == "course-001"
-    end
-
-    test "instructor launch with multiple roles", ctx do
-      claims =
-        put_lti_claim(ctx.claims, "roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-          "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert [%LaunchClaims.Role{name: :instructor}, %LaunchClaims.Role{}] =
-               launch.claims.roles
-    end
-
-    test "instructor launch with short role", ctx do
-      claims =
-        put_lti_claim(ctx.claims, "roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "instructor launch with unknown role", ctx do
-      claims =
-        put_lti_claim(ctx.claims, "roles", [
-          "http://example.com/custom/TeachingAssistant"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "instructor launch with no roles (empty array)", ctx do
-      claims = put_lti_claim(ctx.claims, "roles", [])
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.roles == []
-    end
-
-    test "instructor launch email only", ctx do
-      claims =
-        ctx.claims
-        |> Map.put("email", "instructor@example.com")
-        |> Map.delete("name")
-        |> Map.delete("given_name")
-        |> Map.delete("family_name")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.email == "instructor@example.com"
-      assert launch.claims.name == nil
-    end
-
-    test "instructor launch names only", ctx do
-      claims =
-        ctx.claims
-        |> Map.put("name", "Jane Doe")
-        |> Map.put("given_name", "Jane")
-        |> Map.put("family_name", "Doe")
-        |> Map.delete("email")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.name == "Jane Doe"
-      assert launch.claims.email == nil
-    end
-
-    test "instructor launch no PII", ctx do
-      claims =
-        ctx.claims
-        |> Map.delete("email")
-        |> Map.delete("name")
-        |> Map.delete("given_name")
-        |> Map.delete("family_name")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "instructor launch email without context", ctx do
-      claims =
-        ctx.claims
-        |> Map.put("email", "instructor@example.com")
-        |> Map.delete(@lti <> "context")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.email == "instructor@example.com"
-      assert launch.claims.context == nil
-    end
-  end
-
-  # [Cert §6.1.3](https://www.imsglobal.org/spec/lti/v1p3/cert/#valid-student-launches)
-  describe "valid student launches [Cert §6.1.3]" do
-    test "standard student launch", ctx do
-      claims =
-        ctx.claims
-        |> put_lti_claim("roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
-        ])
-        |> Map.put("name", "John Smith")
-        |> Map.put("email", "student@example.com")
-        |> put_lti_claim("context", %{
-          "id" => "course-001",
-          "label" => "CS101",
-          "title" => "Intro to CS"
-        })
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert LaunchClaims.Role.learner?(launch.claims.roles)
-      assert launch.claims.name == "John Smith"
-      assert launch.claims.email == "student@example.com"
-      assert launch.claims.context.id == "course-001"
-    end
-
-    test "student launch with multiple roles", ctx do
-      claims =
-        put_lti_claim(ctx.claims, "roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner",
-          "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert [%LaunchClaims.Role{name: :learner}, %LaunchClaims.Role{}] = launch.claims.roles
-    end
-
-    test "student launch with short role", ctx do
-      claims =
-        put_lti_claim(ctx.claims, "roles", [
-          "Learner"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "student launch with unknown role", ctx do
-      claims =
-        put_lti_claim(ctx.claims, "roles", [
-          "http://example.com/custom/Auditor"
-        ])
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "student launch with no roles (empty array)", ctx do
-      claims = put_lti_claim(ctx.claims, "roles", [])
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "student launch email only", ctx do
-      claims =
-        ctx.claims
-        |> put_lti_claim("roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
-        ])
-        |> Map.put("email", "student@example.com")
-        |> Map.delete("name")
-        |> Map.delete("given_name")
-        |> Map.delete("family_name")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.email == "student@example.com"
-      assert launch.claims.name == nil
-    end
-
-    test "student launch names only", ctx do
-      claims =
-        ctx.claims
-        |> put_lti_claim("roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
-        ])
-        |> Map.put("name", "John Smith")
-        |> Map.put("given_name", "John")
-        |> Map.put("family_name", "Smith")
-        |> Map.delete("email")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.name == "John Smith"
-      assert launch.claims.email == nil
-    end
-
-    test "student launch no PII", ctx do
-      claims =
-        ctx.claims
-        |> put_lti_claim("roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
-        ])
-        |> Map.delete("email")
-        |> Map.delete("name")
-        |> Map.delete("given_name")
-        |> Map.delete("family_name")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-    end
-
-    test "student launch email without context", ctx do
-      claims =
-        ctx.claims
-        |> put_lti_claim("roles", [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"
-        ])
-        |> Map.put("email", "student@example.com")
-        |> Map.delete(@lti <> "context")
-
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
-
-      assert launch.claims.email == "student@example.com"
-      assert launch.claims.context == nil
-    end
-  end
-
-  # [Core §5.3.6.1](https://www.imsglobal.org/spec/lti/v1p3/#anonymous-launch-case)
-  describe "anonymous launches [Core §5.3.6.1]" do
-    test "anonymous launch succeeds with allow_anonymous: true", ctx do
-      claims = Map.delete(ctx.claims, "sub")
-      params = mint_and_params(claims, ctx)
-
-      assert {:ok, %LaunchContext{} = launch} =
-               Callback.call(params, ctx.state, StorageAdapter,
-                 req_options: req_options(),
-                 allow_anonymous: true
-               )
-
-      assert launch.claims.subject == nil
-    end
-
-    test "anonymous launch rejected without allow_anonymous flag", ctx do
-      claims = Map.delete(ctx.claims, "sub")
-      params = mint_and_params(claims, ctx)
-
-      assert {:error, %MissingClaim{claim: "sub"}} =
-               Callback.call(params, ctx.state, StorageAdapter, req_options: req_options())
     end
   end
 

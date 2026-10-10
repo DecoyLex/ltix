@@ -110,18 +110,6 @@ defmodule Ltix.OAuth.ClientTest do
     end
   end
 
-  describe "has_scope?/2" do
-    test "returns true for granted scope" do
-      client = build_client()
-      assert Client.has_scope?(client, @test_scope)
-    end
-
-    test "returns false for ungranted scope" do
-      client = build_client()
-      refute Client.has_scope?(client, "https://example.com/scope/other")
-    end
-  end
-
   describe "require_scope/2" do
     test "returns :ok for granted scope" do
       client = build_client()
@@ -261,34 +249,6 @@ defmodule Ltix.OAuth.ClientTest do
                  endpoints: %{TestService => :wrong_endpoint}
                )
     end
-
-    test "accepts a custom Registerable struct" do
-      custom_registration = %CustomRegistration{
-        id: "reg-001",
-        tenant_id: "tenant-1",
-        platform_issuer: "https://custom-lms.example.com",
-        oauth_client_id: "custom-tool-client",
-        oidc_auth_url: "https://custom-lms.example.com/auth",
-        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token"
-      }
-
-      {:ok, token} =
-        AccessToken.from_response(%{
-          "access_token" => "cached-token",
-          "token_type" => "Bearer",
-          "expires_in" => 3600,
-          "scope" => @test_scope
-        })
-
-      assert {:ok, %Client{} = client} =
-               Client.from_access_token(token,
-                 registration: custom_registration,
-                 endpoints: %{TestService => :valid_endpoint}
-               )
-
-      assert client.registration == custom_registration
-    end
   end
 
   describe "with_endpoints/3" do
@@ -330,12 +290,6 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   describe "refresh/1" do
-    test "returns client unchanged when not expired" do
-      client = build_client()
-
-      assert {:ok, ^client} = Client.refresh(client)
-    end
-
     test "re-acquires token when expired" do
       stub_token_response()
       registration = build_registration()

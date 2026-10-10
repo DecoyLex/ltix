@@ -7,32 +7,13 @@ defmodule Ltix.JWKTest do
   doctest Ltix.JWK
 
   describe "generate/1" do
-    test "returns a %Ltix.JWK{} struct" do
-      assert %JWK{} = JWK.generate()
-    end
-
-    test "private_key_pem is a valid PEM" do
+    # [RFC 7638 §3](https://www.rfc-editor.org/rfc/rfc7638#section-3)
+    test "kid is the SHA-256 JWK thumbprint of the generated key" do
       jwk = JWK.generate()
-      assert String.starts_with?(jwk.private_key_pem, "-----BEGIN")
-      assert String.contains?(jwk.private_key_pem, "PRIVATE KEY-----")
-    end
+      %{"keys" => [%{"e" => exponent, "n" => modulus}]} = JWK.to_jwks(jwk)
+      members = ~s({"e":"#{exponent}","kty":"RSA","n":"#{modulus}"})
 
-    test "kid is a non-empty string" do
-      jwk = JWK.generate()
-      assert is_binary(jwk.kid)
-      assert byte_size(jwk.kid) > 0
-    end
-
-    test "kid is deterministic (thumbprint-based)" do
-      jwk = JWK.generate()
-
-      # Reconstruct the kid from the PEM to verify it matches
-      recomputed_kid =
-        jwk.private_key_pem
-        |> JOSE.JWK.from_pem()
-        |> JOSE.JWK.thumbprint()
-
-      assert jwk.kid == recomputed_kid
+      assert jwk.kid == Base.url_encode64(:crypto.hash(:sha256, members), padding: false)
     end
 
     test "rejects key size below 2048" do
@@ -45,14 +26,6 @@ defmodule Ltix.JWKTest do
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :size is unknown", fn ->
         JWK.generate(size: 4096)
       end
-    end
-
-    test "each call generates a unique key" do
-      jwk1 = JWK.generate()
-      jwk2 = JWK.generate()
-
-      refute jwk1.private_key_pem == jwk2.private_key_pem
-      refute jwk1.kid == jwk2.kid
     end
   end
 
@@ -264,6 +237,9 @@ defmodule Ltix.JWKTest do
 
       assert %{"keys" => [key]} = jwks
       assert key["kty"] == "RSA"
+      assert key["kid"] == jwk.kid
+      assert key["alg"] == "RS256"
+      assert key["use"] == "sig"
     end
 
     test "list of JWKs returns matching count" do
@@ -276,18 +252,6 @@ defmodule Ltix.JWKTest do
       assert length(keys) == 2
     end
 
-    test "output keys contain kty, n, e, kid, alg, use" do
-      jwk = JWK.generate()
-      %{"keys" => [key]} = JWK.to_jwks(jwk)
-
-      assert Map.has_key?(key, "kty")
-      assert Map.has_key?(key, "n")
-      assert Map.has_key?(key, "e")
-      assert Map.has_key?(key, "kid")
-      assert Map.has_key?(key, "alg")
-      assert Map.has_key?(key, "use")
-    end
-
     test "output keys do NOT contain private material" do
       jwk = JWK.generate()
       %{"keys" => [key]} = JWK.to_jwks(jwk)
@@ -298,37 +262,6 @@ defmodule Ltix.JWKTest do
       refute Map.has_key?(key, "dp")
       refute Map.has_key?(key, "dq")
       refute Map.has_key?(key, "qi")
-    end
-
-    test "kid in output matches the struct's kid field" do
-      jwk = JWK.generate()
-      %{"keys" => [key]} = JWK.to_jwks(jwk)
-
-      assert key["kid"] == jwk.kid
-    end
-
-    test "alg is RS256, use is sig" do
-      jwk = JWK.generate()
-      %{"keys" => [key]} = JWK.to_jwks(jwk)
-
-      assert key["alg"] == "RS256"
-      assert key["use"] == "sig"
-    end
-  end
-
-  describe "to_public_key/1" do
-    test "returns a string starting with BEGIN" do
-      jwk = JWK.generate()
-      public_pem = JWK.to_public_key(jwk)
-
-      assert String.starts_with?(public_pem, "-----BEGIN")
-    end
-
-    test "does not contain private key material" do
-      jwk = JWK.generate()
-      public_pem = JWK.to_public_key(jwk)
-
-      refute String.contains?(public_pem, "PRIVATE")
     end
   end
 end

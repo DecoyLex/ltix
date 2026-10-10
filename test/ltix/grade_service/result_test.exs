@@ -46,12 +46,6 @@ defmodule Ltix.GradeService.ResultTest do
 
       assert {:ok, %Result{user_id: nil, result_score: 0.5}} = Result.from_json(json)
     end
-
-    test "resultMaximum is nil when absent" do
-      json = %{"userId" => "123", "resultScore" => 0.83}
-
-      assert {:ok, %Result{result_maximum: nil}} = Result.from_json(json)
-    end
   end
 
   describe "to_map/1" do

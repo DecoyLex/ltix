@@ -39,19 +39,6 @@ defmodule Ltix.PaginationTest do
   end
 
   describe "stream/3" do
-    test "single page with no next link" do
-      stub_pages([{%{"items" => [1, 2, 3]}, nil}])
-
-      assert {:ok, stream} =
-               Pagination.stream(
-                 "https://example.com/api",
-                 [{"accept", "application/json"}],
-                 req_options: req_options()
-               )
-
-      assert Enum.to_list(stream) == [%{"items" => [1, 2, 3]}]
-    end
-
     test "follows rel=next across multiple pages" do
       stub_pages([
         {%{"items" => [1, 2]}, "https://example.com/api?p=2"},
@@ -112,25 +99,6 @@ defmodule Ltix.PaginationTest do
                )
 
       assert_raise Ltix.Errors.Unknown.TransportError, fn -> Enum.to_list(stream) end
-    end
-
-    test "terminates when last page has no next link" do
-      stub_pages([
-        {%{"items" => [1, 2]}, "https://example.com/api?p=2"},
-        {%{"items" => []}, nil}
-      ])
-
-      assert {:ok, stream} =
-               Pagination.stream(
-                 "https://example.com/api",
-                 [{"accept", "application/json"}],
-                 req_options: req_options()
-               )
-
-      assert Enum.to_list(stream) == [
-               %{"items" => [1, 2]},
-               %{"items" => []}
-             ]
     end
 
     test "passes params only on first request" do

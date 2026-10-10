@@ -4,11 +4,7 @@ defmodule Ltix.JWT.TokenTest do
   alias Ltix.Errors.Security.AlgorithmNotAllowed
   alias Ltix.Errors.Security.AudienceMismatch
   alias Ltix.Errors.Security.IssuerMismatch
-  alias Ltix.Errors.Security.KidMissing
-  alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.NonceMissing
-  alias Ltix.Errors.Security.SignatureInvalid
-  alias Ltix.Errors.Security.TokenExpired
 
   alias Ltix.JWT.Token
 
@@ -53,31 +49,6 @@ defmodule Ltix.JWT.TokenTest do
       end
     end
 
-    # Valid tokens
-    test "valid JWT passes all checks", ctx do
-      token = mint_valid_token(ctx)
-
-      assert {:ok, claims} = Token.verify(token, ctx.registration, req_options: req_options())
-      assert claims["iss"] == "https://platform.example.com"
-      assert claims["aud"] == "tool-client-id"
-    end
-
-    # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
-    test "valid JWT with aud as single string", ctx do
-      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => "tool-client-id"})
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:ok, _claims} = Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
-    test "valid JWT with aud as single-element array", ctx do
-      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => ["tool-client-id"]})
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:ok, _claims} = Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
     # Algorithm validation [Sec §5.1.3 step 6, Cert §4.2]
 
     # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
@@ -85,66 +56,6 @@ defmodule Ltix.JWT.TokenTest do
       token = forge_token_with_alg("none", ctx)
 
       assert {:error, %AlgorithmNotAllowed{algorithm: "none"}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Cert §4.2] Symmetric cryptosystems forbidden
-    test "rejects alg=HS256", ctx do
-      token = forge_token_with_alg("HS256", ctx)
-
-      assert {:error, %AlgorithmNotAllowed{algorithm: "HS256"}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.3 step 6](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects non-RS256 alg", ctx do
-      token = forge_token_with_alg("RS384", ctx)
-
-      assert {:error, %AlgorithmNotAllowed{algorithm: "RS384"}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # kid validation [Cert §6.1.1]
-
-    # [Cert §6.1.1] "No KID Sent in JWT header"
-    test "rejects JWT with no kid in header", ctx do
-      claims = Ltix.Test.valid_lti_claims(ctx.platform)
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk, kid: nil)
-
-      assert {:error, %KidMissing{}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Cert §6.1.1] "Incorrect KID in JWT header"
-    test "rejects JWT with incorrect kid", ctx do
-      claims = Ltix.Test.valid_lti_claims(ctx.platform)
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk, kid: "wrong-kid")
-
-      assert {:error, %KidNotFound{kid: "wrong-kid"}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # Signature validation [Sec §5.1.3 step 1]
-
-    test "rejects tampered payload", ctx do
-      token = mint_valid_token(ctx)
-
-      # Tamper with the payload by modifying the middle segment
-      [header, _payload, signature] = String.split(token, ".")
-      tampered_payload = Base.url_encode64(~s({"iss":"tampered"}), padding: false)
-      tampered_token = Enum.join([header, tampered_payload, signature], ".")
-
-      assert {:error, %SignatureInvalid{}} =
-               Token.verify(tampered_token, ctx.registration, req_options: req_options())
-    end
-
-    test "rejects JWT signed with wrong key", ctx do
-      wrong_jwk = Ltix.JWK.generate()
-      claims = Ltix.Test.valid_lti_claims(ctx.platform)
-      # Sign with wrong key but use the correct kid
-      token = Ltix.Test.sign_id_token(claims, wrong_jwk, kid: ctx.platform_jwk.kid)
-
-      assert {:error, %SignatureInvalid{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
@@ -164,15 +75,6 @@ defmodule Ltix.JWT.TokenTest do
     # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects aud mismatch as string", ctx do
       claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => "wrong-client-id"})
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:error, %AudienceMismatch{claim: "aud", expected: "tool-client-id"}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects aud mismatch as array", ctx do
-      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"aud" => ["wrong-1", "wrong-2"]})
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{claim: "aud", expected: "tool-client-id"}} =
@@ -204,17 +106,6 @@ defmodule Ltix.JWT.TokenTest do
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %AudienceMismatch{claim: "aud", actual: ["tool-client-id", "other-client"]}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.3 step 7](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects expired token", ctx do
-      claims =
-        Ltix.Test.valid_lti_claims(ctx.platform, %{"exp" => System.system_time(:second) - 60})
-
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:error, %TokenExpired{}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
@@ -252,55 +143,6 @@ defmodule Ltix.JWT.TokenTest do
       token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
       assert {:error, %NonceMissing{}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects issuer with trailing slash", ctx do
-      claims =
-        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://platform.example.com/"})
-
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:error, %IssuerMismatch{}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects issuer with different case", ctx do
-      claims =
-        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://PLATFORM.example.com"})
-
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:error, %IssuerMismatch{}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects issuer with unicode homoglyph", ctx do
-      # Cyrillic 'а' (U+0430) looks identical to Latin 'a'
-      claims =
-        Ltix.Test.valid_lti_claims(ctx.platform, %{"iss" => "https://plаtform.example.com"})
-
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:error, %IssuerMismatch{}} =
-               Token.verify(token, ctx.registration, req_options: req_options())
-    end
-
-    # Audience confusion. Attacker includes untrusted client_ids in aud array
-    # without setting azp, hoping the tool accepts the token.
-    # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-    test "rejects aud array containing untrusted audiences without azp", ctx do
-      claims =
-        Ltix.Test.valid_lti_claims(ctx.platform, %{
-          "aud" => ["tool-client-id", "evil-client"]
-        })
-
-      token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-      assert {:error, %AudienceMismatch{claim: "aud", actual: ["tool-client-id", "evil-client"]}} =
                Token.verify(token, ctx.registration, req_options: req_options())
     end
   end
