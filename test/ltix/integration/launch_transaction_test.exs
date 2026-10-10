@@ -188,6 +188,32 @@ defmodule Ltix.Integration.LaunchTransactionTest do
     end
   end
 
+  # [RFC 7519 §4](https://www.rfc-editor.org/rfc/rfc7519#section-4)
+  # [RFC 7515 §4](https://www.rfc-editor.org/rfc/rfc7515#section-4)
+  describe "duplicate member names" do
+    test "uses the last of duplicate claims and header parameters", ctx do
+      login = login(ctx.platform, StorageAdapter)
+      nonce = Ltix.Test.extract_nonce(login.redirect_uri)
+      claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => nonce, "sub" => "last-user"})
+
+      "{" <> members = Ltix.AppConfig.json_library!().encode!(claims)
+      header = ~s({"kid":"first-kid","alg":"RS256","kid":"#{ctx.platform.jwk.kid}"})
+
+      message =
+        Enum.map_join(
+          [header, ~s({"sub":"first-user",) <> members],
+          ".",
+          &Base.url_encode64(&1, padding: false)
+        )
+
+      {:ok, signature} = Ltix.JWK.sign(ctx.platform.jwk, message)
+      id_token = message <> "." <> Base.url_encode64(signature, padding: false)
+
+      assert {:ok, %LaunchContext{claims: %{subject: "last-user"}}} =
+               callback(%{"id_token" => id_token, "state" => login.state}, login.state)
+    end
+  end
+
   describe "malformed browser state" do
     test "rejects missing, empty, and nonbinary expected state even when returned state matches",
          ctx do

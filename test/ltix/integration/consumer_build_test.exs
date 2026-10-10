@@ -32,6 +32,17 @@ defmodule Ltix.Integration.ConsumerBuildTest do
       File.mkdir_p!(Path.join(project, "config"))
       json_library = unquote(json_library)
 
+      duplicate_claims_token =
+        Enum.map_join(
+          [
+            ~s({"alg":"RS256"}),
+            ~s({"sub":"first","sub":"last","custom":[{"id":1,"id":2}]}),
+            "sig"
+          ],
+          ".",
+          &Base.url_encode64(&1, padding: false)
+        )
+
       File.write!(Path.join(project, "config/config.exs"), """
       import Config
       config :ltix, :json_library, #{inspect(json_library)}
@@ -163,6 +174,8 @@ defmodule Ltix.Integration.ConsumerBuildTest do
           assert claims.resource_link.id == "resource-link-001"
           assert {:error, %Ltix.Errors.Security.AlgorithmNotAllowed{algorithm: "HS256"}} =
                    Ltix.JWT.Token.verify("eyJhbGciOiJIUzI1NiJ9.e30.c2ln", registration)
+          assert {:ok, %{"sub" => "last", "custom" => [%{"id" => 2}]}} =
+                   Ltix.JWT.Token.peek_claims(#{inspect(duplicate_claims_token)})
           assert_raise RuntimeError, ~r/HTTP test helpers require Plug/, fn ->
             Ltix.Test.setup_platform!()
           end

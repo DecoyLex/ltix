@@ -194,10 +194,41 @@ defmodule Ltix.JWT.Token do
 
   # [RFC 7519 §7.2 step 10](https://www.rfc-editor.org/rfc/rfc7519#section-7.2)
   defp decode_object(json) do
-    case AppConfig.json_library!().decode(json) do
+    case decode_json(json) do
       {:ok, object} when is_map(object) -> {:ok, object}
       _invalid -> {:error, invalid_json()}
     end
+  end
+
+  # The last of the members with a duplicate name is used.
+  # [RFC 7519 §4](https://www.rfc-editor.org/rfc/rfc7519#section-4)
+  # [RFC 7515 §4](https://www.rfc-editor.org/rfc/rfc7515#section-4)
+  case AppConfig.json_library!() do
+    JSON ->
+      defp decode_json(json) do
+        last_members = fn members, acc -> {Map.new(Enum.reverse(members)), acc} end
+
+        case JSON.decode(json, [], object_finish: last_members) do
+          {decoded, [], ""} -> {:ok, decoded}
+          _invalid -> :error
+        end
+      end
+
+    Jason ->
+      defp decode_json(json) do
+        with {:ok, decoded} <- Jason.decode(json, objects: :ordered_objects) do
+          {:ok, last_members(decoded)}
+        end
+      end
+
+      defp last_members(%{__struct__: Jason.OrderedObject, values: members}),
+        do: Map.new(members, fn {name, value} -> {name, last_members(value)} end)
+
+      defp last_members(values) when is_list(values), do: Enum.map(values, &last_members/1)
+      defp last_members(value), do: value
+
+    _other ->
+      defp decode_json(json), do: AppConfig.json_library!().decode(json)
   end
 
   defp invalid_json, do: InvalidJSON.exception(spec_ref: "RFC 7519 §7.2")

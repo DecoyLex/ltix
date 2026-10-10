@@ -50,7 +50,10 @@ defmodule Ltix do
 
     * `:json_library` - JSON encoder/decoder module. Detected at
       compile time, using `JSON` (Elixir 1.18+/OTP 27+) if available,
-      then `Jason`. Only set this if you need a different library.
+      then `Jason`. Only set this if you need a different library. With
+      `JSON` or `Jason`, a token that repeats a claim has the last value.
+      With another library, it has the value that library's `decode/1`
+      returns.
 
     * `:req_options` - default options passed to `Req.request/2` for
       all HTTP calls (JWKS fetching, OAuth token requests, service
