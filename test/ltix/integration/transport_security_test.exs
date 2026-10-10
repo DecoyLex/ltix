@@ -1003,6 +1003,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
     end
   end
 
+  @tag :capture_log
   test "default HTTP configuration rejects an untrusted server before sending credentials", %{
     client: client,
     score: score
