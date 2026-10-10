@@ -1272,7 +1272,7 @@ resolved registration/deployment context that was used during validation.
 
 ### 2.12 `Ltix.Errors` — Structured Error Types (Splode)
 
-Uses [Splode](https://hexdocs.pm/splode) for structured, composable errors that
+Uses [Splode](https://splode.hexdocs.pm) for structured, composable errors that
 integrate naturally with Ash Framework and other Splode-aware libraries.
 
 ```elixir

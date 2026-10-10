@@ -40,7 +40,7 @@ children = [
 
 Your tool signs with private keys that you'll store in the database. Encrypt them there, so a database dump or a read-only breach doesn't expose your keys.
 
-Use the encryption your app already has, or a key management service. If you have neither, we recommend [Cloak](https://hexdocs.pm/cloak_ecto). Follow its [install guide](https://hexdocs.pm/cloak_ecto/install.html) to set up a vault and a binary field type. This guide calls that type `MyApp.Encrypted.Binary`.
+Use the encryption your app already has, or a key management service. If you have neither, we recommend [Cloak](https://cloak-ecto.hexdocs.pm). Follow its [install guide](https://cloak-ecto.hexdocs.pm/install.html) to set up a vault and a binary field type. This guide calls that type `MyApp.Encrypted.Binary`.
 
 ## Database schema
 

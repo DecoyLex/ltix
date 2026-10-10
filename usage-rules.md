@@ -202,7 +202,7 @@ These are the key event prefixes.
 - `[:ltix, :oauth, :authenticate, ...]` and `[:ltix, :oauth, :refresh, ...]` - OAuth token acquisition
 - `[:ltix, :jwks, :cache_hit]` and `[:ltix, :jwks, :cache_miss]` - single events (not spans)
 
-See the [telemetry guide](https://hexdocs.pm/ltix/telemetry.md) for full metadata details.
+See the [telemetry guide](https://ltix.hexdocs.pm/telemetry.md) for full metadata details.
 
 ## Finding Documentation
 
@@ -220,30 +220,30 @@ docs and guides directly.
 
 ```
 # Module docs
-https://hexdocs.pm/ltix/Ltix.GradeService.md
-https://hexdocs.pm/ltix/Ltix.StorageAdapter.md
+https://ltix.hexdocs.pm/Ltix.GradeService.md
+https://ltix.hexdocs.pm/Ltix.StorageAdapter.md
 
 # Guides
-https://hexdocs.pm/ltix/getting-started.md
-https://hexdocs.pm/ltix/storage-adapters.md
-https://hexdocs.pm/ltix/error-handling.md
-https://hexdocs.pm/ltix/advantage-services.md
-https://hexdocs.pm/ltix/deep-linking.md
-https://hexdocs.pm/ltix/grade-service.md
-https://hexdocs.pm/ltix/memberships-service.md
-https://hexdocs.pm/ltix/working-with-roles.md
-https://hexdocs.pm/ltix/jwk-management.md
-https://hexdocs.pm/ltix/telemetry.md
+https://ltix.hexdocs.pm/getting-started.md
+https://ltix.hexdocs.pm/storage-adapters.md
+https://ltix.hexdocs.pm/error-handling.md
+https://ltix.hexdocs.pm/advantage-services.md
+https://ltix.hexdocs.pm/deep-linking.md
+https://ltix.hexdocs.pm/grade-service.md
+https://ltix.hexdocs.pm/memberships-service.md
+https://ltix.hexdocs.pm/working-with-roles.md
+https://ltix.hexdocs.pm/jwk-management.md
+https://ltix.hexdocs.pm/telemetry.md
 
 # Cookbooks
-https://hexdocs.pm/ltix/testing-lti-launches.md
-https://hexdocs.pm/ltix/score-construction.md
-https://hexdocs.pm/ltix/building-content-items.md
-https://hexdocs.pm/ltix/token-caching-and-reuse.md
-https://hexdocs.pm/ltix/auto-create-deployments.md
-https://hexdocs.pm/ltix/background-grade-sync.md
-https://hexdocs.pm/ltix/managing-jwks-with-ecto.md
-https://hexdocs.pm/ltix/canvas-grade-extensions.md
+https://ltix.hexdocs.pm/testing-lti-launches.md
+https://ltix.hexdocs.pm/score-construction.md
+https://ltix.hexdocs.pm/building-content-items.md
+https://ltix.hexdocs.pm/token-caching-and-reuse.md
+https://ltix.hexdocs.pm/auto-create-deployments.md
+https://ltix.hexdocs.pm/background-grade-sync.md
+https://ltix.hexdocs.pm/managing-jwks-with-ecto.md
+https://ltix.hexdocs.pm/canvas-grade-extensions.md
 ```
 
 Use the `.md` URLs with `curl` or web fetch tools for detailed reference when the mix

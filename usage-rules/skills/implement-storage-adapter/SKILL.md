@@ -168,9 +168,9 @@ end
 ```
 
 Encrypt the private key at rest. `MyApp.Encrypted.Binary` is a
-[Cloak.Ecto](https://hexdocs.pm/cloak_ecto) field type. If the app has no vault yet,
+[Cloak.Ecto](https://cloak-ecto.hexdocs.pm) field type. If the app has no vault yet,
 **confirm with the user** before adding the `cloak_ecto` dependency, then follow Cloak's
-[install guide](https://hexdocs.pm/cloak_ecto/install.html), or use the encryption the
+[install guide](https://cloak-ecto.hexdocs.pm/install.html), or use the encryption the
 app already has. The public key is stored
 next to the private one, so the key set endpoint never reads a private key.
 
@@ -434,7 +434,7 @@ Ask the user how they want to schedule this (Oban, Quantum, manual GenServer, et
 Run `Ltix.Test.assert_storage_adapter!/2` against the adapter first. It checks the whole
 contract, including concurrent launches and, with the `:jwks` option, that signatures
 verify against the published key set. See the
-[Storage Adapters](https://hexdocs.pm/ltix/storage-adapters.md#testing-your-adapter) guide.
+[Storage Adapters](https://ltix.hexdocs.pm/storage-adapters.md#testing-your-adapter) guide.
 
 Unit-test each storage adapter callback directly. These verify that your queries,
 protocol implementations, and nonce handling work correctly.
@@ -525,4 +525,4 @@ end
 ```
 
 For a full end-to-end test through your controller routes, see the
-[Testing LTI Launches](https://hexdocs.pm/ltix/testing-lti-launches.md) cookbook.
+[Testing LTI Launches](https://ltix.hexdocs.pm/testing-lti-launches.md) cookbook.

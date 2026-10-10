@@ -3,7 +3,7 @@
 When a launch fails, you need to know what went wrong and how to
 respond. Ltix returns `{:error, exception}` from both `handle_login/3`
 and `handle_callback/3`, with errors organized into three classes using
-[Splode](https://hexdocs.pm/splode). You can match on the category
+[Splode](https://splode.hexdocs.pm). You can match on the category
 without knowing every individual error type.
 
 ## Error classes

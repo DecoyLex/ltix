@@ -27,7 +27,7 @@ end
 
 ## Schema
 
-The private key is encrypted at rest and left out of `inspect`. `MyApp.Encrypted.Binary` here is a [Cloak](https://hexdocs.pm/cloak_ecto) field type, set up in [Getting Started](../getting-started.md#set-up-key-encryption). Any encrypted field type works in its place.
+The private key is encrypted at rest and left out of `inspect`. `MyApp.Encrypted.Binary` here is a [Cloak](https://cloak-ecto.hexdocs.pm) field type, set up in [Getting Started](../getting-started.md#set-up-key-encryption). Any encrypted field type works in its place.
 
 ```elixir
 defmodule MyApp.Lti.LtiKey do

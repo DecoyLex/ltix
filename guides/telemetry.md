@@ -1,6 +1,6 @@
 # Telemetry
 
-Ltix emits [`:telemetry`](https://hexdocs.pm/telemetry) events at key
+Ltix emits [`:telemetry`](https://telemetry.hexdocs.pm) events at key
 boundaries. All span events emit `:start`, `:stop`, and `:exception`
 suffixes with `system_time` and `duration` measurements provided by
 `:telemetry.span/3`.

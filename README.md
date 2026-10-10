@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DecoyLex/ltix/actions/workflows/ci.yml/badge.svg)](https://github.com/DecoyLex/ltix/actions/workflows/ci.yml)
 [![Hex.pm](https://img.shields.io/hexpm/v/ltix.svg)](https://hex.pm/packages/ltix)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/ltix)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://ltix.hexdocs.pm)
 [![License](https://img.shields.io/hexpm/l/ltix.svg)](https://github.com/DecoyLex/ltix/blob/main/LICENSE)
 
 Ltix is an Elixir library for building LTI 1.3 tool applications. It handles
@@ -53,17 +53,17 @@ end
 
 ## Documentation
 
-- [Getting Started](https://hexdocs.pm/ltix/getting-started.html)
-- [What is Ltix?](https://hexdocs.pm/ltix/what-is-ltix.html)
-- [LTI Advantage Concepts](https://hexdocs.pm/ltix/concepts.html)
-- [Storage Adapters](https://hexdocs.pm/ltix/storage-adapters.html)
-- [Working with Roles](https://hexdocs.pm/ltix/working-with-roles.html)
-- [Error Handling](https://hexdocs.pm/ltix/error-handling.html)
-- [Advantage Services](https://hexdocs.pm/ltix/advantage-services.html)
-- [Memberships Service](https://hexdocs.pm/ltix/memberships-service.html)
-- [Grade Service](https://hexdocs.pm/ltix/grade-service.html)
-- [Deep Linking](https://hexdocs.pm/ltix/deep-linking.html)
-- [JWK Management](https://hexdocs.pm/ltix/jwk-management.html)
+- [Getting Started](https://ltix.hexdocs.pm/getting-started.html)
+- [What is Ltix?](https://ltix.hexdocs.pm/what-is-ltix.html)
+- [LTI Advantage Concepts](https://ltix.hexdocs.pm/concepts.html)
+- [Storage Adapters](https://ltix.hexdocs.pm/storage-adapters.html)
+- [Working with Roles](https://ltix.hexdocs.pm/working-with-roles.html)
+- [Error Handling](https://ltix.hexdocs.pm/error-handling.html)
+- [Advantage Services](https://ltix.hexdocs.pm/advantage-services.html)
+- [Memberships Service](https://ltix.hexdocs.pm/memberships-service.html)
+- [Grade Service](https://ltix.hexdocs.pm/grade-service.html)
+- [Deep Linking](https://ltix.hexdocs.pm/deep-linking.html)
+- [JWK Management](https://ltix.hexdocs.pm/jwk-management.html)
 
 ## License
 
