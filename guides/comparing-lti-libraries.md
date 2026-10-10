@@ -9,10 +9,10 @@ philosophies so you can choose the right fit for your project.
 | Library | LTI version | Status | Hex downloads |
 |---|---|---|---|
 | **Ltix** | 1.3 | Active | New |
-| **`lti_1p3`** | 1.3 | Active | ~62,000 |
+| **`lti_1p3`** | 1.3 | Active | ~77,000 |
 | `lti` | 1.0 only | Unmaintained | ~132,000 (legacy) |
 | `plug_lti` | 1.x | Unmaintained | Not on Hex |
-| `lightbulb` | 1.3 | Active (Gleam, not Elixir) | ~200 |
+| `lightbulb` | 1.3 | Active (Gleam, not Elixir) | ~370 |
 
 [`lti_1p3`](https://hex.pm/packages/lti_1p3) comes from the
 Simon Initiative at Carnegie Mellon University. It was generously
@@ -143,7 +143,7 @@ service calls, giving more visibility into each step.
 | **OIDC launch** | Yes | Yes |
 | **AGS** | Yes | Yes |
 | **NRPS** | Yes | Yes |
-| **Deep Linking** | Claim parsing and response building | Claim parsing |
+| **Deep Linking** | Yes | No |
 | **Platform side** | No (tool only) | Yes |
 | **Ecto provider** | No (you implement the adapter) | Yes (`lti_1p3_ecto_provider`) |
 | **Test helpers** | Yes (`Ltix.Test`) | In-memory provider |
