@@ -7,14 +7,11 @@ defmodule Ltix.Integration.ConsumerBuildTest do
                [{:jason, Jason, ", {:jason, \"~> 1.4\"}"}]
 
   for {provider, json_library, json_dependency} <- @providers do
-    test "consumers use #{provider} JSON and core helpers without optional HTTP dependencies" do
+    @tag :tmp_dir
+    test "consumers use #{provider} JSON and core helpers without optional HTTP dependencies", %{
+      tmp_dir: project
+    } do
       library = File.cwd!()
-
-      project =
-        Path.join(System.tmp_dir!(), "ltix-consumer-#{System.unique_integer([:positive])}")
-
-      File.mkdir_p!(project)
-      on_exit(fn -> File.rm_rf!(project) end)
 
       json_dependency = unquote(json_dependency)
 
