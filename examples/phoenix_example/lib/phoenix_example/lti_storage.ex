@@ -11,6 +11,8 @@ defmodule PhoenixExample.LtiStorage do
 
   use Agent
 
+  require Logger
+
   # --- Demo registration ---
   # Replace these values with your platform's actual configuration.
 
@@ -27,12 +29,14 @@ defmodule PhoenixExample.LtiStorage do
       fn ->
         tool_jwk = Ltix.JWK.generate()
 
-        # Print out the JWK to the console so it can be copied into the platform's tool registration.
-        IO.puts("Generated tool JWK (copy this into your platform registration):")
-        tool_jwk |> Ltix.JWK.to_jwks() |> JSON.encode!() |> IO.puts()
+        # Log the JWK so it can be copied into the platform's tool registration.
+        Logger.info("""
+        Generated tool JWK (copy this into your platform registration):
+        #{JSON.encode!(Ltix.JWK.to_jwks(tool_jwk))}
 
-        IO.puts("Or use the following RSA public key:")
-        tool_jwk |> Ltix.JWK.to_public_key() |> IO.puts()
+        Or use the following RSA public key:
+        #{Ltix.JWK.to_public_key(tool_jwk)}
+        """)
 
         %{used_nonces: MapSet.new(), contexts: %{}, tool_jwk: tool_jwk}
       end,
