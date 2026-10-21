@@ -76,7 +76,7 @@ defmodule Ltix.MembershipsMessageClaimsTest do
              expires_at: 123.5,
              issued_at: 122.5,
              context: %{id: "course"},
-             roles: [%{name: :instructor}],
+             roles: ["Instructor"],
              custom: %{"country" => "Canada"},
              extensions: %{
                "https://vendor.example.com/claim" => %CustomMessage{value: 123},

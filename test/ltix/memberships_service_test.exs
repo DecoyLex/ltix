@@ -10,11 +10,11 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
+  alias Ltix.Role
 
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
   @nrps_media_type "application/vnd.ims.lti-nrps.v2.membershipcontainer+json"
@@ -159,10 +159,8 @@ defmodule Ltix.MembershipsServiceTest do
         MembershipsService.stream_members(client, max_members: 10)
       end
 
-      for role <- [:not_a_role, %Role{type: :context, name: :not_a_role}] do
-        assert_raise InvalidOption, ~r/Option :role is invalid/, fn ->
-          MembershipsService.list_members(client, role: role)
-        end
+      assert_raise InvalidOption, ~r/Option :role is invalid/, fn ->
+        MembershipsService.list_members(client, role: :learner)
       end
     end
   end
@@ -306,6 +304,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       alice = Enum.find(roster.members, &(&1.user_id == "user-1"))
       assert alice.name == "Alice"
+      assert alice.roles == [@learner_uri]
       assert Role.learner?(alice.roles)
     end
 
@@ -463,7 +462,7 @@ defmodule Ltix.MembershipsServiceTest do
   # --- Query parameters ---
 
   describe "query parameters" do
-    test "role filter with atom", ctx do
+    test "role filter with an Ltix.Role constant", ctx do
       Req.Test.stub(Ltix.MembershipsService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["role"] == @learner_uri
@@ -474,7 +473,7 @@ defmodule Ltix.MembershipsServiceTest do
       end)
 
       client = build_client(ctx.platform)
-      assert {:ok, _} = MembershipsService.list_members(client, role: :learner)
+      assert {:ok, _} = MembershipsService.list_members(client, role: Role.context_learner())
     end
 
     test "role filter with URI string", ctx do
@@ -503,21 +502,6 @@ defmodule Ltix.MembershipsServiceTest do
 
       client = build_client(ctx.platform)
       assert {:ok, _} = MembershipsService.list_members(client, per_page: 25)
-    end
-
-    test "role filter with %Role{} struct", ctx do
-      Req.Test.stub(Ltix.MembershipsService, fn conn ->
-        params = Plug.Conn.fetch_query_params(conn).query_params
-        assert params["role"] == @instructor_uri
-
-        conn
-        |> Plug.Conn.put_resp_content_type(@nrps_media_type)
-        |> Req.Test.json(build_membership_response([]))
-      end)
-
-      client = build_client(ctx.platform)
-      role = %Role{type: :context, name: :instructor, sub_role: nil}
-      assert {:ok, _} = MembershipsService.list_members(client, role: role)
     end
 
     test "resource_link_id appended as rlid parameter", ctx do

@@ -4,7 +4,7 @@
 
 Ltix becomes a plugin system. A plugin is a module that declares what it provides and what it extends. Ltix's own functionality ships as bundled plugins that go through the same mechanism as third-party plugins.
 
-The plugin system replaces every 0.2 extension point that a library would use to add to Ltix. These are claim parsers (`Ltix.LaunchClaims.Parser`, `:claim_parsers`), role parsers (`Ltix.LaunchClaims.Role.Parser`, `:role_parsers`), `Ltix.AdvantageService`, the `Ltix.DeepLinking.ContentItem` protocol, and the `extensions:` option on scores, line items, and content items (`Ltix.Extensions`).
+The plugin system replaces every 0.2 extension point that a library would use to add to Ltix. These are claim parsers (`Ltix.LaunchClaims.Parser`, `:claim_parsers`), `Ltix.AdvantageService`, the `Ltix.DeepLinking.ContentItem` protocol, and the `extensions:` option on scores, line items, and content items (`Ltix.Extensions`). Role parsers (`Ltix.LaunchClaims.Role.Parser`, `:role_parsers`) are removed with no replacement. Roles are the URIs the platform sent, checked with `Ltix.Role`. Core requires a non-empty `roles` list to include a role from a standard role vocabulary, so a platform that sends its own roles also sends a standard role.
 
 This document describes the system as it should be. It is not an implementation plan.
 
@@ -194,7 +194,7 @@ A module can only be ordered relative to another module, so each bundled step is
 | 0.2 extension point | Replacement |
 |---|---|
 | `Ltix.LaunchClaims.Parser`, `:claim_parsers` | An extender of `Ltix.Launch`, or of each document the claim appears in |
-| `Ltix.LaunchClaims.Role.Parser`, `:role_parsers` | An extender of the provider that parses the `roles` claim |
+| `Ltix.LaunchClaims.Role.Parser`, `:role_parsers` | Removed. Roles are the URIs the platform sent, checked with `Ltix.Role` |
 | `Ltix.AdvantageService` | A service provider module in a plugin |
 | `Ltix.DeepLinking.ContentItem` protocol | A content item type provided by a plugin, and extenders of existing types |
 | `extensions:` on scores, line items, and content items | Extenders of the provider modules for those types |

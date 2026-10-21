@@ -14,12 +14,12 @@ defmodule Ltix.TestTest do
   alias Ltix.LaunchClaims.AGSEndpoint
   alias Ltix.LaunchClaims.Context
   alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
+  alias Ltix.Role
   alias Ltix.Test.StorageAdapter
 
   @launch_url "https://tool.example.com/launch"
@@ -65,42 +65,31 @@ defmodule Ltix.TestTest do
   end
 
   describe "full OIDC flow via test helpers" do
-    test "launch with sub-role struct", %{platform: platform} do
-      {:ok, login_result} = do_login(platform)
-      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+    test "launch with a sub-role", %{platform: platform} do
+      {:ok, launch} =
+        LaunchFlow.launch(platform, roles: [Role.instructor_teaching_assistant()])
 
-      ta_role = %Role{type: :context, name: :instructor, sub_role: :teaching_assistant}
-
-      {:ok, context} =
-        do_callback(platform, login_result, nonce, roles: [ta_role])
-
-      assert Role.teaching_assistant?(context.claims.roles)
+      assert Role.teaching_assistant?(launch.claims.roles)
     end
 
     test "launch with PII claims", %{platform: platform} do
-      {:ok, login_result} = do_login(platform)
-      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-
-      {:ok, context} =
-        do_callback(platform, login_result, nonce,
+      {:ok, launch} =
+        LaunchFlow.launch(platform,
           name: "Jane Doe",
           email: "jane@example.com",
           given_name: "Jane",
           family_name: "Doe"
         )
 
-      assert context.claims.name == "Jane Doe"
-      assert context.claims.email == "jane@example.com"
-      assert context.claims.given_name == "Jane"
-      assert context.claims.family_name == "Doe"
+      assert launch.claims.name == "Jane Doe"
+      assert launch.claims.email == "jane@example.com"
+      assert launch.claims.given_name == "Jane"
+      assert launch.claims.family_name == "Doe"
     end
 
     test "launch with context", %{platform: platform} do
-      {:ok, login_result} = do_login(platform)
-      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-
-      {:ok, context} =
-        do_callback(platform, login_result, nonce,
+      {:ok, launch} =
+        LaunchFlow.launch(platform,
           context: %{
             id: "course-1",
             label: "CS101",
@@ -109,11 +98,11 @@ defmodule Ltix.TestTest do
           }
         )
 
-      assert context.claims.context.id == "course-1"
-      assert context.claims.context.label == "CS101"
-      assert context.claims.context.title == "Intro to CS"
+      assert launch.claims.context.id == "course-1"
+      assert launch.claims.context.label == "CS101"
+      assert launch.claims.context.title == "Intro to CS"
 
-      assert context.claims.context.type ==
+      assert launch.claims.context.type ==
                ["http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"]
     end
   end
@@ -125,7 +114,7 @@ defmodule Ltix.TestTest do
 
     test "both helpers build the same claims", %{platform: platform} do
       for opts <- [
-            [roles: [:learner, @custom_role], subject: "student-1"],
+            [roles: [Role.context_learner(), @custom_role], subject: "student-1"],
             [context: %{id: "course-1", label: "CS101", type: [@course_type]}],
             [context: %Context{id: "course-2", title: "Elixir"}],
             [resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}],
@@ -152,13 +141,6 @@ defmodule Ltix.TestTest do
         assert context.claims.subject == "user-12345"
         assert context.claims.context.id == "context-001"
       end
-    end
-
-    test "keep custom role URIs in unrecognized_roles", %{platform: platform} do
-      context = Ltix.Test.build_launch_context(platform, roles: [:learner, @custom_role])
-
-      assert Role.learner?(context.claims.roles)
-      assert context.claims.unrecognized_roles == [@custom_role]
     end
 
     test "set the subject", %{platform: platform} do
@@ -270,7 +252,9 @@ defmodule Ltix.TestTest do
       end
     end
 
-    test "raise for unknown keys in nested options and unknown roles", %{platform: platform} do
+    test "raise for unknown keys in nested options and roles that are not URIs", %{
+      platform: platform
+    } do
       for {key, value} <- [
             context: %{id: "c", name: "Course"},
             resource_link: %{id: "r", url: "https://tool.example.com"},
@@ -286,14 +270,8 @@ defmodule Ltix.TestTest do
         assert %{key: ^key, value: ^value} = error
       end
 
-      for {opts, message} <- [
-            {[roles: [:not_a_role]], "Option :roles is invalid, it is not a known role"},
-            {[roles: [%Role{type: :custom, name: :reviewer}]],
-             "Option :roles is invalid, it is not a known role"}
-          ] do
-        assert_raise InvalidOption, message, fn ->
-          Ltix.Test.build_launch_context(platform, opts)
-        end
+      assert_raise InvalidOption, ~r/Option :roles is invalid/, fn ->
+        Ltix.Test.build_launch_context(platform, roles: [:instructor])
       end
     end
   end
@@ -462,7 +440,7 @@ defmodule Ltix.TestTest do
     test "build_launch_context returns the custom structs",
          %{custom_registration: reg, custom_deployment: dep} do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
-      context = Ltix.Test.build_launch_context(platform, roles: [:instructor])
+      context = Ltix.Test.build_launch_context(platform, roles: [Role.context_instructor()])
 
       assert %CustomRegistration{id: "reg-uuid-001"} = context.registration
       assert %CustomDeployment{id: "dep-uuid-001"} = context.deployment
@@ -701,7 +679,7 @@ defmodule Ltix.TestTest do
 
     test "memberships stubs respond page by page", %{platform: platform} do
       members =
-        for n <- 1..3, do: %Member{user_id: "user-#{n}", roles: [Role.from_atom(:learner)]}
+        for n <- 1..3, do: %Member{user_id: "user-#{n}", roles: [Role.context_learner()]}
 
       Ltix.Test.stub_list_members(members)
       client = build_memberships_client(platform)
@@ -773,8 +751,8 @@ defmodule Ltix.TestTest do
 
     test "returns serialized members in a container", %{platform: platform} do
       members = [
-        %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},
-        %Member{user_id: "teacher-1", roles: [Role.from_atom(:instructor)], name: "Bob"}
+        %Member{user_id: "student-1", roles: [Role.context_learner()], name: "Alice"},
+        %Member{user_id: "teacher-1", roles: [Role.context_instructor()], name: "Bob"}
       ]
 
       Ltix.Test.stub_list_members(members, context: %{id: "course-42", title: "Elixir 101"})
@@ -795,7 +773,7 @@ defmodule Ltix.TestTest do
 
     test "uses default context when none given", %{platform: platform} do
       Ltix.Test.stub_list_members([
-        %Member{user_id: "student-1", roles: [Role.from_atom(:learner)]}
+        %Member{user_id: "student-1", roles: [Role.context_learner()]}
       ])
 
       client = build_memberships_client(platform)

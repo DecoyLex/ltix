@@ -3,8 +3,9 @@ defmodule Ltix.MembershipsService.Member do
   A single member in a roster response from the memberships service.
 
   Each member has a `user_id` (matching `sub` from launch JWTs) and
-  `roles` (parsed into `%Role{}` structs). Additional fields like
-  `name`, `email`, and `picture` depend on platform consent.
+  `roles`, the role URIs the platform sent. Check them with `Ltix.Role`.
+  Additional fields like `name`, `email`, and `picture` depend on platform
+  consent.
   Fields Ltix does not recognize, such as platform-specific extensions,
   are in `extensions` with their original JSON keys.
 
@@ -23,8 +24,8 @@ defmodule Ltix.MembershipsService.Member do
       member.name
       #=> "Jane Doe"
 
-      hd(member.roles).name
-      #=> :learner
+      Ltix.Role.learner?(member.roles)
+      #=> true
   """
 
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -32,7 +33,6 @@ defmodule Ltix.MembershipsService.Member do
   alias Ltix.Extensions
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.ClaimHelpers
-  alias Ltix.LaunchClaims.Role
 
   defstruct [
     :user_id,
@@ -47,7 +47,6 @@ defmodule Ltix.MembershipsService.Member do
     :lti_1_1_legacy_user_id,
     :message,
     roles: [],
-    unrecognized_roles: [],
     extensions: %{}
   ]
 
@@ -63,8 +62,7 @@ defmodule Ltix.MembershipsService.Member do
           lis_person_source_id: String.t() | nil,
           lti_1_1_legacy_user_id: String.t() | nil,
           message: [LaunchClaims.t()] | nil,
-          roles: [Role.t()],
-          unrecognized_roles: [String.t()],
+          roles: [String.t()],
           extensions: %{optional(String.t()) => term()} | nil
         }
 
@@ -126,20 +124,14 @@ defmodule Ltix.MembershipsService.Member do
   required fields are missing or invalid.
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json), do: from_json(json, Role.parsers([]))
-
-  # Same as `from_json/1`, with role parsers from `Ltix.LaunchClaims.Role.parsers/1`,
-  # so they are resolved once for a page of members.
-  @doc false
-  @spec from_json(map(), list()) :: {:ok, t()} | {:error, Exception.t()}
   # [sharing-of-personal-data]:
   # https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data
   #
   # [NRPS §2.2][sharing-of-personal-data]
-  def from_json(%{"user_id" => user_id, "roles" => roles} = json, role_parsers) do
+  def from_json(%{"user_id" => user_id, "roles" => roles} = json) do
     with :ok <- validate_user_id(user_id),
          {:ok, profile} <- ClaimHelpers.from_json(@profile_schema, json, "member"),
-         {:ok, {parsed_roles, unrecognized}} <- parse_roles(roles, role_parsers),
+         :ok <- validate_roles(roles),
          {:ok, status} <- parse_status(json["status"]),
          {:ok, message} <- parse_message(json["message"]) do
       {:ok,
@@ -148,22 +140,21 @@ defmodule Ltix.MembershipsService.Member do
          | user_id: user_id,
            status: status,
            message: message,
-           roles: parsed_roles,
-           unrecognized_roles: unrecognized,
+           roles: roles,
            extensions: Map.drop(json, @known_keys)
        }}
     end
   end
 
-  def from_json(%{"user_id" => _}, _role_parsers) do
+  def from_json(%{"user_id" => _}) do
     {:error, MissingClaim.exception(claim: "member.roles")}
   end
 
-  def from_json(%{"roles" => _}, _role_parsers) do
+  def from_json(%{"roles" => _}) do
     {:error, MissingClaim.exception(claim: "member.user_id")}
   end
 
-  def from_json(_json, _role_parsers) do
+  def from_json(_json) do
     {:error, MissingClaim.exception(claim: "member.user_id and member.roles")}
   end
 
@@ -178,7 +169,7 @@ defmodule Ltix.MembershipsService.Member do
       ...>   user_id: "user-1",
       ...>   status: :active,
       ...>   name: "Jane Doe",
-      ...>   roles: [Ltix.LaunchClaims.Role.from_atom(:learner)]
+      ...>   roles: [Ltix.Role.context_learner()]
       ...> }
       iex> Ltix.MembershipsService.Member.to_map(member)
       %{
@@ -192,7 +183,7 @@ defmodule Ltix.MembershipsService.Member do
   def to_map(%__MODULE__{} = member) do
     required = %{
       "user_id" => member.user_id,
-      "roles" => Enum.map(member.roles, &Role.to_uri!/1) ++ member.unrecognized_roles
+      "roles" => member.roles
     }
 
     fields =
@@ -214,16 +205,14 @@ defmodule Ltix.MembershipsService.Member do
   defp validate_user_id(user_id),
     do: invalid_field("user_id", user_id, "must be a string")
 
-  defp parse_roles(roles, role_parsers) do
-    if string_list?(roles) do
-      {:ok, Role.parse_all_with(roles, role_parsers)}
-    else
-      invalid_field("roles", roles, "must be an array of strings")
-    end
+  defp validate_roles(roles) when is_list(roles) do
+    if Enum.all?(roles, &is_binary/1), do: :ok, else: invalid_roles(roles)
   end
 
-  defp string_list?(values) when is_list(values), do: Enum.all?(values, &is_binary/1)
-  defp string_list?(_values), do: false
+  defp validate_roles(roles), do: invalid_roles(roles)
+
+  defp invalid_roles(roles),
+    do: invalid_field("roles", roles, "must be an array of strings")
 
   # [NRPS §2.3](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-status)
   defp parse_status(nil), do: {:ok, :active}

@@ -85,7 +85,7 @@ test "launch renders dashboard", %{conn: conn, platform: platform} do
       Ltix.Test.launch_params(platform,
         nonce: nonce,
         state: state,
-        roles: [:instructor],
+        roles: [Ltix.Role.context_instructor()],
         name: "Jane Doe"
       )
     )
@@ -101,7 +101,7 @@ Skip the OIDC flow entirely for business logic tests.
 ```elixir
 test "instructors can manage grades", %{platform: platform} do
   context = Ltix.Test.build_launch_context(platform,
-    roles: [:instructor],
+    roles: [Ltix.Role.context_instructor()],
     name: "Jane Smith"
   )
 
@@ -134,9 +134,8 @@ end
 
 `launch_params/2` and `build_launch_context/2` take the same launch options with the same defaults. Unknown options, including unknown keys in nested maps, raise `Ltix.Errors.Invalid.InvalidOption`.
 
-- `:roles` - list of atoms (`:instructor`, `:learner`, `:teaching_assistant`, etc.),
-  `%Role{}` structs, or URI strings (defaults to `[:instructor]`). Unrecognized URIs are listed
-  in `claims.unrecognized_roles`.
+- `:roles` - list of role URIs, such as `Ltix.Role.context_learner()` and
+  `Ltix.Role.instructor_teaching_assistant()` (defaults to an instructor). URIs are sent as given.
 - `:subject` - user identifier (defaults to `"user-12345"`), `nil` for an anonymous launch
 - `:name`, `:email`, `:given_name`, `:family_name` - user profile fields
 - `:context` - `%Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (the default id is `"context-001"`)

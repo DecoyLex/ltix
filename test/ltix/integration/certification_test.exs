@@ -6,9 +6,9 @@ defmodule Ltix.Integration.CertificationTest do
   alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security
-  alias Ltix.LaunchClaims
   alias Ltix.LaunchContext
   alias Ltix.Registration
+  alias Ltix.Role
   alias Ltix.Test.StorageAdapter
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
@@ -196,7 +196,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert LaunchClaims.Role.instructor?(launch.claims.roles)
+      assert Role.instructor?(launch.claims.roles)
       assert launch.claims.name == "Jane Doe"
       assert launch.claims.email == "instructor@example.com"
       assert launch.claims.context.id == "course-001"
@@ -213,8 +213,10 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert [%LaunchClaims.Role{name: :instructor}, %LaunchClaims.Role{}] =
-               launch.claims.roles
+      assert launch.claims.roles == [
+               "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
+               "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"
+             ]
     end
 
     test "Valid Instructor Launch Short Role", ctx do
@@ -223,7 +225,8 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert [%LaunchClaims.Role{name: :instructor}] = launch.claims.roles
+      assert launch.claims.roles == ["Instructor"]
+      assert Role.instructor?(launch.claims.roles)
     end
 
     test "Valid Instructor Launch Unknown Role", ctx do
@@ -236,11 +239,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert launch.claims.roles == []
-
-      assert launch.claims.unrecognized_roles == [
-               "http://example.com/custom/TeachingAssistant"
-             ]
+      assert launch.claims.roles == ["http://example.com/custom/TeachingAssistant"]
     end
 
     test "Valid Instructor Launch No Role", ctx do
@@ -332,7 +331,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert LaunchClaims.Role.learner?(launch.claims.roles)
+      assert Role.learner?(launch.claims.roles)
       assert launch.claims.name == "John Smith"
       assert launch.claims.email == "student@example.com"
       assert launch.claims.context.id == "course-001"
@@ -349,8 +348,10 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert [%LaunchClaims.Role{name: :learner}, %LaunchClaims.Role{}] =
-               launch.claims.roles
+      assert launch.claims.roles == [
+               "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner",
+               "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student"
+             ]
     end
 
     test "Valid Student Launch Short Role", ctx do
@@ -359,7 +360,8 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert [%LaunchClaims.Role{name: :learner}] = launch.claims.roles
+      assert launch.claims.roles == ["Learner"]
+      assert Role.learner?(launch.claims.roles)
     end
 
     test "Valid Student Launch Unknown Role", ctx do
@@ -372,8 +374,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
 
-      assert launch.claims.roles == []
-      assert launch.claims.unrecognized_roles == ["http://example.com/custom/Auditor"]
+      assert launch.claims.roles == ["http://example.com/custom/Auditor"]
     end
 
     test "Valid Student Launch No Role", ctx do

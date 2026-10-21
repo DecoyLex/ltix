@@ -95,7 +95,7 @@ about the launch. Ltix parses these into `Ltix.LaunchClaims`.
 | Claim group | Examples | Struct field |
 |---|---|---|
 | User identity | subject, name, email | `claims.subject`, `claims.name` |
-| Roles | instructor, learner, TA | `claims.roles` (list of `%Role{}`) |
+| Roles | instructor, learner, TA | `claims.roles` (list of role URIs) |
 | Context | course ID, title, label | `claims.context` |
 | Resource link | link ID, title | `claims.resource_link` |
 | Launch metadata | message type, version, target URI | `claims.message_type`, `claims.target_link_uri` |
@@ -111,14 +111,14 @@ Platforms send roles as URI strings. A user can have multiple roles
 simultaneously, for example an instructor in the course and a
 staff member at the institution.
 
-Roles have three scopes.
+Roles come from three [vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies).
 
 - **Context** - course-level (instructor, learner, TA, content developer)
 - **Institution** - org-level (faculty, student, staff, administrator)
-- **System** - platform-level (system admin, account admin)
+- **System** - platform-level (system administrator, account administrator)
 
-Ltix parses role URIs into `Ltix.LaunchClaims.Role` structs and
-provides predicates like `Role.instructor?/1` for authorization. See
+Ltix keeps the role URIs as the platform sent them, and `Ltix.Role` has
+checks like `Ltix.Role.instructor?/1` for authorization. See
 [Working with Roles](working-with-roles.md) for details.
 
 ## Nonces

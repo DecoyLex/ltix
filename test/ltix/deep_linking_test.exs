@@ -30,7 +30,7 @@ defmodule Ltix.DeepLinkingTest do
 
   describe "build_response/3 message type validation" do
     test "returns InvalidMessageType for resource link context", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, roles: [:instructor])
+      context = Ltix.Test.build_launch_context(p)
 
       assert {:error, %InvalidMessageType{message_type: "LtiResourceLinkRequest"}} =
                DeepLinking.build_response(context)

@@ -68,6 +68,8 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Role vocabulary**. A set of role URIs a specification defines. LIS defines context, institution, and system vocabularies, and Core adds LTI system roles. _Avoid_ role scope, role category.
 
+**Role kind**. Context, institution, or system, from the vocabulary a role belongs to. Roles in the LTI system vocabulary are system roles. A deprecated form has the kind of each role it stands for, so `person#Administrator` and `person#None` are both institution and system roles. A role outside the standard vocabularies, such as a platform's own URI, has no kind. _Avoid_ role type.
+
 **Sub-role**. A role that narrows a context role, such as `Instructor#TeachingAssistant`.
 
 **Principal role**. A context role without a sub-role, such as `Instructor`.

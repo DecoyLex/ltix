@@ -20,7 +20,7 @@ def launch(conn, params) do
   active_learners =
     roster
     |> Enum.filter(fn m -> m.status == :active end)
-    |> Enum.filter(fn m -> Ltix.LaunchClaims.Role.learner?(m.roles) end)
+    |> Enum.filter(fn m -> Ltix.Role.learner?(m.roles) end)
 
   conn
   |> assign(:learners, active_learners)
@@ -82,11 +82,11 @@ def perform(%{args: %{"course_id" => course_id}}) do
 end
 
 defp classify_role(roles) do
-  alias Ltix.LaunchClaims.Role
+  alias Ltix.Role
 
   cond do
-    Role.instructor?(roles) -> :instructor
     Role.teaching_assistant?(roles) -> :ta
+    Role.instructor?(roles) -> :instructor
     Role.learner?(roles) -> :learner
     true -> :other
   end
@@ -101,18 +101,18 @@ management and reusing tokens across courses.
 ### By role
 
 The `:role` option filters server-side, so the platform only returns
-matching members.
+matching members. Pass a role URI, such as a constant from `Ltix.Role`.
 
 ```elixir
 # Only learners
-{:ok, roster} = Ltix.MembershipsService.list_members(client, role: :learner)
+{:ok, roster} = Ltix.MembershipsService.list_members(client, role: Ltix.Role.context_learner())
 
 # Only instructors
-{:ok, roster} = Ltix.MembershipsService.list_members(client, role: :instructor)
+{:ok, roster} = Ltix.MembershipsService.list_members(client, role: Ltix.Role.context_instructor())
 ```
 
-See [Working with Roles](working-with-roles.md) for the full role
-vocabulary and predicates.
+See [Working with Roles](working-with-roles.md) for the role
+vocabularies and checks.
 
 ### By resource link
 
@@ -173,7 +173,7 @@ For rosters of unknown size, streaming is the safer choice.
 
 - [Advantage Services](advantage-services.md) - token management,
   caching, and multi-service authentication
-- [Working with Roles](working-with-roles.md) - role predicates
+- [Working with Roles](working-with-roles.md) - role checks
   for authorization with roster members
 - `Ltix.MembershipsService` - full API reference and options
 - `Ltix.MembershipsService.Member` - member struct fields

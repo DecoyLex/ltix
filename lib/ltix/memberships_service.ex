@@ -23,7 +23,7 @@ defmodule Ltix.MembershipsService do
         endpoint: MembershipsEndpoint.new!("https://lms.example.com/memberships")
       )
 
-      {:ok, roster} = Ltix.MembershipsService.list_members(client, role: :learner)
+      {:ok, roster} = Ltix.MembershipsService.list_members(client, role: Ltix.Role.context_learner())
 
   ## Streaming large rosters
 
@@ -38,11 +38,9 @@ defmodule Ltix.MembershipsService do
 
   alias Ltix.AdvantageService.Operation
   alias Ltix.Errors.Invalid.InvalidEndpoint
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.LaunchClaims
   alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth
@@ -151,12 +149,7 @@ defmodule Ltix.MembershipsService do
       Zoi.struct(MembershipsEndpoint,
         description: "Override the endpoint stored on the client."
       ),
-    role:
-      Zoi.union([Zoi.atom(), Zoi.string(), Zoi.struct(Role)],
-        description:
-          "Filter by role. Accepts a role atom (e.g., `:learner`), URI string, " <>
-            "`%Role{}` struct, or short name string (e.g., `\"Learner\"`)."
-      ),
+    role: Zoi.string(description: "Filter by role URI, such as `Ltix.Role.context_learner/0`."),
     resource_link_id: Zoi.string(description: "Query resource link membership."),
     per_page:
       Zoi.integer(
@@ -305,37 +298,12 @@ defmodule Ltix.MembershipsService do
   end
 
   # [NRPS §2.4.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#role-query-parameter)
+  # [NRPS §3](https://www.imsglobal.org/spec/lti-nrps/v2p0/#resource-link-level-membership-service)
   defp query_params(opts) do
-    params = %{}
-
-    params =
-      case Keyword.get(opts, :role) do
-        nil -> params
-        role -> Map.put(params, "role", resolve_role(role))
-      end
-
-    params =
-      case Keyword.get(opts, :per_page) do
-        nil -> params
-        per_page -> Map.put(params, "limit", Integer.to_string(per_page))
-      end
-
-    # [NRPS §3](https://www.imsglobal.org/spec/lti-nrps/v2p0/#resource-link-level-membership-service)
-    case Keyword.get(opts, :resource_link_id) do
-      nil -> params
-      rlid -> Map.put(params, "rlid", rlid)
-    end
-  end
-
-  defp resolve_role(uri) when is_binary(uri), do: uri
-
-  defp resolve_role(role) do
-    Role.to_uri!(if is_atom(role), do: Role.from_atom(role), else: role)
-  rescue
-    ArgumentError ->
-      reraise InvalidOption,
-              [key: :role, value: role, reason: "it is not a known role"],
-              __STACKTRACE__
+    for {option, param} <- [role: "role", per_page: "limit", resource_link_id: "rlid"],
+        value = Keyword.get(opts, option),
+        into: %{},
+        do: {param, to_string(value)}
   end
 
   # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)

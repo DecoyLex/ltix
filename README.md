@@ -17,9 +17,9 @@ what your tool actually does.
 # Platform sends the signed JWT - validate and parse
 {:ok, context} = Ltix.handle_callback(params, state)
 
-context.claims.roles          #=> [%Role{type: :context, name: :instructor}, ...]
-context.claims.resource_link  #=> %ResourceLink{id: "link-1", title: "Assignment 1"}
-context.registration          #=> your struct from StorageAdapter.get_registration/3
+Ltix.Role.instructor?(context.claims.roles)  #=> true
+context.claims.resource_link                 #=> %ResourceLink{id: "link-1", title: "Assignment 1"}
+context.registration                         #=> your struct from StorageAdapter.get_registration/3
 ```
 
 ## Features
@@ -32,8 +32,8 @@ context.registration          #=> your struct from StorageAdapter.get_registrati
   to use any persistence layer
 - **Framework-agnostic** - works with Phoenix, bare Plug, or any Elixir
   web framework
-- **Structured claims** - roles, context, resource links, and service
-  endpoints parsed into typed structs
+- **Structured claims** - context, resource links, and service
+  endpoints parsed into typed structs, and role checks in `Ltix.Role`
 - **Structured errors** - classified as `:invalid`, `:security`, or `:unknown`
 - **Testing utilities** - `Ltix.Test` provides a simulated platform for
   integration tests without a real platform

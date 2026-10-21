@@ -6,7 +6,7 @@ Ltix authenticates LTI launches and calls platform services for your tool. This 
 
 Ltix follows the trust model of the LTI specifications. Registering a platform is the decision to trust it. After that, Ltix accepts what the platform signs and what its services return, including the roles it assigns, the URLs in its launch claims, and the data in its responses.
 
-Ltix also trusts your application's code and configuration, such as your storage adapter, claim parsers, role parsers, and options.
+Ltix also trusts your application's code and configuration, such as your storage adapter, claim parsers, and options.
 
 Everything else is untrusted.
 

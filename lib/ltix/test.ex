@@ -75,7 +75,7 @@ defmodule Ltix.Test do
             Ltix.Test.launch_params(platform,
               nonce: nonce,
               state: state,
-              roles: [:instructor],
+              roles: [Ltix.Role.context_instructor()],
               name: "Jane Doe"
             )
           )
@@ -90,7 +90,7 @@ defmodule Ltix.Test do
 
       test "instructors can manage grades", %{platform: platform} do
         context = Ltix.Test.build_launch_context(platform,
-          roles: [:instructor],
+          roles: [Ltix.Role.context_instructor()],
           name: "Jane Smith"
         )
 
@@ -187,7 +187,6 @@ defmodule Ltix.Test do
   alias Ltix.LaunchClaims.DeepLinkingSettings
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.ResourceLink
-  alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
@@ -195,6 +194,7 @@ defmodule Ltix.Test do
   alias Ltix.Options
   alias Ltix.Records
   alias Ltix.Registration
+  alias Ltix.Role
   alias Ltix.Test.Platform
   alias Ltix.Test.ServiceStub
   alias Ltix.Test.StorageAdapter
@@ -250,12 +250,11 @@ defmodule Ltix.Test do
       )
       |> Zoi.default(:resource_link),
     roles:
-      Zoi.list(Zoi.union([Zoi.atom(), Zoi.string(), Zoi.struct(Role)]),
+      Zoi.list(Zoi.string(),
         description:
-          "Role atoms such as `:instructor`, `%Ltix.LaunchClaims.Role{}` structs, or role URIs. " <>
-            "URIs Ltix does not recognize are listed in `unrecognized_roles`."
+          "Role URIs, such as `Ltix.Role.context_learner/0`. Defaults to an instructor."
       )
-      |> Zoi.default([:instructor]),
+      |> Zoi.default([Role.context_instructor()]),
     subject:
       Zoi.nullable(Zoi.string(),
         description:
@@ -631,7 +630,7 @@ defmodule Ltix.Test do
   from `launch_params/2` with the same launch options, without the OIDC flow.
 
       context = Ltix.Test.build_launch_context(platform,
-        roles: [:instructor, :teaching_assistant],
+        roles: [Ltix.Role.context_instructor(), Ltix.Role.instructor_teaching_assistant()],
         name: "Jane Smith",
         context: %{id: "course-1", title: "Elixir 101"}
       )
@@ -857,8 +856,8 @@ defmodule Ltix.Test do
   Stub `list_members/2` and `stream_members/2` to return the given members.
 
       Ltix.Test.stub_list_members([
-        %Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"},
-        %Member{user_id: "student-2", roles: [Role.from_atom(:instructor)], name: "Bob"}
+        %Member{user_id: "student-1", roles: [Ltix.Role.context_learner()], name: "Alice"},
+        %Member{user_id: "student-2", roles: [Ltix.Role.context_instructor()], name: "Bob"}
       ])
 
   Responds to a request with a `:per_page` size one page at a time, linking
@@ -982,7 +981,7 @@ defmodule Ltix.Test do
       (@lti_claim_prefix <> "version") => "1.3.0",
       (@lti_claim_prefix <> "deployment_id") => resolved_deployment(platform).deployment_id,
       (@lti_claim_prefix <> "target_link_uri") => Keyword.fetch!(opts, :target_link_uri),
-      (@lti_claim_prefix <> "roles") => Enum.map(Keyword.fetch!(opts, :roles), &role_uri/1),
+      (@lti_claim_prefix <> "roles") => Keyword.fetch!(opts, :roles),
       (@lti_claim_prefix <> "context") => context_claim(Keyword.get(opts, :context, %{})),
       # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
       "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" =>
@@ -1030,17 +1029,6 @@ defmodule Ltix.Test do
       (@lti_claim_prefix <> "message_type") => "LtiDeepLinkingRequest",
       "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => json_map(settings)
     }
-  end
-
-  defp role_uri(uri) when is_binary(uri), do: uri
-
-  defp role_uri(role) do
-    Role.to_uri!(if is_atom(role), do: Role.from_atom(role), else: role)
-  rescue
-    ArgumentError ->
-      reraise InvalidOption,
-              [key: :roles, value: role, reason: "it is not a known role"],
-              __STACKTRACE__
   end
 
   defp context_claim(context), do: json_map(Map.merge(%{id: "context-001"}, plain_map(context)))

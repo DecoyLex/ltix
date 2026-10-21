@@ -19,7 +19,7 @@ The entire OIDC launch flow is two functions.
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use
   the two public functions, or their raising variants `handle_login!/3` and
   `handle_callback!/3`.
-- `handle_login/3` takes `:storage_adapter` and `:storage_adapter_options`. `handle_callback/3` takes `:storage_adapter`, `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`, `:claim_parsers`, `:role_parsers`, and `:clock_skew`. Each option except `:storage_adapter_options` and `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `handle_login/3` takes `:storage_adapter` and `:storage_adapter_options`. `handle_callback/3` takes `:storage_adapter`, `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`, `:claim_parsers`, and `:clock_skew`. Each option except `:storage_adapter_options` and `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
 ## Required Configuration
 
@@ -127,10 +127,15 @@ end
 
 ## Roles
 
-- `Role.instructor?/1`, `Role.learner?/1`, `Role.teaching_assistant?/1` etc. check
-  **context roles only** (course-level).
-- `Role.administrator?/1` checks the **institution** administrator role. Use `Role.context_administrator?/1` for course administrators.
-- For other institution or system roles, use `Role.has_role?/4`.
+- Roles are the URIs the platform sent, in `context.claims.roles` and `member.roles`. Check them with `Ltix.Role`.
+- `Ltix.Role.instructor?/1`, `learner?/1`, `mentor?/1`, `content_developer?/1`, `context_administrator?/1`,
+  and `teaching_assistant?/1` check **context roles only**. All but `teaching_assistant?/1` include
+  sub-roles, and every check includes deprecated forms such as the simple name `"Instructor"`.
+- `Ltix.Role.administrator?/1` checks the **institution** administrator role. Use `Ltix.Role.context_administrator?/1` for context administrators.
+- For any other role, use `Ltix.Role.has?/2` with a constant, such as `Ltix.Role.has?(roles, Ltix.Role.system_test_user())`.
+  Constant names start with `context_`, `institution_`, or `system_`, with the principal role for sub-roles
+  (`instructor_teaching_assistant/0`), or with `person_` for deprecated institution and system URIs.
+- To tell context roles from institution or system roles, filter with `Ltix.Role.context_roles/1`, `institution_roles/1`, or `system_roles/1`. Each keeps deprecated forms and drops a platform's own roles. Both `institution_roles/1` and `system_roles/1` keep `Ltix.Role.person_administrator()` and `Ltix.Role.person_none()`.
 - Platform granularity varies.
   - Canvas sends sub-roles (e.g., `Instructor#TeachingAssistant`)
   - Moodle sends only `Instructor` or `Learner` (no sub-roles)
@@ -181,9 +186,8 @@ end
   `children = [Ltix.JWT.KeySet]`, or `{Ltix.JWT.KeySet, name: MyApp.LtiKeys}` with
   `config :ltix, key_set: MyApp.LtiKeys`. Pass `key_set:` to `handle_callback/3` to
   override it per call.
-- Custom claim/role parsers under the `Ltix.LaunchClaims` config key as `:claim_parsers`
-  and `:role_parsers`. Pass the same options to `handle_callback/3` to override them for
-  one call.
+- Custom claim parsers under the `Ltix.LaunchClaims` config key as `:claim_parsers`.
+  Pass the same option to `handle_callback/3` to override them for one call.
 
 ## Telemetry
 

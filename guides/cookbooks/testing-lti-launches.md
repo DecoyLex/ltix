@@ -97,7 +97,7 @@ test "instructor launch renders the dashboard", %{conn: conn, platform: platform
       Ltix.Test.launch_params(platform,
         nonce: nonce,
         state: state,
-        roles: [:instructor],
+        roles: [Ltix.Role.context_instructor()],
         name: "Jane Doe"
       )
     )
@@ -120,7 +120,7 @@ test "learner launch renders the assignment view", %{conn: conn, platform: platf
       Ltix.Test.launch_params(platform,
         nonce: nonce,
         state: state,
-        roles: [:learner],
+        roles: [Ltix.Role.context_learner()],
         context: %{id: "course-1", title: "Elixir 101"}
       )
     )
@@ -146,7 +146,7 @@ defmodule MyApp.PermissionsTest do
 
   test "instructors can manage grades", %{platform: platform} do
     context = Ltix.Test.build_launch_context(platform,
-      roles: [:instructor],
+      roles: [Ltix.Role.context_instructor()],
       name: "Jane Doe"
     )
 
@@ -154,10 +154,8 @@ defmodule MyApp.PermissionsTest do
   end
 
   test "TAs can view but not manage grades", %{platform: platform} do
-    alias Ltix.LaunchClaims.Role
-
     context = Ltix.Test.build_launch_context(platform,
-      roles: [%Role{type: :context, name: :instructor, sub_role: :teaching_assistant}]
+      roles: [Ltix.Role.instructor_teaching_assistant()]
     )
 
     assert MyApp.Permissions.can_view_grades?(context)
@@ -166,7 +164,7 @@ defmodule MyApp.PermissionsTest do
 
   test "learners see their own submissions only", %{platform: platform} do
     context = Ltix.Test.build_launch_context(platform,
-      roles: [:learner],
+      roles: [Ltix.Role.context_learner()],
       subject: "student-42",
       context: %{id: "course-1"}
     )
@@ -183,32 +181,18 @@ end
 
 ### Roles
 
-Pass atoms for common LIS context roles.
+Pass each role as its URI, or a context role as its plain name. `Ltix.Role` has a constant for each standard role.
 
 ```elixir
-roles: [:instructor, :learner]
-```
-
-For sub-roles, pass a `%Role{}` struct.
-
-```elixir
-alias Ltix.LaunchClaims.Role
-roles: [%Role{type: :context, name: :instructor, sub_role: :teaching_assistant}]
-```
-
-For institution or system roles, or custom role URIs, pass the full URI
-string. URIs Ltix does not recognize are listed in
-`context.claims.unrecognized_roles`, as in a real launch.
-
-```elixir
-roles: ["http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"]
+roles: [Ltix.Role.context_instructor(), Ltix.Role.instructor_teaching_assistant()]
+roles: ["Learner", "https://lms.example.com/roles#CourseDesigner"]
 ```
 
 ### Context and resource link
 
 ```elixir
 Ltix.Test.build_launch_context(platform,
-  roles: [:instructor],
+  roles: [Ltix.Role.context_instructor()],
   context: %{
     id: "course-1",
     label: "CS101",
@@ -335,7 +319,6 @@ end
 
 ```elixir
 test "fetches roster", %{platform: platform} do
-  alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService.Member
 
   Ltix.Test.stub_token_response(scopes: [
@@ -343,7 +326,7 @@ test "fetches roster", %{platform: platform} do
   ])
 
   Ltix.Test.stub_list_members(
-    [%Member{user_id: "student-1", roles: [Role.from_atom(:learner)], name: "Alice"}],
+    [%Member{user_id: "student-1", roles: [Ltix.Role.context_learner()], name: "Alice"}],
     context: %{id: "course-1", title: "Elixir 101"}
   )
 

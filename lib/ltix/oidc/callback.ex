@@ -75,7 +75,7 @@ defmodule Ltix.OIDC.Callback do
              adapter_options
            ),
          {:ok, claims} <-
-           LaunchClaims.from_json(raw_claims, Keyword.take(opts, [:claim_parsers, :role_parsers])) do
+           LaunchClaims.from_json(raw_claims, Keyword.take(opts, [:claim_parsers])) do
       context = %LaunchContext{
         claims: claims,
         registration: user_registration,

@@ -4,8 +4,8 @@ defmodule Ltix.Integration.LaunchMetadataTest do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Security.NonceReused
   alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchContext
+  alias Ltix.Role
   alias Ltix.Test.StorageAdapter
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"

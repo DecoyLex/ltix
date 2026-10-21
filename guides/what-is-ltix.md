@@ -47,7 +47,7 @@ the launch.
 context.claims.subject          #=> "user-12345"
 context.claims.name             #=> "Jane Smith"
 context.claims.email            #=> "jane@university.edu"
-context.claims.roles            #=> [%Role{type: :context, name: :instructor}, ...]
+context.claims.roles            #=> ["http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor", ...]
 context.claims.context          #=> %Context{id: "course-1", title: "Intro to Elixir"}
 context.claims.resource_link    #=> %ResourceLink{id: "link-1", title: "Assignment 1"}
 context.claims.target_link_uri  #=> "https://mytool.example.com/activity/42"
@@ -58,8 +58,8 @@ context.deployment              #=> your struct from StorageAdapter.get_deployme
 
 Between those two calls, Ltix has verified the JWT signature against
 the platform's public keys, validated the token's expiration and
-audience, checked the nonce and recorded it as used, parsed role URIs into
-structured data, and confirmed the deployment exists.
+audience, checked the nonce and recorded it as used, parsed the claims, and
+confirmed the deployment exists.
 
 > #### Two calls per launch {: .info}
 >
@@ -115,4 +115,4 @@ Plug dependencies in the core path.
   app step by step
 - `Ltix.StorageAdapter` - the three required callbacks your app implements
 - `Ltix.LaunchContext` - what a successful launch returns
-- `Ltix.LaunchClaims.Role` - role parsing and predicates
+- `Ltix.Role` - role checks and constants

@@ -23,7 +23,6 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.LaunchClaims.Context
-  alias Ltix.LaunchClaims.Role
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
 
@@ -76,11 +75,9 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   end
 
   defp parse_members(members) do
-    role_parsers = Role.parsers([])
-
     members
     |> Enum.reduce_while({:ok, []}, fn member_json, {:ok, acc} ->
-      case Member.from_json(member_json, role_parsers) do
+      case Member.from_json(member_json) do
         {:ok, member} -> {:cont, {:ok, [member | acc]}}
         {:error, _} = error -> {:halt, error}
       end

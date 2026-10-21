@@ -148,7 +148,7 @@ stream
 
 ### Filtering
 
-- `:role` - filter server-side (`:learner`, `:instructor`, etc.)
+- `:role` - filter server-side by role URI, such as `Ltix.Role.context_learner()`
 - `:resource_link_id` - only members with access to a specific resource link
 
 ### Missing PII

@@ -12,8 +12,8 @@ defmodule Ltix do
     * `Ltix.LaunchContext` - the validated output of a successful launch,
       containing the parsed claims, registration, and deployment
 
-    * `Ltix.LaunchClaims` - structured data parsed from the ID token
-      (roles, context, resource link, and more)
+    * `Ltix.LaunchClaims` - data from the ID token (roles, context,
+      resource link, and more)
 
   ## Configuration
 
@@ -21,10 +21,10 @@ defmodule Ltix do
         storage_adapter: MyApp.LtiStorage
 
   `handle_login/3` takes `:storage_adapter` and `:storage_adapter_options`,
-  and `handle_callback/3` takes both of those, `:allow_anonymous`, `:max_token_age`,
-  `:local_network_access`, `:req_options`, and `:key_set`, to override the
-  setting for a single call. Unknown or invalid options raise
-  `Ltix.Errors.Invalid.InvalidOption`.
+  and `handle_callback/3` takes both of those, `:allow_anonymous`,
+  `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`,
+  `:claim_parsers`, and `:clock_skew`, to override the setting for a single
+  call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
 
   ### Required
 
@@ -71,19 +71,14 @@ defmodule Ltix do
 
   ### Launch claim parsers
 
-  Custom claim and role parsers are configured under the
-  `Ltix.LaunchClaims` key.
+  Custom claim parsers are configured under the `Ltix.LaunchClaims` key.
 
       config :ltix, Ltix.LaunchClaims,
         claim_parsers: %{
           "https://example.com/custom" => MyApp.CustomClaimParser
-        },
-        role_parsers: %{
-          "https://example.com/roles/" => MyApp.CustomRoleParser
         }
 
-  See [Custom Claim Parsers](custom-claim-parsers.md) and
-  [Custom Role Parsers](custom-role-parsers.md) for details.
+  See [Custom Claim Parsers](custom-claim-parsers.md) for details.
 
   ## Handling Launches
 
@@ -181,7 +176,6 @@ defmodule Ltix do
                        allow_anonymous: Zoi.boolean(),
                        req_options: Zoi.keyword(Zoi.any()),
                        claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
-                       role_parsers: Zoi.map(Zoi.string(), Zoi.any()),
                        key_set: Zoi.atom(),
                        clock_skew: Zoi.integer() |> Zoi.non_negative(),
                        max_token_age:
@@ -268,7 +262,6 @@ defmodule Ltix do
     * `:key_set` - name of the key set cache to get platform public keys
       from (defaults to application config, then `Ltix.JWT.KeySet`)
     * `:claim_parsers` - custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
-    * `:role_parsers` - custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
     * `:clock_skew` - seconds of tolerance for the token's `exp`, `iat`, and
       `nbf` (defaults to `5`)
     * `:max_token_age` - seconds after the platform issued the ID token that

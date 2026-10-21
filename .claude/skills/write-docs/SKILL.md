@@ -131,8 +131,8 @@ automatically; for hand-written options:
 
 ## Options
 
-  * `:role` - filter by role. Accepts a role atom (e.g., `:learner`),
-    URI string, or `%Role{}` struct.
+  * `:role` - filter by role. Accepts a role URI, such as
+    `Ltix.Role.context_learner/0`.
   * `:per_page` - page size hint. The platform may return more or fewer.
   * `:max_members` - safety limit for eager fetch (default: `10_000`).
     Set to `:infinity` to disable.

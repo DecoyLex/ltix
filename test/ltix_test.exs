@@ -521,38 +521,6 @@ defmodule LtixTest do
                callback_with_claim(ctx, key, raw, claim_parsers: %{key => override})
     end
 
-    test "configured role parsers take precedence over the built-in LIS parser", ctx do
-      uri = "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-      reviewer = %Ltix.LaunchClaims.Role{type: :context, name: :reviewer, uri: uri}
-
-      Application.put_env(:ltix, Ltix.LaunchClaims,
-        role_parsers: %{"http://purl.imsglobal.org/vocab/" => fn ^uri -> {:ok, reviewer} end}
-      )
-
-      assert {:ok, %LaunchContext{claims: %{roles: [^reviewer]}}} =
-               callback_with_claim(ctx, "https://purl.imsglobal.org/spec/lti/claim/roles", [uri])
-    end
-
-    test "per-call role parsers take precedence over the built-in LIS parser", ctx do
-      uri = "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-      reviewer = %Ltix.LaunchClaims.Role{type: :context, name: :reviewer, uri: uri}
-      parser = fn ^uri -> {:ok, reviewer} end
-
-      assert {:ok, %LaunchContext{claims: %{roles: [^reviewer]}}} =
-               callback_with_claim(ctx, "https://purl.imsglobal.org/spec/lti/claim/roles", [uri],
-                 role_parsers: %{"http://purl.imsglobal.org/vocab/lis/v2/membership#" => parser}
-               )
-    end
-
-    test "the built-in LIS parser handles roles a custom parser rejects", ctx do
-      uri = "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"
-
-      assert {:ok, %LaunchContext{claims: %{roles: [%{name: :instructor}]}}} =
-               callback_with_claim(ctx, "https://purl.imsglobal.org/spec/lti/claim/roles", [uri],
-                 role_parsers: %{"http://purl.imsglobal.org/vocab/" => fn _uri -> :error end}
-               )
-    end
-
     test "accepts null optional nested claims", ctx do
       for {key, field} <- [
             {"https://purl.imsglobal.org/spec/lti/claim/context", :context},

@@ -9,7 +9,7 @@ defmodule Ltix.LaunchClaims do
       {:ok, context} = Ltix.handle_callback(params, state)
       context.claims.issuer          #=> "https://platform.example.com"
       context.claims.target_link_uri #=> "https://tool.example.com/launch"
-      Role.instructor?(context.claims.roles)  #=> true
+      Ltix.Role.instructor?(context.claims.roles)  #=> true
 
   ## Fields
 
@@ -41,8 +41,7 @@ defmodule Ltix.LaunchClaims do
     * `:version` - LTI version (e.g., `"1.3.0"`)
     * `:deployment_id` - identifies the specific tool installation
     * `:target_link_uri` - URL the tool should load
-    * `:roles` - list of parsed `t:Ltix.LaunchClaims.Role.t/0` structs
-    * `:unrecognized_roles` - role URIs that could not be parsed
+    * `:roles` - role URIs as the platform sent them. Check them with `Ltix.Role`.
     * `:role_scope_mentor` - list of user IDs this user mentors
     * `:custom` - custom properties set by the platform administrator
 
@@ -96,7 +95,6 @@ defmodule Ltix.LaunchClaims do
   alias Ltix.LaunchClaims.LIS
   alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.LaunchClaims.ResourceLink
-  alias Ltix.LaunchClaims.Role
   alias Ltix.LaunchClaims.ToolPlatform
 
   defstruct [
@@ -135,7 +133,6 @@ defmodule Ltix.LaunchClaims do
     :deep_linking_settings,
     # Fields with defaults (must come last)
     roles: [],
-    unrecognized_roles: [],
     extensions: %{}
   ]
 
@@ -158,8 +155,7 @@ defmodule Ltix.LaunchClaims do
           version: String.t() | nil,
           deployment_id: String.t() | nil,
           target_link_uri: String.t() | nil,
-          roles: [Role.t()],
-          unrecognized_roles: [String.t()],
+          roles: [String.t()],
           role_scope_mentor: [String.t()] | nil,
           context: Context.t() | nil,
           resource_link: ResourceLink.t() | nil,
@@ -262,8 +258,7 @@ defmodule Ltix.LaunchClaims do
 
   @options_schema Zoi.keyword(
                     [
-                      claim_parsers: Zoi.map(Zoi.string(), Zoi.any()),
-                      role_parsers: Zoi.map(Zoi.string(), Zoi.any())
+                      claim_parsers: Zoi.map(Zoi.string(), Zoi.any())
                     ],
                     unrecognized_keys: :error
                   )
@@ -298,10 +293,6 @@ defmodule Ltix.LaunchClaims do
     `{:error, reason}` is returned as `Ltix.Errors.Invalid.InvalidClaim`,
     unless `reason` is already an Ltix error. Per-call parsers override
     application config.
-  - `:role_parsers` - Map of role URI prefixes to parser functions for
-    parsing the `roles` claim. Each parser receives a role URI and must
-    return a `{:ok, t:Ltix.LaunchClaims.Role.t/0}` struct or `:error`. Per-call
-    parsers override application config.
 
   ## Examples
 
@@ -316,14 +307,13 @@ defmodule Ltix.LaunchClaims do
   def from_json(json, opts \\ []) when is_map(json) do
     opts = Options.parse!(opts, @options_schema)
     claim_parsers = resolve_claim_parsers(opts)
-    role_parsers = Keyword.get(opts, :role_parsers, %{})
     {configured_claims, builtin_claims} = Map.split(json, Map.keys(claim_parsers))
     {fields, extensions} = classify_keys(builtin_claims)
 
     with {:ok, configured_claims} <- parse_configured_claims(configured_claims, claim_parsers),
          {:ok, fields} <- parse_scalar_claims(fields),
          {:ok, fields} <- parse_nested_claims(fields, json[@lti_claim_prefix <> "message_type"]),
-         {:ok, fields} <- parse_roles(fields, role_parsers) do
+         {:ok, fields} <- validate_roles(fields) do
       {configured_fields, configured_extensions} = classify_keys(configured_claims)
 
       parsed_fields =
@@ -417,27 +407,14 @@ defmodule Ltix.LaunchClaims do
   end
 
   # [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim)
-  defp parse_roles(fields, role_parsers) do
-    case Map.get(fields, :roles) do
-      nil ->
-        {:ok, fields}
-
-      role_uris when is_list(role_uris) ->
-        if Enum.all?(role_uris, &is_binary/1) do
-          {parsed, unrecognized} = Role.parse_all(role_uris, role_parsers: role_parsers)
-
-          {:ok,
-           fields
-           |> Map.put(:roles, parsed)
-           |> Map.put(:unrecognized_roles, unrecognized)}
-        else
-          invalid_roles(role_uris)
-        end
-
-      role_uris ->
-        invalid_roles(role_uris)
-    end
+  defp validate_roles(%{roles: role_uris} = fields) when is_list(role_uris) do
+    if Enum.all?(role_uris, &is_binary/1), do: {:ok, fields}, else: invalid_roles(role_uris)
   end
+
+  defp validate_roles(%{roles: role_uris}) when not is_nil(role_uris),
+    do: invalid_roles(role_uris)
+
+  defp validate_roles(fields), do: {:ok, fields}
 
   defp invalid_roles(role_uris) do
     {:error,

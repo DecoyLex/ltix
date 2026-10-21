@@ -284,8 +284,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     assert %Member{
              user_id: "user-1",
              status: :active,
-             roles: [%{name: :instructor}],
-             unrecognized_roles: ["https://vendor.example.com/role"],
+             roles: ["Instructor", "https://vendor.example.com/role"],
              message: [
                %{
                  custom: %{"country" => "Canada"},
@@ -300,7 +299,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
              %Member{
                user_id: "user-1",
                status: :active,
-               roles: [%{name: :instructor}],
+               roles: ["Instructor", "https://vendor.example.com/role"],
                message: [%{custom: %{"country" => "Canada"}}]
              }
            ] = Enum.to_list(stream)

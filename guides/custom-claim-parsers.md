@@ -113,14 +113,11 @@ error.message
 
 ## Registering multiple parsers
 
-You can register claim parsers and role parsers together in application
+You can register several claim parsers together in application
 config.
 
 ```elixir
 config :ltix, Ltix.LaunchClaims,
-  role_parsers: %{
-    "https://myplatform.example.com/roles/" => MyApp.Lti.PlatformRoleParser
-  },
   claim_parsers: %{
     "https://myplatform.example.com/claim/analytics" => MyApp.Lti.AnalyticsClaim,
     "https://myplatform.example.com/claim/proctoring" => MyApp.Lti.ProctoringClaim
@@ -129,7 +126,6 @@ config :ltix, Ltix.LaunchClaims,
 
 ## Next steps
 
-- [Custom Role Parsers](custom-role-parsers.md) for handling
-  proprietary role vocabularies
+- [Working with Roles](working-with-roles.md) for checking a platform's own role URIs
 - `Ltix.LaunchClaims` for the full claims struct and `from_json/2` options
 - [Error Handling](error-handling.md) for how parser errors are returned

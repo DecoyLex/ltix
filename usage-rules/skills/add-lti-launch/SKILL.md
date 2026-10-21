@@ -323,7 +323,7 @@ defmodule MyAppWeb.LtiControllerTest do
         Ltix.Test.launch_params(platform,
           nonce: nonce,
           state: state,
-          roles: [:instructor]
+          roles: [Ltix.Role.context_instructor()]
         )
       )
 

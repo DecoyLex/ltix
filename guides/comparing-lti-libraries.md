@@ -56,9 +56,9 @@ is how claims are returned.
 
 {:ok, context} = Ltix.handle_callback(params, state)
 
-context.claims.roles            #=> [%Role{type: :context, name: :instructor}]
-context.claims.context.title    #=> "Intro to Elixir"
-context.claims.target_link_uri  #=> "https://mytool.example.com/launch"
+Ltix.Role.instructor?(context.claims.roles)  #=> true
+context.claims.context.title                 #=> "Intro to Elixir"
+context.claims.target_link_uri               #=> "https://mytool.example.com/launch"
 ```
 
 **`lti_1p3`** returns the validated JWT as a map, preserving the

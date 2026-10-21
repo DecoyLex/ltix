@@ -87,8 +87,8 @@ defmodule Ltix.MixProject do
         "guides/testing-with-ims-ri.md",
         "guides/storage-adapters.md",
         "guides/upgrading-to-0.2.md",
+        "guides/upgrading-to-0.3.md",
         "guides/working-with-roles.md",
-        "guides/custom-role-parsers.md",
         "guides/custom-claim-parsers.md",
         "guides/error-handling.md",
         "guides/advantage-services.md",
@@ -155,11 +155,11 @@ defmodule Ltix.MixProject do
           "guides/getting-started.md",
           "guides/testing-with-ims-ri.md",
           "guides/storage-adapters.md",
-          "guides/upgrading-to-0.2.md"
+          "guides/upgrading-to-0.2.md",
+          "guides/upgrading-to-0.3.md"
         ],
         "Launch flow": [
           "guides/working-with-roles.md",
-          "guides/custom-role-parsers.md",
           "guides/custom-claim-parsers.md",
           "guides/error-handling.md"
         ],
@@ -192,7 +192,6 @@ defmodule Ltix.MixProject do
         Ltix.JWT,
         Ltix.JWT.KeySet,
         Ltix.LaunchClaims,
-        Ltix.LaunchClaims.Role,
         Ltix.DeepLinking,
         Ltix.DeepLinking.ContentItem,
         Ltix.MembershipsService,
@@ -204,6 +203,7 @@ defmodule Ltix.MixProject do
         Ltix.Errors.Unknown,
         Ltix.Test
       ],
+      redirects: %{"custom-role-parsers" => "working-with-roles"},
       groups_for_modules: [
         Core: [
           Ltix.Deployable,
@@ -221,9 +221,7 @@ defmodule Ltix.MixProject do
         "Launch Claims": [
           Ltix.LaunchClaims,
           Ltix.LaunchClaims.Parser,
-          Ltix.LaunchClaims.Role,
-          Ltix.LaunchClaims.Role.LIS,
-          Ltix.LaunchClaims.Role.Parser,
+          Ltix.Role,
           Ltix.LaunchClaims.Context,
           Ltix.LaunchClaims.ResourceLink,
           Ltix.LaunchClaims.LaunchPresentation,

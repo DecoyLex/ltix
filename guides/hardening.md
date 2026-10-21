@@ -80,7 +80,7 @@ end
 Decide what a user may do from the roles in the verified launch.
 
 ```elixir
-alias Ltix.LaunchClaims.Role
+alias Ltix.Role
 
 if Role.instructor?(context.claims.roles) do
   # show grading tools

@@ -96,7 +96,7 @@ defmodule Ltix.LaunchClaimsTest do
 
   describe "from_json/2 roles [Core §5.3.7]" do
     test "defaults roles to empty list when absent" do
-      assert {:ok, %LaunchClaims{roles: [], unrecognized_roles: []}} =
+      assert {:ok, %LaunchClaims{roles: []}} =
                LaunchClaims.from_json(%{})
     end
   end
@@ -195,10 +195,6 @@ defmodule Ltix.LaunchClaimsTest do
     test "raises on unknown and invalid options" do
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :claim_parser is unknown", fn ->
         LaunchClaims.from_json(%{}, claim_parser: %{})
-      end
-
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :role_parsers is invalid/, fn ->
-        LaunchClaims.from_json(%{}, role_parsers: [:instructor])
       end
     end
 
