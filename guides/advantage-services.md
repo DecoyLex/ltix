@@ -186,7 +186,7 @@ for a complete walkthrough.
   rosters
 - [Grade Service](grade-service.md) - posting grades and managing
   line items
-- [JWK Management](jwk-management.md) - managing the key pairs
+- [JWK Management](jwk-management.md) - managing the signing keys
   used for authentication
 - [Token Caching and Reuse](cookbooks/token-caching-and-reuse.md) -
   batch refreshing, multi-course tokens, and ETS caching

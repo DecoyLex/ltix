@@ -3,7 +3,7 @@ defmodule Ltix.OAuth.AccessToken do
   OAuth 2.0 access token response.
 
   A cacheable struct holding the parsed token data from a platform's token
-  endpoint. Host apps can store this and reuse it across contexts via
+  endpoint. Applications can store this and reuse it across contexts via
   `Ltix.OAuth.Client.from_access_token/2`. To store it outside the VM, such as
   in a database, save `to_map/1` as JSON and restore it with `from_map/1`.
 

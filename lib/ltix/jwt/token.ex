@@ -1,6 +1,6 @@
 defmodule Ltix.JWT.Token do
   @moduledoc """
-  Decodes and validates LTI ID Tokens (JWTs).
+  Decodes and validates LTI ID tokens (JWTs).
 
   Implements the
   [Authentication Response Validation](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
@@ -79,7 +79,7 @@ defmodule Ltix.JWT.Token do
                   )
 
   @doc """
-  Verify and decode an LTI ID Token.
+  Verify and decode an LTI ID token.
 
   Implements the validation steps from
   [Sec §5.1.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation).

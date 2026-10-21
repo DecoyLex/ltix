@@ -48,9 +48,9 @@ given.
 
 `line_item` also accepts an `Ltix.GradeService.LineItem`. Deep linking can only send `label`, `score_maximum`, `resource_id`, `tag`, and `grades_released`, so a line item that sets any other field, such as `id`, returns an error.
 
-## Resource link with custom parameters
+## Resource link with custom properties
 
-Custom parameters are passed to your tool on every launch of the
+Custom properties are sent to your tool on every launch of the
 created link. Pass them as a keyword list or a map with string or atom
 keys. Values must be strings.
 

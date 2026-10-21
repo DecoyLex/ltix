@@ -100,7 +100,7 @@ automatically. Post scores directly without specifying a line item.
 - D2L removes the link but preserves grade data
 
 Ltix blocks deletion of coupled line items by default. **Never** pass `force: true`
-without confirming with the user which LMS platforms they target and that they understand
+without confirming with the user which platforms they target and that they understand
 the consequences.
 
 ### Canvas Extensions

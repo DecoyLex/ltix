@@ -82,7 +82,7 @@ defmodule Ltix.JWK do
         }
 
   @doc """
-  Generate an RSA key pair for LTI tool authentication.
+  Generate an RSA signing key for LTI tool authentication.
 
   Returns a `%Ltix.JWK{}` struct. Persist `kid` and the key PEMs to build
   the JWK again with `new/1`.

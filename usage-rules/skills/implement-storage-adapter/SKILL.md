@@ -63,7 +63,7 @@ ask about the rest.
    and how the launch callback creates or finds users. Ask the user which model
    fits their product.
 
-3. **Existing schema.** Does the app already have tables for LMS platforms, courses, or
+3. **Existing schema.** Does the app already have tables for platforms, courses, or
    users? The LTI tables may need to relate to existing models.
 
 4. **Context module.** Phoenix apps typically group related functionality under a context
@@ -75,7 +75,7 @@ ask about the rest.
 5. **Table/module naming.** What naming convention does the project use? (e.g.,
    `lti_registrations` vs `platforms`, `MyApp.Lti.Registration` vs `MyApp.LtiStorage`)
 
-6. **JWK strategy.** One tool key pair shared across all registrations, or one per
+6. **JWK strategy.** One signing key shared across all registrations, or one per
    registration? Per-registration allows independent rotation but adds complexity.
    Either way, private keys are stored encrypted in `private_key_pem`, with the `kid` and
    the public JWK next to them, and reconstructed into `%Ltix.JWK{}` structs via

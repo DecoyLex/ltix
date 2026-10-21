@@ -10,7 +10,7 @@ that app as a running example.
 
 The tool creates its own "Attendance" line item in the gradebook and
 posts scores to it. It also syncs the roster so it can pair students'
-mobile accounts with their LMS identities using the LIS data from
+mobile accounts with their platform identities using the LIS data from
 membership responses.
 
 Both URLs are context-scoped, so store them on the course. The grade service also needs the scopes from the launch claim, and the line item URL the platform returns when the tool creates its line item.
@@ -120,7 +120,7 @@ end
 
 ### Using stored endpoints
 
-Sync the roster periodically to pair mobile accounts with LMS users.
+Sync the roster periodically to pair mobile accounts with platform users.
 
 ```elixir
 alias Ltix.LaunchClaims.MembershipsEndpoint
@@ -134,7 +134,7 @@ def sync_roster(course) do
   )
 
   {:ok, members} = Ltix.MembershipsService.list_members(client)
-  # Pair mobile accounts with LMS users using LIS data from members
+  # Pair mobile accounts with platform users using LIS data from members
 end
 ```
 
@@ -169,9 +169,9 @@ end
 
 ## Coupled line items
 
-With coupled line items, the instructor creates one tool placement per
+With coupled line items, the instructor creates one resource link per
 class session, such as "Week 1" and "Week 2". The platform pre-creates a
-grade column for each placement. The lineitem URL for that column and
+grade column for each resource link. The lineitem URL for that column and
 its scopes are resource-link-scoped (different per session), so store
 them in a separate schema.
 

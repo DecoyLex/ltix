@@ -44,12 +44,12 @@ defmodule Ltix.LaunchClaims do
     * `:roles` - list of parsed `t:Ltix.LaunchClaims.Role.t/0` structs
     * `:unrecognized_roles` - role URIs that could not be parsed
     * `:role_scope_mentor` - list of user IDs this user mentors
-    * `:custom` - custom parameters set by the platform administrator
+    * `:custom` - custom properties set by the platform administrator
 
   ### Nested claims
 
     * `:context` - course or section (`t:Ltix.LaunchClaims.Context.t/0`)
-    * `:resource_link` - the specific placement
+    * `:resource_link` - the resource link the user launched
       (`t:Ltix.LaunchClaims.ResourceLink.t/0`)
     * `:launch_presentation` - display preferences
       (`t:Ltix.LaunchClaims.LaunchPresentation.t/0`)

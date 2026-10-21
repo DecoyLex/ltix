@@ -5,7 +5,7 @@ defmodule Ltix.AdvantageService do
   Each Advantage service implements this behaviour to describe its endpoint
   type and required OAuth scopes. `Ltix.OAuth` uses these callbacks to
   read endpoints from launch claims, validate endpoints, derive scopes, and
-  build authenticated clients for any service.
+  build OAuth clients for any service.
 
   ## Implementing a custom service
 

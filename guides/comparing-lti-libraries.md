@@ -30,14 +30,14 @@ designed from scratch.
 
 The libraries come from different contexts, which shaped their designs.
 
-**`lti_1p3`** was extracted from a production LMS. It supports both the
+**`lti_1p3`** was extracted from a production learning platform. It supports both the
 platform and tool sides of LTI, includes database-backed storage with
 Ecto schemas, and reflects the needs of a large application that manages
 its own registrations, JWKs, and platform instances.
 
 **Ltix** was designed as a standalone library for tool developers. It
 focuses on the tool side only, keeps storage abstract, and tries to
-minimize the surface area a host app needs to implement.
+minimize the surface area an application needs to implement.
 
 Neither approach is wrong. They serve different audiences.
 
@@ -87,7 +87,7 @@ private key stays in your application or a key management service.
 
 **`lti_1p3`** provides three behaviours (`DataProvider`,
 `ToolDataProvider`, `PlatformDataProvider`) with a broader callback
-surface. This gives the host app more control over JWK lifecycle,
+surface. This gives the application more control over JWK lifecycle,
 login hints, and platform instances. The companion package
 `lti_1p3_ecto_provider` provides a ready-made Ecto implementation.
 

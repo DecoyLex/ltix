@@ -103,7 +103,7 @@ Five content item types are available.
 )
 ```
 
-## Adding line items and custom parameters
+## Adding line items and custom properties
 
 LTI resource links can include a `line_item` to have the platform
 auto-create a gradebook column. You can post scores to that column
@@ -330,7 +330,7 @@ end
 ## Next steps
 
 - [Building Content Items](cookbooks/building-content-items.md) -
-  recipes for line items, custom parameters, extensions, and more
+  recipes for line items, custom properties, extensions, and more
 - [Grade Service](grade-service.md) - posting scores to gradebook
   columns created through deep linking
 - [Testing LTI Launches](cookbooks/testing-lti-launches.md) -

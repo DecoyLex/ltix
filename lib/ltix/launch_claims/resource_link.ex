@@ -1,6 +1,6 @@
 defmodule Ltix.LaunchClaims.ResourceLink do
   @moduledoc """
-  A placement of an LTI resource link within a context.
+  An LTI link to a resource in a context.
 
   `id` is required and stable across launches for the same link.
 

@@ -80,6 +80,6 @@ The IMS Reference Implementation is useful for verifying a basic launch,
 but it has significant bugs and gaps beyond that. Service endpoints
 (AGS, NRPS) may return non-compliant responses, behave inconsistently,
 or fail. Treat it as a smoke test for the OIDC login flow. For
-thorough testing of Advantage Services, use a real LMS like Canvas or
+thorough testing of Advantage Services, use a real platform such as Canvas or
 Moodle. Even their sandbox environments will give you far more reliable
 results.

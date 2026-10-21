@@ -140,7 +140,7 @@ defmodule Ltix.StorageAdapter do
               {:ok, Deployable.t()} | {:error, :not_found | term()}
 
   @doc """
-  Record a nonce from a verified ID Token as used.
+  Record a nonce from a verified ID token as used.
 
   Called during launch validation, after the token's signature and claims
   are verified. Return `:ok` the first time a nonce is recorded, and

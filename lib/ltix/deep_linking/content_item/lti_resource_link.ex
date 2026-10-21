@@ -64,7 +64,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
               iframe: @iframe_schema |> Zoi.optional(),
               custom:
                 Zoi.string()
-                |> Extensions.string_keyed_map(description: "Custom parameter key-value pairs.")
+                |> Extensions.string_keyed_map(description: "Custom property keys and values.")
                 |> Zoi.optional(),
               line_item: @line_item_schema |> Zoi.optional(),
               available: @time_window_schema |> Zoi.optional(),
@@ -84,7 +84,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   auto-create a gradebook column for the link.
 
   See [Building Content Items](cookbooks/building-content-items.md) for
-  common patterns including line items, custom parameters, and
+  common patterns including line items, custom properties, and
   availability windows.
 
   ## Examples

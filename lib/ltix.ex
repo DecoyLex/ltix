@@ -12,7 +12,7 @@ defmodule Ltix do
     * `Ltix.LaunchContext` - the validated output of a successful launch,
       containing the parsed claims, registration, and deployment
 
-    * `Ltix.LaunchClaims` - structured data parsed from the ID Token
+    * `Ltix.LaunchClaims` - structured data parsed from the ID token
       (roles, context, resource link, and more)
 
   ## Configuration
@@ -34,9 +34,9 @@ defmodule Ltix do
   ### Optional
 
     * `:allow_anonymous` - when `true`, allow launches without a `sub`
-      claim in the ID Token. Defaults to `false`.
+      claim in the ID token. Defaults to `false`.
 
-    * `:max_token_age` - seconds after the platform issued the ID Token
+    * `:max_token_age` - seconds after the platform issued the ID token
       that the launch is still accepted, or `:infinity` to accept any age.
       Defaults to `3600`.
 
@@ -248,7 +248,7 @@ defmodule Ltix do
   end
 
   @doc """
-  Handle an authentication response and validate the ID Token.
+  Handle an authentication response and validate the ID token.
 
   Returns `{:ok, %LaunchContext{}}` on success with parsed claims, registration,
   and deployment. The `state` parameter should be the value stored in the

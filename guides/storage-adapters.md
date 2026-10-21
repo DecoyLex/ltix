@@ -41,7 +41,7 @@ after a successful launch without an extra query.
 
 Ltix calls `get_registration/3` during login initiation with the login
 request's issuer and client_id, and again during launch validation
-with the ID Token's issuer and audience.
+with the ID token's issuer and audience.
 The `client_id` may be `nil` because some platforms don't include it in
 the login initiation request. Your adapter must handle both cases.
 

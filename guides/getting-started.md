@@ -758,7 +758,7 @@ going to production.
   and TAs can do in your tool. See
   [Working with Roles](working-with-roles.md).
 
-- **Grades and roster** - send scores back to the LMS gradebook
+- **Grades and roster** - send scores back to the platform's gradebook
   and fetch class lists. See
   [Advantage Services](advantage-services.md).
 

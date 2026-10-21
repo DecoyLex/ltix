@@ -142,7 +142,7 @@ while Moodle and Sakai generally do not.
 
 ### System roles
 
-System roles describe the person's role **on the LMS platform itself**.
+System roles describe the person's role **on the platform itself**.
 They apply to the people who manage the software.
 
 Common system roles are `:test_user`, `:user`, and `:sys_admin`. In
@@ -167,7 +167,7 @@ Role.has_role?(roles, :institution, :administrator) or
 
 On Moodle, admins may be sent as plain
 `context#Instructor`, so role-based admin detection across platforms
-may require platform-specific logic or custom parameters.
+may require platform-specific logic or custom properties.
 
 ## Sub-roles
 

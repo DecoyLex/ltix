@@ -37,7 +37,7 @@ context.registration          #=> your struct from StorageAdapter.get_registrati
 - **Spec-referenced errors** - classified as `:invalid`, `:security`, or
   `:unknown`, and most have a `spec_ref` referencing the relevant spec section
 - **Testing utilities** - `Ltix.Test` provides a simulated platform for
-  integration tests without a real LMS
+  integration tests without a real platform
 
 ## Installation
 

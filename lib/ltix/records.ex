@@ -1,7 +1,7 @@
 defmodule Ltix.Records do
   @moduledoc false
 
-  # Converts the records host applications give Ltix with `Ltix.Registerable`
+  # Converts the records applications give Ltix with `Ltix.Registerable`
   # and `Ltix.Deployable`, checking what the implementation returns.
 
   alias Ltix.Deployable

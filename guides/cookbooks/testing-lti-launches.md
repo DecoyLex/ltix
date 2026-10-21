@@ -2,7 +2,7 @@
 
 `Ltix.Test` provides helpers for testing your LTI application.
 Set up a simulated platform in one call, then test your controllers,
-authorization logic, and role-based behavior without a real LMS.
+authorization logic, and role-based behavior without a real platform.
 
 ## Setup
 
