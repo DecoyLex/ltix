@@ -108,7 +108,7 @@ defmodule Ltix.DeepLinking do
         message: "Selected 1 item"
       )
 
-      # response.jwt — signed JWT to POST to response.return_url
+      # response.jwt is the signed JWT to POST to response.return_url
 
   See the [Deep Linking](deep-linking.md) guide for the full workflow.
   """

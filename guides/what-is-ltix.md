@@ -32,11 +32,11 @@ check wrong means accepting tokens meant for other tools.
 Ltix does all of that in two function calls.
 
 ```elixir
-# Step 1: Platform initiates login — build the redirect
+# Step 1: Platform initiates login, build the redirect
 {:ok, %{redirect_uri: url, state: state}} =
   Ltix.handle_login(params, launch_url)
 
-# Step 2: Platform sends the signed JWT — validate and parse
+# Step 2: Platform sends the signed JWT, validate and parse
 {:ok, context} = Ltix.handle_callback(params, state)
 ```
 

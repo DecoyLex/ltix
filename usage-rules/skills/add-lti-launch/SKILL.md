@@ -14,7 +14,7 @@ This skill describes how to set up LTI 1.3 launch endpoints in a Phoenix applica
 - `config :ltix, storage_adapter: MyApp.Lti.StorageAdapter` is set
 - `Ltix.JWT.KeySet` is started in the supervision tree (see Step 1)
 
-## Before You Start — Survey the User
+## Before You Start, Survey the User
 
 These decisions are app-specific and affect security, UX, and architecture. **Enter plan
 mode** (or use a tool that asks the user questions) to gather answers before writing any
@@ -80,7 +80,7 @@ for this.
 change affects all routes.
 
 ```elixir
-# lib/my_app_web/endpoint.ex — update the session plug
+# lib/my_app_web/endpoint.ex, update the session plug
 plug Plug.Session,
   store: :cookie,
   key: "_my_app_key",
@@ -99,7 +99,7 @@ For development, HTTPS is required. If your user isn't using a reverse proxy tha
 they'll need to set up a self-signed certificate and configure the Phoenix endpoint to use it.
 
 ```elixir
-# config/dev.exs — generate certs with: mix phx.gen.cert
+# config/dev.exs. Generate certs with mix phx.gen.cert
 config :my_app, MyAppWeb.Endpoint,
   https: [
     port: 4001,
@@ -239,7 +239,7 @@ defmodule MyAppWeb.LtiController do
     |> render(:error, message: "The launch could not be completed.")
   end
 
-  # TODO: This is a skeleton — fill in based on the app's needs.
+  # TODO: This is a skeleton. Fill in based on the app's needs.
   # What session data to store, where to redirect, whether to create
   # a local user, etc. are all product decisions.
   #
@@ -249,7 +249,7 @@ defmodule MyAppWeb.LtiController do
   defp handle_launch(conn, context) do
     case context.claims.message_type do
       "LtiDeepLinkingRequest" ->
-        # Show content picker UI — ask user where this lives
+        # Show content picker UI. Ask user where this lives
         raise "Deep linking UI not yet implemented"
 
       "LtiResourceLinkRequest" ->

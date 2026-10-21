@@ -35,7 +35,7 @@ Your original struct is preserved in the `Ltix.LaunchContext` after a successful
 launch, so you can access your own fields (database IDs, tenant info, etc.) without
 an extra query.
 
-## Before You Start — Survey the User
+## Before You Start, Survey the User
 
 These decisions are app-specific. **Enter plan mode** (or use a tool that asks the user
 questions) to gather answers before writing any code. Explore the codebase first to
@@ -364,7 +364,7 @@ end
 # config/config.exs
 config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
 
-# config/test.exs — use the in-memory adapter and Req.Test stubs for tests
+# config/test.exs, use the in-memory adapter and Req.Test stubs for tests
 config :ltix,
   storage_adapter: Ltix.Test.StorageAdapter,
   req_options: [plug: {Req.Test, :ltix}]
