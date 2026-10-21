@@ -180,10 +180,16 @@ defmodule Ltix.HTTP do
 
   def validate_url(_url), do: invalid_url()
 
-  # Browsers treat loopback hosts as secure and relax mixed content for local
-  # addresses. The address a request connects to is checked separately.
-  # [Secure Contexts §3.1](https://www.w3.org/TR/secure-contexts/#is-origin-trustworthy)
-  # [LNA §2.5](https://wicg.github.io/local-network-access/#mixed-content)
+  # A Zoi refinement for a field that `validate_url/1` accepts.
+  @doc false
+  @spec https_url(term(), keyword()) :: :ok | {:error, String.t()}
+  def https_url(url, _opts) do
+    case validate_url(url) do
+      {:ok, _uri} -> :ok
+      {:error, _error} -> {:error, "must be an absolute HTTPS URL"}
+    end
+  end
+
   # The address space a host is known to be in before it is resolved.
   # Names under `localhost` are loopback.
   # [RFC 6761 §6.3](https://www.rfc-editor.org/rfc/rfc6761#section-6.3)

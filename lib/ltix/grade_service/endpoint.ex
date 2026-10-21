@@ -37,13 +37,11 @@ defmodule Ltix.GradeService.Endpoint do
         |> Zoi.optional()
     ]
 
-  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.HTTP
-  alias Ltix.PluginSet
 
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  @https_url Zoi.refine(Zoi.string(), {__MODULE__, :validate_url, []})
+  @https_url Zoi.refine(Zoi.string(), {HTTP, :https_url, []})
 
   @new_schema Zoi.struct(
                 __MODULE__,
@@ -62,7 +60,8 @@ defmodule Ltix.GradeService.Endpoint do
 
   `:scopes` needs at least one scope. `:line_items` and `:line_item` are
   optional HTTPS URLs, or HTTP for a loopback or private network host. The
-  fields can include property names, as `Ltix.Type.new/2` describes.
+  fields can include plugin properties by name, and the endpoint has their
+  values in `extensions`.
   Returns `Ltix.Errors.Invalid.InvalidField` for a missing, unknown, or
   invalid field.
 
@@ -83,14 +82,8 @@ defmodule Ltix.GradeService.Endpoint do
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  def new(attributes) when is_list(attributes) or is_map(attributes) do
-    {plugins, attributes} = Map.pop(Map.new(attributes), :plugins)
-
-    with {:ok, plugins} <- PluginSet.resolve(plugins),
-         {extensions, fields} = Ltix.Type.split_properties(__MODULE__, attributes, plugins),
-         {:ok, endpoint} <- InvalidField.parse(__MODULE__, @new_schema, fields),
-         do: {:ok, %{endpoint | extensions: extensions}}
-  end
+  def new(attributes) when is_list(attributes) or is_map(attributes),
+    do: Ltix.Type.new(__MODULE__, attributes, schema: @new_schema)
 
   @doc """
   Same as `new/1` but raises on error.
@@ -100,15 +93,6 @@ defmodule Ltix.GradeService.Endpoint do
     case new(attributes) do
       {:ok, endpoint} -> endpoint
       {:error, error} -> raise error
-    end
-  end
-
-  @doc false
-  @spec validate_url(term(), keyword()) :: :ok | {:error, String.t()}
-  def validate_url(url, _opts) do
-    case HTTP.validate_url(url) do
-      {:ok, _uri} -> :ok
-      {:error, _error} -> {:error, "must be an absolute HTTPS URL"}
     end
   end
 

@@ -77,7 +77,6 @@ defmodule Ltix.MembershipsService.Member do
         Zoi.list(Zoi.map(Zoi.atom(), Zoi.any()),
           metadata: [
             from_json: &__MODULE__.parse_message/2,
-            to_json: &__MODULE__.message_to_json/2,
             strict: true
           ]
         )
@@ -124,14 +123,6 @@ defmodule Ltix.MembershipsService.Member do
   end
 
   def parse_message(_messages, _opts), do: {:error, "must be an array of objects"}
-
-  # Serializes the claims of each message with `plugins`.
-  @doc false
-  @spec message_to_json([map()], Ltix.PluginSet.t() | nil) :: [map()]
-  def message_to_json(_messages, nil),
-    do: raise(ArgumentError, "a member's message needs a plugin set to serialize")
-
-  def message_to_json(messages, plugins), do: Enum.map(messages, &Claims.serialize(&1, plugins))
 
   # Runs the claims' checks on each of the member's messages, for the
   # message's type. A message the platform sent without `roles` is checked

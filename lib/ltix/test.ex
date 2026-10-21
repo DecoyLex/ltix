@@ -191,6 +191,7 @@ defmodule Ltix.Test do
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.Member
+  alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
   alias Ltix.PluginSet
@@ -230,6 +231,8 @@ defmodule Ltix.Test do
                          unrecognized_keys: :error
                        )
 
+  @default_context %{id: "context-001"}
+
   @context_option Zoi.union(
                     [
                       Zoi.struct(Context),
@@ -240,12 +243,12 @@ defmodule Ltix.Test do
                           title: Zoi.nullish(Zoi.string()),
                           type: Zoi.nullish(Zoi.list(Zoi.string()))
                         },
-                        unrecognized_keys: :error
+                        unrecognized_keys: :preserve
                       )
                     ],
                     description:
-                      "Course or section, as an `Ltix.Claims.Context` or a map of its fields. " <>
-                        "The `:id` defaults to `\"context-001\"`."
+                      "The context, as an `Ltix.Claims.Context` or a map of its fields and " <>
+                        "property names. Its `:id` defaults to `\"context-001\"`."
                   )
 
   @launch_option_fields [
@@ -287,12 +290,12 @@ defmodule Ltix.Test do
               title: Zoi.nullish(Zoi.string()),
               description: Zoi.nullish(Zoi.string())
             },
-            unrecognized_keys: :error
+            unrecognized_keys: :preserve
           )
         ],
         description:
-          "Resource link of a resource link launch, as an `Ltix.Claims.ResourceLink` " <>
-            "or a map of its fields. Defaults to `%{id: \"resource-link-001\", title: \"Example Assignment\"}`."
+          "The resource link, as an `Ltix.Claims.ResourceLink` or a map of its fields and " <>
+            "property names. Defaults to `%{id: \"resource-link-001\", title: \"Example Assignment\"}`."
       ),
     deep_linking_settings:
       Zoi.union(
@@ -311,13 +314,13 @@ defmodule Ltix.Test do
               text: Zoi.nullish(Zoi.string()),
               data: Zoi.nullish(Zoi.any())
             },
-            unrecognized_keys: :error
+            unrecognized_keys: :preserve
           )
         ],
         description:
-          "Settings of a Deep Linking request, as an `Ltix.DeepLinking.Settings` " <>
-            "or a map of its fields. Fields you leave out accept the five standard content " <>
-            "types, every presentation target, and multiple items."
+          "The Deep Linking settings, as an `Ltix.DeepLinking.Settings` or a map of its " <>
+            "fields and property names. Fields you leave out allow every content item type and presentation " <>
+            "target, and more than one content item."
       ),
     ags_endpoint:
       Zoi.union(
@@ -329,12 +332,12 @@ defmodule Ltix.Test do
               line_items: Zoi.nullish(Zoi.string()),
               line_item: Zoi.nullish(Zoi.string())
             },
-            unrecognized_keys: :error
+            unrecognized_keys: :preserve
           )
         ],
         description:
-          "Grade service endpoint, as an `Ltix.GradeService.Endpoint` or a map of its " <>
-            "fields. Requires `:scopes`."
+          "The grade service endpoint, as an `Ltix.GradeService.Endpoint` or a map of its " <>
+            "fields and property names. The map must have `:scopes`. A launch without this option has no grade service endpoint."
       ),
     memberships_endpoint:
       Zoi.union(
@@ -346,12 +349,13 @@ defmodule Ltix.Test do
               context_memberships_url: Zoi.nullish(Zoi.string()),
               service_versions: Zoi.nullish(Zoi.list(Zoi.string()))
             },
-            unrecognized_keys: :error
+            unrecognized_keys: :preserve
           )
         ],
         description:
-          "Memberships service endpoint, as an `Ltix.MembershipsService.Endpoint`, " <>
-            "its URL, or a map of its fields. `:service_versions` defaults to `[\"2.0\"]`."
+          "The memberships service endpoint, as an `Ltix.MembershipsService.Endpoint`, " <>
+            "its URL, or a map of its fields and property names. Its `:service_versions` defaults to `[\"2.0\"]`. " <>
+            "A launch without this option has no memberships service endpoint."
       ),
     claims:
       Zoi.map(Zoi.string(), Zoi.any(),
@@ -368,8 +372,14 @@ defmodule Ltix.Test do
                               )
                               |> Zoi.required(),
                             state:
-                              Zoi.string(description: "State from the login result.")
-                              |> Zoi.required()
+                              Zoi.string(description: "The state `Ltix.handle_login/3` returned.")
+                              |> Zoi.required(),
+                            plugins:
+                              Zoi.list(Zoi.any(),
+                                description:
+                                  "The plugins to build the claims with, each as " <>
+                                    "`MyPlugin` or `{MyPlugin, opts}`. Defaults to the configured plugins."
+                              )
                           ] ++ @launch_option_fields,
                           unrecognized_keys: :error
                         )
@@ -632,12 +642,18 @@ defmodule Ltix.Test do
   end
 
   @doc """
-  Build POST params for `Ltix.handle_callback/3`.
+  Returns the parameters the test platform posts to your launch URL, for
+  `Ltix.handle_callback/3` or your own post in a controller test.
 
-  Signs a JWT with the platform's private key and returns
-  `%{"id_token" => jwt, "state" => state}`. Takes the options of
-  `build_launch/2` that build claims, plus the `:nonce` and `:state` of the
-  login.
+  They're `%{"id_token" => id_token, "state" => state}`, with the ID token
+  signed by the platform's key.
+
+      params =
+        Ltix.Test.launch_params(platform,
+          nonce: nonce,
+          state: state,
+          roles: [Ltix.Role.context_learner()]
+        )
 
   ## Options
 
@@ -648,7 +664,10 @@ defmodule Ltix.Test do
     opts = Options.parse!(opts, @launch_params_schema)
     {nonce, opts} = Keyword.pop!(opts, :nonce)
     {state, opts} = Keyword.pop!(opts, :state)
-    claims = Map.put(build_claims(platform, opts), "nonce", nonce)
+    {enabled, opts} = Keyword.pop(opts, :plugins)
+
+    claims =
+      Map.put(build_claims(platform, opts, ok!(PluginSet.resolve(enabled))), "nonce", nonce)
 
     %{"id_token" => sign_id_token(claims, platform.jwk), "state" => state}
   end
@@ -712,7 +731,7 @@ defmodule Ltix.Test do
     launch = %Launch{
       registration: resolved_registration(platform),
       source_registration: platform.registration,
-      raw: build_claims(platform, opts),
+      raw: build_claims(platform, opts, plugins),
       private: %{ltix_options: [allow_anonymous: allow_anonymous]},
       plugins: plugins
     }
@@ -886,10 +905,7 @@ defmodule Ltix.Test do
     ServiceStub.put(GradeService, operation, url, &Req.Test.json(&1, json))
   end
 
-  # The JSON a platform sends for `value`, with every property of the plugin
-  # set `enabled` resolves to.
-  defp stub_json(value, enabled),
-    do: Ltix.Type.to_json(value, ok!(PluginSet.resolve(enabled)), :read)
+  defp stub_json(value, enabled), do: platform_json(value, ok!(PluginSet.resolve(enabled)))
 
   @doc """
   Stub `delete_line_item/2` to succeed.
@@ -968,38 +984,103 @@ defmodule Ltix.Test do
   # --- Memberships Service Stubs ---
 
   @doc """
-  Stub `list_members/2` and `stream_members/2` to return the given members.
+  Stub `list_members/2` and `stream_members/2` to return the given members,
+  or the given membership container.
 
       Ltix.Test.stub_list_members([
         %Member{user_id: "student-1", roles: [Ltix.Role.context_learner()], name: "Alice"},
         %Member{user_id: "student-2", roles: [Ltix.Role.context_instructor()], name: "Bob"}
       ])
 
+  Pass an `Ltix.MembershipsService.MembershipContainer` to send its `id`,
+  `context`, and properties too. With a container, the `:context` and `:id`
+  options raise `Ltix.Errors.Invalid.InvalidOption`.
+
+      roster = %MembershipContainer{context: %Ltix.Claims.Context{id: "course-42"}, members: members}
+      Ltix.Test.stub_list_members(roster)
+
   Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does. Each member and the context include
-  their unrecognized properties and every property they have a value for,
-  and each member includes the claims of its messages, using the plugin set
-  of the `:plugins` option. Give each message as a map of claims keyed by
-  short name. A claim no plugin declares raises `ArgumentError`.
+  to the next page like a platform does. The container, its context, and
+  each member include their unrecognized properties and every property they
+  have a value for, and each member includes the claims of its messages,
+  using the plugin set of the `:plugins` option. Give each message as a map
+  of claims keyed by short name. A claim no plugin declares raises
+  `ArgumentError`.
 
   ## Options
 
   #{Zoi.describe(@stub_list_members_schema)}
   """
-  @spec stub_list_members([Member.t()], keyword()) :: :ok
-  def stub_list_members(members, opts \\ []) when is_list(members) do
-    require_plug!()
+  @spec stub_list_members([Member.t()] | MembershipContainer.t(), keyword()) :: :ok
+  def stub_list_members(members, opts \\ [])
 
+  def stub_list_members(%MembershipContainer{} = container, opts) do
+    opts = Options.parse!(opts, @stub_list_members_schema)
+    reject_combined_option!(opts, :context, "a membership container")
+    reject_combined_option!(opts, :id, "a membership container")
+    stub_membership_container(container, opts[:plugins])
+  end
+
+  def stub_list_members(members, opts) when is_list(members) do
     opts = Options.parse!(opts, @stub_list_members_schema)
     plugins = ok!(PluginSet.resolve(opts[:plugins]))
-    context = context_claim(Keyword.get(opts, :context, %{}), plugins)
-    container = maybe_put(%{"context" => context}, "id", Keyword.get(opts, :id))
+    context = claim_struct(:context, Context, @default_context, opts[:context], plugins)
 
-    json = Enum.map(members, &stub_json(&1, plugins))
+    stub_membership_container(
+      %MembershipContainer{id: opts[:id], context: context, members: members},
+      plugins
+    )
+  end
+
+  defp stub_membership_container(container, enabled) do
+    plugins = ok!(PluginSet.resolve(enabled))
+    members = Enum.map(container.members, &member_json(&1, plugins))
+    json = platform_json(container, plugins)
+
+    json =
+      if container.context,
+        do: Map.put(json, "context", platform_json(container.context, plugins)),
+        else: json
 
     ServiceStub.put(MembershipsService, :list_members, nil, fn conn ->
-      ServiceStub.json_pages(conn, json, &Map.put(container, "members", &1))
+      ServiceStub.json_pages(conn, members, &Map.put(json, "members", &1))
     end)
+  end
+
+  defp member_json(%Member{message: nil} = member, plugins), do: platform_json(member, plugins)
+
+  defp member_json(%Member{} = member, plugins) do
+    messages = Enum.map(member.message, &claims_json(&1, plugins))
+    Map.put(platform_json(member, plugins), "message", messages)
+  end
+
+  # The raw claims a platform sends for claims keyed by short name.
+  defp claims_json(claims, plugins) do
+    Map.new(claims, fn {name, value} ->
+      case Ltix.Claims.declaration(plugins, name) do
+        nil -> raise ArgumentError, "no plugin declares the claim #{inspect(name)}"
+        declaration -> {declaration.uri, claim_value_json(declaration, value, plugins)}
+      end
+    end)
+  end
+
+  defp claim_value_json(%{claim: claim}, %claim{} = value, plugins),
+    do: platform_json(value, plugins)
+
+  defp claim_value_json(%{claim: claim, opts: opts}, value, _plugins),
+    do: claim.serialize(value, opts)
+
+  # The JSON a platform sends for a type's struct. It includes the property
+  # of every extension, whatever the property's write operations.
+  defp platform_json(%type{} = value, plugins) do
+    properties =
+      for %Entry{module: property, opts: opts} <-
+            Enum.uniq_by(PluginSet.entries(plugins, type), &{&1.module, &1.opts}),
+          {:ok, extension} <- [Map.fetch(value.extensions, opts[:name])],
+          into: %{},
+          do: {opts[:property], property.serialize(extension, opts)}
+
+    Map.merge(Ltix.Type.to_json(value, plugins), properties)
   end
 
   # --- Lower-Level Helpers ---
@@ -1074,7 +1155,8 @@ defmodule Ltix.Test do
   @spec valid_lti_claims(Platform.t(), map()) :: map()
   def valid_lti_claims(%Platform{} = platform, overrides \\ %{}) do
     nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    claims = build_claims(platform, Options.parse!([], @launch_options_schema))
+    opts = Options.parse!([], @launch_options_schema)
+    claims = build_claims(platform, opts, ok!(PluginSet.resolve(nil)))
     Map.merge(Map.put(claims, "nonce", nonce), overrides)
   end
 
@@ -1084,9 +1166,35 @@ defmodule Ltix.Test do
 
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
   # [Core §5.4](https://www.imsglobal.org/spec/lti/v1p3/#optional-message-claims)
-  defp build_claims(platform, opts) do
+  defp build_claims(platform, opts, plugins) do
     registration = resolved_registration(platform)
     now = System.system_time(:second)
+
+    # Built for every message type, so an unknown key fails in each.
+    resource_link =
+      claim_struct(
+        :resource_link,
+        ResourceLink,
+        %{id: "resource-link-001", title: "Example Assignment"},
+        opts[:resource_link],
+        plugins
+      )
+
+    settings =
+      claim_struct(
+        :deep_linking_settings,
+        Settings,
+        %{
+          deep_link_return_url: "https://platform.example.com/deep_links",
+          accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
+          accept_presentation_document_targets: ["iframe", "window", "embed"],
+          accept_multiple: true
+        },
+        opts[:deep_linking_settings],
+        plugins
+      )
+
+    context = claim_struct(:context, Context, @default_context, opts[:context], plugins)
 
     %{
       "iss" => registration.issuer,
@@ -1102,97 +1210,97 @@ defmodule Ltix.Test do
       (@lti_claim_prefix <> "deployment_id") => resolved_deployment(platform).deployment_id,
       (@lti_claim_prefix <> "target_link_uri") => Keyword.fetch!(opts, :target_link_uri),
       (@lti_claim_prefix <> "roles") => Keyword.fetch!(opts, :roles),
-      (@lti_claim_prefix <> "context") => context_claim(Keyword.get(opts, :context, %{})),
+      (@lti_claim_prefix <> "context") => platform_json(context, plugins),
       # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
       "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" =>
-        ags_endpoint_claim(Keyword.get(opts, :ags_endpoint)),
+        ags_endpoint_claim(opts[:ags_endpoint], plugins),
       # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
       "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" =>
-        memberships_endpoint_claim(Keyword.get(opts, :memberships_endpoint))
+        memberships_endpoint_claim(opts[:memberships_endpoint], plugins)
     }
-    |> Map.merge(message_type_claims(Keyword.fetch!(opts, :message_type), opts))
+    |> Map.merge(
+      message_type_claims(Keyword.fetch!(opts, :message_type), resource_link, settings, plugins)
+    )
     |> Map.reject(fn {_claim, value} -> is_nil(value) end)
     |> Map.merge(Keyword.get(opts, :claims, %{}))
   end
 
   # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
-  defp message_type_claims(:resource_link, opts) do
-    resource_link =
-      claim_json(
-        ResourceLink,
-        %{id: "resource-link-001", title: "Example Assignment"},
-        Keyword.get(opts, :resource_link, %{})
-      )
-
+  defp message_type_claims(:resource_link, resource_link, _settings, plugins) do
     %{
       (@lti_claim_prefix <> "message_type") => "LtiResourceLinkRequest",
-      (@lti_claim_prefix <> "resource_link") => resource_link
+      (@lti_claim_prefix <> "resource_link") => platform_json(resource_link, plugins)
     }
   end
 
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
-  defp message_type_claims(:deep_linking, opts) do
-    settings =
-      claim_json(
-        Settings,
-        %{
-          deep_link_return_url: "https://platform.example.com/deep_links",
-          accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
-          accept_presentation_document_targets: ["iframe", "window", "embed"],
-          accept_multiple: true
-        },
-        Keyword.get(opts, :deep_linking_settings, %{})
-      )
-
+  defp message_type_claims(:deep_linking, _resource_link, settings, plugins) do
     %{
       (@lti_claim_prefix <> "message_type") => "LtiDeepLinkingRequest",
-      "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => settings
+      "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" =>
+        platform_json(settings, plugins)
     }
   end
 
-  defp message_type_claims(message_type, _opts) when is_binary(message_type),
-    do: %{(@lti_claim_prefix <> "message_type") => message_type}
+  defp message_type_claims(message_type, _resource_link, _settings, _plugins)
+       when is_binary(message_type),
+       do: %{(@lti_claim_prefix <> "message_type") => message_type}
 
-  defp context_claim(context, plugins \\ nil),
-    do: claim_json(Context, %{id: "context-001"}, context, plugins)
+  # The claim's struct in an option, or one built from a map of its fields and
+  # property names over defaults.
+  defp claim_struct(_option, _claim, _defaults, %_{} = struct, _plugins), do: struct
 
-  # The JSON of a claim from its struct, or from a map of its fields over
-  # defaults, with the properties of `plugins`.
-  defp claim_json(claim, defaults, fields, plugins \\ nil)
-
-  defp claim_json(_claim, _defaults, %_{} = struct, plugins),
-    do: Ltix.Type.to_json(struct, plugins, :read)
-
-  defp claim_json(claim, defaults, fields, plugins),
-    do: Ltix.Type.to_json(struct!(claim, Map.merge(defaults, fields)), plugins, :read)
-
-  defp ags_endpoint_claim(nil), do: nil
-
-  defp ags_endpoint_claim(endpoint) do
-    Ltix.Type.to_json(GradeServiceEndpoint.new!(plain_map(endpoint)))
+  defp claim_struct(option, claim, defaults, value, plugins) do
+    {fields, extensions} = claim_fields(option, claim, value || %{}, plugins)
+    struct!(claim, Map.put(Map.merge(defaults, fields), :extensions, extensions))
   end
 
-  defp memberships_endpoint_claim(nil), do: nil
+  # The standard fields and extensions of a claim's struct or of a map of its
+  # fields and property names.
+  defp claim_fields(_option, _claim, %_{} = struct, _plugins),
+    do: {Ltix.Type.standard_fields(struct), struct.extensions}
 
-  defp memberships_endpoint_claim(url) when is_binary(url),
-    do: memberships_endpoint_claim(%{context_memberships_url: url})
+  defp claim_fields(option, claim, value, plugins) do
+    {extensions, fields} = Ltix.Type.split_properties(claim, value, plugins)
 
-  defp memberships_endpoint_claim(endpoint) do
-    endpoint = plain_map(endpoint)
-    url = endpoint[:context_memberships_url]
-    # Raises for an invalid URL.
-    MembershipsServiceEndpoint.new!(url)
+    case Map.keys(fields) -- Ltix.Type.field_names(claim) do
+      [] ->
+        {fields, extensions}
 
-    Ltix.Type.to_json(%MembershipsServiceEndpoint{
-      context_memberships_url: url,
-      service_versions: endpoint[:service_versions] || ["2.0"]
-    })
+      [key | _] ->
+        raise InvalidOption, key: option, value: value, reason: "unrecognized key: #{key}"
+    end
   end
 
-  # The standard fields of an endpoint struct.
-  defp plain_map(%type{} = struct), do: Map.take(struct, Keyword.keys(Ltix.Type.fields(type)))
+  defp ags_endpoint_claim(nil, _plugins), do: nil
 
-  defp plain_map(map), do: map
+  defp ags_endpoint_claim(endpoint, plugins) do
+    {fields, extensions} = claim_fields(:ags_endpoint, GradeServiceEndpoint, endpoint, plugins)
+    platform_json(%{GradeServiceEndpoint.new!(fields) | extensions: extensions}, plugins)
+  end
+
+  defp memberships_endpoint_claim(nil, _plugins), do: nil
+
+  defp memberships_endpoint_claim(url, plugins) when is_binary(url),
+    do: memberships_endpoint_claim(%{context_memberships_url: url}, plugins)
+
+  # Checks the URL, and sends any service versions, so a test can launch with
+  # versions the memberships service doesn't support.
+  defp memberships_endpoint_claim(endpoint, plugins) do
+    {fields, extensions} =
+      claim_fields(:memberships_endpoint, MembershipsServiceEndpoint, endpoint, plugins)
+
+    endpoint = MembershipsServiceEndpoint.new!(fields[:context_memberships_url])
+
+    platform_json(
+      %{
+        endpoint
+        | service_versions: fields[:service_versions] || ["2.0"],
+          extensions: extensions
+      },
+      plugins
+    )
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
@@ -1213,21 +1321,21 @@ defmodule Ltix.Test do
     # Function registrations are not, because the function receives a
     # registration built from those values.
     if not is_nil(registration) and not is_function(registration) do
-      reject_combined_option!(opts, :issuer, :registration)
-      reject_combined_option!(opts, :client_id, :registration)
+      reject_combined_option!(opts, :issuer, "a :registration struct")
+      reject_combined_option!(opts, :client_id, "a :registration struct")
     end
 
     if not is_nil(deployment) and not is_function(deployment) do
-      reject_combined_option!(opts, :deployment_id, :deployment)
+      reject_combined_option!(opts, :deployment_id, "a :deployment struct")
     end
   end
 
-  defp reject_combined_option!(opts, key, struct_key) do
+  defp reject_combined_option!(opts, key, other) do
     if Keyword.has_key?(opts, key) do
       raise InvalidOption,
         key: key,
         value: Keyword.fetch!(opts, key),
-        reason: "cannot be combined with a #{inspect(struct_key)} struct"
+        reason: "cannot be combined with #{other}"
     end
   end
 

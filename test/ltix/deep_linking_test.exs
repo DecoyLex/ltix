@@ -7,6 +7,7 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.DeepLinking.ContentItem.Image
   alias Ltix.DeepLinking.ContentItem.Link
   alias Ltix.DeepLinking.ContentItem.LTIResourceLink
+  alias Ltix.DeepLinking.LineItem
   alias Ltix.DeepLinking.Response
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
@@ -17,14 +18,21 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.Errors.Invalid.MediaTypeNotAccepted
   alias Ltix.Errors.Invalid.PresentationTargetNotAccepted
   alias Ltix.Errors.Unknown.InvalidPluginSet
+  alias Ltix.GradeService
   alias Ltix.PluginSet.Conflict
   alias Ltix.PluginSet.Entry
+  alias Ltix.Test.GradeServiceHelper
   alias Ltix.Test.StorageAdapter
   alias TestPlugins.Modules
 
+  alias TestPlugins.ItemCount
   alias TestPlugins.OtherPoll
+  alias TestPlugins.OtherReview
   alias TestPlugins.OtherWeight
   alias TestPlugins.Poll
+  alias TestPlugins.RejectResponse
+  alias TestPlugins.Rubric
+  alias TestPlugins.SubmissionReview
   alias TestPlugins.Weight
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
@@ -564,6 +572,167 @@ defmodule Ltix.DeepLinkingTest do
 
       assert Exception.message(error) ==
                ~s(TestPlugins.Weight \(Weights 1.0.0\) and an anonymous property of Weights 1.0.0 both declare the property "https://vendor.example.com/weight" on Ltix.DeepLinking.ContentItem.LTIResourceLink)
+    end
+  end
+
+  describe "build_response/3 with Deep Linking line items" do
+    test "an anonymous property a plugin adds with add_property/2 is in the response",
+         %{platform: platform} do
+      build =
+        &Ltix.DeepLinking.LineItem.add_property(&1,
+          property: "https://vendor.example.com/rubric_id",
+          name: :rubric_id
+        )
+
+      plugins = [{Modules, build: build}]
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking, plugins: plugins)
+
+      link =
+        LTIResourceLink.new!(
+          url: "https://tool.example.com/essays/7",
+          line_item: [label: "Essay", score_maximum: 10, rubric_id: "r-1"],
+          plugins: plugins
+        )
+
+      assert [%{"lineItem" => %{"https://vendor.example.com/rubric_id" => "r-1"}}] =
+               content_items(platform, launch, [link])
+    end
+
+    test "a property of both line items is sent by the grade service and in the response",
+         %{platform: platform} do
+      plugins = [{Modules, add: [SubmissionReview]}]
+      review = %{"reviewableStatus" => "Submitted"}
+      client = GradeServiceHelper.create_client(plugins: plugins)
+
+      GradeServiceHelper.stub_requests(fn "POST", body ->
+        Map.put(body, "id", GradeServiceHelper.line_item_url())
+      end)
+
+      line_item = %GradeService.LineItem{
+        label: "Essay",
+        score_maximum: 10,
+        extensions: %{submission_review: %{reviewable_status: "Submitted"}}
+      }
+
+      assert {:ok, _created} = GradeService.create_line_item(client, line_item)
+      assert_received {"POST", %{"submissionReview" => ^review}}
+
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking, plugins: plugins)
+
+      assert [
+               %{
+                 "lineItem" => %{
+                   "label" => "Essay",
+                   "scoreMaximum" => 10,
+                   "submissionReview" => ^review
+                 }
+               }
+             ] =
+               content_items(platform, launch, [
+                 LTIResourceLink.new!(line_item: line_item, plugins: plugins)
+               ])
+    end
+
+    test "a create-only property is sent in a Deep Linking line item", %{platform: platform} do
+      plugins = [{Modules, add: [Rubric]}]
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking, plugins: plugins)
+
+      link =
+        LTIResourceLink.new!(line_item: [score_maximum: 10, rubric: "rubric-7"], plugins: plugins)
+
+      assert link.line_item.extensions == %{rubric: "rubric-7"}
+
+      assert content_items(platform, launch, [link]) == [
+               %{
+                 "type" => "ltiResourceLink",
+                 "lineItem" => %{
+                   "scoreMaximum" => 10,
+                   "https://vendor.example.com/rubric" => %{"id" => "rubric-7"}
+                 }
+               }
+             ]
+    end
+
+    test "leaves out a property the plugin set doesn't declare", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      line_item = %LineItem{score_maximum: 10, extensions: %{rubric: "rubric-7"}}
+
+      assert [%{"lineItem" => %{"scoreMaximum" => 10} = json}] =
+               content_items(platform, launch, [LTIResourceLink.new!(line_item: line_item)])
+
+      assert map_size(json) == 1
+    end
+
+    test "reports two modules declaring one property", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+
+      assert {:error, %InvalidPluginSet{conflicts: conflicts}} =
+               DeepLinking.build_response(launch, [],
+                 plugins: [{Modules, name: "Reviews", add: [SubmissionReview, OtherReview]}]
+               )
+
+      assert %Conflict{
+               parties: [SubmissionReview, OtherReview],
+               reason:
+                 ~s(both declare the property "submissionReview" on Ltix.DeepLinking.LineItem)
+             } in Enum.map(
+               conflicts,
+               &%{&1 | parties: Enum.map(&1.parties, fn entry -> entry.module end)}
+             )
+    end
+  end
+
+  describe "build_response/3 with response steps" do
+    test "a step adds a claim to the response JWT", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
+          message_type: :deep_linking,
+          plugins: [{Modules, add: [{ItemCount, claim: "https://vendor.example.com/count"}]}]
+        )
+
+      {:ok, link} = Link.new(url: "https://example.com")
+      assert {:ok, %Response{jwt: jwt} = response} = DeepLinking.build_response(launch, [link])
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
+
+      assert claims["https://vendor.example.com/count"] == 1
+      assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
+      assert response.claims == claims
+      assert response.launch == launch
+      assert response.errors == []
+    end
+
+    test "an anonymous step a plugin adds with add_step/2 changes the claims",
+         %{platform: platform} do
+      build =
+        &Response.add_step(&1, fn response ->
+          {:ok, put_in(response.claims["https://vendor.example.com/selected_by"], "tool")}
+        end)
+
+      launch =
+        Ltix.Test.build_launch(platform,
+          message_type: :deep_linking,
+          plugins: [{Modules, build: build}]
+        )
+
+      assert {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch, [])
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
+      assert claims["https://vendor.example.com/selected_by"] == "tool"
+    end
+
+    test "returns a step's error", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+
+      assert {:error, %RuntimeError{message: "rejected"}} =
+               DeepLinking.build_response(launch, [], plugins: [{Modules, add: [RejectResponse]}])
+    end
+
+    test "steps don't run for content items with errors", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+
+      assert {:error, %InvalidContentItem{}} =
+               DeepLinking.build_response(launch, [%{}],
+                 plugins: [{Modules, add: [RejectResponse]}]
+               )
     end
   end
 

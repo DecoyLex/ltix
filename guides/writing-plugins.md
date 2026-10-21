@@ -93,6 +93,7 @@ A step receives a login, launch, client assertion, or Deep Linking response, and
 | `Ltix.Login` | `Ltix.handle_login/3` |
 | `Ltix.Launch` | `Ltix.handle_callback/3` |
 | `Ltix.ClientAssertion` | Access token requests. See [Add the service's scope to token requests](writing-advantage-service-plugins.md#add-the-service-s-scope-to-token-requests) |
+| `Ltix.DeepLinking.Response` | `Ltix.DeepLinking.build_response/3`. See [Add claims to Deep Linking responses](writing-deep-linking-plugins.md#add-claims-to-deep-linking-responses) |
 
 `c:Ltix.Step.call/2` returns one of three results.
 
@@ -134,7 +135,7 @@ No step's `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1` receives an an
 
 ### Order steps
 
-Order a step against a phase, such as `Ltix.Login.RegistrationFound`, with `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1`. `Ltix.Login` and `Ltix.Launch` list their phases and what's true at each. Client assertions have none. Implement only the callback you need. Both default to `false`.
+Order a step against a phase, such as `Ltix.Login.RegistrationFound`, with `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1`. `Ltix.Login` and `Ltix.Launch` list their phases and what's true at each. Client assertions and Deep Linking responses have none. Implement only the callback you need. Both default to `false`.
 
 This login step rejects logins for a suspended tenant. It runs after `Ltix.Login.RegistrationFound`, so `login.source_registration` is your application's registration record.
 

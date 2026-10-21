@@ -28,12 +28,11 @@ defmodule Ltix.MembershipsService.Endpoint do
 
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.PluginSet
 
   @new_schema Zoi.struct(
                 __MODULE__,
                 %{
-                  context_memberships_url: Zoi.string(),
+                  context_memberships_url: Zoi.refine(Zoi.string(), {Ltix.HTTP, :https_url, []}),
                   service_versions: Zoi.list(Zoi.string()) |> Zoi.optional()
                 },
                 coerce: true,
@@ -42,8 +41,9 @@ defmodule Ltix.MembershipsService.Endpoint do
               )
 
   @doc """
-  Builds an endpoint from its URL, or from its fields as a keyword list or
-  map. The fields can include property names, as `Ltix.Type.new/2` describes.
+  Builds an endpoint from its URL, or from its fields as a keyword list or map.
+  The fields can include plugin properties by name, and the endpoint has their
+  values in `extensions`.
 
   The URL must use HTTPS, or HTTP for a loopback or private network host. Returns
   `Ltix.Errors.Invalid.InvalidField` for any other URL, and for an unknown
@@ -77,15 +77,12 @@ defmodule Ltix.MembershipsService.Endpoint do
 
   def new(url) when is_binary(url), do: new(context_memberships_url: url)
 
+  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   def new(attributes) when is_list(attributes) or is_map(attributes) do
-    {plugins, attributes} = Map.pop(Map.new(attributes), :plugins)
+    attributes = Map.new(attributes)
 
     with :ok <- require_url(attributes[:context_memberships_url]),
-         {:ok, plugins} <- PluginSet.resolve(plugins),
-         {extensions, fields} = Ltix.Type.split_properties(__MODULE__, attributes, plugins),
-         {:ok, endpoint} <- InvalidField.parse(__MODULE__, @new_schema, fields),
-         endpoint = %{endpoint | extensions: extensions},
-         :ok <- validate_url(endpoint),
+         {:ok, endpoint} <- Ltix.Type.new(__MODULE__, attributes, schema: @new_schema),
          do: validate_service_versions(endpoint)
   end
 
@@ -97,23 +94,6 @@ defmodule Ltix.MembershipsService.Endpoint do
     case new(url_or_fields) do
       {:ok, endpoint} -> endpoint
       {:error, error} -> raise error
-    end
-  end
-
-  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  defp validate_url(%__MODULE__{context_memberships_url: url}) do
-    case Ltix.HTTP.validate_url(url) do
-      {:ok, _uri} ->
-        :ok
-
-      {:error, _} ->
-        {:error,
-         InvalidField.invalid(
-           __MODULE__,
-           :context_memberships_url,
-           url,
-           "must be an absolute HTTPS URL"
-         )}
     end
   end
 

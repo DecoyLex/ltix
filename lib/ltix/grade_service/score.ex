@@ -125,7 +125,8 @@ defmodule Ltix.GradeService.Score do
   Build a validated score from a keyword list or a map.
 
   Auto-generates a `timestamp` with microsecond precision if not provided.
-  The fields can include property names, as `Ltix.Type.new/2` describes.
+  The fields can include plugin properties by name, and the score has their
+  values in `extensions`.
 
   ## Options
 

@@ -45,10 +45,10 @@ def launch(conn, params) do
   state = get_session(conn, :lti_state)
 
   case Ltix.handle_callback(params, state) do
-    {:ok, context} ->
+    {:ok, launch} ->
       conn
       |> delete_session(:lti_state)
-      |> render(:launch, context: context)
+      |> render(:launch, launch: launch)
 
     {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: id}} ->
       # Create the deployment, then ask the user to re-launch.

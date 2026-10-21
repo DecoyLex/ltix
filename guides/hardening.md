@@ -19,10 +19,10 @@ def launch(conn, params) do
   state = get_session(conn, :lti_state)
 
   case Ltix.handle_callback(params, state) do
-    {:ok, context} ->
+    {:ok, launch} ->
       conn
       |> delete_session(:lti_state)
-      |> start_session(context)
+      |> start_session(launch)
 
     {:error, error} ->
       launch_failed(conn, error)
@@ -95,7 +95,7 @@ Take the context, resource link, and service endpoints a user acts on from the l
 
 ```elixir
 # The line item comes from the stored launch, never from params
-{:ok, client} = Ltix.GradeService.authenticate(context)
+{:ok, client} = Ltix.GradeService.authenticate(launch)
 :ok = Ltix.GradeService.post_score(client, score)
 ```
 

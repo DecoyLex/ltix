@@ -62,7 +62,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 ```
 
 - `line_item.score_maximum` is required and must be positive. A `label` must not be blank.
-- `line_item` also accepts a map or a `%Ltix.GradeService.LineItem{}` without platform-assigned fields such as `id`.
+- `link.line_item` is an `%Ltix.DeepLinking.LineItem{}`. `line_item` also accepts a map or a `%Ltix.GradeService.LineItem{}` without platform-assigned fields such as `id`.
 - Leave out `line_item` when `settings.accept_line_item` is `false`.
 
 ## Building the Response
@@ -78,6 +78,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 - `:plugins` replaces the plugins the launch ran with.
 - `build_response!/3` raises on error.
 - Returns `{:ok, %Ltix.DeepLinking.Response{}}` with the signed `jwt` and the platform's `return_url`.
+- To add a claim to the response, follow [Add claims to Deep Linking responses](https://ltix.hexdocs.pm/writing-deep-linking-plugins.md#add-claims-to-deep-linking-responses).
 
 ## Delivering the Response
 

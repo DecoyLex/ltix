@@ -38,7 +38,7 @@ Include a `line_item` to ask the platform to create a line item for the link. Th
 )
 ```
 
-`score_maximum` is required and must be positive. The `label` defaults to the content item's title if omitted, and must not be blank when given.
+`score_maximum` is required and must be positive. The `label` defaults to the content item's title if omitted, and must not be blank when given. `link.line_item` is an `Ltix.DeepLinking.LineItem`.
 
 `line_item` also accepts an `Ltix.GradeService.LineItem`. Deep linking can only send `label`, `score_maximum`, `resource_id`, `tag`, and `grades_released`, so a line item that sets any other field, such as `id`, returns an error.
 
@@ -183,6 +183,16 @@ Add the plugin that declares a vendor property to `config :ltix, plugins: [...]`
   )
 ```
 
+A property of the link's line item goes with the line item's fields.
+
+```elixir
+{:ok, link} =
+  Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+    title: "Essay",
+    line_item: [score_maximum: 100, grading_scheme: "letter"]
+  )
+```
+
 The response sends each property under its JSON name. To declare a property, see [Add a property to a content item type](../writing-deep-linking-plugins.md#add-a-property-to-a-content-item-type).
 
 ## Custom content item type
@@ -291,10 +301,3 @@ Return an empty list with a message when the user cancels or an error occurs.
 ```
 
 An empty items list is always valid regardless of platform constraints.
-
-## Next steps
-
-- [Deep Linking](../deep-linking.md) for handling Deep Linking launches and sending the response
-- [Writing Deep Linking Plugins](../writing-deep-linking-plugins.md) for content item types and their properties
-- `Ltix.DeepLinking.ContentItemType` for declaring a content item type
-- `Ltix.DeepLinking.ContentItem.LTIResourceLink` for every option of an LTI resource link

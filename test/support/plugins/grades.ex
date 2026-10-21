@@ -64,6 +64,53 @@ defmodule TestPlugins.ResultFeedback do
   def serialize(%{text: text}, _opts), do: %{"text" => text}
 end
 
+defmodule TestPlugins.SubmissionReview do
+  @moduledoc false
+  # A Submission Review-like property on line items and Deep Linking line
+  # items, as an atom-keyed map.
+  use Ltix.GradeService.LineItem,
+    property: "submissionReview",
+    name: :submission_review
+
+  use Ltix.DeepLinking.LineItem
+
+  @impl Ltix.Property
+  def parse(json, _opts) when is_map(json),
+    do: {:ok, %{url: json["url"], reviewable_status: json["reviewableStatus"]}}
+
+  @impl Ltix.Property
+  def serialize(review, _opts) do
+    for {key, value} <- [{"url", review[:url]}, {"reviewableStatus", review[:reviewable_status]}],
+        value != nil,
+        into: %{},
+        do: {key, value}
+  end
+end
+
+defmodule TestPlugins.Rubric do
+  @moduledoc false
+  # A create-only property on line items and Deep Linking line items. Its
+  # extension is the rubric's ID.
+  use Ltix.GradeService.LineItem,
+    property: "https://vendor.example.com/rubric",
+    name: :rubric,
+    writes: [:create]
+
+  use Ltix.DeepLinking.LineItem
+
+  @impl Ltix.Property
+  def serialize(id, _opts), do: %{"id" => id}
+end
+
+defmodule TestPlugins.OtherReview do
+  @moduledoc false
+  # Declares the Deep Linking line item property `TestPlugins.SubmissionReview`
+  # declares.
+  use Ltix.DeepLinking.LineItem,
+    property: "submissionReview",
+    name: :other_review
+end
+
 defmodule TestPlugins.Tagged do
   @moduledoc false
   # A line item property sent as its value prefixed with the `:tag` option.

@@ -15,22 +15,23 @@ defmodule Ltix.DeepLinking do
     * `Ltix.DeepLinking.ContentItem.HTMLFragment` - inline HTML to embed
     * `Ltix.DeepLinking.ContentItem.Image` - an image for direct rendering
 
-  Plugins add content item types with `Ltix.DeepLinking.ContentItemType`.
-
-  `Ltix.DeepLinking` is also the default plugin for Deep Linking 2.0. It
-  provides the `Ltix.DeepLinkingRequest` message type,
-  `Ltix.DeepLinking.ContentItemType`, and the five content item types, and
-  declares the `Ltix.DeepLinking.Settings` claim.
-
   See the [Deep Linking](deep-linking.md) guide for the full workflow
   and [Building Content Items](cookbooks/building-content-items.md) for
   recipes.
+
+  ## Extending
+
+  Plugins add content item types with `Ltix.DeepLinking.ContentItemType`.
+  They add properties to content items and Deep Linking line items with
+  `Ltix.Property`. They add claims to the response with
+  `Ltix.DeepLinking.Response` steps.
   """
 
   @behaviour Ltix.Plugin
 
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.ContentItemType
+  alias Ltix.DeepLinking.LineItem
   alias Ltix.DeepLinking.Response
   alias Ltix.DeepLinking.Settings
 
@@ -39,6 +40,7 @@ defmodule Ltix.DeepLinking do
   alias Ltix.Options
   alias Ltix.Plugin
   alias Ltix.PluginSet
+  alias Ltix.Step
   alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
@@ -81,23 +83,21 @@ defmodule Ltix.DeepLinking do
     plugin =
       Plugin.new(name: "LTI Deep Linking 2.0", version: @version)
       |> Plugin.add(Ltix.DeepLinkingRequest)
+      |> Plugin.add(Response)
       |> Plugin.add(ContentItemType)
+      |> Plugin.add(LineItem)
       |> Plugin.add(Settings)
 
     Enum.reduce(@content_item_types, plugin, &Plugin.add(&2, &1))
   end
 
   @doc """
-  Build a signed Deep Linking response JWT.
+  Builds and signs a Deep Linking response with the content items the user
+  chose.
 
-  Takes an `Ltix.Launch` from an `LtiDeepLinkingRequest` launch, a list of
-  content items, and optional message/log fields. Returns a `Response` with
-  the signed JWT and the platform's return URL.
-
-  Each content item is a struct of a content item type in the plugin set,
-  such as `Ltix.DeepLinking.ContentItem.LTIResourceLink`. The response
-  includes each property in the plugin set that a content item has an
-  extension for.
+  Takes the launch of a Deep Linking request and a list of content items.
+  Returns an `Ltix.DeepLinking.Response` with the signed `jwt` and the
+  platform's `return_url`. The JWT expires 5 minutes after signing.
 
   ## Options
 
@@ -130,9 +130,13 @@ defmodule Ltix.DeepLinking do
     * `Ltix.Errors.Invalid.MediaTypeNotAccepted` - a file's `media_type`
       doesn't match `accept_media_types`
     * `Ltix.Errors.Unknown.InvalidPluginSet` - the plugins conflict
+    * `Ltix.Errors.Unknown.StorageError` - the storage adapter doesn't
+      implement `c:Ltix.StorageAdapter.key_id/2` or
+      `c:Ltix.StorageAdapter.sign/4`, or one of them fails
+    * an error from a plugin's `Ltix.DeepLinking.Response` step
 
-  Errors about one item include its `index` in `items`. Several failures at
-  once are grouped in `Ltix.Errors.Invalid`. Unknown or invalid options raise
+  An error about one item has the item's position in `items` as its
+  `index`. Unknown or invalid options raise
   `Ltix.Errors.Invalid.InvalidOption`.
 
   ## Examples
@@ -201,17 +205,24 @@ defmodule Ltix.DeepLinking do
 
     with {:ok, plugins} <- plugins,
          {:ok, items_json} <- content_items(items, plugins, settings),
-         claims =
-           build_jwt_claims(launch.registration, launch.deployment, settings, items_json, opts),
+         claims = build_jwt_claims(launch, items_json, opts),
+         response =
+           Step.run(%Response{
+             launch: launch,
+             claims: claims,
+             plugins: plugins,
+             return_url: settings.deep_link_return_url
+           }),
+         :ok <- Errors.collect(response.errors),
          # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
          {:ok, jwt} <-
            StorageAdapter.sign_jwt(
              storage_adapter,
              launch.source_registration,
-             claims,
+             response.claims,
              Keyword.fetch!(opts, :storage_adapter_options)
            ) do
-      {:ok, %Response{jwt: jwt, return_url: settings.deep_link_return_url}}
+      {:ok, %{response | jwt: jwt}}
     end
   end
 
@@ -315,7 +326,8 @@ defmodule Ltix.DeepLinking do
 
   # [DL §4.5](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-response-message)
   # [Sec §5.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
-  defp build_jwt_claims(registration, deployment, settings, items_json, opts) do
+  defp build_jwt_claims(%Launch{registration: registration} = launch, items_json, opts) do
+    settings = launch.claims.deep_linking_settings
     now = System.system_time(:second)
 
     %{
@@ -329,17 +341,13 @@ defmodule Ltix.DeepLinking do
       (@lti <> "version") => "1.3.0",
       (@dl <> "content_items") => items_json
     }
-    |> maybe_put(@lti <> "deployment_id", deployment_id(deployment))
+    |> maybe_put(@lti <> "deployment_id", launch.claims[:deployment_id])
     |> maybe_put(@dl <> "data", settings.data)
     |> maybe_put(@dl <> "msg", Keyword.get(opts, :message))
     |> maybe_put(@dl <> "log", Keyword.get(opts, :log))
     |> maybe_put(@dl <> "errormsg", Keyword.get(opts, :error_message))
     |> maybe_put(@dl <> "errorlog", Keyword.get(opts, :error_log))
   end
-
-  # A launch has no deployment when a plugin makes `deployment_id` optional.
-  defp deployment_id(nil), do: nil
-  defp deployment_id(deployment), do: deployment.deployment_id
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

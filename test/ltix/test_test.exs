@@ -138,6 +138,45 @@ defmodule Ltix.TestTest do
       end
     end
 
+    test "send the properties of claims, given by name", %{platform: platform} do
+      plugins = [
+        {Modules, add: [TestPlugins.Section, TestPlugins.LinkColor, TestPlugins.Note]}
+      ]
+
+      resource_link_opts = [
+        context: %{id: "course-1", section: "A"},
+        resource_link: %{id: "link-1", color: "red"},
+        ags_endpoint: %{scopes: [@ags_scope], note: "n"},
+        memberships_endpoint: %{
+          context_memberships_url: "https://lms.example.com/memberships",
+          note: "n"
+        },
+        plugins: plugins
+      ]
+
+      deep_linking_opts = [
+        message_type: :deep_linking,
+        deep_linking_settings: %{note: "n"},
+        plugins: plugins
+      ]
+
+      for {opts, expected} <- [
+            {resource_link_opts,
+             context: %{section: "A"},
+             resource_link: %{color: "red"},
+             ags_endpoint: %{note: "n"},
+             memberships_endpoint: %{note: "n"}},
+            {deep_linking_opts, deep_linking_settings: %{note: "n"}}
+          ] do
+        assert {:ok, launched} = LaunchFlow.launch(platform, opts, plugins: plugins)
+
+        for launch <- [launched, Ltix.Test.build_launch(platform, opts)],
+            {claim, extensions} <- expected do
+          assert launch.claims[claim].extensions == extensions
+        end
+      end
+    end
+
     test "default to an instructor with a subject and context", %{platform: platform} do
       for launch <- [launch(platform, []), Ltix.Test.build_launch(platform)] do
         assert Role.instructor?(launch.claims.roles)
@@ -828,6 +867,17 @@ defmodule Ltix.TestTest do
                Ltix.MembershipsService.list_members(build_memberships_client(platform))
     end
 
+    test "takes members and a container built without their required fields", %{
+      platform: platform
+    } do
+      Ltix.Test.stub_list_members(%MembershipContainer{context: %Context{id: "course-7"}})
+
+      assert {:ok, %MembershipContainer{members: []}} =
+               Ltix.MembershipsService.list_members(build_memberships_client(platform))
+
+      assert %Member{user_id: nil, roles: []} = %Member{}
+    end
+
     test "raises for unknown context keys" do
       error =
         assert_raise InvalidOption, fn ->
@@ -862,8 +912,7 @@ defmodule Ltix.TestTest do
     test "a roster reads back as it was stubbed, with its properties and messages", %{
       platform: platform
     } do
-      plugins = [{TestPlugins.Modules, add: [TestPlugins.StudentNumber, TestPlugins.Section]}]
-      context = %Context{id: "course-42", extensions: %{section: "A"}}
+      plugins = [{Modules, add: [TestPlugins.StudentNumber, TestPlugins.Section]}]
 
       member = %Member{
         user_id: "student-1",
@@ -888,7 +937,12 @@ defmodule Ltix.TestTest do
         unrecognized: %{"https://lms.example.com/nickname" => "JJ"}
       }
 
-      Ltix.Test.stub_list_members([member], context: context, plugins: plugins)
+      Ltix.Test.stub_list_members([member],
+        context: %{id: "course-42", section: "A"},
+        plugins: plugins
+      )
+
+      context = %Context{id: "course-42", extensions: %{section: "A"}}
       client = build_memberships_client(platform)
 
       assert {:ok, %MembershipContainer{context: ^context, members: [listed]}} =
@@ -898,10 +952,53 @@ defmodule Ltix.TestTest do
       assert [%{lis: nil, roles: []} = message] = listed.message
       assert Map.take(message, [:message_type, :custom, :context]) == hd(member.message)
 
-      Ltix.Test.stub_list_members([listed], context: context, plugins: plugins)
+      Ltix.Test.stub_list_members([listed],
+        context: %{id: "course-42", section: "A"},
+        plugins: plugins
+      )
 
       assert {:ok, %MembershipContainer{members: [^listed]}} =
                Ltix.MembershipsService.list_members(client, plugins: plugins)
+    end
+
+    test "a membership container reads back as it was stubbed, with its properties", %{
+      platform: platform
+    } do
+      plugins = [{Modules, add: [TestPlugins.Term, TestPlugins.StudentNumber]}]
+
+      member = %Member{
+        user_id: "student-1",
+        roles: [Role.context_learner()],
+        extensions: %{student_number: %{value: "s-42"}}
+      }
+
+      roster = %MembershipContainer{
+        id: "https://lms.example.com/context/42/memberships",
+        context: %Context{id: "course-42", title: "Elixir 101"},
+        members: [member],
+        extensions: %{term: %{name: "Fall"}},
+        unrecognized: %{"https://lms.example.com/size" => 1}
+      }
+
+      Ltix.Test.stub_list_members(roster, plugins: plugins)
+
+      assert {:ok, ^roster} =
+               Ltix.MembershipsService.list_members(build_memberships_client(platform),
+                 plugins: plugins
+               )
+    end
+
+    test "raises for a context or id with a membership container" do
+      roster = %MembershipContainer{context: %Context{id: "course-42"}, members: []}
+
+      for {key, value} <- [context: %{id: "course-7"}, id: "https://lms.example.com/m"] do
+        error =
+          assert_raise InvalidOption, fn ->
+            Ltix.Test.stub_list_members(roster, [{key, value}])
+          end
+
+        assert %{key: ^key, reason: "cannot be combined with a membership container"} = error
+      end
     end
 
     test "raises for a message claim no plugin declares" do

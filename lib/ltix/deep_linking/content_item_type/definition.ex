@@ -34,9 +34,9 @@ defmodule Ltix.DeepLinking.ContentItemType.Definition do
       Builds the content item from its fields, as a keyword list or map, and
       returns `{:ok, item}`.
 
-      Nested values can be keyword lists too. The fields can include property
-      names, with the plugins that declare them in `:plugins`, as
-      `Ltix.Type.new/2` describes. Returns an
+      Nested values can be keyword lists too. The fields can include plugin
+      properties by name, and the item has their values in `extensions`. Put
+      the plugins that declare them in `:plugins`. Returns an
       `Ltix.Errors.Invalid.InvalidField` error for an unknown or invalid field,
       or a missing required one.
       """

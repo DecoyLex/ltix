@@ -1,6 +1,6 @@
 # Writing Deep Linking Plugins
 
-A plugin can add content item types, and add properties to content items. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
+A plugin can add content item types, add properties to content items and their line items, and add claims to Deep Linking responses. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
 
 ## Declare a content item type
 
@@ -86,6 +86,75 @@ defmodule Polls.Weight do
 end
 ```
 
+## Add a property to Deep Linking line items
+
+A resource link's line item is an `Ltix.DeepLinking.LineItem`, which takes its own properties. Add one with `Ltix.DeepLinking.LineItem.add_property/2`, which takes the same options as a content item type's `add_property/2`.
+
+Submission Review defines `submissionReview` on both kinds of line item, as an object. Its property is a module that `use`s each line item type, and converts the object with `Ltix.Type`.
+
+```elixir
+defmodule Review.SubmissionReview do
+  use Ltix.GradeService.LineItem,
+    property: "submissionReview",
+    name: :submission_review
+
+  use Ltix.DeepLinking.LineItem
+
+  use Ltix.Type,
+    json_keys: :camel_case,
+    fields: [
+      reviewable_status: Zoi.list(Zoi.string()) |> Zoi.optional(),
+      label: Zoi.string() |> Zoi.optional(),
+      url: Zoi.string() |> Zoi.optional(),
+      custom: Zoi.map(Zoi.string(), Zoi.string()) |> Zoi.optional()
+    ]
+
+  @impl Ltix.Property
+  def parse(json, _opts), do: Ltix.Type.from_json(__MODULE__, json)
+
+  @impl Ltix.Property
+  def serialize(review, _opts), do: Ltix.Type.to_json(review)
+end
+```
+
+`use Ltix.Type` defines the struct from Zoi schemas. `Ltix.Type.from_json/3` and `Ltix.Type.to_json/3` convert it from and to JSON, with camelCase names such as `reviewableStatus`.
+
+Pass the property's options to the first `use` only. An application passes the value by name with the line item's fields.
+
+```elixir
+{:ok, link} =
+  Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+    url: "https://tool.example.com/essays/7",
+    line_item: [
+      label: "Essay",
+      score_maximum: 10,
+      submission_review: %Review.SubmissionReview{reviewable_status: ["Submitted"]}
+    ]
+  )
+```
+
+When a property's [`:writes`](`m:Ltix.Property#module-options`) option has `:create`, a Deep Linking response includes the property. `:writes` defaults to `[:create, :update]`.
+
+`LTIResourceLink.new/1` also takes a grade service line item, and copies its properties to the Deep Linking line item by name. It returns an error for a property that no plugin declares on Deep Linking line items.
+
+## Add claims to Deep Linking responses
+
+`Ltix.DeepLinking.Response.add_step/2` adds a step that changes the response's claims before Ltix signs them.
+
+```elixir
+@impl Ltix.Plugin
+def plugin(_opts) do
+  Ltix.Plugin.new(name: "Polls", version: "1.0.0")
+  |> Ltix.Plugin.add(Polls.Poll)
+  |> Ltix.DeepLinking.Response.add_step(fn response ->
+    items = response.claims["https://purl.imsglobal.org/spec/lti-dl/claim/content_items"]
+    {:ok, put_in(response.claims["https://polls.example.com/claim/poll_count"], length(items))}
+  end)
+end
+```
+
+`response.claims` has every claim by name, including the content items as JSON. `response.launch` is the Deep Linking request's launch. Steps run only when every content item passes its checks. When a step records an error, `build_response/3` returns it and signs nothing. A step that other steps order against is a module that calls `use Ltix.DeepLinking.Response`.
+
 ## Test Deep Linking responses
 
 This test uses the setup from [Test a plugin](writing-plugins.md#test-a-plugin).
@@ -105,12 +174,11 @@ test "sends a poll", %{platform: platform} do
            Ltix.DeepLinking.build_response(launch, [Polls.Poll.new!(question: "Ready?")])
 
   {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
-  [poll] = claims["https://purl.imsglobal.org/spec/lti-dl/claim/content_items"]
-  assert poll["question"] == "Ready?"
+  assert claims["https://polls.example.com/claim/poll_count"] == 1
 end
 ```
 
 ## Next steps
 
-- `Ltix.DeepLinking.ContentItemType` for the full contract
+- `Ltix.DeepLinking.ContentItemType` and `Ltix.DeepLinking.Response` for the full contracts
 - [Building Content Items](cookbooks/building-content-items.md) for Deep Linking's content item types and a complete custom one

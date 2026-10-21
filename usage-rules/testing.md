@@ -143,7 +143,7 @@ end
 
 A launch with subject identifiers in the `role_scope_mentor` claim fails unless `:roles` has the Mentor context role or one of its sub-roles, such as `Ltix.Role.context_mentor()` or `Ltix.Role.mentor_advisor()`.
 
-`launch_params/2` also requires `:nonce` and `:state`. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It skips the security checks before `Ltix.Launch.Verified` and the deployment lookup, runs the other launch steps, including every plugin's, and raises when one fails.
+`launch_params/2` also requires `:nonce` and `:state`, and takes `:plugins`, the plugins to send the properties of claim structs with. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It takes the registration and deployment from the platform, skips the security checks and the storage adapter, runs the other launch steps, including every plugin's, and raises when the launch fails.
 
 ## Hand-Built Tokens
 
@@ -195,6 +195,6 @@ Per-operation stubs are available for each service call.
 
 Each stub handles one operation, and stubs for different operations work together, so stub every operation the code under test calls. Stubbing an operation again replaces its stub. A request without a matching stub fails the test with its method and URL. Per-line-item stubs take `line_item:` (URL or `%LineItem{}`) to handle only that line item. List stubs also handle `stream_*` calls and page through results when the call passes `:per_page`.
 
-Each accepts the struct(s) the platform would return. Line item, result, and member stubs send each struct's unrecognized properties and every property it has a value for, using the plugins in `config :ltix, plugins:` or the stub's `plugins:` option. The member stub also sends the claims of each member's `message`. For custom response logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.
+Each accepts the struct(s) the platform would return. Line item, result, and member stubs send each struct's unrecognized properties and every property it has a value for, using the plugins in `config :ltix, plugins:` or the stub's `plugins:` option. The member stub also sends the claims of each member's `message`, and takes a `%MembershipContainer{}` in place of the members to send the container's own properties. For custom response logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.
 
 `stub_token_response/1` accepts `:scopes`, `:access_token`, and `:expires_in`.

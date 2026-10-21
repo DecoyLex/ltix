@@ -123,6 +123,8 @@ Ltix.Test.build_launch(platform,
 
 A member's `message` is a list of claim maps keyed by short name, where 0.2 had `%Ltix.LaunchClaims{}` structs. Read a claim with `message.custom`. Claims no plugin declares are left out, and a message that fails a claim check fails `list_members/2` and `stream_members/2`.
 
+`Ltix.Test.stub_list_members/2` now sends members' messages. Build a member's `message` as a list of claim maps, such as `[%{custom: %{"course" => "1"}}]`.
+
 ## Services
 
 ### `Ltix.AdvantageService` is removed
@@ -428,12 +430,17 @@ LTIResourceLink.new(title: "Proctored Exam", proctoring: %{required: true})
 
 In tests, read the content items from the signed response with `Ltix.Test.verify_deep_linking_response/2`, under the `https://purl.imsglobal.org/spec/lti-dl/claim/content_items` claim.
 
+### A resource link's line item is an `Ltix.DeepLinking.LineItem`
+
+`link.line_item` is an `%Ltix.DeepLinking.LineItem{}` where 0.2 kept a map. Read its fields with dot access, such as `link.line_item.score_maximum`. Map patterns still match.
+
 ## Errors
 
 ### Some error messages changed
 
 Update code that matches on error messages. Your tests show the new text.
 
+- The messages of `Ltix.Errors.Security.AuthenticationFailed`, `Ltix.Errors.Security.KidNotFound`, `Ltix.Errors.Unknown.KeySetNotStarted`, and `Ltix.Errors.Invalid.CoupledLineItem` changed.
 - An error about a claim a plugin declares refers to the claim by its short name, such as `session`, where a 0.2 claim parser's error used its URI.
 
 ### Errors don't include a spec reference
@@ -445,4 +452,5 @@ An error's message doesn't end with the section of the specification its check c
 - [Plugins](writing-plugins.md) extend Ltix. A tool that enables none works as before. When enabled plugins conflict, a call returns `Ltix.Errors.Unknown.InvalidPluginSet`.
 - Plugins declare message types. `Ltix.ResourceLinkRequest` and `Ltix.DeepLinkingRequest` require the same claims as in 0.2. The test helpers also take a message type string as `message_type:`.
 - An OAuth client uses the plugins it was authenticated with. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `authenticate/2` in background jobs.
+- Plugins can add claims to Deep Linking responses. `%Ltix.DeepLinking.Response{}` has new fields beside `jwt` and `return_url`.
 - `Ltix.Errors.Invalid.ContentItemsExceedLimit` has the `index` of the first content item over the limit.

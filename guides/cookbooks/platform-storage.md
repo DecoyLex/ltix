@@ -116,15 +116,15 @@ defp fetch_state(conn, params), do: complete_launch(conn, params, nil)
 
 defp complete_launch(conn, params, state) do
   case Ltix.handle_callback(params, state) do
-    {:ok, context} ->
-      user = Lti.create_user!(context)
-      course = Lti.create_course!(context)
+    {:ok, launch} ->
+      user = Lti.create_user!(launch)
+      course = Lti.create_course!(launch)
 
       conn
       |> delete_session(:lti_state)
       |> put_session(:user_id, user.id)
       |> put_session(:course_id, course.id)
-      |> render(:launch, context: context, user: user, course: course)
+      |> render(:launch, launch: launch, user: user, course: course)
 
     {:error, error} ->
       launch_failed(conn, error)

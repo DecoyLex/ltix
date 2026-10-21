@@ -97,7 +97,7 @@ Five content item types are available.
 
 ## Adding line items and custom properties
 
-LTI resource links can include a `line_item` to have the platform auto-create a gradebook column. You can post scores to that column later with the grade service.
+LTI resource links can include a `line_item` to ask the platform to create a line item for the link. The platform can ignore the request. When it creates the line item, post scores to it with the grade service. `link.line_item` is an `Ltix.DeepLinking.LineItem`.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -286,6 +286,6 @@ end
 - [Building Content Items](cookbooks/building-content-items.md) - recipes for line items, custom properties, vendor properties, and more
 - [Grade Service](grade-service.md) - posting scores to line items created through deep linking
 - [Testing LTI Launches](cookbooks/testing-lti-launches.md) - more test patterns for both launch types
+- [Writing Deep Linking Plugins](writing-deep-linking-plugins.md#add-claims-to-deep-linking-responses) - adding claims to the response
 - `Ltix.DeepLinking` - full API reference
 - `Ltix.DeepLinking.ContentItem.LTIResourceLink` - all options for the most common content item type
-- [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) - declaring content item types and adding properties to them

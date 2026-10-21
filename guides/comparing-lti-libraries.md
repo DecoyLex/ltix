@@ -73,7 +73,7 @@ claims["https://purl.imsglobal.org/spec/lti/claim/context"]["title"]
 
 ```elixir
 case Ltix.handle_callback(params, state) do
-  {:ok, context} -> ...
+  {:ok, launch} -> ...
   {:error, %{class: :security} = error} ->
     Logger.warning("Security: #{Exception.message(error)}")
 end
@@ -93,7 +93,7 @@ end
 **Ltix** wraps service authentication and queries behind an authenticate-then-call pattern.
 
 ```elixir
-{:ok, client} = Ltix.MembershipsService.authenticate(context)
+{:ok, client} = Ltix.MembershipsService.authenticate(launch)
 {:ok, roster} = Ltix.MembershipsService.list_members(client)
 ```
 

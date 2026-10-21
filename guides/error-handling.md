@@ -24,8 +24,8 @@ Use `Ltix.Errors.status_code/1` to get it.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
-  {:ok, context} ->
-    handle_launch(conn, context)
+  {:ok, launch} ->
+    handle_launch(conn, launch)
 
   {:error, error} ->
     conn
@@ -44,8 +44,8 @@ Every Ltix error struct has a `class` field you can match on for different handl
 
 ```elixir
 case Ltix.handle_callback(params, state) do
-  {:ok, context} ->
-    handle_launch(conn, context)
+  {:ok, launch} ->
+    handle_launch(conn, launch)
 
   {:error, error} ->
     status = Ltix.Errors.status_code(error)

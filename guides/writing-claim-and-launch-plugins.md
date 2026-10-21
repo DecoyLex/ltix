@@ -337,7 +337,7 @@ Ltix.Plugin.new(name: "Submission Review", version: "1.0.0")
 
 These tests use the setup from [Test a plugin](writing-plugins.md#test-a-plugin).
 
-`Ltix.Test.build_launch/2` builds a launch without a login or a signed token. It parses your plugin's claims, runs their checks and your [launch steps](writing-plugins.md#add-a-step), and checks the claims the message type requires. It raises when the launch fails. `claims:` merges raw claims over the ones it builds.
+`Ltix.Test.build_launch/2` builds a launch without a login or a signed token. It parses your plugin's claims, runs their checks and your [launch steps](writing-plugins.md#add-a-step), and checks the claims the message type requires. It raises when the launch fails. `claims:` merges raw claims over the ones it builds. `context:`, `resource_link:`, and the other claim options take a claim's property names along with its fields.
 
 ```elixir
 test "parses the proctoring session", %{platform: platform} do

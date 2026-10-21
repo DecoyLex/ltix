@@ -2,8 +2,14 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
   use ExUnit.Case, async: true
 
   alias Ltix.DeepLinking.ContentItem.LTIResourceLink
+  alias Ltix.DeepLinking.LineItem
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService
+  alias TestPlugins.Modules
+  alias TestPlugins.SubmissionReview
+  alias TestPlugins.SubmissionType
+
+  @plugins [{Modules, add: [SubmissionReview, SubmissionType]}]
 
   doctest LTIResourceLink
 
@@ -57,23 +63,144 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
       assert Exception.message(error) =~ "is required"
     end
 
+    test "copies the five shared fields of a grade service line item" do
+      line_item = %GradeService.LineItem{
+        label: "Quiz 1",
+        score_maximum: 10,
+        resource_id: "quiz-1",
+        tag: "grade",
+        grades_released: true
+      }
+
+      assert {:ok, %LTIResourceLink{line_item: copied}} =
+               LTIResourceLink.new(line_item: line_item)
+
+      assert copied == %LineItem{
+               label: "Quiz 1",
+               score_maximum: 10,
+               resource_id: "quiz-1",
+               tag: "grade",
+               grades_released: true
+             }
+    end
+
     test "returns an error for each grade service line item field that deep linking can't include" do
-      line_item = %LineItem{
+      line_item = %GradeService.LineItem{
         id: "https://lms.example.com/lineitems/1",
         label: "Quiz 1",
         score_maximum: 10,
         resource_link_id: "link-1",
-        extensions: %{"https://vendor.example.com/weight" => 2}
+        start_date_time: ~U[2026-01-01 00:00:00Z],
+        end_date_time: ~U[2026-06-30 23:59:59Z]
       }
 
       assert {:error, %Ltix.Errors.Invalid{errors: errors}} =
                LTIResourceLink.new(line_item: line_item)
 
       assert Enum.sort(Enum.map(errors, & &1.field)) == [
-               [:line_item, :extensions],
+               [:line_item, :end_date_time],
                [:line_item, :id],
-               [:line_item, :resource_link_id]
+               [:line_item, :resource_link_id],
+               [:line_item, :start_date_time]
              ]
+    end
+
+    test "returns an error for an end_date_time on a grade service line item" do
+      line_item = %GradeService.LineItem{
+        score_maximum: 10,
+        end_date_time: ~U[2026-06-30 23:59:59Z]
+      }
+
+      assert {:error, %InvalidField{field: [:line_item, :end_date_time], reason: :unknown}} =
+               LTIResourceLink.new(line_item: line_item)
+    end
+
+    test "copies a grade service line item's property that Deep Linking line items have" do
+      review = %{url: "https://tool.example.com/review"}
+
+      line_item = %GradeService.LineItem{
+        score_maximum: 10,
+        extensions: %{submission_review: review}
+      }
+
+      assert {:ok, %LTIResourceLink{line_item: copied}} =
+               LTIResourceLink.new(line_item: line_item, plugins: @plugins)
+
+      assert copied == %LineItem{score_maximum: 10, extensions: %{submission_review: review}}
+    end
+
+    test "returns an error for a grade service line item's property that Deep Linking line items don't have" do
+      line_item = %GradeService.LineItem{
+        score_maximum: 10,
+        extensions: %{submission_type: %{type: "external_tool"}}
+      }
+
+      assert {:error, %InvalidField{} = error} =
+               LTIResourceLink.new(line_item: line_item, plugins: @plugins)
+
+      assert %InvalidField{
+               struct: LTIResourceLink,
+               field: [:line_item, :submission_type],
+               value: %{type: "external_tool"},
+               reason: :unknown
+             } = error
+    end
+
+    test "returns every line item error with the content item's other errors" do
+      line_item = %GradeService.LineItem{
+        id: "https://lms.example.com/lineitems/1",
+        score_maximum: 0,
+        extensions: %{submission_type: %{type: "external_tool"}}
+      }
+
+      assert {:error, %Ltix.Errors.Invalid{errors: errors}} =
+               LTIResourceLink.new(line_item: line_item, title: 7, plugins: @plugins)
+
+      assert Enum.sort(Enum.map(errors, & &1.field)) == [
+               :title,
+               [:line_item, :id],
+               [:line_item, :score_maximum],
+               [:line_item, :submission_type]
+             ]
+    end
+
+    test "keeps the extensions of a Deep Linking line item" do
+      line_item = %LineItem{score_maximum: 10, extensions: %{submission_review: %{url: "u"}}}
+
+      assert {:ok, %LTIResourceLink{line_item: ^line_item}} =
+               LTIResourceLink.new(line_item: line_item)
+    end
+
+    test "takes a Deep Linking line item's property names with its fields" do
+      assert {:ok, %LTIResourceLink{line_item: line_item}} =
+               LTIResourceLink.new(
+                 line_item: [score_maximum: 10, submission_review: %{url: "u"}],
+                 plugins: @plugins
+               )
+
+      assert line_item == %LineItem{
+               score_maximum: 10,
+               extensions: %{submission_review: %{url: "u"}}
+             }
+    end
+
+    test "returns an error for a name that's neither a field nor a property" do
+      assert {:error, %Ltix.Errors.Invalid{errors: errors}} =
+               LTIResourceLink.new(
+                 line_item: [score_maximum: 10, submission_type: %{type: "none"}],
+                 wieght: 2,
+                 plugins: @plugins
+               )
+
+      assert Enum.sort(Enum.map(errors, &{&1.field, &1.reason})) == [
+               {:wieght, :unknown},
+               {[:line_item, :submission_type], :unknown}
+             ]
+    end
+
+    test "checks the fields of a Deep Linking line item" do
+      assert {:error, %InvalidField{field: [:line_item, :score_maximum], value: 0}} =
+               LTIResourceLink.new(line_item: %LineItem{score_maximum: 0})
     end
 
     test "rejects line item labels and maximum scores the grade service rejects" do

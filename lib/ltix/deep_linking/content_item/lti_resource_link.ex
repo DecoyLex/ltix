@@ -17,20 +17,33 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       ...>   line_item: [score_maximum: 100]
       ...> )
       iex> link.line_item
-      %{score_maximum: 100}
+      %Ltix.DeepLinking.LineItem{score_maximum: 100}
 
-  `line_item` also takes an `Ltix.GradeService.LineItem`.
+  ## Line items
+
+  `line_item` takes an `Ltix.DeepLinking.LineItem`, a keyword list or map of
+  its fields, or an `Ltix.GradeService.LineItem`. From a grade service line
+  item, the link takes `label`, `score_maximum`, `resource_id`, `tag`, and
+  `grades_released`. Any other field set on it is an
+  `Ltix.Errors.Invalid.InvalidField` error, as is a property that no enabled
+  plugin adds to Deep Linking line items.
 
       iex> line_item = %Ltix.GradeService.LineItem{label: "Quiz 7", score_maximum: 100}
       iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(line_item: line_item)
       iex> link.line_item
-      %{label: "Quiz 7", score_maximum: 100}
+      %Ltix.DeepLinking.LineItem{label: "Quiz 7", score_maximum: 100}
   """
 
+  alias Ltix.DeepLinking.LineItem
   alias Ltix.DeepLinking.Settings
   alias Ltix.Errors.Invalid.LineItemNotAccepted
-  alias Ltix.Extensions
-  alias Ltix.GradeService.LineItem
+  alias Ltix.GradeService
+
+  # Custom property names are given as strings or atoms, kept as strings, and
+  # sent as written.
+  @custom_key_schema [Zoi.string(), Zoi.atom()]
+                     |> Zoi.union(error: "invalid key: expected a string or atom")
+                     |> Zoi.transform({__MODULE__, :key_to_string, []})
 
   @time_window %{
     start_date_time: Zoi.datetime(description: "Start of the window.") |> Zoi.optional(),
@@ -49,24 +62,14 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       window: window(),
       iframe: iframe(),
       custom:
-        Zoi.string()
-        |> Extensions.string_keyed_map(description: "Custom property keys and values.")
+        Zoi.map(@custom_key_schema, Zoi.string(),
+          description: "Custom property keys and values.",
+          error: "invalid type: expected a map or keyword list"
+        )
         |> Zoi.optional(),
       line_item:
-        Ltix.Type.object(
-          %{
-            score_maximum: LineItem.score_maximum_schema(),
-            label: Zoi.optional(LineItem.label_schema()),
-            resource_id:
-              Zoi.string(description: "Tool-defined identifier for the resource.")
-              |> Zoi.optional(),
-            tag: Zoi.string(description: "Tag for grouping line items.") |> Zoi.optional(),
-            grades_released:
-              Zoi.boolean(description: "Whether grades are released to students.")
-              |> Zoi.optional()
-          },
-          description:
-            "Gradebook column for the platform to create, with `score_maximum` and optional `label`, `resource_id`, `tag`, and `grades_released`, or an `Ltix.GradeService.LineItem`."
+        Ltix.Type.schema(LineItem,
+          description: "Line item for the platform to create."
         )
         |> Zoi.optional(),
       available:
@@ -91,20 +94,24 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   def check(_link, _settings), do: :ok
 
   def new(fields) do
-    super(
-      Map.new(fields, fn
-        {:line_item, %LineItem{} = line_item} -> {:line_item, line_item_fields(line_item)}
-        field -> field
-      end)
-    )
+    fields = Map.new(fields)
+    super(Map.replace(fields, :line_item, line_item(fields[:line_item])))
   end
 
-  # Returns every set field, so fields Deep Linking can't send are rejected as unknown.
-  defp line_item_fields(line_item) do
-    for {field, value} <- Map.from_struct(line_item), value not in [nil, %{}], into: %{} do
-      {field, value}
-    end
+  # A grade service line item's set fields, properties, and unrecognized
+  # properties, as a Deep Linking line item's fields. Deep Linking line items
+  # don't have some of them, which makes `new/1` return an error for each.
+  defp line_item(%GradeService.LineItem{} = line_item) do
+    fields =
+      for {field, value} <- Ltix.Type.standard_fields(line_item), value != nil, do: {field, value}
+
+    unrecognized =
+      if line_item.unrecognized == %{}, do: [], else: [unrecognized: line_item.unrecognized]
+
+    Map.merge(Map.new(fields ++ unrecognized), line_item.extensions)
   end
+
+  defp line_item(line_item), do: line_item
 
   @doc """
   Adds an anonymous property of `ltiResourceLink` content items to a plugin.
@@ -115,4 +122,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   """
   @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
   def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
+
+  @doc false
+  def key_to_string(key, _opts), do: {:ok, to_string(key)}
 end

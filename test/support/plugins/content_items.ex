@@ -47,6 +47,31 @@ defmodule TestPlugins.OtherWeight do
     name: :other_weight
 end
 
+defmodule TestPlugins.ItemCount do
+  @moduledoc false
+  # A Deep Linking response step that sets the claim in its `:claim` option to
+  # the number of content items in the response.
+  use Ltix.DeepLinking.Response
+
+  @impl Ltix.Step
+  def init(opts), do: Keyword.fetch!(opts, :claim)
+
+  @impl Ltix.Step
+  def call(response, claim) do
+    items = response.claims["https://purl.imsglobal.org/spec/lti-dl/claim/content_items"]
+    {:ok, put_in(response.claims[claim], length(items))}
+  end
+end
+
+defmodule TestPlugins.RejectResponse do
+  @moduledoc false
+  # A Deep Linking response step that records an error.
+  use Ltix.DeepLinking.Response
+
+  @impl Ltix.Step
+  def call(_response, _opts), do: {:error, RuntimeError.exception("rejected")}
+end
+
 defmodule TestPlugins.ItemNote do
   @moduledoc false
   # A vendor's note on Deep Linking's content item types other than
