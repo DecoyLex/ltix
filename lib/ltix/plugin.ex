@@ -89,8 +89,9 @@ defmodule Ltix.Plugin do
   with each call's options. Add an anonymous step, claim, or property with its
   provider's function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`.
 
-  Two claims with the same URI or short name make the plugin set fail to
-  resolve. See [Conflicts](`m:Ltix.Claim#module-conflicts`).
+  Two claims with the same URI or short name, or two properties with the same
+  JSON name or name on one type, make the plugin set fail to resolve. See
+  [Conflicts](`m:Ltix.Claim#module-conflicts`) and `Ltix.Property.conflicts/2`.
 
   Raises `ArgumentError` for a module that extends nothing and isn't a
   provider, for options on a module that is only a provider, and for an option

@@ -723,6 +723,48 @@ defmodule Ltix.TestTest do
                ["student-1", "student-2", "student-3"]
     end
 
+    test "grade stubs send the properties of the plugins: option's plugin set", %{
+      platform: platform
+    } do
+      plugins = [
+        {Modules,
+         add: [TestPlugins.SubmissionType, TestPlugins.LaunchUrl, TestPlugins.ResultFeedback]}
+      ]
+
+      {:ok, plugin_set} = Ltix.PluginSet.resolve(plugins)
+      client = %{build_grade_client(platform) | plugins: plugin_set}
+
+      item = %{
+        @quiz
+        | extensions: %{
+            submission_type: %{type: "external_tool"},
+            launch_url: URI.parse("https://tool.example.com/quiz")
+          },
+          unrecognized: %{"https://lms.example.com/due_soon" => true}
+      }
+
+      result = %Result{user_id: "student-1", extensions: %{feedback: %{text: "Good"}}}
+
+      Ltix.Test.stub_list_line_items([item], plugins: plugins)
+      Ltix.Test.stub_get_line_item(item, plugins: plugins)
+      Ltix.Test.stub_create_line_item(item, plugins: plugins)
+      Ltix.Test.stub_update_line_item(item, plugins: plugins)
+      Ltix.Test.stub_list_results([result], plugins: plugins)
+
+      assert {:ok, [^item]} = GradeService.list_line_items(client)
+      assert {:ok, ^item} = GradeService.get_line_item(client)
+
+      assert {:ok, ^item} =
+               GradeService.create_line_item(client, label: "Quiz", score_maximum: 10)
+
+      assert {:ok, ^item} = GradeService.update_line_item(client, item)
+      assert {:ok, [^result]} = GradeService.list_results(client)
+
+      Ltix.Test.stub_get_line_item(item)
+      assert {:ok, configured} = GradeService.get_line_item(client)
+      assert configured.extensions == %{}
+    end
+
     test "memberships stubs respond page by page", %{platform: platform} do
       members =
         for n <- 1..3, do: %Member{user_id: "user-#{n}", roles: [Role.context_learner()]}
@@ -748,7 +790,7 @@ defmodule Ltix.TestTest do
     end
   end
 
-  describe "stub_update_line_item/1" do
+  describe "stub_update_line_item/2" do
     test "returns the updated line item", %{platform: platform} do
       item = %LineItem{
         id: "https://lms.example.com/items/1",
@@ -765,7 +807,7 @@ defmodule Ltix.TestTest do
     end
   end
 
-  describe "stub_delete_line_item/0" do
+  describe "stub_delete_line_item/1" do
     test "succeeds with 204", %{platform: platform} do
       Ltix.Test.stub_delete_line_item()
 

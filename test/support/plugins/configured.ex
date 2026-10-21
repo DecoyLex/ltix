@@ -7,6 +7,7 @@ defmodule TestPlugins.Configured do
   def plugin(_opts) do
     Ltix.Plugin.new(name: "Configured")
     |> Ltix.Plugin.add({TestPlugins.Tenant, tenant: "configured"})
+    |> Ltix.Plugin.add(TestPlugins.SubmissionType)
     |> Ltix.Plugin.add(TestPlugins.Note)
   end
 end

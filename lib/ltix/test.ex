@@ -404,17 +404,31 @@ defmodule Ltix.Test do
                                 unrecognized_keys: :error
                               )
 
-  @stub_line_item_schema Zoi.keyword(
-                           [
-                             line_item:
-                               Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
-                                 description:
-                                   "Line item URL or struct. Limits the stub to requests for this line item, " <>
-                                     "and replaces only the stub for it."
-                               )
-                           ],
+  @stub_plugins_option Zoi.list(Zoi.any(),
+                         description:
+                           "The plugins to serialize the properties of each struct with, each as " <>
+                             "`MyPlugin` or `{MyPlugin, opts}`. Defaults to the `:plugins` configuration."
+                       )
+
+  @stub_line_item_option Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
+                           description:
+                             "The line item, as its URL or struct. The stub responds only to requests for " <>
+                               "this line item, and replaces only the stub for it."
+                         )
+
+  @stub_line_item_schema Zoi.keyword([line_item: @stub_line_item_option],
                            unrecognized_keys: :error
                          )
+
+  @stub_line_item_and_plugins_schema Zoi.keyword(
+                                       [
+                                         line_item: @stub_line_item_option,
+                                         plugins: @stub_plugins_option
+                                       ],
+                                       unrecognized_keys: :error
+                                     )
+
+  @stub_plugins_schema Zoi.keyword([plugins: @stub_plugins_option], unrecognized_keys: :error)
 
   @stub_list_members_schema Zoi.keyword(
                               [
@@ -778,12 +792,19 @@ defmodule Ltix.Test do
       ])
 
   Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does.
+  to the next page like a platform does. Each line item includes its
+  unrecognized properties and every property it has a value for, using the
+  plugin set of the `:plugins` option.
+
+  ## Options
+
+  #{Zoi.describe(@stub_plugins_schema)}
   """
-  @spec stub_list_line_items([LineItem.t()]) :: :ok
-  def stub_list_line_items(line_items) when is_list(line_items) do
+  @spec stub_list_line_items([LineItem.t()], keyword()) :: :ok
+  def stub_list_line_items(line_items, opts \\ []) when is_list(line_items) do
     require_plug!()
-    json = Enum.map(line_items, &LineItem.to_map/1)
+    opts = Options.parse!(opts, @stub_plugins_schema)
+    json = Enum.map(line_items, &stub_json(&1, opts[:plugins]))
     ServiceStub.put(GradeService, :list_line_items, nil, &ServiceStub.json_pages(&1, json))
   end
 
@@ -794,16 +815,19 @@ defmodule Ltix.Test do
         %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100}
       )
 
+  The line item includes its unrecognized properties and every property it
+  has a value for, using the plugin set of the `:plugins` option.
+
   ## Options
 
-  #{Zoi.describe(@stub_line_item_schema)}
+  #{Zoi.describe(@stub_line_item_and_plugins_schema)}
   """
   @spec stub_get_line_item(LineItem.t(), keyword()) :: :ok
   def stub_get_line_item(%LineItem{} = item, opts \\ []),
     do: stub_line_item(:get_line_item, item, opts)
 
   @doc """
-  Stub `create_line_item/2` to return the given line item.
+  Stub `create_line_item/3` to return the given line item.
 
   Pass the line item you want the platform to "return" (typically the
   same fields the caller sent, plus an `:id` assigned by the platform).
@@ -811,11 +835,19 @@ defmodule Ltix.Test do
       Ltix.Test.stub_create_line_item(
         %LineItem{id: "https://lms.example.com/lineitems/new", label: "Quiz 1", score_maximum: 100}
       )
+
+  The line item includes its unrecognized properties and every property it
+  has a value for, using the plugin set of the `:plugins` option.
+
+  ## Options
+
+  #{Zoi.describe(@stub_plugins_schema)}
   """
-  @spec stub_create_line_item(LineItem.t()) :: :ok
-  def stub_create_line_item(%LineItem{} = item) do
+  @spec stub_create_line_item(LineItem.t(), keyword()) :: :ok
+  def stub_create_line_item(%LineItem{} = item, opts \\ []) do
     require_plug!()
-    json = LineItem.to_map(item)
+    opts = Options.parse!(opts, @stub_plugins_schema)
+    json = stub_json(item, opts[:plugins])
 
     ServiceStub.put(GradeService, :create_line_item, nil, fn conn ->
       conn
@@ -825,15 +857,18 @@ defmodule Ltix.Test do
   end
 
   @doc """
-  Stub `update_line_item/2` to return the given line item.
+  Stub `update_line_item/3` to return the given line item.
 
       Ltix.Test.stub_update_line_item(
         %LineItem{id: "https://lms.example.com/lineitems/1", label: "Updated Quiz", score_maximum: 100}
       )
 
+  The line item includes its unrecognized properties and every property it
+  has a value for, using the plugin set of the `:plugins` option.
+
   ## Options
 
-  #{Zoi.describe(@stub_line_item_schema)}
+  #{Zoi.describe(@stub_line_item_and_plugins_schema)}
   """
   @spec stub_update_line_item(LineItem.t(), keyword()) :: :ok
   def stub_update_line_item(%LineItem{} = item, opts \\ []),
@@ -841,10 +876,16 @@ defmodule Ltix.Test do
 
   defp stub_line_item(operation, item, opts) do
     require_plug!()
-    json = LineItem.to_map(item)
+    opts = Options.parse!(opts, @stub_line_item_and_plugins_schema)
+    json = stub_json(item, opts[:plugins])
     url = stub_line_item_url(opts)
     ServiceStub.put(GradeService, operation, url, &Req.Test.json(&1, json))
   end
+
+  # The JSON a platform sends for `value`, with every property of the plugin
+  # set `enabled` resolves to.
+  defp stub_json(value, enabled),
+    do: Ltix.Type.to_json(value, ok!(PluginSet.resolve(enabled)), :read)
 
   @doc """
   Stub `delete_line_item/2` to succeed.
@@ -858,7 +899,7 @@ defmodule Ltix.Test do
   @spec stub_delete_line_item(keyword()) :: :ok
   def stub_delete_line_item(opts \\ []) do
     require_plug!()
-    url = stub_line_item_url(opts)
+    url = stub_line_item_url(Options.parse!(opts, @stub_line_item_schema))
     ServiceStub.put(GradeService, :delete_line_item, url, &Plug.Conn.send_resp(&1, 204, ""))
   end
 
@@ -874,7 +915,7 @@ defmodule Ltix.Test do
   @spec stub_post_score(keyword()) :: :ok
   def stub_post_score(opts \\ []) do
     require_plug!()
-    url = stub_line_item_url(opts)
+    url = stub_line_item_url(Options.parse!(opts, @stub_line_item_schema))
     ServiceStub.put(GradeService, :post_score, url, &Plug.Conn.send_resp(&1, 200, ""))
   end
 
@@ -887,22 +928,25 @@ defmodule Ltix.Test do
       ])
 
   Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does.
+  to the next page like a platform does. Each result includes its
+  unrecognized properties and every property it has a value for, using the
+  plugin set of the `:plugins` option.
 
   ## Options
 
-  #{Zoi.describe(@stub_line_item_schema)}
+  #{Zoi.describe(@stub_line_item_and_plugins_schema)}
   """
   @spec stub_list_results([Result.t()], keyword()) :: :ok
   def stub_list_results(results, opts \\ []) when is_list(results) do
     require_plug!()
-    json = Enum.map(results, &Result.to_map/1)
+    opts = Options.parse!(opts, @stub_line_item_and_plugins_schema)
+    json = Enum.map(results, &stub_json(&1, opts[:plugins]))
     url = stub_line_item_url(opts)
     ServiceStub.put(GradeService, :list_results, url, &ServiceStub.json_pages(&1, json))
   end
 
   defp stub_line_item_url(opts) do
-    case Keyword.fetch(Options.parse!(opts, @stub_line_item_schema), :line_item) do
+    case Keyword.fetch(opts, :line_item) do
       :error ->
         nil
 

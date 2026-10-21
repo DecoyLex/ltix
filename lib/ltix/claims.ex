@@ -35,7 +35,6 @@ defmodule Ltix.Claims do
 
   alias Ltix.Claim.Declaration
   alias Ltix.Errors
-  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.PluginSet
@@ -184,7 +183,7 @@ defmodule Ltix.Claims do
     errors =
       for {declaration, value, {:error, reason}} <- parsed,
           declaration.strict,
-          do: error(declaration, value, reason)
+          do: Errors.from_reason(reason, value, declaration.label)
 
     values = for {declaration, _value, {:ok, parsed}} <- parsed, do: {declaration, parsed}
     claims = Map.new(values, fn {declaration, parsed} -> {declaration.name, parsed} end)
@@ -210,21 +209,4 @@ defmodule Ltix.Claims do
         into: %{},
         do: {declaration.name, declaration.default}
   end
-
-  defp error(%{label: name}, value, reason) do
-    cond do
-      is_list(reason) && Enum.all?(reason, &is_struct(&1, Zoi.Error)) ->
-        Errors.from_zoi(reason, value, name)
-
-      Errors.ltix_error?(reason) ->
-        reason
-
-      true ->
-        InvalidClaim.exception(claim: name, value: value, message: message(reason))
-    end
-  end
-
-  defp message(reason) when is_binary(reason), do: reason
-  defp message(reason) when is_exception(reason), do: Exception.message(reason)
-  defp message(reason), do: inspect(reason)
 end

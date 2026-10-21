@@ -2,6 +2,7 @@ defmodule Ltix.Plugins.ConfiguredPluginsTest do
   # Changes the `:plugins` configuration, so it can't run with other tests.
   use ExUnit.Case, async: false
 
+  alias Ltix.GradeService.LineItem
   alias Ltix.Test.StorageAdapter
 
   @launch_url "https://tool.example.com/launch"
@@ -41,6 +42,22 @@ defmodule Ltix.Plugins.ConfiguredPluginsTest do
 
     assert_received {:trace, :enabled}
     refute_received {:login, _login}
+  end
+
+  test "a type stored with to_json and loaded with from_json keeps its configured properties" do
+    {:ok, item} =
+      Ltix.Type.new(LineItem, label: "Essay", submission_type: %{type: "external_tool"})
+
+    json = Ltix.Type.to_json(item)
+
+    assert json == %{
+             "label" => "Essay",
+             "https://vendor.example.com/submission_type" => %{"type" => "external_tool"}
+           }
+
+    assert {:ok, loaded} = Ltix.Type.from_json(LineItem, json)
+    assert loaded.extensions == %{submission_type: %{type: "external_tool"}}
+    assert loaded.unrecognized == %{}
   end
 
   test "a launch with plugins: parses object claim properties with those plugins only",

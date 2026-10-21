@@ -8,48 +8,57 @@ defmodule Ltix.GradeService.LineItem do
 
   ## Examples
 
-      {:ok, item} = Ltix.GradeService.LineItem.from_json(%{
-        "id" => "https://lms.example.com/lineitems/1",
-        "label" => "Chapter 5 Test",
-        "scoreMaximum" => 60,
-        "tag" => "grade"
-      })
+      item = %Ltix.GradeService.LineItem{label: "Chapter 5 Test", score_maximum: 60}
+      {:ok, item} = Ltix.GradeService.create_line_item(client, item)
 
-      item.label
-      #=> "Chapter 5 Test"
+  ## Properties
 
-      item.score_maximum
-      #=> 60
+  Plugins add properties to line items, such as a Canvas submission type,
+  with `Ltix.Property`. Pass a property by its name, and read it from
+  `extensions`.
+
+      {:ok, item} =
+        Ltix.GradeService.create_line_item(client,
+          label: "Essay",
+          score_maximum: 10,
+          canvas_submission_type: %{type: "external_tool"}
+        )
+
+      item.extensions.canvas_submission_type.type
+      #=> "external_tool"
+
+  A property's [`:writes`](`m:Ltix.Property#module-options`) option lists the
+  operations that send it, `:create` for `Ltix.GradeService.create_line_item/3`
+  and `:update` for `Ltix.GradeService.update_line_item/3`.
   """
 
+  use Ltix.Provider, hook: [Ltix.Property]
+
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Extensions
 
-  defstruct [
-    :id,
-    :label,
-    :score_maximum,
-    :resource_link_id,
-    :resource_id,
-    :tag,
-    :start_date_time,
-    :end_date_time,
-    :grades_released,
-    extensions: %{}
-  ]
+  # [AGS §3.2.12](https://www.imsglobal.org/spec/lti-ags/v2p0/#startdatetime)
+  # [AGS §3.2.13](https://www.imsglobal.org/spec/lti-ags/v2p0/#enddatetime)
+  @date_time_schema Zoi.datetime(
+                      metadata: [
+                        from_json: &__MODULE__.parse_date_time/1,
+                        to_json: &__MODULE__.date_time_to_json/1
+                      ]
+                    )
 
-  @type t :: %__MODULE__{
-          id: String.t() | nil,
-          label: String.t() | nil,
-          score_maximum: number() | nil,
-          resource_link_id: String.t() | nil,
-          resource_id: String.t() | nil,
-          tag: String.t() | nil,
-          start_date_time: DateTime.t() | nil,
-          end_date_time: DateTime.t() | nil,
-          grades_released: boolean() | nil,
-          extensions: %{optional(String.t()) => term()} | nil
-        }
+  # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
+  use Ltix.Type,
+    json_keys: :camel_case,
+    fields: [
+      id: Zoi.string() |> Zoi.optional(),
+      label: Zoi.string() |> Zoi.optional(),
+      score_maximum: Zoi.number() |> Zoi.optional(),
+      resource_link_id: Zoi.string() |> Zoi.optional(),
+      resource_id: Zoi.string() |> Zoi.optional(),
+      tag: Zoi.string() |> Zoi.optional(),
+      start_date_time: Zoi.optional(@date_time_schema),
+      end_date_time: Zoi.optional(@date_time_schema),
+      grades_released: Zoi.boolean() |> Zoi.optional()
+    ]
 
   # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)
   @label_schema Zoi.string(description: "Label for the gradebook column.")
@@ -58,10 +67,6 @@ defmodule Ltix.GradeService.LineItem do
   # [AGS §3.2.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoremaximum)
   @score_maximum_schema Zoi.number(description: "Maximum score, greater than 0.")
                         |> Zoi.positive()
-
-  # [AGS §3.2.12](https://www.imsglobal.org/spec/lti-ags/v2p0/#startdatetime)
-  # [AGS §3.2.13](https://www.imsglobal.org/spec/lti-ags/v2p0/#enddatetime)
-  @date_time_schema Zoi.string() |> Zoi.transform({__MODULE__, :parse_date_time, []})
 
   @validation_fields %{
     label: @label_schema,
@@ -72,53 +77,7 @@ defmodule Ltix.GradeService.LineItem do
 
   @validation_schema Zoi.map(@validation_fields)
 
-  # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
-  @known_keys %{
-    "id" => :id,
-    "label" => :label,
-    "scoreMaximum" => :score_maximum,
-    "resourceLinkId" => :resource_link_id,
-    "resourceId" => :resource_id,
-    "tag" => :tag,
-    "startDateTime" => :start_date_time,
-    "endDateTime" => :end_date_time,
-    "gradesReleased" => :grades_released
-  }
-
-  @field_schemas %{
-    id: Zoi.string(),
-    label: Zoi.string(),
-    score_maximum: Zoi.number(),
-    resource_link_id: Zoi.string(),
-    resource_id: Zoi.string(),
-    tag: Zoi.string(),
-    start_date_time: @date_time_schema,
-    end_date_time: @date_time_schema,
-    grades_released: Zoi.boolean()
-  }
-
-  @json_fields for {key, field} <- @known_keys, do: {field, key, @field_schemas[field], false}
-
-  @doc """
-  Parse a line item from a decoded JSON map.
-
-  Accepts any map and extracts known fields. Fields with the wrong type are
-  `nil`. Unrecognized keys are kept in `extensions` for lossless
-  round-trips. `startDateTime` and `endDateTime` become `DateTime` structs in
-  UTC.
-
-  ## Examples
-
-      iex> {:ok, item} = Ltix.GradeService.LineItem.from_json(%{"label" => "Quiz 1", "scoreMaximum" => 100})
-      iex> {item.label, item.score_maximum}
-      {"Quiz 1", 100}
-  """
-  @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
-  def from_json(json) when is_map(json) do
-    # Every field is optional, so parsing never fails.
-    {:ok, fields, unrecognized} = Ltix.Type.parse_fields(@json_fields, json, [])
-    {:ok, struct!(__MODULE__, [{:extensions, unrecognized} | fields])}
-  end
+  @date_time_error "must be an ISO 8601 date and time with a time zone"
 
   @doc """
   Validate that a line item has the required fields for publishing.
@@ -144,13 +103,7 @@ defmodule Ltix.GradeService.LineItem do
       |> Map.take(Map.keys(@validation_fields))
       |> Map.reject(fn {_field, value} -> is_nil(value) end)
 
-    # [AGS §3.1.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#extensions)
-    conflicts =
-      Extensions.conflicts(__MODULE__, item.extensions, Map.keys(@known_keys))
-
-    with {:ok, _fields} <-
-           InvalidField.parse(__MODULE__, @validation_schema, fields, conflicts),
-         do: :ok
+    with {:ok, _fields} <- InvalidField.parse(__MODULE__, @validation_schema, fields), do: :ok
   end
 
   @doc false
@@ -165,62 +118,32 @@ defmodule Ltix.GradeService.LineItem do
     if String.trim(label) == "", do: {:error, "must not be blank"}, else: :ok
   end
 
-  @doc """
-  Serialize a line item to a map with camelCase string keys.
-
-  ## Examples
-
-      iex> item = %Ltix.GradeService.LineItem{label: "Quiz 1", score_maximum: 100}
-      iex> map = Ltix.GradeService.LineItem.to_map(item)
-      iex> {map["label"], map["scoreMaximum"]}
-      {"Quiz 1", 100}
-  """
-  @spec to_map(t()) :: map()
-  def to_map(%__MODULE__{} = item) do
-    fields =
-      Map.new(@known_keys, fn {json_key, field} ->
-        {json_key, to_json(Map.fetch!(item, field))}
-      end)
-
-    fields
-    |> Map.reject(fn {_json_key, value} -> is_nil(value) end)
-    |> Extensions.merge(item.extensions)
-  end
-
   # [AGS §4.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#datetime-values)
-  defp to_json(%DateTime{} = date_time),
+  @doc false
+  @spec date_time_to_json(DateTime.t()) :: String.t()
+  def date_time_to_json(date_time),
     do: DateTime.to_iso8601(DateTime.shift_zone!(date_time, "Etc/UTC"))
 
-  defp to_json(value), do: value
-
   @doc false
-  @spec parse_date_time(String.t(), keyword()) :: {:ok, DateTime.t()} | {:error, String.t()}
-  def parse_date_time(value, _opts) do
+  @spec parse_date_time(term()) :: {:ok, DateTime.t()} | {:error, String.t()}
+  def parse_date_time(value) when is_binary(value) do
     with {:error, _reason} <- DateTime.from_iso8601(value),
          {:error, _reason} <- DateTime.from_iso8601(value, :basic) do
-      {:error, "must be an ISO 8601 date and time with a time zone"}
+      {:error, @date_time_error}
     else
       {:ok, date_time, _offset} -> {:ok, date_time}
     end
   end
-end
 
-if Code.ensure_loaded?(JSON.Encoder) do
-  defimpl JSON.Encoder, for: Ltix.GradeService.LineItem do
-    def encode(item, encoder) do
-      item
-      |> Ltix.GradeService.LineItem.to_map()
-      |> JSON.Encoder.Map.encode(encoder)
-    end
-  end
-end
+  def parse_date_time(_value), do: {:error, @date_time_error}
 
-if Code.ensure_loaded?(Jason.Encoder) do
-  defimpl Jason.Encoder, for: Ltix.GradeService.LineItem do
-    def encode(item, opts) do
-      item
-      |> Ltix.GradeService.LineItem.to_map()
-      |> Jason.Encode.map(opts)
-    end
-  end
+  @doc """
+  Adds an anonymous property of line items to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

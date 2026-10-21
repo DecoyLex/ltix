@@ -174,6 +174,83 @@ Your service module keeps its functions, and `Ltix.OAuth.Client.request/3` still
 
 `Ltix.GradeService` and `Ltix.MembershipsService` no longer have `endpoint_from_claims/1`, `validate_endpoint/1`, or `scopes/1`. Read a launch's endpoint with `Ltix.Launch.get_endpoint/2`, and a grade service endpoint's scopes from its `scopes` field. Check a stored endpoint with its module's `new/1`, such as `Ltix.GradeService.Endpoint.new/1`.
 
+## Grade service
+
+### `extensions:` is replaced by property names
+
+`create_line_item/3` raises `Ltix.Errors.Invalid.InvalidOption` for `extensions:`, and `Score.new/1` returns `Ltix.Errors.Invalid.InvalidField`. Enable a plugin that declares the property, then pass the property by its name.
+
+```elixir
+# 0.2
+{:ok, item} =
+  Ltix.GradeService.create_line_item(client,
+    label: "Essay",
+    score_maximum: 100,
+    extensions: %{"https://canvas.instructure.com/lti/submission_type" => %{"type" => "none"}}
+  )
+
+# 0.3
+# config/config.exs
+config :ltix, plugins: [MyApp.Canvas]
+
+{:ok, item} =
+  Ltix.GradeService.create_line_item(client,
+    label: "Essay",
+    score_maximum: 100,
+    canvas_submission_type: %{type: "none"}
+  )
+```
+
+[Writing a Canvas Grade Plugin](cookbooks/canvas-grade-plugin.md) builds `MyApp.Canvas`.
+
+### Undeclared properties are in `unrecognized`
+
+In 0.2, line items and results kept unparsed properties in `extensions`, under their JSON names. They're now in `unrecognized`, and `extensions` has the properties plugins declare, keyed by property name.
+
+```elixir
+# 0.2
+item.extensions["https://lms.example.com/rubric"]
+
+# 0.3
+item.unrecognized["https://lms.example.com/rubric"]
+```
+
+To send a property without a plugin, set it in the line item's `unrecognized`, keyed by JSON name. Ltix sends it when it creates or updates the line item.
+
+```elixir
+# 0.2
+Ltix.GradeService.create_line_item(client,
+  label: "Essay",
+  score_maximum: 100,
+  extensions: %{"https://lms.example.com/rubric" => "rubric-7"}
+)
+
+# 0.3
+item = %Ltix.GradeService.LineItem{
+  label: "Essay",
+  score_maximum: 100,
+  unrecognized: %{"https://lms.example.com/rubric" => "rubric-7"}
+}
+
+Ltix.GradeService.create_line_item(client, item)
+```
+
+### `from_json/1`, `to_map/1`, and the JSON encoders are removed
+
+Line items, scores, and results lose these. Parse with `Ltix.Type.from_json/3` and serialize with `Ltix.Type.to_json/3`.
+
+```elixir
+# 0.2
+{:ok, item} = Ltix.GradeService.LineItem.from_json(json)
+json = Ltix.GradeService.LineItem.to_map(item)
+
+# 0.3
+{:ok, item} = Ltix.Type.from_json(Ltix.GradeService.LineItem, json)
+json = Ltix.Type.to_json(item)
+```
+
+Encode line items and scores with `to_json/3` where you used `JSON` or `Jason`.
+
 ## Roles
 
 ### Roles are URIs

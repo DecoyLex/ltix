@@ -59,6 +59,8 @@ When your tool needs multiple line items per resource link, or creates line item
 :ok = Ltix.GradeService.post_score(client, score, line_item: quiz_item)
 ```
 
+`create_line_item/3` also takes a `%Ltix.GradeService.LineItem{}` as its second argument.
+
 Fetch a line item before updating it to avoid overwriting fields you didn't intend to change.
 
 ```elixir
@@ -140,10 +142,31 @@ In all cases the `line_item` URL may be absent from future launch claims, leavin
 :ok = Ltix.GradeService.delete_line_item(client, line_item: coupled_item, force: true)
 ```
 
+## Platform properties
+
+Platforms add properties of their own to line items, scores, and results, such as the submission type of a Canvas assignment. Each one needs a plugin that declares it, like the one [Writing a Canvas Grade Plugin](cookbooks/canvas-grade-plugin.md) builds. Add the plugin to `config :ltix, plugins: [...]`. Then pass each property by name, such as `:canvas_submission_type`, and read it from `item.extensions`.
+
+```elixir
+{:ok, item} =
+  Ltix.GradeService.create_line_item(client,
+    label: "Essay",
+    score_maximum: 100,
+    canvas_submission_type: %{
+      type: "external_tool",
+      external_tool_url: "https://tool.example.com/launch"
+    }
+  )
+
+item.extensions.canvas_submission_type.type
+#=> "external_tool"
+```
+
+`Score.new/1` takes property names the same way. Properties no plugin declares are in the struct's `unrecognized`, keyed by JSON name.
+
 ## Next steps
 
 - [Building Scores](cookbooks/score-construction.md) - progress values, extra credit, comments, and timestamps
 - [Syncing Grades in the Background](cookbooks/background-grade-sync.md) - posting grades from Oban workers
-- [Using Canvas Grade Extensions](cookbooks/canvas-grade-extensions.md) - submission types and metadata for Canvas
+- [Writing a Canvas Grade Plugin](cookbooks/canvas-grade-plugin.md) - submission types and metadata for Canvas
 - [Advantage Services](advantage-services.md) - token management, caching, and multi-service authentication
 - `Ltix.GradeService` - full API reference and options

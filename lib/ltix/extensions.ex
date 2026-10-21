@@ -1,11 +1,8 @@
 defmodule Ltix.Extensions do
   @moduledoc false
 
-  # Extension properties a caller adds to a JSON object Ltix sends, such as a
-  # score or a line item, and maps with caller-chosen keys, such as the custom
-  # properties of an LTI resource link.
-
-  alias Ltix.Errors.Invalid.InvalidField
+  # Maps with caller-chosen keys, such as the custom properties of an LTI
+  # resource link, and the unrecognized properties of a member.
 
   @doc """
   Zoi schema for a map option with caller-chosen keys, given as strings or atoms
@@ -27,31 +24,6 @@ defmodule Ltix.Extensions do
 
   @doc false
   def key_to_string(key, _opts), do: {:ok, to_string(key)}
-
-  @doc """
-  Zoi schema for extension properties, keyed by strings or atoms and converted
-  to strings. `nil` parses to `nil`, and the default is an empty map.
-  """
-  @spec schema(String.t()) :: Zoi.schema()
-  def schema(description) do
-    Zoi.any()
-    |> string_keyed_map(description: description)
-    |> Zoi.nullable()
-    |> Zoi.default(%{})
-  end
-
-  @doc """
-  Errors for each of `extensions` that would replace one of `standard_keys`, the
-  JSON keys of the fields of `module`.
-  """
-  @spec conflicts(module(), term(), Enumerable.t(String.t())) :: [Exception.t()]
-  def conflicts(module, extensions, standard_keys) when is_map(extensions) do
-    for {key, value} <- extensions, to_string(key) in standard_keys do
-      InvalidField.invalid(module, [:extensions, key], value, "would replace a standard field")
-    end
-  end
-
-  def conflicts(_module, _extensions, _standard_keys), do: []
 
   @doc """
   Adds `extensions` to a serialized JSON map. Standard fields take precedence over

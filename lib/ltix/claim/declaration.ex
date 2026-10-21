@@ -51,7 +51,12 @@ defmodule Ltix.Claim.Declaration do
 
           @impl Ltix.Property
           def parse(json, _opts) do
-            Ltix.Type.from_json(__MODULE__, json, name: unquote(Atom.to_string(opts[:name])))
+            # An empty plugin set leaves the claim's properties in
+            # `unrecognized`.
+            Ltix.Type.from_json(__MODULE__, json,
+              plugins: %Ltix.PluginSet{},
+              name: unquote(Atom.to_string(opts[:name]))
+            )
           end
 
           defoverridable parse: 2

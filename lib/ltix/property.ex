@@ -1,6 +1,6 @@
 defmodule Ltix.Property do
   @moduledoc """
-  One JSON property, such as a claim or a content item field.
+  One JSON property, such as a claim or a line item field.
 
   Every property works the same way. Its options declare its JSON name and its
   Elixir name, `c:parse/2` reads its value from JSON, and `c:serialize/2`
@@ -107,6 +107,7 @@ defmodule Ltix.Property do
         check_values!(opts)
 
       Keyword.has_key?(opts, :property) && Keyword.has_key?(opts, :name) ->
+        Keyword.validate!(opts, [:property, :name, :schema, :writes])
         check_values!(opts)
         Module.put_attribute(module, :ltix_property_declared, true)
 
@@ -258,12 +259,16 @@ defmodule Ltix.Property do
   The default `c:Ltix.Provider.resolve/1` returns these conflicts for a type
   that plugins add properties to. A type that overrides `resolve/1` without
   calling `super/1` must call this function itself.
+
+      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+      iex> Ltix.Property.conflicts(plugins, Ltix.GradeService.LineItem)
+      []
   """
   @spec conflicts(PluginSet.t(), module()) :: [Conflict.t()]
   def conflicts(%PluginSet{} = plugins, type) do
     properties = PluginSet.entries(plugins, type)
     json_names = Ltix.Type.json_names(type)
-    fields = Keyword.keys(Ltix.Type.fields(type))
+    fields = Ltix.Type.field_names(type)
 
     standard =
       for entry <- properties,

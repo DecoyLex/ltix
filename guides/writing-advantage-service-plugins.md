@@ -1,6 +1,6 @@
 # Writing Advantage Service Plugins
 
-A plugin can add an [Advantage service](advantage-services.md). [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
+A plugin can add an [Advantage service](advantage-services.md). It can also add properties to the line items, scores, and results of `Ltix.GradeService`. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
 
 Examples on this page build this plugin for a fictional proctoring service.
 
@@ -13,6 +13,7 @@ defmodule Proctoring do
     Ltix.Plugin.new(name: "Proctoring", version: "1.0.0")
     |> Ltix.Plugin.add(Proctoring.Endpoint)
     |> Ltix.Plugin.add(Proctoring.Scope)
+    |> Ltix.Plugin.add(Proctoring.Integrity)
   end
 end
 ```
@@ -79,6 +80,75 @@ end
 - Ltix adds the claims every client assertion requires, such as `iss` and `aud`, after the steps run. They replace a step's claims with the same names.
 
 Token refreshes run the same steps and request the same scopes.
+
+## Add a property to line items, scores, or results
+
+Add a property to `Ltix.GradeService.LineItem`, `Ltix.GradeService.Score`, or `Ltix.GradeService.Result` with the type's `add_property/2`.
+
+```elixir
+def plugin(_opts) do
+  Ltix.Plugin.new(name: "Proctoring", version: "1.0.0")
+  |> Ltix.GradeService.LineItem.add_property(
+    property: "https://proctor.example.com/integrity",
+    name: :proctoring_integrity,
+    schema: Zoi.map(%{level: Zoi.string()}, coerce: true),
+    writes: [:create]
+  )
+end
+```
+
+- `property:` is the property's JSON name.
+- `name:` is the property's name in the application's code.
+- `schema:` parses the JSON value into the value an application reads. With `coerce: true`, `Zoi.map/2` converts the JSON's string keys to atoms. A value that doesn't match makes the call that read the property return an error. Without `schema:`, the value is the JSON value.
+- `writes:` lists the write operations that send the property. `create_line_item/3` and `post_score/3` are `:create` operations, and `update_line_item/3` is `:update`. For a property the platform accepts only on a new line item, pass `[:create]`, and for a read-only property, `[]`. It defaults to `[:create, :update]`.
+
+Only `property:` and `name:` are required. An application passes the value by name and reads it from `extensions`.
+
+```elixir
+{:ok, item} =
+  Ltix.GradeService.create_line_item(client,
+    label: "Final exam",
+    score_maximum: 100,
+    proctoring_integrity: %{level: "high"}
+  )
+
+item.extensions.proctoring_integrity
+#=> %{level: "high"}
+```
+
+A property whose value needs code to convert, beyond a Zoi schema, is a module that `use`s the type's module with the same options and implements `c:Ltix.Property.parse/2` or `c:Ltix.Property.serialize/2`. [Writing a Canvas Grade Plugin](cookbooks/canvas-grade-plugin.md) builds a complete property plugin with both kinds.
+
+## Test properties on service types
+
+This test uses the setup from [Test a plugin](writing-plugins.md#test-a-plugin).
+
+The service stubs in `Ltix.Test` serialize properties with the configured plugins. When your test passes `plugins:` to `Ltix.Test.build_launch/2`, pass the same `plugins:` to the stub.
+
+```elixir
+test "reads the integrity level", %{platform: platform} do
+  url = "https://platform.example.com/lineitems/1"
+  scope = "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
+  Ltix.Test.stub_token_response(scopes: [scope])
+
+  launch =
+    Ltix.Test.build_launch(platform,
+      ags_endpoint: %{line_item: url, scopes: [scope]},
+      plugins: [Proctoring]
+    )
+
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
+
+  item = %Ltix.GradeService.LineItem{
+    id: url,
+    extensions: %{proctoring_integrity: %{level: "high"}}
+  }
+
+  Ltix.Test.stub_get_line_item(item, plugins: [Proctoring])
+
+  assert {:ok, item} = Ltix.GradeService.get_line_item(client, line_item: url)
+  assert item.extensions.proctoring_integrity == %{level: "high"}
+end
+```
 
 ## Next steps
 

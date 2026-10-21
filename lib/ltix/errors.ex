@@ -106,6 +106,28 @@ defmodule Ltix.Errors do
     end
   end
 
+  # Converts the reason parsing or checking `value` failed into an error about
+  # the claim, field, or property at `path`. The reason is a message, an
+  # exception, or Zoi errors.
+  @doc false
+  @spec from_reason(term(), term(), String.t()) :: Exception.t()
+  def from_reason(reason, value, path) do
+    cond do
+      is_list(reason) && reason != [] && Enum.all?(reason, &is_struct(&1, Zoi.Error)) ->
+        from_zoi(reason, value, path)
+
+      ltix_error?(reason) ->
+        reason
+
+      true ->
+        InvalidClaim.exception(claim: path, value: value, message: property_message(reason))
+    end
+  end
+
+  defp property_message(reason) when is_binary(reason), do: reason
+  defp property_message(reason) when is_exception(reason), do: Exception.message(reason)
+  defp property_message(reason), do: inspect(reason)
+
   # Converts Zoi validation errors for `input` into claim errors whose claim is
   # `prefix` (when given) followed by the path.
   @doc false

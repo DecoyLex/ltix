@@ -51,3 +51,18 @@ end
 ```
 
 See [Persisting Service Endpoints](persisting-service-endpoints.md) for schema examples, [Advantage Services](../advantage-services.md) for an overview of token management, and [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing, multi-course tokens, and ETS caching patterns.
+
+## Using plugins in a worker
+
+A client authenticated from a registration uses your configured plugins. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins here.
+
+```elixir
+{:ok, client} = Ltix.GradeService.authenticate(registration,
+  endpoint: endpoint,
+  plugins: [MyApp.Canvas]
+)
+```
+
+The client keeps that plugin set, so every grade service call through it sends and parses the plugin's properties. See [Writing a Canvas Grade Plugin](canvas-grade-plugin.md) for the plugin.
+
+See [Persisting Service Endpoints](persisting-service-endpoints.md) for schema examples, [Advantage Services](../advantage-services.md) for an overview of token management, and [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing, multi-course tokens, and ETS caching patterns.

@@ -1,13 +1,13 @@
 # Writing Plugins
 
-A plugin can add a login step, a claim, a message type, or an Advantage service. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
+A plugin can add a login step, a claim, a message type, an Advantage service, or a property a platform expects. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
 
 | Goal | See |
 |---|---|
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
 | Run code during login, launches, or token requests | [Add a step](#add-a-step) |
 | Read a claim, or accept a new kind of launch | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
-| Add an Advantage service | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
+| Add an Advantage service, or send a platform's own grade properties | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
 | Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
 | Let other plugins extend yours | [Provide something for other plugins to extend](#provide-something-for-other-plugins-to-extend) |
@@ -77,7 +77,7 @@ config :ltix, plugins: [{Blocklist, issuers: ["https://lms.example.com"]}]
 Ltix.handle_login(params, launch_url, plugins: [Blocklist])
 ```
 
-- A plugin that appears twice in `plugins:` runs each of its steps twice, once with each entry's options. If its `plugin/1` also adds a claim with different options for each entry, the plugin set [fails to resolve](#fix-a-plugin-set-that-fails-to-resolve). In that case, enable the plugin once with a list of configurations in its options. Add the claim once, and add each step once per configuration.
+- A plugin that appears twice in `plugins:` runs each of its steps twice, once with each entry's options. If its `plugin/1` also adds a claim or property with different options for each entry, calls return an [`InvalidPluginSet`](#fix-a-plugin-set-that-fails-to-resolve) error. In that case, enable the plugin once with a list of configurations in its options. Add the claim or property once, and add each step once per configuration.
 - Each distinct `plugins:` list stays in memory until the node stops. In production, build these lists from values that don't change between requests.
 
 A call runs with the [default plugins](`Ltix.DefaultPlugins`) first, then the enabled plugins, each after its [dependencies](#depend-on-another-plugin). This is plugin order.
@@ -276,6 +276,8 @@ end
 
 `Ltix.PluginSet.entries/2` returns each module a plugin added, with its options. The options of the module's `use`, such as `name: "total"`, come first, and a plugin can't add the module with them again. Modules that extend a provider also implement each `@callback` it defines, such as `value/1` in `Reports.Column`.
 
+A provider whose `hook:` includes `Ltix.Property` takes [properties](writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results) from other plugins, and its default `resolve/1` returns their conflicts. To define your own `resolve/1`, call `super(plugins)` first. Return its `{:error, conflicts}` unchanged, and return your own result when it returns `{:ok, nil}`.
+
 ## Fix a plugin set that fails to resolve
 
 When the enabled plugins conflict, a call returns `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}`. The error message includes each conflicting module and the plugin that adds it.
@@ -290,7 +292,11 @@ Exception.message(error)
 |---|---|
 | Plugins that depend on each other in a cycle | Remove one of the dependencies |
 | Two plugins that declare the same claim URI, short name, service, message type, or content item type | Enable only one of the plugins, or have both depend on a plugin that declares it |
-| The same claim module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
+| Two plugins that declare the same JSON name for a [property](writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results) on a type | Enable only one of the plugins |
+| A property with a standard field's JSON name | Remove the property, and read the field from the struct |
+| Two properties with the same property name (`:name`) on a type | Change one property's `:name`, or enable only one of the plugins |
+| The same claim or property module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
+| A property whose name is a standard field's name, `:extensions`, `:unrecognized`, or `:plugins` | Change the property's `:name` |
 | A [statement](writing-claim-and-launch-plugins.md#declare-a-message-type) about a claim no plugin declares | Depend on the plugin that declares the claim |
 | An [endpoint claim](writing-advantage-service-plugins.md#declare-the-endpoint-claim) missing `fields:` or `new/1` | Add the missing one |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
@@ -316,7 +322,7 @@ test "blocks a listed issuer", %{platform: platform} do
 end
 ```
 
-Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-claims-and-launch-steps) and [Deep Linking responses](writing-deep-linking-plugins.md#test-deep-linking-responses) are on their own pages.
+Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-claims-and-launch-steps), [properties on service types](writing-advantage-service-plugins.md#test-properties-on-service-types), and [Deep Linking responses](writing-deep-linking-plugins.md#test-deep-linking-responses) are on their own pages.
 
 ## Next steps
 

@@ -91,25 +91,30 @@ client = Ltix.OAuth.Client.refresh!(client)
 
 Ltix blocks deletion of coupled line items by default. **Never** pass `force: true` without confirming with the user which platforms they target and that they understand the consequences.
 
-### Canvas Extensions
+### Platform Properties
 
-Pass Canvas-specific properties via `:extensions`.
+**Never** pass `extensions:` to `create_line_item/3` or `Score.new/1`. Add the plugin that declares a vendor property to `config :ltix, plugins: [...]`. Pass the property by its `:name`, and read it from `item.extensions`.
 
 ```elixir
-{:ok, score} = Ltix.GradeService.Score.new(
-  user_id: user_id,
-  score_given: 90,
-  score_maximum: 100,
-  activity_progress: :completed,
-  grading_progress: :fully_graded,
-  extensions: %{
-    "https://canvas.instructure.com/lti/submission_type" => %{
-      "type" => "external_tool",
-      "external_tool_url" => "https://my.tool.url/launch"
-    }
-  }
-)
+# config/config.exs
+config :ltix, plugins: [MyApp.Canvas]
 ```
+
+```elixir
+{:ok, item} =
+  Ltix.GradeService.create_line_item(client,
+    label: "Essay",
+    score_maximum: 100,
+    canvas_submission_type: %{type: "external_tool", external_tool_url: "https://my.tool.url/launch"}
+  )
+
+item.extensions.canvas_submission_type
+```
+
+- `Score.new/1` takes property names the same way.
+- A name that's neither a field nor a declared property raises `InvalidOption` from `create_line_item/3` and returns `InvalidField` from `Score.new/1`.
+- Undeclared properties are in `unrecognized`, keyed by JSON name.
+- To declare a property, follow [Add a property to line items, scores, or results](https://ltix.hexdocs.pm/writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results).
 
 ## Memberships Service
 

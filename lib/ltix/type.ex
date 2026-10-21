@@ -2,10 +2,10 @@ defmodule Ltix.Type do
   @moduledoc """
   A struct that converts to and from JSON, defined from Zoi schemas.
 
-  Object claims and content items are types. Convert any of them with
-  `from_json/3` and `to_json/3`, and define your own type with `use Ltix.Type`
-  and its fields as a keyword list of Zoi schemas. `use` defines the struct, its
-  `t` type, and its enforced keys.
+  Ltix's JSON structs, such as line items, content items, and object claims,
+  are types. Convert any of them with `from_json/3` and `to_json/3`, and define
+  your own type with `use Ltix.Type` and its fields as a keyword list of Zoi
+  schemas. `use` defines the struct, its `t` type, and its enforced keys.
 
       defmodule MyLibrary.Badge do
         use Ltix.Type,
@@ -19,9 +19,10 @@ defmodule Ltix.Type do
   fields, the struct has two more fields.
 
     * `:extensions` - property values, keyed by each property's name, as in
-      `badge.extensions.color`. `new/3` takes them by name
+      `badge.extensions.color`. `new/2` takes them by name
     * `:unrecognized` - properties no field or property declares, keyed by
-      their JSON names, as received. `from_json/3` fills it
+      their JSON names, as received. `from_json/3` fills it, and `to_json/3`
+      sends it back unchanged
 
   ## Options
 
@@ -45,6 +46,32 @@ defmodule Ltix.Type do
   style and take `json_key:` too, alone or inside `Zoi.array/2` or
   `Zoi.nullable/2`. Other keys, such as those of
   `Zoi.map(Zoi.string(), Zoi.string())`, are sent as written.
+
+  ## JSON values
+
+  A field's schema checks the field's value in the struct. When the field's
+  JSON value has another form, such as a date in an ISO 8601 string, give
+  the field `from_json:` and `to_json:` in its schema's metadata.
+
+      awarded_on:
+        Zoi.date(metadata: [from_json: &Date.from_iso8601/1, to_json: &Date.to_iso8601/1])
+        |> Zoi.optional()
+
+    * `:from_json` - a function that takes the JSON value and returns
+      `{:ok, value}` or `{:error, reason}`. `from_json/3` parses its value
+      with the field's schema
+    * `:to_json` - a function that takes the field's value and returns its
+      JSON
+
+  ## Properties
+
+  Plugins can add properties to a type that also calls `use Ltix.Provider`.
+
+      use Ltix.Provider, hook: [Ltix.Property]
+
+  `from_json/3` and `to_json/3` parse and serialize each of the type's
+  properties in a plugin set. Pass a property to `new/2` by its name, and read
+  it from `extensions`, such as `badge.extensions.color`.
   """
 
   alias Ltix.Errors
@@ -147,18 +174,33 @@ defmodule Ltix.Type do
     {:%, meta, [module, {:%{}, map_meta, fields ++ extra}]}
   end
 
-  # The JSON names of a type's standard fields.
-  @doc false
-  @spec json_names(module()) :: [String.t()]
-  def json_names(type),
-    do: for({_field, key, _schema, _required?} <- type.__ltix_type__(:json_fields), do: key)
-
   @doc """
   Returns a type's standard fields as a keyword list of Zoi schemas, in
   declaration order.
   """
   @spec fields(module()) :: keyword(Zoi.schema())
   def fields(type), do: type.__ltix_type__(:schema).fields
+
+  # A type's struct as a map of its standard fields, which `new/2` and the
+  # type's own `new/1` take.
+  @doc false
+  def standard_fields(%type{} = value), do: Map.take(value, Keyword.keys(fields(type)))
+
+  # The JSON names of a type's standard fields, or `[]` for a module that
+  # isn't a type, such as a scalar claim.
+  @doc false
+  def json_names(module) do
+    if type?(module),
+      do: for({_field, key, _schema, _required?} <- module.__ltix_type__(:json_fields), do: key),
+      else: []
+  end
+
+  # The names of a type's standard fields, or `[]` for a module that isn't a
+  # type.
+  @doc false
+  def field_names(module), do: if(type?(module), do: Keyword.keys(fields(module)), else: [])
+
+  defp type?(module), do: function_exported?(module, :__ltix_type__, 1)
 
   @doc """
   Returns a Zoi schema for a nested object with `fields`, given as a map of
@@ -234,11 +276,17 @@ defmodule Ltix.Type do
   Parses JSON into a type's struct.
 
   A missing or malformed field with `Zoi.optional/1` is left at its default,
-  and a missing or malformed field without it is an error. Properties no field
-  declares go in `unrecognized`.
+  and a missing or malformed field without it is an error. Each of the type's
+  properties in `:plugins` is parsed with its `c:Ltix.Property.parse/2` and
+  goes in `extensions`, and a property that fails to parse is an error.
+  Properties no field or property declares go in `unrecognized`. Returns
+  `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
 
   ## Options
 
+    * `:plugins` - the plugins to parse the type's properties with, as a
+      list such as `[MyPlugin]` or an `Ltix.PluginSet`. Defaults to `nil`,
+      which uses the configured plugins
     * `:name` - the name errors give the JSON, such as `"context"` for an
       error about `"context.id"`
   """
@@ -246,8 +294,20 @@ defmodule Ltix.Type do
   def from_json(type, json, opts \\ [])
 
   def from_json(type, json, opts) when is_map(json) do
-    with {:ok, values, unrecognized} <- parse_fields(type.__ltix_type__(:json_fields), json, opts),
-         do: {:ok, struct!(type, [{:unrecognized, unrecognized} | values])}
+    with {:ok, plugins} <- PluginSet.resolve(opts[:plugins]) do
+      opts = Keyword.put(opts, :plugins, plugins)
+      fields = type.__ltix_type__(:json_fields)
+      properties = properties(type, plugins)
+      {property_json, json} = Map.split(normalize_nulls(json), Map.keys(properties))
+
+      {values, field_errors} = parse_fields(fields, json, opts)
+      {extensions, property_errors} = parse_properties(properties, property_json, opts)
+      unrecognized = Map.drop(json, for({_field, key, _schema, _required?} <- fields, do: key))
+
+      with :ok <- Errors.collect(field_errors ++ property_errors) do
+        {:ok, struct!(type, [extensions: extensions, unrecognized: unrecognized] ++ values)}
+      end
+    end
   end
 
   def from_json(_type, json, opts) do
@@ -255,15 +315,16 @@ defmodule Ltix.Type do
      InvalidClaim.exception(claim: opts[:name], value: json, message: "must be an object")}
   end
 
-  # Parses the JSON of `fields`, given as `{field, json_key, schema, required?}`,
-  # as `from_json/3` does. Returns the parsed values and the unrecognized
-  # properties.
-  @doc false
-  @spec parse_fields([{atom(), String.t(), Zoi.schema(), boolean()}], map(), keyword()) ::
-          {:ok, keyword(), map()} | {:error, Exception.t()}
-  def parse_fields(fields, json, opts) do
-    json = normalize_nulls(json)
+  # The type's properties in `plugins`, keyed by JSON name.
+  defp properties(type, plugins) do
+    for entry <- PluginSet.entries(plugins, type),
+        into: %{},
+        do: {entry.opts[:property], entry}
+  end
 
+  # Returns the parsed values of `fields`, given as
+  # `{field, json_key, schema, required?}`, and the errors.
+  defp parse_fields(fields, json, opts) do
     {values, errors} =
       Enum.reduce(fields, {[], []}, fn {field, key, schema, required?}, {values, errors} ->
         case parse_value(Map.fetch(json, key), field, schema, required?, opts) do
@@ -273,13 +334,30 @@ defmodule Ltix.Type do
         end
       end)
 
-    case errors do
-      [] ->
-        {:ok, values, Map.drop(json, for({_field, key, _schema, _required?} <- fields, do: key))}
+    {values, Enum.reverse(errors)}
+  end
 
-      errors ->
-        {:error, Errors.combine(Enum.reverse(errors))}
-    end
+  # Returns the extensions parsed from the JSON of `properties`, and the errors.
+  defp parse_properties(properties, json, opts) do
+    {extensions, errors} =
+      Enum.reduce(json, {%{}, []}, fn
+        {_key, nil}, parsed ->
+          parsed
+
+        {key, value}, {extensions, errors} ->
+          %Entry{module: property, opts: property_opts} = Map.fetch!(properties, key)
+
+          case property.parse(value, property_opts) do
+            {:ok, extension} ->
+              {Map.put(extensions, property_opts[:name], extension), errors}
+
+            {:error, reason} ->
+              error = Errors.from_reason(reason, value, path(key, opts))
+              {extensions, [error | errors]}
+          end
+      end)
+
+    {extensions, Enum.reverse(errors)}
   end
 
   @doc """
@@ -289,20 +367,22 @@ defmodule Ltix.Type do
   type's properties in `plugins` that the value has an extension for. Standard
   fields replace unrecognized properties of the same name, and declared
   properties replace both. Standard fields that are `nil` are left out, and so
-  are `nil` values inside them. A `DateTime` becomes an ISO 8601 string.
+  are `nil` values inside them. A field with `to_json:` in its schema's
+  metadata is sent as that function returns it, and otherwise a `DateTime`
+  becomes an ISO 8601 string.
 
-  A property whose [`:writes`](`m:Ltix.Property#module-options`) option
-  excludes `operation` is left out. `plugins` is a list of plugins or an
-  `Ltix.PluginSet`, and defaults to `nil`,
-  which uses the configured plugins. Raises
-  `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
+  `operation` is the write operation the JSON is for, and a property whose
+  [`:writes`](`m:Ltix.Property#module-options`) option excludes it is left
+  out. `:read` includes every property, as a platform sends the type when it's
+  read. `plugins` is a list of plugins such as `[MyPlugin]` or an
+  `Ltix.PluginSet`, and defaults to `nil`, which uses the configured plugins.
+  Raises `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
   """
   @spec to_json(
           struct(),
           PluginSet.enabled_plugins() | PluginSet.t() | nil,
-          Property.write_operation()
-        ) ::
-          map()
+          Property.write_operation() | :read
+        ) :: map()
   def to_json(%type{} = value, plugins \\ nil, operation \\ :create) do
     plugins =
       case PluginSet.resolve(plugins) do
@@ -317,11 +397,11 @@ defmodule Ltix.Type do
           field_value <- [Map.fetch!(value, field)],
           field_value != nil,
           into: %{},
-          do: {key, json_value(field_value, schema, json_keys)}
+          do: {key, field_json(field_value, schema, json_keys)}
 
     properties =
       for %Entry{module: property, opts: opts} <- PluginSet.entries(plugins, type),
-          operation in Keyword.get(opts, :writes, [:create, :update]),
+          operation == :read || operation in Keyword.get(opts, :writes, [:create, :update]),
           {:ok, extension} <- [Map.fetch(value.extensions, opts[:name])],
           into: %{},
           do: {opts[:property], property.serialize(extension, opts)}
@@ -329,6 +409,13 @@ defmodule Ltix.Type do
     value.unrecognized
     |> Map.merge(standard)
     |> Map.merge(properties)
+  end
+
+  defp field_json(value, schema, json_keys) do
+    case Zoi.metadata(schema)[:to_json] do
+      nil -> json_value(value, schema, json_keys)
+      to_json -> to_json.(value)
+    end
   end
 
   # Serializes a value with its schema. The keys a nested map's schema
@@ -388,15 +475,22 @@ defmodule Ltix.Type do
   defp parse_value({:ok, nil}, _field, _schema, false, _opts), do: :default
 
   defp parse_value({:ok, value}, field, schema, required?, opts) do
-    case Zoi.parse(schema, value) do
+    case parse_json(value, schema) do
       {:ok, _value} = ok ->
         ok
 
-      {:error, _errors} when not required? ->
+      {:error, _reason} when not required? ->
         :default
 
-      {:error, errors} ->
-        {:error, Errors.from_zoi(errors, value, path(field, opts))}
+      {:error, reason} ->
+        {:error, Errors.from_reason(reason, value, path(field, opts))}
+    end
+  end
+
+  defp parse_json(value, schema) do
+    case Zoi.metadata(schema)[:from_json] do
+      nil -> Zoi.parse(schema, value)
+      from_json -> with {:ok, value} <- from_json.(value), do: Zoi.parse(schema, value)
     end
   end
 

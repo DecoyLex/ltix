@@ -34,24 +34,21 @@ defmodule Ltix.Errors.Invalid.InvalidField do
     exception(struct: struct, field: field, value: value, reason: reason)
   end
 
-  # Parses `input` with `schema`, returning the errors for `struct` combined
-  # with `other_errors`. A schema with `empty_values: [nil]` treats a field
-  # given `nil` as omitted, so a required one is reported missing, and a field
-  # with a default is `nil` when given `nil`.
+  # Parses `input` with `schema`. Returns the errors for `struct`, combined
+  # into one Ltix error.
+  # A schema with `empty_values: [nil]` treats a field given `nil` as omitted,
+  # so a required one is reported missing, and a field with a default is `nil`
+  # when given `nil`.
   @doc false
-  @spec parse(module(), Zoi.schema(), map(), [Exception.t()]) ::
-          {:ok, term()} | {:error, Exception.t()}
-  def parse(struct, schema, input, other_errors \\ []) do
-    case {Zoi.parse(schema, input), other_errors} do
-      {{:ok, parsed}, []} ->
+  @spec parse(module(), Zoi.schema(), map()) :: {:ok, term()} | {:error, Exception.t()}
+  def parse(struct, schema, input) do
+    case Zoi.parse(schema, input) do
+      {:ok, parsed} ->
         nils = for {key, nil} <- input, Map.has_key?(parsed, key), into: %{}, do: {key, nil}
         {:ok, Map.merge(parsed, nils)}
 
-      {{:ok, _parsed}, _other_errors} ->
-        {:error, Errors.combine(other_errors)}
-
-      {{:error, errors}, other_errors} ->
-        {:error, Errors.combine(from_zoi(struct, errors, input) ++ other_errors)}
+      {:error, errors} ->
+        {:error, Errors.combine(from_zoi(struct, errors, input))}
     end
   end
 

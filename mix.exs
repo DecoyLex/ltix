@@ -107,7 +107,7 @@ defmodule Ltix.MixProject do
         "guides/cookbooks/score-construction.md",
         "guides/cookbooks/persisting-service-endpoints.md",
         "guides/cookbooks/background-grade-sync.md",
-        "guides/cookbooks/canvas-grade-extensions.md",
+        "guides/cookbooks/canvas-grade-plugin.md",
         "guides/cookbooks/building-content-items.md",
         "guides/cookbooks/token-caching-and-reuse.md",
         "guides/cookbooks/custom-advantage-service.md",
@@ -189,7 +189,7 @@ defmodule Ltix.MixProject do
           "guides/cookbooks/score-construction.md",
           "guides/cookbooks/persisting-service-endpoints.md",
           "guides/cookbooks/background-grade-sync.md",
-          "guides/cookbooks/canvas-grade-extensions.md",
+          "guides/cookbooks/canvas-grade-plugin.md",
           "guides/cookbooks/building-content-items.md",
           "guides/cookbooks/token-caching-and-reuse.md",
           "guides/cookbooks/custom-advantage-service.md",
@@ -217,6 +217,7 @@ defmodule Ltix.MixProject do
         Ltix.Test
       ],
       redirects: %{
+        "canvas-grade-extensions" => "canvas-grade-plugin",
         "custom-claim-parsers" => "writing-claim-and-launch-plugins",
         "custom-role-parsers" => "working-with-roles"
       },

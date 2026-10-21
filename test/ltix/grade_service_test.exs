@@ -1,6 +1,8 @@
 defmodule Ltix.GradeServiceTest do
   use ExUnit.Case, async: true
 
+  import Ltix.Test.GradeServiceHelper
+
   alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidField
@@ -18,7 +20,6 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
-  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
@@ -42,37 +43,11 @@ defmodule Ltix.GradeServiceTest do
     %{platform: platform}
   end
 
-  defp req_options, do: [plug: {Req.Test, Ltix.GradeService}, retry: false]
-
   defp stub_token_response(scopes \\ @all_scopes) do
     Ltix.Test.stub_token_response(
       scopes: scopes,
       access_token: "test-ags-token"
     )
-  end
-
-  defp build_client(platform, opts \\ []) do
-    endpoint =
-      Keyword.get(opts, :endpoint, %GradeServiceEndpoint{
-        line_items: @line_items_url,
-        line_item: @line_item_url,
-        scopes: @all_scopes
-      })
-
-    scopes = Keyword.get(opts, :scopes, @all_scopes)
-    expires_at = Keyword.get(opts, :expires_at, DateTime.add(DateTime.utc_now(), 3600))
-
-    %Client{
-      token: %AccessToken{
-        access_token: "test-ags-token",
-        token_type: "bearer",
-        expires_at: expires_at,
-        granted_scopes: MapSet.new(scopes)
-      },
-      registration: platform.registration,
-      req_options: req_options(),
-      endpoints: %{GradeService => endpoint}
-    }
   end
 
   defp build_line_item_json(opts \\ []) do
@@ -100,7 +75,7 @@ defmodule Ltix.GradeServiceTest do
 
   describe "options" do
     test "every operation raises on unknown options", ctx do
-      client = build_client(ctx.platform)
+      client = create_client()
       launch = Ltix.Test.build_launch(ctx.platform)
 
       {:ok, score} =
@@ -125,6 +100,18 @@ defmodule Ltix.GradeServiceTest do
               )
             end,
             fn ->
+              GradeService.create_line_item(client, %LineItem{label: "Quiz", score_maximum: 1},
+                unknown: true
+              )
+            end,
+            fn ->
+              GradeService.update_line_item(
+                client,
+                %LineItem{id: @line_item_url, label: "Quiz", score_maximum: 1},
+                unknown: true
+              )
+            end,
+            fn ->
               GradeService.delete_line_item(client,
                 line_item: @line_items_url <> "/9",
                 unknown: true
@@ -137,8 +124,8 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "operations raise on invalid option values", ctx do
-      client = build_client(ctx.platform)
+    test "operations raise on invalid option values" do
+      client = create_client()
 
       assert_raise InvalidOption, ~r/Option :line_item is invalid/, fn ->
         GradeService.list_results(client, line_item: 1)
@@ -278,7 +265,7 @@ defmodule Ltix.GradeServiceTest do
   # --- list_line_items/2 ---
 
   describe "list_line_items/2" do
-    test "sends correct Accept header", ctx do
+    test "sends correct Accept header" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         [accept] = Plug.Conn.get_req_header(conn, "accept")
         assert accept == @lineitem_container_media_type
@@ -288,11 +275,11 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       assert {:ok, []} = GradeService.list_line_items(client)
     end
 
-    test "passes filter query parameters", ctx do
+    test "passes filter query parameters" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["resource_link_id"] == "rl-123"
@@ -304,7 +291,7 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok, []} =
                GradeService.list_line_items(client,
@@ -314,7 +301,7 @@ defmodule Ltix.GradeServiceTest do
                )
     end
 
-    test "follows relative next links without reapplying line item filters", ctx do
+    test "follows relative next links without reapplying line item filters" do
       Req.Test.expect(Ltix.GradeService, fn conn ->
         assert Plug.Conn.fetch_query_params(conn).query_params == %{"tag" => "quiz"}
 
@@ -333,7 +320,7 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([build_line_item_json(id: "#{@line_items_url}/2", label: "Quiz 2")])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok, [%LineItem{label: "Quiz 1"}, %LineItem{label: "Quiz 2"}]} =
                GradeService.list_line_items(client, tag: "quiz")
@@ -341,7 +328,7 @@ defmodule Ltix.GradeServiceTest do
       Req.Test.verify!(Ltix.GradeService)
     end
 
-    test "omits line item fields the platform sends with the wrong type", ctx do
+    test "omits line item fields the platform sends with the wrong type" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@lineitem_container_media_type)
@@ -360,7 +347,7 @@ defmodule Ltix.GradeServiceTest do
         ])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok,
               [
@@ -379,29 +366,29 @@ defmodule Ltix.GradeServiceTest do
               ]} = GradeService.list_line_items(client)
     end
 
-    test "returns error when line_items URL not available", ctx do
+    test "returns error when line_items URL not available" do
       endpoint = %GradeServiceEndpoint{
         line_items: nil,
         line_item: @line_item_url,
         scopes: @all_scopes
       }
 
-      client = build_client(ctx.platform, endpoint: endpoint)
+      client = create_client(endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{} = error} = GradeService.list_line_items(client)
       assert Exception.message(error) =~ "has no line items URL"
     end
 
-    test "returns ScopeMismatch when client lacks lineitem scope", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_score])
+    test "returns ScopeMismatch when client lacks lineitem scope" do
+      client = create_client(scopes: [@scope_score])
 
       assert {:error, %ScopeMismatch{scopes: [@scope_lineitem, @scope_lineitem_readonly]}} =
                GradeService.list_line_items(client)
     end
 
-    test "returns AccessTokenExpired when token is expired", ctx do
+    test "returns AccessTokenExpired when token is expired" do
       client =
-        build_client(ctx.platform, expires_at: DateTime.add(DateTime.utc_now(), -120))
+        create_client(expires_at: DateTime.add(DateTime.utc_now(), -120))
 
       assert {:error, %AccessTokenExpired{}} = GradeService.list_line_items(client)
     end
@@ -410,7 +397,7 @@ defmodule Ltix.GradeServiceTest do
   # --- get_line_item/2 ---
 
   describe "get_line_item/2" do
-    test "sends a GET without a body", ctx do
+    test "sends a GET without a body" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert conn.method == "GET"
         assert Plug.Conn.get_req_header(conn, "content-type") == []
@@ -418,27 +405,27 @@ defmodule Ltix.GradeServiceTest do
         Req.Test.json(conn, build_line_item_json())
       end)
 
-      assert {:ok, %LineItem{}} = GradeService.get_line_item(build_client(ctx.platform))
+      assert {:ok, %LineItem{}} = GradeService.get_line_item(create_client())
     end
 
-    test "returns error when no URL available", ctx do
+    test "returns error when no URL available" do
       endpoint = %GradeServiceEndpoint{
         line_items: @line_items_url,
         line_item: nil,
         scopes: @all_scopes
       }
 
-      client = build_client(ctx.platform, endpoint: endpoint)
+      client = create_client(endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{} = error} = GradeService.get_line_item(client)
       assert Exception.message(error) =~ "has no coupled line item URL"
     end
   end
 
-  # --- create_line_item/2 ---
+  # --- create_line_item/3 ---
 
-  describe "create_line_item/2" do
-    test "creates line item and returns parsed response", ctx do
+  describe "create_line_item/3" do
+    test "creates line item and returns parsed response" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         json = Ltix.AppConfig.json_library!().decode!(body)
@@ -452,7 +439,7 @@ defmodule Ltix.GradeServiceTest do
         |> Plug.Conn.send_resp(201, Ltix.AppConfig.json_library!().encode!(response))
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok, %LineItem{} = item} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
@@ -461,32 +448,47 @@ defmodule Ltix.GradeServiceTest do
       assert item.label == "Quiz 1"
     end
 
-    test "sends extensions given as a map with atom or string keys or as a keyword list", ctx do
+    test "creates a line item given as a struct, with options" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
+        assert conn.request_path == "/other/lineitems"
         {:ok, body, conn} = Plug.Conn.read_body(conn)
+        json = Ltix.AppConfig.json_library!().decode!(body)
+        assert json == %{"label" => "Quiz 1", "scoreMaximum" => 100, "tag" => "quiz"}
 
         conn
-        |> Plug.Conn.put_resp_content_type(@lineitem_media_type)
-        |> Plug.Conn.send_resp(201, body)
+        |> Plug.Conn.put_status(201)
+        |> Req.Test.json(Map.put(json, "id", "https://platform.example.com/other/lineitems/1"))
       end)
 
-      client = build_client(ctx.platform)
+      endpoint = %GradeServiceEndpoint{
+        line_items: "https://platform.example.com/other/lineitems",
+        scopes: @all_scopes
+      }
 
-      for extensions <- [
-            %{"https://example.com/extra" => "data", vendor: 1},
-            ["https://example.com/extra": "data", vendor: 1]
-          ] do
-        assert {:ok,
-                %LineItem{extensions: %{"https://example.com/extra" => "data", "vendor" => 1}}} =
-                 GradeService.create_line_item(client,
-                   label: "Quiz 1",
-                   score_maximum: 100,
-                   extensions: extensions
-                 )
+      item = %LineItem{label: "Quiz 1", score_maximum: 100, tag: "quiz"}
+
+      assert {:ok, %LineItem{id: "https://platform.example.com/other/lineitems/1"}} =
+               GradeService.create_line_item(create_client(), item, endpoint: endpoint)
+
+      assert {:ok, %LineItem{}} =
+               GradeService.create_line_item(
+                 create_client(),
+                 [label: "Quiz 1", score_maximum: 100, tag: "quiz"],
+                 endpoint: endpoint
+               )
+    end
+
+    test "raises on extensions" do
+      assert_raise InvalidOption, "Option :extensions is unknown", fn ->
+        GradeService.create_line_item(create_client(),
+          label: "Quiz 1",
+          score_maximum: 100,
+          extensions: %{"https://example.com/extra" => "data"}
+        )
       end
     end
 
-    test "sends correct Content-Type", ctx do
+    test "sends correct Content-Type" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         [content_type] = Plug.Conn.get_req_header(conn, "content-type")
         assert content_type =~ @lineitem_media_type
@@ -498,18 +500,18 @@ defmodule Ltix.GradeServiceTest do
         |> Plug.Conn.send_resp(201, Ltix.AppConfig.json_library!().encode!(response))
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       assert {:ok, _} = GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
     end
 
-    test "returns error when line_items URL not available", ctx do
+    test "returns error when line_items URL not available" do
       endpoint = %GradeServiceEndpoint{
         line_items: nil,
         line_item: @line_item_url,
         scopes: @all_scopes
       }
 
-      client = build_client(ctx.platform, endpoint: endpoint)
+      client = create_client(endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{} = error} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
@@ -517,14 +519,14 @@ defmodule Ltix.GradeServiceTest do
       assert Exception.message(error) =~ "has no line items URL"
     end
 
-    test "returns ScopeMismatch with only lineitem.readonly", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
+    test "returns ScopeMismatch with only lineitem.readonly" do
+      client = create_client(scopes: [@scope_lineitem_readonly])
 
       assert {:error, %ScopeMismatch{}} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
     end
 
-    test "sends date times as ISO 8601 and parses them back", ctx do
+    test "sends date times as ISO 8601 and parses them back" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         json = Ltix.AppConfig.json_library!().decode!(body)
@@ -537,7 +539,7 @@ defmodule Ltix.GradeServiceTest do
       end)
 
       assert {:ok, %LineItem{start_date_time: ~U[2024-01-15 10:30:00Z]}} =
-               GradeService.create_line_item(build_client(ctx.platform),
+               GradeService.create_line_item(create_client(),
                  label: "Quiz",
                  score_maximum: 10,
                  start_date_time: ~U[2024-01-15 10:30:00Z],
@@ -545,9 +547,9 @@ defmodule Ltix.GradeServiceTest do
                )
     end
 
-    test "raises when a date time is not a DateTime", ctx do
+    test "raises when a date time is not a DateTime" do
       assert_raise InvalidOption, ~r/Option :start_date_time is invalid/, fn ->
-        GradeService.create_line_item(build_client(ctx.platform),
+        GradeService.create_line_item(create_client(),
           label: "Quiz",
           score_maximum: 10,
           start_date_time: "2024-01-15T10:30:00Z"
@@ -555,48 +557,36 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "returns InvalidField without sending an invalid line item field", ctx do
+    test "returns InvalidField without sending an invalid line item field" do
       Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid line item") end)
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:error, %InvalidField{struct: LineItem, field: :label}} =
                GradeService.create_line_item(client, label: " ", score_maximum: 100)
 
       assert {:error, %InvalidField{struct: LineItem, field: :score_maximum}} =
                GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 0)
-
-      assert {:error,
-              %InvalidField{
-                struct: LineItem,
-                field: [:extensions, "scoreMaximum"],
-                reason: "would replace a standard field"
-              }} =
-               GradeService.create_line_item(client,
-                 label: "Quiz 1",
-                 score_maximum: 100,
-                 extensions: %{"scoreMaximum" => 5}
-               )
     end
 
-    test "raises when score_maximum is not a number", ctx do
+    test "raises when score_maximum is not a number" do
       assert_raise InvalidOption, ~r/Option :score_maximum is invalid/, fn ->
-        GradeService.create_line_item(build_client(ctx.platform),
+        GradeService.create_line_item(create_client(),
           label: "Quiz 1",
           score_maximum: "100"
         )
       end
     end
 
-    test "raises when label is missing", ctx do
-      client = build_client(ctx.platform)
+    test "raises when label is missing" do
+      client = create_client()
 
       assert_raise InvalidOption, "Option :label is required", fn ->
         GradeService.create_line_item(client, score_maximum: 100)
       end
     end
 
-    test "raises when score_maximum is missing", ctx do
-      client = build_client(ctx.platform)
+    test "raises when score_maximum is missing" do
+      client = create_client()
 
       assert_raise InvalidOption, "Option :score_maximum is required", fn ->
         GradeService.create_line_item(client, label: "Quiz 1")
@@ -604,10 +594,10 @@ defmodule Ltix.GradeServiceTest do
     end
   end
 
-  # --- update_line_item/2 ---
+  # --- update_line_item/3 ---
 
-  describe "update_line_item/2" do
-    test "PUTs full line item to its id URL", ctx do
+  describe "update_line_item/3" do
+    test "PUTs full line item to its id URL" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert {conn.method, conn.request_path} == {"PUT", "/context/2923/lineitems/1/lineitem"}
 
@@ -621,7 +611,7 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json(json)
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       item = %LineItem{
         id: "#{@line_items_url}/1/lineitem",
@@ -633,16 +623,16 @@ defmodule Ltix.GradeServiceTest do
                GradeService.update_line_item(client, item)
     end
 
-    test "returns InvalidField without sending an invalid line item", ctx do
+    test "returns InvalidField without sending an invalid line item" do
       Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid line item") end)
       item = %LineItem{id: @line_item_url, label: " ", score_maximum: 100}
 
       assert {:error, %InvalidField{field: :label}} =
-               GradeService.update_line_item(build_client(ctx.platform), item)
+               GradeService.update_line_item(create_client(), item)
     end
 
-    test "returns ScopeMismatch without lineitem scope", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
+    test "returns ScopeMismatch without lineitem scope" do
+      client = create_client(scopes: [@scope_lineitem_readonly])
 
       item = %LineItem{id: @line_item_url, label: "Quiz 1", score_maximum: 100}
 
@@ -653,7 +643,7 @@ defmodule Ltix.GradeServiceTest do
   # --- delete_line_item/2 ---
 
   describe "delete_line_item/2" do
-    test "deletes line item by struct", ctx do
+    test "deletes line item by struct" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert {conn.method, conn.request_path} ==
                  {"DELETE", "/context/2923/lineitems/99/lineitem"}
@@ -661,13 +651,13 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       item = %LineItem{id: "#{@line_items_url}/99/lineitem"}
 
       assert :ok = GradeService.delete_line_item(client, line_item: item)
     end
 
-    test "deletes line item by URL string", ctx do
+    test "deletes line item by URL string" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert {conn.method, conn.request_path} ==
                  {"DELETE", "/context/2923/lineitems/99/lineitem"}
@@ -675,20 +665,20 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert :ok =
                GradeService.delete_line_item(client, line_item: "#{@line_items_url}/99/lineitem")
     end
 
-    test "returns CoupledLineItem when URL matches endpoint line_item", ctx do
-      client = build_client(ctx.platform)
+    test "returns CoupledLineItem when URL matches endpoint line_item" do
+      client = create_client()
 
       assert {:error, %CoupledLineItem{}} =
                GradeService.delete_line_item(client, line_item: @line_item_url)
     end
 
-    test "defaults to the coupled line item", ctx do
+    test "defaults to the coupled line item" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         assert {conn.method, conn.request_path} ==
                  {"DELETE", "/context/2923/lineitems/1/lineitem"}
@@ -696,14 +686,14 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 204, "")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:error, %CoupledLineItem{}} = GradeService.delete_line_item(client)
       assert :ok = GradeService.delete_line_item(client, force: true)
     end
 
-    test "returns ScopeMismatch without lineitem scope", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_lineitem_readonly])
+    test "returns ScopeMismatch without lineitem scope" do
+      client = create_client(scopes: [@scope_lineitem_readonly])
 
       assert {:error, %ScopeMismatch{}} =
                GradeService.delete_line_item(client, line_item: "#{@line_items_url}/99/lineitem")
@@ -734,14 +724,14 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 200, "")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert :ok = GradeService.post_score(client, ctx.score)
     end
 
     test "returns InvalidField without sending a score built with invalid fields", ctx do
       Req.Test.stub(Ltix.GradeService, fn _conn -> flunk("sent an invalid score") end)
-      client = build_client(ctx.platform)
+      client = create_client()
 
       score = %{ctx.score | activity_progress: "Completed"}
       assert {:error, %InvalidField{struct: Score}} = GradeService.post_score(client, score)
@@ -755,7 +745,7 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 200, "")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       item = %LineItem{id: explicit_url}
 
       assert :ok = GradeService.post_score(client, ctx.score, line_item: item)
@@ -769,13 +759,13 @@ defmodule Ltix.GradeServiceTest do
         Plug.Conn.send_resp(conn, 200, "")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert :ok = GradeService.post_score(client, ctx.score)
     end
 
-    test "posts timestamps at every caller precision without losing the instant", ctx do
-      client = build_client(ctx.platform)
+    test "posts timestamps at every caller precision without losing the instant" do
+      client = create_client()
 
       {microsecond, precision, fraction} = {123_000, 3, "123000"}
 
@@ -813,8 +803,8 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "posts submission times as UTC ISO 8601 with microseconds", ctx do
-      client = build_client(ctx.platform)
+    test "posts submission times as UTC ISO 8601 with microseconds" do
+      client = create_client()
 
       for {submission, expected} <- [
             {[started_at: ~U[2024-01-15 09:00:00.1Z]],
@@ -857,7 +847,7 @@ defmodule Ltix.GradeServiceTest do
         scopes: @all_scopes
       }
 
-      client = build_client(ctx.platform, endpoint: endpoint)
+      client = create_client(endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{} = error} = GradeService.post_score(client, ctx.score)
       assert Exception.message(error) =~ "has no coupled line item URL"
@@ -867,7 +857,7 @@ defmodule Ltix.GradeServiceTest do
   # --- list_results/2 ---
 
   describe "list_results/2" do
-    test "fetches results for explicit line item", ctx do
+    test "fetches results for explicit line item" do
       explicit_url = "#{@line_items_url}/42/lineitem"
 
       Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -878,13 +868,13 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok, _results} =
                GradeService.list_results(client, line_item: explicit_url)
     end
 
-    test "filters by user_id query parameter", ctx do
+    test "filters by user_id query parameter" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         params = Plug.Conn.fetch_query_params(conn).query_params
         assert params["user_id"] == "user-123"
@@ -894,13 +884,13 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([build_result_json("user-123", result_score: 0.9)])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok, _results} =
                GradeService.list_results(client, user_id: "user-123")
     end
 
-    test "omits result fields the platform sends with the wrong type", ctx do
+    test "omits result fields the platform sends with the wrong type" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@result_container_media_type)
@@ -917,7 +907,7 @@ defmodule Ltix.GradeServiceTest do
         ])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok,
               [
@@ -934,7 +924,7 @@ defmodule Ltix.GradeServiceTest do
               ]} = GradeService.list_results(client)
     end
 
-    test "follows relative result links with multiple relation types", ctx do
+    test "follows relative result links with multiple relation types" do
       Req.Test.expect(Ltix.GradeService, fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type(@result_container_media_type)
@@ -951,7 +941,7 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([build_result_json("user-2", result_score: 0.9)])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
 
       assert {:ok, [%Result{user_id: "user-1"}, %Result{user_id: "user-2"}]} =
                GradeService.list_results(client)
@@ -959,7 +949,7 @@ defmodule Ltix.GradeServiceTest do
       Req.Test.verify!(Ltix.GradeService)
     end
 
-    test "sends correct Accept header", ctx do
+    test "sends correct Accept header" do
       Req.Test.stub(Ltix.GradeService, fn conn ->
         [accept] = Plug.Conn.get_req_header(conn, "accept")
         assert accept == @result_container_media_type
@@ -969,18 +959,18 @@ defmodule Ltix.GradeServiceTest do
         |> Req.Test.json([])
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       assert {:ok, _} = GradeService.list_results(client)
     end
 
-    test "returns error when no line item URL available", ctx do
+    test "returns error when no line item URL available" do
       endpoint = %GradeServiceEndpoint{
         line_items: @line_items_url,
         line_item: nil,
         scopes: @all_scopes
       }
 
-      client = build_client(ctx.platform, endpoint: endpoint)
+      client = create_client(endpoint: endpoint)
 
       assert {:error, %ServiceNotAvailable{} = error} = GradeService.list_results(client)
       assert Exception.message(error) =~ "has no coupled line item URL"
@@ -990,7 +980,7 @@ defmodule Ltix.GradeServiceTest do
   # --- bang variants ---
 
   describe "bang variants" do
-    setup ctx do
+    setup do
       {:ok, score} =
         Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
 
@@ -1025,7 +1015,7 @@ defmodule Ltix.GradeServiceTest do
       end)
 
       item = %LineItem{id: "#{@line_items_url}/7", label: "Quiz", score_maximum: 10}
-      %{client: build_client(ctx.platform), score: score, item: item}
+      %{client: create_client(), score: score, item: item}
     end
 
     test "return the unwrapped value on success", ctx do
@@ -1042,7 +1032,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "raise the error on failure", ctx do
-      client = build_client(ctx.platform, scopes: [])
+      client = create_client(scopes: [])
 
       for call <- [
             fn -> GradeService.list_line_items!(client) end,
@@ -1059,8 +1049,8 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "malformed line item responses" do
-    test "return MalformedResponse", ctx do
-      client = build_client(ctx.platform)
+    test "return MalformedResponse" do
+      client = create_client()
       item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
 
       Req.Test.stub(Ltix.GradeService, &Req.Test.json(&1, [1]))
@@ -1076,11 +1066,11 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "access denied" do
-    test "every request operation returns AccessDenied for HTTP 401 and 403", ctx do
+    test "every request operation returns AccessDenied for HTTP 401 and 403" do
       {:ok, score} =
         Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
 
       for status <- [401, 403] do
@@ -1104,11 +1094,11 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "unreachable platform" do
-    test "every request operation returns TransportError with the requested URL", ctx do
+    test "every request operation returns TransportError with the requested URL" do
       {:ok, score} =
         Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
       Req.Test.stub(Ltix.GradeService, &Req.Test.transport_error(&1, :econnrefused))
 
@@ -1128,11 +1118,11 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "platform responses the tool can't use" do
-    setup ctx do
+    setup do
       {:ok, score} =
         Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
 
-      %{client: build_client(ctx.platform), score: score}
+      %{client: create_client(), score: score}
     end
 
     test "invalid JSON in a successful response returns MalformedResponse", ctx do
@@ -1172,12 +1162,12 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "line items without an id" do
-    test "every operation returns MissingLineItemId", ctx do
+    test "every operation returns MissingLineItemId" do
       Req.Test.stub(Ltix.GradeService, fn _conn ->
         flunk("sent a request for a line item without an id")
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       item = %LineItem{label: "Quiz", score_maximum: 10}
 
       {:ok, score} =
@@ -1200,7 +1190,7 @@ defmodule Ltix.GradeServiceTest do
   # --- endpoint override ---
 
   describe "endpoint option" do
-    setup ctx do
+    setup do
       owner = self()
 
       Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -1230,7 +1220,7 @@ defmodule Ltix.GradeServiceTest do
         scopes: @all_scopes
       }
 
-      %{client: build_client(ctx.platform), endpoint: endpoint, score: score}
+      %{client: create_client(), endpoint: endpoint, score: score}
     end
 
     test "every operation uses the given endpoint", ctx do
@@ -1279,12 +1269,12 @@ defmodule Ltix.GradeServiceTest do
   end
 
   describe "a client authenticated for another service" do
-    test "gets ScopeMismatch from every operation", ctx do
+    test "gets ScopeMismatch from every operation" do
       {:ok, score} =
         Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
 
       client = %{
-        build_client(ctx.platform, scopes: [@nrps_scope])
+        create_client(scopes: [@nrps_scope])
         | endpoints: %{
             Ltix.MembershipsService => %MembershipsServiceEndpoint{
               context_memberships_url: @line_items_url
@@ -1367,7 +1357,7 @@ defmodule Ltix.GradeServiceTest do
         end
       end)
 
-      client = build_client(ctx.platform)
+      client = create_client()
       item = %LineItem{id: "#{@line_items_url}/9", label: "Quiz", score_maximum: 10}
 
       GradeService.list_line_items(client)
@@ -1396,8 +1386,8 @@ defmodule Ltix.GradeServiceTest do
       end
     end
 
-    test "reports no URL when the client has no grade service endpoint", ctx do
-      client = %{build_client(ctx.platform) | endpoints: %{}}
+    test "reports no URL when the client has no grade service endpoint" do
+      client = %{create_client() | endpoints: %{}}
 
       assert {:error, %ServiceNotAvailable{}} = GradeService.list_line_items(client)
       assert_received {:telemetry, :list_line_items, :stop, %{endpoint: nil}}
@@ -1407,7 +1397,7 @@ defmodule Ltix.GradeServiceTest do
       Req.Test.stub(Ltix.GradeService, fn _conn -> raise "platform plug crashed" end)
 
       assert_raise RuntimeError, fn ->
-        GradeService.post_score(build_client(ctx.platform), ctx.score)
+        GradeService.post_score(create_client(), ctx.score)
       end
 
       assert_received {:telemetry, :post_score, :exception,
@@ -1418,7 +1408,7 @@ defmodule Ltix.GradeServiceTest do
   # --- streams and limits ---
 
   describe "stream_line_items/2 and stream_results/2" do
-    setup ctx do
+    setup do
       owner = self()
 
       Req.Test.stub(Ltix.GradeService, fn conn ->
@@ -1442,7 +1432,7 @@ defmodule Ltix.GradeServiceTest do
         end
       end)
 
-      %{client: build_client(ctx.platform)}
+      %{client: create_client()}
     end
 
     test "stream line items lazily with filters on the first page", ctx do
@@ -1468,8 +1458,8 @@ defmodule Ltix.GradeServiceTest do
       assert [%Result{user_id: "user-1"}, %Result{user_id: "user-2"}] = Enum.to_list(stream)
     end
 
-    test "return errors before streaming", ctx do
-      client = build_client(ctx.platform, scopes: [@scope_score])
+    test "return errors before streaming" do
+      client = create_client(scopes: [@scope_score])
 
       assert {:error, %ScopeMismatch{}} = GradeService.stream_line_items(client)
       assert {:error, %ScopeMismatch{}} = GradeService.stream_results(client)

@@ -1,6 +1,8 @@
 defmodule Ltix.GradeService.ScoreTest do
   use ExUnit.Case, async: true
 
+  import Ltix.Test.GradeServiceHelper
+
   alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.GradeService.Score
@@ -26,8 +28,7 @@ defmodule Ltix.GradeService.ScoreTest do
             submission: %{
               started_at: ~U[2024-01-15 09:00:00.000Z],
               submitted_at: ~U[2024-01-15 10:00:00.000Z]
-            },
-            extensions: %{"https://example.com/extra" => "data"}
+            }
           ]
 
       assert {:ok, %Score{} = score} = Score.new(attrs)
@@ -39,8 +40,6 @@ defmodule Ltix.GradeService.ScoreTest do
                started_at: ~U[2024-01-15 09:00:00.000Z],
                submitted_at: ~U[2024-01-15 10:00:00.000Z]
              }
-
-      assert score.extensions == %{"https://example.com/extra" => "data"}
     end
 
     test "auto-generates timestamp when not provided" do
@@ -57,34 +56,9 @@ defmodule Ltix.GradeService.ScoreTest do
                Score.new(attrs)
     end
 
-    test "accepts extensions with atom or string keys, keeping the keys as strings" do
-      for extensions <- [
-            %{"https://example.com/extra" => "data", vendor: 1},
-            ["https://example.com/extra": "data", vendor: 1]
-          ] do
-        assert {:ok,
-                %Score{extensions: %{"https://example.com/extra" => "data", "vendor" => 1}} =
-                  score} = Score.new(@valid_attrs ++ [extensions: extensions])
-
-        assert %{"https://example.com/extra" => "data", "vendor" => 1} = encode_decode!(score)
-      end
-    end
-
-    test "rejects extensions that would replace a standard field" do
-      assert {:error,
-              %InvalidField{
-                struct: Score,
-                field: [:extensions, :userId],
-                value: "someone-else",
-                reason: "would replace a standard field"
-              }} = Score.new(@valid_attrs ++ [extensions: %{userId: "someone-else"}])
-    end
-
-    test "sets extensions given nil to nil" do
-      assert {:ok, %Score{extensions: nil} = score} = Score.new(@valid_attrs ++ [extensions: nil])
-
-      assert Enum.sort(Map.keys(encode_decode!(score))) ==
-               ["activityProgress", "gradingProgress", "timestamp", "userId"]
+    test "rejects extensions" do
+      assert {:error, %InvalidField{field: :extensions, reason: :unknown}} =
+               Score.new(@valid_attrs ++ [extensions: %{"https://example.com/extra" => "data"}])
     end
 
     test "accepts nil for a submission time" do
@@ -97,7 +71,7 @@ defmodule Ltix.GradeService.ScoreTest do
 
       assert submission == %{submitted_at: submitted_at}
 
-      assert encode_decode!(score)["submission"] == %{
+      assert posted_json(score)["submission"] == %{
                "submittedAt" => "2024-01-15T10:00:00.000000Z"
              }
     end
@@ -241,7 +215,7 @@ defmodule Ltix.GradeService.ScoreTest do
     end
   end
 
-  describe "JSON encoding" do
+  describe "posting a score" do
     test "serializes all activity_progress values correctly" do
       expected = %{
         initialized: "Initialized",
@@ -254,7 +228,7 @@ defmodule Ltix.GradeService.ScoreTest do
       for {atom, string} <- expected do
         attrs = Keyword.put(@valid_attrs, :activity_progress, atom)
         {:ok, score} = Score.new(attrs)
-        json = encode_decode!(score)
+        json = posted_json(score)
         assert json["activityProgress"] == string
       end
     end
@@ -271,7 +245,7 @@ defmodule Ltix.GradeService.ScoreTest do
       for {atom, string} <- expected do
         attrs = Keyword.put(@valid_attrs, :grading_progress, atom)
         {:ok, score} = Score.new(attrs)
-        json = encode_decode!(score)
+        json = posted_json(score)
         assert json["gradingProgress"] == string
       end
     end
@@ -279,7 +253,7 @@ defmodule Ltix.GradeService.ScoreTest do
     test "excludes nil optional fields" do
       {:ok, score} = Score.new(@valid_attrs)
 
-      json = encode_decode!(score)
+      json = posted_json(score)
       assert Map.has_key?(json, "userId")
       assert Map.has_key?(json, "activityProgress")
       assert Map.has_key?(json, "gradingProgress")
@@ -292,12 +266,11 @@ defmodule Ltix.GradeService.ScoreTest do
     end
   end
 
-  defp encode_decode!(score) do
-    json_lib = Ltix.AppConfig.json_library!()
-
-    score
-    |> json_lib.encode!()
-    |> IO.iodata_to_binary()
-    |> json_lib.decode!()
+  # Returns the JSON `post_score/3` sends for `score`.
+  defp posted_json(score) do
+    stub_requests(fn "POST", _body -> nil end)
+    :ok = Ltix.GradeService.post_score(create_client(), score)
+    assert_received {"POST", json}
+    json
   end
 end

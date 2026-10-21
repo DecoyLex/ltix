@@ -21,15 +21,11 @@ defmodule Ltix.GradeService do
         label: "Quiz 1", score_maximum: 100
       )
       :ok = Ltix.GradeService.post_score(client, score, line_item: item)
-
-  `Ltix.GradeService` is also the default plugin for AGS 2.0. It declares the
-  `Ltix.GradeService.Endpoint` claim, so
-  `Ltix.Launch.get_endpoint(launch, Ltix.GradeService)` returns a launch's
-  endpoint. It also adds the endpoint's scopes to token requests for the
-  endpoint.
   """
 
   @behaviour Ltix.Plugin
+
+  use Ltix.Provider
 
   alias Ltix.AppConfig
   alias Ltix.Errors.Invalid.CollectionTooLarge
@@ -37,7 +33,6 @@ defmodule Ltix.GradeService do
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.Extensions
   alias Ltix.GradeService.AddScopes
   alias Ltix.GradeService.Endpoint
   alias Ltix.GradeService.LineItem
@@ -49,6 +44,7 @@ defmodule Ltix.GradeService do
   alias Ltix.OAuth.Client
   alias Ltix.Options
   alias Ltix.Plugin
+  alias Ltix.PluginSet
   alias Ltix.Registerable
 
   @version Mix.Project.config()[:version]
@@ -88,9 +84,19 @@ defmodule Ltix.GradeService do
                         "Line item URL or struct. Defaults to the endpoint's `line_item`."
                     )
 
+  @plugins_option Zoi.list(Zoi.any(),
+                    description:
+                      "Plugins for this call, each as `MyPlugin` or `{MyPlugin, opts}`. " <>
+                        "Defaults to the client's plugins."
+                  )
+
   @impl Ltix.Plugin
   def plugin(_opts) do
     Plugin.new(name: "LTI Assignment and Grade Services 2.0", version: @version)
+    |> Plugin.add(__MODULE__)
+    |> Plugin.add(LineItem)
+    |> Plugin.add(Score)
+    |> Plugin.add(Result)
     |> Plugin.add(Endpoint)
     |> Plugin.add(AddScopes)
   end
@@ -168,6 +174,7 @@ defmodule Ltix.GradeService do
 
   @line_items_query_fields [
     endpoint: @endpoint_option,
+    plugins: @plugins_option,
     resource_link_id:
       Zoi.string(description: "Filter to line items bound to this resource link."),
     resource_id: Zoi.string(description: "Filter by the tool's resource identifier."),
@@ -253,17 +260,28 @@ defmodule Ltix.GradeService do
   defp with_line_items(operation, client, opts, consume) do
     url = line_items_url(endpoint(client, opts))
 
-    run(operation, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
-      params = list_line_items_params(opts)
+    run_with_plugins(
+      operation,
+      client,
+      opts,
+      [@scope_lineitem, @scope_lineitem_readonly],
+      url,
+      fn url, plugins ->
+        params = list_line_items_params(opts)
 
-      with {:ok, pages} <- fetch_pages(client, url, @line_item_container_media_type, params) do
-        consume.(parse_pages(pages, :line_items))
+        with {:ok, pages} <- fetch_pages(client, url, @line_item_container_media_type, params) do
+          consume.(parse_pages(pages, LineItem, plugins))
+        end
       end
-    end)
+    )
   end
 
   @get_line_item_schema Zoi.keyword(
-                          [endpoint: @endpoint_option, line_item: @line_item_option],
+                          [
+                            endpoint: @endpoint_option,
+                            line_item: @line_item_option,
+                            plugins: @plugins_option
+                          ],
                           unrecognized_keys: :error
                         )
 
@@ -281,12 +299,19 @@ defmodule Ltix.GradeService do
     opts = Options.parse!(opts, @get_line_item_schema)
     url = resolve_line_item_url(endpoint(client, opts), opts)
 
-    run(:get_line_item, client, [@scope_lineitem, @scope_lineitem_readonly], url, fn url ->
-      with {:ok, body} <-
-             send_request(client, :get, url, headers: [{"accept", @line_item_media_type}]) do
-        parse_line_item(body)
+    run_with_plugins(
+      :get_line_item,
+      client,
+      opts,
+      [@scope_lineitem, @scope_lineitem_readonly],
+      url,
+      fn url, plugins ->
+        with {:ok, body} <-
+               send_request(client, :get, url, headers: [{"accept", @line_item_media_type}]) do
+          parse_line_item(body, plugins)
+        end
       end
-    end)
+    )
   end
 
   @doc """
@@ -301,8 +326,12 @@ defmodule Ltix.GradeService do
   end
 
   @create_line_item_schema Zoi.keyword(
+                             [endpoint: @endpoint_option, plugins: @plugins_option],
+                             unrecognized_keys: :error
+                           )
+
+  @line_item_fields_schema Zoi.keyword(
                              [
-                               endpoint: @endpoint_option,
                                label:
                                  Zoi.string(description: "Human-readable label.")
                                  |> Zoi.required(),
@@ -323,84 +352,123 @@ defmodule Ltix.GradeService do
                                    description: "When the line item stops accepting submissions."
                                  ),
                                grades_released:
-                                 Zoi.boolean(description: "Hint about releasing grades."),
-                               extensions:
-                                 Extensions.schema(
-                                   "Extension properties keyed by fully qualified URLs, " <>
-                                     "given as strings or atoms."
-                                 )
+                                 Zoi.boolean(description: "Hint about releasing grades.")
                              ],
                              unrecognized_keys: :error
                            )
 
   @doc """
-  Create a new line item.
+  Creates a line item and returns it with the `id` the platform assigned.
+
+  Takes an `Ltix.GradeService.LineItem`, or its fields and property names as a
+  keyword list with `:label` and `:score_maximum` required. Pass options in the
+  same keyword list. Pass a plugin's property by its name.
+  `Ltix.GradeService.LineItem` has an example.
+
+  Each call creates a new line item. To reuse one, find it first with
+  `list_line_items/2` and its `:resource_id` or `:tag` filter.
+
+  Returns the error of `Ltix.GradeService.LineItem.validate/1` without
+  sending anything. A keyword list with a missing, unknown, or mistyped
+  field raises `Ltix.Errors.Invalid.InvalidOption`.
+
+  ## Examples
+
+      {:ok, item} = Ltix.GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
 
   ## Options
 
   #{Zoi.describe(@create_line_item_schema)}
   """
   # [AGS §3.2.5](https://www.imsglobal.org/spec/lti-ags/v2p0/#creating-a-new-line-item)
-  @spec create_line_item(Client.t(), keyword()) ::
+  @spec create_line_item(Client.t(), LineItem.t() | keyword(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
-  def create_line_item(%Client{} = client, opts) do
-    opts = Options.parse!(keyword_extensions_to_map(opts), @create_line_item_schema)
-    url = line_items_url(endpoint(client, opts))
-    item = struct!(LineItem, Keyword.delete(opts, :endpoint))
+  def create_line_item(client, line_item_or_fields, opts \\ [])
 
-    run(:create_line_item, client, [@scope_lineitem], url, fn url ->
+  def create_line_item(%Client{} = client, %LineItem{} = item, opts) do
+    opts = Options.parse!(opts, @create_line_item_schema)
+    url = line_items_url(endpoint(client, opts))
+
+    run_with_plugins(:create_line_item, client, opts, [@scope_lineitem], url, fn url, plugins ->
       with :ok <- LineItem.validate(item),
-           {:ok, body} <- send_request(client, :post, url, json_body(@line_item_media_type, item)) do
-        parse_line_item(body)
+           {:ok, body} <-
+             send_request(
+               client,
+               :post,
+               url,
+               json_body(@line_item_media_type, item, plugins, :create)
+             ) do
+        parse_line_item(body, plugins)
       end
     end)
   end
 
-  # Converts extensions given as a keyword list to a map.
-  defp keyword_extensions_to_map(opts) when is_list(opts) do
-    Enum.map(opts, fn
-      {:extensions, extensions} -> {:extensions, Options.keyword_to_map(extensions)}
-      option -> option
-    end)
+  def create_line_item(%Client{} = client, fields, opts) when is_list(fields) do
+    {opts, fields} = Keyword.split(fields ++ opts, [:endpoint, :plugins])
+
+    with {:ok, plugins} <- PluginSet.resolve(opts[:plugins] || client.plugins) do
+      {extensions, fields} = Ltix.Type.split_properties(LineItem, Map.new(fields), plugins)
+      fields = Options.parse!(Map.to_list(fields), @line_item_fields_schema)
+      create_line_item(client, struct!(LineItem, [extensions: extensions] ++ fields), opts)
+    end
   end
 
-  defp keyword_extensions_to_map(opts), do: opts
-
   @doc """
-  Same as `create_line_item/2` but raises on error.
+  Same as `create_line_item/3` but raises on error.
   """
-  @spec create_line_item!(Client.t(), keyword()) :: LineItem.t()
-  def create_line_item!(%Client{} = client, opts) do
-    case create_line_item(client, opts) do
+  @spec create_line_item!(Client.t(), LineItem.t() | keyword(), keyword()) :: LineItem.t()
+  def create_line_item!(%Client{} = client, line_item_or_fields, opts \\ []) do
+    case create_line_item(client, line_item_or_fields, opts) do
       {:ok, item} -> item
       {:error, error} -> raise error
     end
   end
+
+  @update_line_item_schema Zoi.keyword([plugins: @plugins_option], unrecognized_keys: :error)
 
   @doc """
   Update a line item.
 
   PUTs the full line item to its `id` URL. Callers should GET first to
   avoid overwriting fields they did not intend to change.
+
+  ## Options
+
+  #{Zoi.describe(@update_line_item_schema)}
   """
   # [AGS §3.2.6](https://www.imsglobal.org/spec/lti-ags/v2p0/#updating-a-line-item)
-  @spec update_line_item(Client.t(), LineItem.t()) ::
+  @spec update_line_item(Client.t(), LineItem.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
-  def update_line_item(%Client{} = client, %LineItem{} = item) do
-    run(:update_line_item, client, [@scope_lineitem], line_item_url(item, nil), fn url ->
-      with :ok <- LineItem.validate(item),
-           {:ok, body} <- send_request(client, :put, url, json_body(@line_item_media_type, item)) do
-        parse_line_item(body)
+  def update_line_item(%Client{} = client, %LineItem{} = item, opts \\ []) do
+    opts = Options.parse!(opts, @update_line_item_schema)
+
+    run_with_plugins(
+      :update_line_item,
+      client,
+      opts,
+      [@scope_lineitem],
+      line_item_url(item, nil),
+      fn url, plugins ->
+        with :ok <- LineItem.validate(item),
+             {:ok, body} <-
+               send_request(
+                 client,
+                 :put,
+                 url,
+                 json_body(@line_item_media_type, item, plugins, :update)
+               ) do
+          parse_line_item(body, plugins)
+        end
       end
-    end)
+    )
   end
 
   @doc """
-  Same as `update_line_item/2` but raises on error.
+  Same as `update_line_item/3` but raises on error.
   """
-  @spec update_line_item!(Client.t(), LineItem.t()) :: LineItem.t()
-  def update_line_item!(%Client{} = client, %LineItem{} = item) do
-    case update_line_item(client, item) do
+  @spec update_line_item!(Client.t(), LineItem.t(), keyword()) :: LineItem.t()
+  def update_line_item!(%Client{} = client, %LineItem{} = item, opts \\ []) do
+    case update_line_item(client, item, opts) do
       {:ok, item} -> item
       {:error, error} -> raise error
     end
@@ -460,7 +528,11 @@ defmodule Ltix.GradeService do
   end
 
   @post_score_schema Zoi.keyword(
-                       [endpoint: @endpoint_option, line_item: @line_item_option],
+                       [
+                         endpoint: @endpoint_option,
+                         line_item: @line_item_option,
+                         plugins: @plugins_option
+                       ],
                        unrecognized_keys: :error
                      )
 
@@ -481,9 +553,15 @@ defmodule Ltix.GradeService do
     opts = Options.parse!(opts, @post_score_schema)
     url = derive_url(resolve_line_item_url(endpoint(client, opts), opts), "scores")
 
-    run(:post_score, client, [@scope_score], url, fn url ->
+    run_with_plugins(:post_score, client, opts, [@scope_score], url, fn url, plugins ->
       with :ok <- Score.validate(score),
-           {:ok, _body} <- send_request(client, :post, url, json_body(@score_media_type, score)) do
+           {:ok, _body} <-
+             send_request(
+               client,
+               :post,
+               url,
+               json_body(@score_media_type, score, plugins, :create)
+             ) do
         :ok
       end
     end)
@@ -503,6 +581,7 @@ defmodule Ltix.GradeService do
   @results_query_fields [
     endpoint: @endpoint_option,
     line_item: @line_item_option,
+    plugins: @plugins_option,
     user_id: Zoi.string(description: "Filter results to a single user."),
     per_page: Zoi.integer(description: "Page size hint.") |> Zoi.positive()
   ]
@@ -584,12 +663,21 @@ defmodule Ltix.GradeService do
   defp with_results(operation, client, opts, consume) do
     url = derive_url(resolve_line_item_url(endpoint(client, opts), opts), "results")
 
-    run(operation, client, [@scope_result_readonly], url, fn url ->
+    run_with_plugins(operation, client, opts, [@scope_result_readonly], url, fn url, plugins ->
       params = list_results_params(opts)
 
       with {:ok, pages} <- fetch_pages(client, url, @result_container_media_type, params) do
-        consume.(parse_pages(pages, :results))
+        consume.(parse_pages(pages, Result, plugins))
       end
+    end)
+  end
+
+  # Runs `request` with the URL and the plugin set. The plugin set is the
+  # `:plugins` option's, or the client's.
+  defp run_with_plugins(operation, client, opts, scopes, url, request) do
+    run(operation, client, scopes, url, fn url ->
+      with {:ok, plugins} <- PluginSet.resolve(opts[:plugins] || client.plugins),
+           do: request.(url, plugins)
     end)
   end
 
@@ -712,8 +800,9 @@ defmodule Ltix.GradeService do
     end
   end
 
-  defp json_body(media_type, body) do
-    [headers: [{"content-type", media_type}], body: AppConfig.json_library!().encode!(body)]
+  defp json_body(media_type, value, plugins, operation) do
+    json = Ltix.Type.to_json(value, plugins, operation)
+    [headers: [{"content-type", media_type}], body: AppConfig.json_library!().encode!(json)]
   end
 
   defp list_line_items_params(opts) do
@@ -738,22 +827,12 @@ defmodule Ltix.GradeService do
   defp maybe_put_param(params, _key, nil), do: params
   defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
 
-  # [line-item-service-media-types-and-schemas]:
-  # https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas
-  #
-  # [AGS §3.2.1][line-item-service-media-types-and-schemas]
-  defp parse_pages(pages, :line_items),
-    do: parse_items(pages, &LineItem.from_json/1)
-
-  # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema)
-  defp parse_pages(pages, :results), do: parse_items(pages, &Result.from_json/1)
-
   # Emits `{:ok, item}` or `{:error, error}` for each entry, so consumers stop
   # at the first failure without fetching later pages.
-  defp parse_items(pages, parser) do
+  defp parse_pages(pages, type, plugins) do
     Stream.flat_map(pages, fn
       {:ok, body} when is_list(body) ->
-        Stream.map(body, &parse_collection_item(&1, parser))
+        Stream.map(body, &parse_collection_item(&1, type, plugins))
 
       {:ok, _body} ->
         [{:error, malformed_response("expected JSON array")}]
@@ -763,18 +842,27 @@ defmodule Ltix.GradeService do
     end)
   end
 
-  # [AGS §3.2.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas)
-  defp parse_line_item(body) when is_map(body), do: LineItem.from_json(body)
+  defp parse_line_item(body, plugins) when is_map(body), do: parse(LineItem, body, plugins)
 
-  defp parse_line_item(_body) do
+  defp parse_line_item(_body, _plugins) do
     {:error, malformed_response("expected JSON object")}
   end
 
-  defp parse_collection_item(json, parser) when is_map(json), do: parser.(json)
+  defp parse_collection_item(json, type, plugins) when is_map(json),
+    do: parse(type, json, plugins)
 
-  defp parse_collection_item(_json, _parser) do
+  defp parse_collection_item(_json, _type, _plugins) do
     {:error, malformed_response("expected JSON object in collection")}
   end
+
+  # [AGS §3.2.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas)
+  # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema)
+  defp parse(type, json, plugins) do
+    Ltix.Type.from_json(type, json, plugins: plugins, name: name(type))
+  end
+
+  defp name(LineItem), do: "line_item"
+  defp name(Result), do: "result"
 
   defp malformed_response(reason) do
     MalformedResponse.exception(service: __MODULE__, reason: reason)

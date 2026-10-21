@@ -230,26 +230,26 @@ defmodule Ltix.ServiceCollectionFailuresTest do
     end
   end
 
-  test "grade collections retain unknown properties", context do
+  test "grade collections keep unrecognized properties", context do
     client = build_client(context.registration)
-    extension = %{"vendor" => %{"flag" => true}}
+    unrecognized = %{"vendor" => %{"flag" => true}}
 
     stub_pages(
       :line_items,
       1,
-      &Req.Test.json(&1, [%{"id" => "item-1", "vendor" => extension["vendor"]}])
+      &Req.Test.json(&1, [%{"id" => "item-1", "vendor" => unrecognized["vendor"]}])
     )
 
-    assert {:ok, [%LineItem{id: "item-1", extensions: ^extension}]} =
+    assert {:ok, [%LineItem{id: "item-1", unrecognized: ^unrecognized}]} =
              GradeService.list_line_items(client)
 
     stub_pages(
       :results,
       1,
-      &Req.Test.json(&1, [%{"userId" => "user-1", "vendor" => extension["vendor"]}])
+      &Req.Test.json(&1, [%{"userId" => "user-1", "vendor" => unrecognized["vendor"]}])
     )
 
-    assert {:ok, [%Result{user_id: "user-1", extensions: ^extension}]} =
+    assert {:ok, [%Result{user_id: "user-1", unrecognized: ^unrecognized}]} =
              GradeService.list_results(client)
   end
 
