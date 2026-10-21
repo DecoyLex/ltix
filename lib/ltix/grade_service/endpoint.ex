@@ -39,6 +39,7 @@ defmodule Ltix.GradeService.Endpoint do
 
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.HTTP
+  alias Ltix.PluginSet
 
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
@@ -59,7 +60,11 @@ defmodule Ltix.GradeService.Endpoint do
   @doc """
   Builds an endpoint from its fields, as a keyword list or map.
 
-  `:scopes` is required. `:line_items` and `:line_item` are optional absolute HTTPS URLs that may be `nil`.
+  `:scopes` needs at least one scope. `:line_items` and `:line_item` are
+  optional HTTPS URLs, or HTTP for a loopback or private network host. The
+  fields can include property names, as `Ltix.Type.new/2` describes.
+  Returns `Ltix.Errors.Invalid.InvalidField` for a missing, unknown, or
+  invalid field.
 
   ## Examples
 
@@ -79,7 +84,12 @@ defmodule Ltix.GradeService.Endpoint do
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   def new(attributes) when is_list(attributes) or is_map(attributes) do
-    InvalidField.parse(__MODULE__, @new_schema, Map.new(attributes))
+    {plugins, attributes} = Map.pop(Map.new(attributes), :plugins)
+
+    with {:ok, plugins} <- PluginSet.resolve(plugins),
+         {extensions, fields} = Ltix.Type.split_properties(__MODULE__, attributes, plugins),
+         {:ok, endpoint} <- InvalidField.parse(__MODULE__, @new_schema, fields),
+         do: {:ok, %{endpoint | extensions: extensions}}
   end
 
   @doc """
@@ -101,4 +111,14 @@ defmodule Ltix.GradeService.Endpoint do
       {:error, _error} -> {:error, "must be an absolute HTTPS URL"}
     end
   end
+
+  @doc """
+  Adds an anonymous property of AGS endpoints to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

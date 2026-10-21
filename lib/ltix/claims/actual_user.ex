@@ -30,4 +30,14 @@ defmodule Ltix.Claims.ActualUser do
         Zoi.string(description: "The URL of the acting person's picture.") |> Zoi.optional(),
       locale: Zoi.string(description: "The acting person's preferred locale.") |> Zoi.optional()
     ]
+
+  @doc """
+  Adds an anonymous property of the actual user claim to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

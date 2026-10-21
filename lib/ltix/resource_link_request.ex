@@ -4,8 +4,10 @@ defmodule Ltix.ResourceLinkRequest do
   resource link into the tool.
 
   The table below lists its own requirements. Every message type also requires
-  the claims `Ltix.Core.RequiredClaims` lists. Change what a resource link
-  launch requires with an `Ltix.Launch.MessageType.Requirements`.
+  the claims `Ltix.Core.RequiredClaims` lists.
+  `Ltix.ResourceLinkRequest.NonEmptySubject` rejects an empty `subject`. Change
+  what a resource link launch requires with an
+  `Ltix.Launch.MessageType.Requirements`.
   """
 
   # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)

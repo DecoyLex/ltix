@@ -37,9 +37,8 @@ defmodule Ltix.Claim do
           ]
       end
 
-  A malformed field with `Zoi.optional/1` is `nil`, and a missing or
-  malformed field without it makes the claim malformed. Properties of the
-  object that no field declares are in the struct's `unrecognized`.
+  `Ltix.Type.from_json/3` parses the fields, and a field error makes the claim
+  malformed.
 
   ## Claims that need code
 
@@ -76,6 +75,37 @@ defmodule Ltix.Claim do
     * `:service` - the service whose endpoint the claim has. Only
       `use Ltix.Claim` takes it.
 
+  ## Properties
+
+  Plugins add properties to object claims, as `Ltix.Property` describes, such
+  as with `Ltix.Claims.LaunchPresentation.add_property/2`. Read a property from
+  the claim's `extensions` by its name.
+
+      launch.claims.launch_presentation.extensions.placement
+      #=> ["ContentArea"]
+
+  [Add a property to a claim](writing-claim-and-launch-plugins.md#add-a-property-to-a-claim)
+  shows an example.
+
+  A property value that fails to parse makes the claim malformed.
+
+  ## Checks
+
+  A claim implements `c:check/2` to check its value against the message's other
+  claims. Checks run after every claim is parsed. Other claims are keyed by
+  short name, such as `:issued_at` for `iat` (see `Ltix.Core`).
+
+      @impl Ltix.Claim
+      def check(%MyLibrary.Session{started_at: started_at}, %{issued_at: issued_at})
+          when is_integer(started_at) and started_at > issued_at,
+          do: {:error, "must not be after the message was issued"}
+
+      def check(_session, _claims), do: :ok
+
+  Other plugins add checks with `Ltix.Claims.Check`, and replace a check in the
+  message types they list with `Ltix.Claims.Override`. A malformed claim isn't
+  checked.
+
   ## Endpoint claims
 
   A claim that has a service's endpoint sets `:service` to the service,
@@ -101,9 +131,16 @@ defmodule Ltix.Claim do
     * two plugins declare the same claim URI, the same short name, or the
       endpoint of the same service
     * an endpoint claim lacks `:fields` or `c:new/1`
+    * two properties of an object claim declare the same JSON name or property
+      name
+    * a property of an object claim declares a standard field's JSON name or
+      name, or a property name Ltix reserves (`:extensions`, `:unrecognized`,
+      or `:plugins`)
+    * an `Ltix.Claims.Check` checks a claim no plugin declares
+    * two overrides replace the same check in one message type
 
-  A claim module added several times with the same options, or the same
-  anonymous claim added several times, doesn't conflict.
+  A claim, property, check, or override added several times with the same
+  options doesn't conflict.
   """
   use Ltix.Provider, hook: [Ltix.Property, Ltix.Claim.Declaration]
 
@@ -148,8 +185,8 @@ defmodule Ltix.Claim do
               )
 
   @doc """
-  Builds an endpoint from its fields, given as a keyword list or a map, and
-  checks it.
+  Builds an endpoint from its fields and property names, given as a keyword
+  list or a map, and validates it.
 
   Returns `{:error, exception}` for an endpoint the service can't call. Ltix
   also calls it with the fields of stored endpoints that an application passes
@@ -157,7 +194,15 @@ defmodule Ltix.Claim do
   """
   @callback new(attributes :: keyword() | map()) :: {:ok, struct()} | {:error, Exception.t()}
 
-  @optional_callbacks new: 1
+  @doc """
+  Checks the claim's parsed value.
+
+  Receives the value and every parsed claim. Returns `:ok`, or
+  `{:error, reason}` with a message, an exception, or Zoi errors as the reason.
+  """
+  @callback check(value :: term(), claims :: %{atom() => term()}) :: :ok | {:error, term()}
+
+  @optional_callbacks new: 1, check: 2
 
   @doc """
   Adds an anonymous claim to a plugin.

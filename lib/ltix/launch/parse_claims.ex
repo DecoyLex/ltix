@@ -2,17 +2,28 @@ defmodule Ltix.Launch.ParseClaims do
   @moduledoc false
   use Ltix.Launch
 
+  alias Ltix.Claims
+  alias Ltix.Errors
+  alias Ltix.PluginSet
+
   @impl Ltix.Step
   def call(%Ltix.Launch{raw: raw, plugins: plugins} = launch, _opts) do
-    {parse_error, sent, endpoints} = Ltix.Claims.parse_sent(raw, plugins)
+    {parse_error, sent, endpoints} = Claims.parse_sent(raw, plugins)
 
-    claims = Map.merge(Ltix.Claims.defaults(plugins), Map.merge(launch.claims, sent))
+    sent = Map.merge(launch.claims, sent)
+    claims = Map.merge(PluginSet.data(plugins, Claims).defaults, sent)
     launch = %{launch | claims: claims, endpoints: Map.merge(launch.endpoints, endpoints)}
 
-    case parse_error do
-      nil -> {:ok, launch}
-      # The step records the error itself, to keep the claims that parsed.
-      error -> {:ok, %{launch | errors: launch.errors ++ [error]}}
+    check_error =
+      case Claims.check(claims, sent, claims.message_type, plugins) do
+        :ok -> nil
+        {:error, error} -> error
+      end
+
+    # The step records the errors itself, to keep the claims that parsed.
+    case Errors.collect([parse_error, check_error]) do
+      :ok -> {:ok, launch}
+      {:error, error} -> {:ok, %{launch | errors: launch.errors ++ [error]}}
     end
   end
 

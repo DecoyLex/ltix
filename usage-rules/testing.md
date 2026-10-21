@@ -141,6 +141,8 @@ end
 - `:memberships_endpoint` - `%Ltix.MembershipsService.Endpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
 - `:claims` - raw claim map merged last (for advanced overrides)
 
+A launch with subject identifiers in the `role_scope_mentor` claim fails unless `:roles` has the Mentor context role or one of its sub-roles, such as `Ltix.Role.context_mentor()` or `Ltix.Role.mentor_advisor()`.
+
 `launch_params/2` also requires `:nonce` and `:state`. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It skips the security checks before `Ltix.Launch.Verified` and the deployment lookup, runs the other launch steps, including every plugin's, and raises when one fails.
 
 ## Hand-Built Tokens

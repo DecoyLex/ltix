@@ -264,6 +264,7 @@ defmodule Ltix.MixProject do
           Ltix.ResourceLinkRequest,
           Ltix.DeepLinkingRequest,
           Ltix.Core.RequiredClaims,
+          Ltix.ResourceLinkRequest.NonEmptySubject,
           Ltix.Validator,
           Ltix.Validator.Condition,
           Ltix.Launch.MessageType.Requirements
@@ -271,6 +272,8 @@ defmodule Ltix.MixProject do
         Claims: [
           Ltix.Claim,
           Ltix.Claims,
+          Ltix.Claims.Check,
+          Ltix.Claims.Override,
           Ltix.Role,
           ~r/^Ltix\.Claims\./
         ],

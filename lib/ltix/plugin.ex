@@ -27,8 +27,8 @@ defmodule Ltix.Plugin do
     * `:name` and `:version` - the plugin's name and version
     * `:providers` - the modules the plugin provides
     * `:entries` - the modules the plugin adds that extend other modules, and
-      its anonymous steps, claims, and properties, as `Ltix.PluginSet.Entry`
-      structs
+      its anonymous steps, claims, checks, overrides, and properties, as
+      `Ltix.PluginSet.Entry` structs
     * `:dependencies` - the plugins this plugin depends on
   """
 
@@ -86,8 +86,9 @@ defmodule Ltix.Plugin do
 
   Add each module your plugin declares, such as a login step, a claim, a
   content item type, or a message type. A step added twice runs twice, once
-  with each call's options. Add an anonymous step, claim, or property with its
-  provider's function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`.
+  with each call's options. Add an anonymous step, claim, check, override, or
+  property with its provider's function, such as `Ltix.Login.add_step/2` or
+  `Ltix.Claim.add/2`.
 
   Two claims with the same URI or short name, or two properties with the same
   JSON name or name on one type, make the plugin set fail to resolve. See

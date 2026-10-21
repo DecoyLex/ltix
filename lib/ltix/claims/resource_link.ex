@@ -21,4 +21,14 @@ defmodule Ltix.Claims.ResourceLink do
       description:
         Zoi.string(description: "A description of the resource link.") |> Zoi.optional()
     ]
+
+  @doc """
+  Adds an anonymous property of the resource link claim to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

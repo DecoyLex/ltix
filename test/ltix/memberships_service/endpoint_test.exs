@@ -27,6 +27,17 @@ defmodule Ltix.MembershipsService.EndpointTest do
     end
   end
 
+  describe "new/1 with properties" do
+    test "takes property names" do
+      assert {:ok, %Endpoint{extensions: %{note: "n"}}} =
+               Endpoint.new(
+                 context_memberships_url: "https://lms.example.com/memberships",
+                 note: "n",
+                 plugins: [{TestPlugins.Modules, add: [TestPlugins.Note]}]
+               )
+    end
+  end
+
   describe "new!/1" do
     test "raises on an invalid URL" do
       assert_raise InvalidField, fn -> Endpoint.new!("http://lms.example.com") end

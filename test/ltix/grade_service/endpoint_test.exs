@@ -50,6 +50,15 @@ defmodule Ltix.GradeService.EndpointTest do
                Endpoint.new(scopes: @scopes, lineitems: nil)
     end
 
+    test "takes property names" do
+      assert {:ok, %Endpoint{extensions: %{note: "n"}}} =
+               Endpoint.new(
+                 scopes: @scopes,
+                 note: "n",
+                 plugins: [{TestPlugins.Modules, add: [TestPlugins.Note]}]
+               )
+    end
+
     test "new! returns the endpoint or raises the error" do
       assert %Endpoint{scopes: @scopes} = Endpoint.new!(scopes: @scopes)
       assert_raise InvalidField, fn -> Endpoint.new!(line_item: @line_item) end

@@ -1,6 +1,8 @@
 defmodule Ltix.Plugins.MessageTypesTest do
   use ExUnit.Case, async: true
 
+  import LaunchFlow
+
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Unknown.InvalidPluginSet
@@ -18,21 +20,6 @@ defmodule Ltix.Plugins.MessageTypesTest do
     platform = Ltix.Test.setup_platform!()
     StorageAdapter.set_pid(start_supervised!({StorageAdapter, platforms: [platform]}))
     %{platform: platform}
-  end
-
-  # Logs in, then handles the callback of a launch built with `opts`.
-  defp launch(platform, opts, callback_opts \\ []) do
-    {:ok, login} =
-      Ltix.handle_login(Ltix.Test.login_params(platform), "https://tool.example.com/launch")
-
-    nonce = Ltix.Test.extract_nonce(login.redirect_uri)
-    params = Ltix.Test.launch_params(platform, [nonce: nonce, state: login.state] ++ opts)
-
-    Ltix.handle_callback(
-      params,
-      login.state,
-      [req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]] ++ callback_opts
-    )
   end
 
   doctest Ltix.Validator

@@ -134,13 +134,13 @@ The Core plugin provides `Ltix.Launch` and extends it with its default steps and
 1. Steps check the authentication response and its state, look up the registration, and verify the ID token and its nonce. Verifying the ID token writes `raw`.
 2. `Ltix.Launch.Verified`. The message is authentic and comes from a known registration.
 3. `Ltix.Launch.ClaimsReceived`. A plugin step ordered after `Ltix.Launch.Verified` and before this phase can rewrite `raw` or write claims of its own.
-4. A step runs `Ltix.Claims` and writes `claims` and `endpoints`.
+4. A step runs `Ltix.Claims`, writes `claims` and `endpoints`, and runs the claims' checks.
 5. `Ltix.Launch.ClaimsParsed`.
 6. Steps check that a plugin declares the message type and that the launch has the claims its validator requires (see Message Types).
 7. `Ltix.Launch.Validated`.
 8. A step looks up the deployment.
 
-A security check that fails halts the launch, so no claim is parsed from a message Ltix hasn't verified. Claim parsing records the errors of malformed claims and the launch continues, so they are reported with the claims the message type is missing. A malformed claim that isn't lenient counts as present when the required claims are checked, so it is reported once. `Ltix.Test.build_launch/2` runs every launch step except the security checks before `Ltix.Launch.Verified` and the deployment lookup, with `Ltix.Step.run/2`.
+A security check that fails halts the launch, so no claim is parsed from a message Ltix hasn't verified. A step ordered after `Ltix.Launch.Verified` and before `Ltix.Launch.ClaimsReceived` can change `raw` and write `claims`, which parsing merges the parsed claims into, and a step ordered after `Ltix.Launch.ClaimsParsed` reads the parsed claims. Claim parsing records the errors of malformed claims and of failed checks, combined into one error, and the launch continues, so they are reported with the claims the message type is missing. A malformed claim that isn't lenient counts as present when the required claims are checked, so it is reported once. The deployment lookup looks up nothing for a launch with errors, so the storage adapter only sees the deployment ID of a launch whose claims pass, as in 0.2. `Ltix.Test.build_launch/2` runs the launch's steps with `Ltix.Step.run/2`, leaving out the security checks before `Ltix.Launch.Verified` and the deployment lookup.
 
 ### `%Ltix.ClientAssertion{}`
 
@@ -316,16 +316,23 @@ defmodule Ltix.Claims.LaunchPresentation do
 end
 ```
 
-- **Options.** `claim:` is the URI and `name:` the short name, the key in `claims`. `Ltix.Provider` passes the options to each building block in the hook, and `Ltix.Claim.Declaration` defines `property/0` and `name/0` from them.
-- **Object claims.** `fields:` builds the claim's struct with `Ltix.Type` and defines `parse/2` with `Ltix.Type.from_json/3`, overridable.
-- **Scalar claims.** A claim without `fields:` implements `parse/2`.
-- **Lenient claims.** With `lenient: true`, a malformed claim is `nil` in `claims` and stays in `raw`. Without it, a malformed claim fails the call. A malformed optional field inside an object claim is `nil` either way.
-- **Endpoint claims.** A claim that implements the optional `service/0` callback has its parsed value in `endpoints[service]` too. An endpoint claim declares `fields:` and implements `new/1`, optional for other claims, which builds an endpoint from its fields and checks it. `Ltix.OAuth.authenticate/2` checks endpoints with it, so stored endpoints get the same checks as a launch's. `Ltix.Claims.resolve/1` reports an endpoint claim without `fields:` or `new/1` as a conflict with one party.
+- **One declaring module.** Each claim URI, short name, and service has one declaring module. To change a standard claim, a plugin adds a property, a check, or an override, and the rest of the claim keeps Ltix's behavior. Plugins share a claim through a common dependency.
+- **Declared claims are providers.** A claim with `fields:` takes properties, so a plugin can add a `launch_presentation` property from a later Core revision without touching the rest of the claim. A scalar claim's hook is empty.
+- **Every declared claim is a key.** `claims` has a key for each claim the plugin set declares, `nil` when the message doesn't have it, or `[]` for `roles`. 0.2's `%Ltix.LaunchClaims{}` worked the same way. Code reads claims with dot syntax. A required claim that's `nil`, or `[]` for `roles`, is missing unless the platform sent it and the claim has `strict: true`, so a platform's `roles: []` counts as present.
+- **The `strict` option.** A malformed claim fails the launch by default. When a claim is declared with `strict: false`, a malformed value is `nil` in `claims` and the launch continues. Claims Core doesn't require in any message are declared with `strict: false`, because a platform's mistake in a claim the tool may not read shouldn't block the launch. `azp` uses the default, because token verification checks it, and so does `custom`.
+- **Endpoint claims.** A claim with `service/0` also fills `endpoints`.
 
-`Ltix.Claims` is a provider without a hook. Its `resolve/1` reads the declared claims and reports two extenders declaring one claim URI, one short name, or one `service/0`. A module that several plugins list counts once. Its data maps each claim URI to the declaring module, the options of its first extender entry, and the claim's short name, the name its errors give, service, and leniency, so `Ltix.Claims.parse/2` parses raw claims without reading the modules again.
+`Ltix.Claims` collects every declared claim once per plugin set and reports conflicts at resolution.
 
-- **Parsing.** Each declared claim present with a non-`null` value is parsed. A claim the message doesn't have is `nil` in `claims`, or `[]` for `roles`. Claims no extender declares are left out, and stay in `raw`.
-- **Errors.** Every malformed claim that isn't lenient is reported, combined into one Ltix error. Errors name a claim with a registered JWT name, such as `sub`, by that name, and any other claim by its short name.
+OIDC claims keep 0.2's spelled-out short names, such as `:subject`, so 0.2 code that reads them still works. LTI claims use their URI's last segment, such as `:for_user`. Errors name a claim by its registered JWT name, such as `sub`, when it has one.
+
+### Checks and overrides
+
+Checks run after every claim is parsed, only for claims present in `claims`, so a check that reads another claim needs no ordering and a malformed claim isn't checked. `Ltix.Claims.check/3` takes the parsed claims, the message type, and the plugin set, and returns every failed check's error combined. Launches run it in `Ltix.Launch.ParseClaims` with `claims[:message_type]`.
+
+- **A claim's own check** is its declaring module's `check/2`.
+- **Added checks** come from `Ltix.Claims.Check`, in listed message types or all of them.
+- **Overrides** from `Ltix.Claims.Override` replace one check within listed message types.
 
 Overrides are scoped to message types, because a check one message type doesn't need still protects every other launch. A plugin whose message type accepts `role_scope_mentor` without the Mentor role replaces Core's check there, and resource link launches keep it. `Ltix.Claims.overrides/1` lists every replaced check.
 
@@ -347,22 +354,25 @@ defmodule Review.Request do
 end
 ```
 
-`Ltix.Launch.MessageType` is a provider whose hook is a building block that itself calls `use Ltix.Provider, hook: [Ltix.Validator.Contribution]`, so every message type's module is a provider without changes to `Ltix.Provider`. The building block imports the validator builders and adds a "Claims" section with `Ltix.Validator.describe/1`'s table of the module's own statements to its docs. It builds the table by evaluating the body of `validator/0` before the module compiles, so `validator/0` has one clause and calls only functions of other modules.
+A validator is a list of statements, each one plugin's requirement for one claim. A statement can have a condition, such as `option(:allow_anonymous)`. `optional/3` records that the message type accepts a claim, which lists the claim in the module's "Claims" table. Other plugins add statements with contributions. A contribution extends the message type's module, or `Ltix.Launch.EveryMessageType`.
 
-- **Statements.** A statement has a kind, a claim, a disposition (`:required` or `:optional`), a condition, and the module that made it. Kinds are statements from `required/3` and `optional/3`, overrides from `override/3`, and defaults from `defaults/2`. Builders leave the module empty, and resolution fills it with the module whose callback made the statement.
-- **Conditions.** `when:` and `unless:` take `option/1`, `includes/3`, or a module implementing `Ltix.Validator.Condition` with `met?/3` and `describe/1`, alone or as `{module, args}` with a list of arguments. A module alone gets `[]`. `unless:` negates the condition. `option/1` holds when the call's option is `true`, and `includes/3` when a field of an object claim includes a value. Conditions are evaluated for each message, with its parsed claims and the call's options.
-- **Contributions.** `Ltix.Validator.Contribution` is the building block with `validator/1`. An extender contributes to one message type with `use Ltix.DeepLinkingRequest`, or to every message type with `use Ltix.Launch.EveryMessageType`, a provider whose hook is `[Ltix.Validator.Contribution]`. A module contributing to several message types writes one clause per message type. Contributions to a message type that isn't in the plugin set are never called.
-- **Combining.** Each claim's disposition is computed from all statements about it at once, so plugin order doesn't matter. The last override applies when there is one. Otherwise the claim is required when a default or a statement whose condition holds requires it, so a statement can't make a claim a default requires optional. `Ltix.Validator.missing/3` returns the required claims a message doesn't have, in the order the validator first mentions them.
-- **Resolution.** `Ltix.Launch.MessageType.resolve/1` builds each message type's validator once per plugin set, from its `validator/0`, its contributions, and the contributions to `Ltix.Launch.EveryMessageType`, each module once. It also builds the validator for message types no plugin declares from the contributions to `Ltix.Launch.EveryMessageType` alone, with `message_type` `nil`. Its data is `%{message_types: %{message_type => validator}, undeclared: validator, claims: %{short_name => declaration}}`, where each declaration is the claim's entry in the data of `Ltix.Claims` with its URI added. It reports two modules declaring one message type, a statement about a short name no extender of `Ltix.Claim` declares, and two modules overriding one claim in one message type. `Ltix.PluginSet.Conflict.duplicates/3` builds the conflicts for values several modules declare.
-- **Launch steps.** `Ltix.Launch.RejectUndeclaredMessageType` records an error for a message type not in `message_types`. `Ltix.Launch.ValidateMessageType` checks the launch against its message type's validator, or the validator for undeclared message types, with the launch's call options. It records a missing claim error for each required claim missing from `claims`, so a launch without a message type gets a missing claim error for `message_type`. Rules a validator can't express, such as `version` being `"1.3.0"`, stay in `Ltix.Launch.ValidateMessageType` until they become checks.
+Statements combine all at once, so plugin order doesn't matter.
 
-The Core plugin provides `Ltix.Launch.MessageType`, `Ltix.Launch.EveryMessageType`, and `Ltix.ResourceLinkRequest`, and extends `Ltix.Launch.EveryMessageType` with `Ltix.Core.RequiredClaims`. It makes `version`, `deployment_id`, and `target_link_uri` required with `defaults/2`, so only an override makes one of them optional. A plugin that makes `deployment_id` optional gets launches without a deployment, whose Deep Linking responses leave out `deployment_id`. The Deep Linking plugin provides `Ltix.DeepLinkingRequest`, which requires `deep_linking_settings` and makes `roles` optional.
+- Any applicable statement or default that requires a claim makes it required. `optional/3` can't weaken another plugin's requirement by accident.
+- `override/3` makes a required claim optional. Two overrides of one claim in one message type conflict. That way one module is always responsible for a weakened requirement.
+- `defaults/2` sets a baseline that statements can only tighten. `Ltix.Core.RequiredClaims` requires `version`, `deployment_id`, and `target_link_uri` this way.
 
-Zoi can't combine plugins' statements, because `Zoi.extend` drops refinements, silently replaces fields, and fails on string keys. So Ltix has its own small validator value and keeps Zoi for claim and field shapes.
+Conditions are data, which lets `Ltix.Validator.describe/1` write each statement as a sentence for that table.
 
-## Content Item Types
+`use` evaluates `validator/0` while the module compiles, before the module's own functions exist. `validator/0` can therefore call only other modules.
 
-A content item type is declared by `use`-ing `Ltix.DeepLinking.ContentItemType`, a provider whose hook block makes the content item type a provider itself, with hook `[Ltix.Property]`. A plugin provides it with `Ltix.Plugin.provide/2`, and extenders that `use` it add properties.
+`Ltix.Launch.MessageType`'s hook is one behaviour, `Ltix.Launch.MessageType.Definition`. `Definition` calls `use Ltix.Provider` in each message type's module, which makes every message type a provider without a special case in `Ltix.Provider`. `resolve/1` builds each validator once per plugin set. It also builds one for undeclared message types from the contributions to `EveryMessageType`, which lets a launch with an undeclared message type report its missing claims too.
+
+Ltix has its own validator because combining statements needs order-independent merging, single-owner overrides, and a description of each statement, and Zoi has none of these. `Zoi.extend` drops refinements, silently replaces a field another schema declared, and fails on raw claims' string keys. Zoi still defines the shapes of claims and fields.
+
+## Content item types
+
+A content item type calls `use Ltix.DeepLinking.ContentItemType`, and is a provider with hook `[Ltix.Property]`.
 
 ```elixir
 defmodule Ltix.DeepLinking.ContentItem.File do
@@ -397,15 +407,15 @@ end
 ## Rules
 
 - **No replacing providers.** A plugin cannot replace or remove what another plugin provides. A different flow, such as another login mechanism, is a new provider that the application calls.
-- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, service endpoint, message type, or content item type fail at resolution, and so do a validator statement about a claim no module declares and two extenders declaring one property on one content item type, line item, score, or result.
-- **Overrides.** `Ltix.Validator.override/3` is the only way a plugin makes a claim optional that another plugin requires. Two modules overriding one claim in one message type fail at resolution.
+- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, service endpoint, message type, or content item type fail at resolution, and so do a validator statement or an added check about a claim no module declares and two extenders declaring one property on one object claim, content item type, line item, score, or result.
+- **Overrides.** `Ltix.Validator.override/3` is the only way a plugin makes a claim optional that another plugin requires, and `Ltix.Claims.Override` is the only way it replaces a check another plugin defines, each within named message types. Two modules overriding one claim, or one check, in one message type fail at resolution.
 - **Providers have no short names.** Every provider and target is named by its module.
 
 ## Replacing 0.2's Extension Points
 
 | 0.2 extension point | Replacement |
 |---|---|
-| `Ltix.LaunchClaims.Parser`, `:claim_parsers` | A declared claim, an extender of `Ltix.Claim` |
+| `Ltix.LaunchClaims.Parser`, `:claim_parsers` | A declared claim, an extender of `Ltix.Claim`. For a standard claim, an extender of the object claim for each property, an `Ltix.Claims.Check`, or an `Ltix.Claims.Override` |
 | `Ltix.LaunchClaims.Role.Parser`, `:role_parsers` | Removed. Roles are the URIs the platform sent, checked with `Ltix.Role` |
 | `Ltix.AdvantageService` | A plugin with an endpoint claim, which implements `service/0` and `new/1`, and an `Ltix.ClientAssertion` step that adds the service's scopes |
 | `Ltix.DeepLinking.ContentItem` protocol | A content item type provided by a plugin, and extenders of existing types |

@@ -28,6 +28,7 @@ defmodule Ltix.MembershipsService.Endpoint do
 
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.ServiceNotAvailable
+  alias Ltix.PluginSet
 
   @new_schema Zoi.struct(
                 __MODULE__,
@@ -41,8 +42,8 @@ defmodule Ltix.MembershipsService.Endpoint do
               )
 
   @doc """
-  Build a memberships endpoint from its URL, or from its fields as a keyword
-  list or a map.
+  Builds an endpoint from its URL, or from its fields as a keyword list or
+  map. The fields can include property names, as `Ltix.Type.new/2` describes.
 
   The URL must use HTTPS, or HTTP for a loopback or private network host. Returns
   `Ltix.Errors.Invalid.InvalidField` for any other URL, and for an unknown
@@ -77,10 +78,13 @@ defmodule Ltix.MembershipsService.Endpoint do
   def new(url) when is_binary(url), do: new(context_memberships_url: url)
 
   def new(attributes) when is_list(attributes) or is_map(attributes) do
-    attributes = Map.new(attributes)
+    {plugins, attributes} = Map.pop(Map.new(attributes), :plugins)
 
     with :ok <- require_url(attributes[:context_memberships_url]),
-         {:ok, endpoint} <- InvalidField.parse(__MODULE__, @new_schema, attributes),
+         {:ok, plugins} <- PluginSet.resolve(plugins),
+         {extensions, fields} = Ltix.Type.split_properties(__MODULE__, attributes, plugins),
+         {:ok, endpoint} <- InvalidField.parse(__MODULE__, @new_schema, fields),
+         endpoint = %{endpoint | extensions: extensions},
          :ok <- validate_url(endpoint),
          do: validate_service_versions(endpoint)
   end
@@ -131,4 +135,14 @@ defmodule Ltix.MembershipsService.Endpoint do
   defp not_available(reason) do
     {:error, ServiceNotAvailable.exception(service: Ltix.MembershipsService, reason: reason)}
   end
+
+  @doc """
+  Adds an anonymous property of NRPS endpoints to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

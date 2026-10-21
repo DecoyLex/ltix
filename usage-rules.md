@@ -130,7 +130,7 @@ end
 - `:json_library` - auto-detected (`JSON` on Elixir 1.18+/OTP 27+, else `Jason`)
 - `:req_options` - default HTTP options for all outgoing requests
 - `:key_set` - name of the `Ltix.JWT.KeySet` to get platform public keys from (defaults to `Ltix.JWT.KeySet`). It must be started in your supervision tree, as `children = [Ltix.JWT.KeySet]`, or `{Ltix.JWT.KeySet, name: MyApp.LtiKeys}` with `config :ltix, key_set: MyApp.LtiKeys`. Pass `key_set:` to `handle_callback/3` to override it per call.
-- `:plugins` - the plugins for calls that run plugins, each as `MyPlugin` or `{MyPlugin, opts}`. Pass `plugins:` to a call to replace the configured plugins for that call. Plugins declare claims with `Ltix.Claim`, message types with `Ltix.Launch.MessageType`, content item types with `Ltix.DeepLinking.ContentItemType`, and properties on line items, scores, and results with the `add_property/2` of `Ltix.GradeService.LineItem`, `Ltix.GradeService.Score`, and `Ltix.GradeService.Result`.
+- `:plugins` - the plugins for calls that run plugins, each as `MyPlugin` or `{MyPlugin, opts}`. Pass `plugins:` to a call to replace the configured plugins for that call. Plugins declare claims with `Ltix.Claim`, add properties to object claims with each claim's `add_property/2`, check claims with `Ltix.Claims.Check`, replace a check within the message types they list with `Ltix.Claims.Override`, declare message types with `Ltix.Launch.MessageType`, declare content item types with `Ltix.DeepLinking.ContentItemType`, and add properties on line items, scores, and results with the `add_property/2` of `Ltix.GradeService.LineItem`, `Ltix.GradeService.Score`, and `Ltix.GradeService.Result`.
 
 ## Telemetry
 

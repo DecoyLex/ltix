@@ -1,35 +1,8 @@
 defmodule Ltix.Claims do
   @moduledoc """
-  Parses a message's claims with the claims a plugin set declares.
+  Parses and checks a message's raw claims with a plugin set's declared claims.
 
-  Each claim is declared by one entry of `Ltix.Claim`, a claim module or an
-  anonymous claim. Ltix parses a
-  launch's claims between `Ltix.Launch.ClaimsReceived` and
-  `Ltix.Launch.ClaimsParsed`, and writes them to the launch's `claims` and
-  `endpoints`.
-
-  ## Parsing
-
-    * Each declared claim present in the message is parsed with its
-      `c:Ltix.Property.parse/2`, and is in `claims` under its short name. A
-      claim whose value is `null` counts as absent.
-    * `claims` has a key for every declared claim. A claim the message
-      doesn't have is its `:default`, such as `[]` for `:roles`, or `nil`.
-    * A malformed claim is its `:default` in `claims`. It fails the call,
-      unless its declaration has `strict: false`.
-    * The value of an endpoint claim is also in `endpoints`, under its
-      service.
-    * Claims no entry declares are left out. They are still in the message's
-      raw claims.
-
-  ## Conflicts
-
-  Resolution fails with `Ltix.Errors.Unknown.InvalidPluginSet` when two
-  entries declare one claim URI, one short name, or the endpoint of one
-  service. It also fails when an endpoint claim isn't declared with `:fields`,
-  or doesn't implement `c:Ltix.Claim.new/1`. A claim module added several times
-  with the same options, or the same anonymous claim added several times,
-  doesn't conflict.
+  `Ltix.Claim` describes how each claim is parsed and checked.
   """
   use Ltix.Provider
 
@@ -43,8 +16,11 @@ defmodule Ltix.Claims do
 
   @impl Ltix.Provider
   def resolve(plugins) do
-    entries = Enum.uniq_by(PluginSet.entries(plugins, Ltix.Claim), &{&1.module, &1.opts})
+    entries = unique_entries(plugins, Ltix.Claim)
     endpoints = Enum.filter(entries, &Keyword.has_key?(&1.opts, :service))
+    checks = unique_entries(plugins, Ltix.Claims.Check)
+    overrides = unique_entries(plugins, Ltix.Claims.Override)
+    uris = MapSet.new(entries, & &1.opts[:claim])
 
     by_uri = Conflict.duplicates(entries, & &1.opts[:claim], &"both declare the claim #{&1}")
 
@@ -73,15 +49,52 @@ defmodule Ltix.Claims do
             reason:
               "declares the endpoint of #{inspect(endpoint.opts[:service])}, which needs the fields option and new/1"
           }
-        end
+        end ++
+        for check <- checks, !MapSet.member?(uris, check.opts[:claim]) do
+          %Conflict{
+            parties: [check],
+            reason: "checks the claim #{check.opts[:claim]}, which no plugin declares"
+          }
+        end ++
+        override_conflicts(overrides)
 
     case conflicts do
-      [] -> {:ok, Map.new(entries, &{&1.opts[:claim], declaration(&1)})}
-      conflicts -> {:error, conflicts}
+      [] ->
+        overrides = Enum.group_by(overrides, & &1.opts[:check])
+        declarations = Enum.map(entries, &declaration(&1, checks, overrides))
+
+        {:ok,
+         %{
+           by_uri: Map.new(declarations, &{&1.uri, &1}),
+           by_name: Map.new(declarations, &{&1.name, &1.uri}),
+           defaults: Map.new(declarations, &{&1.name, &1.default})
+         }}
+
+      conflicts ->
+        {:error, conflicts}
     end
   end
 
-  defp declaration(%Entry{module: claim, opts: opts}) do
+  defp unique_entries(plugins, provider),
+    do: Enum.uniq_by(PluginSet.entries(plugins, provider), &{&1.module, &1.opts})
+
+  defp override_conflicts(overrides) do
+    replaced =
+      for override <- overrides,
+          message_type <- override.opts[:message_types],
+          uniq: true,
+          do: {{override.opts[:check], message_type}, override}
+
+    for {{check, message_type}, [_, _ | _] = parties} <-
+          Enum.group_by(replaced, &elem(&1, 0), &elem(&1, 1)) do
+      %Conflict{
+        parties: parties,
+        reason: "both override the check of #{inspect(check)} in #{message_type}"
+      }
+    end
+  end
+
+  defp declaration(%Entry{module: claim, opts: opts} = entry, checks, overrides) do
     uri = Keyword.fetch!(opts, :claim)
     name = Keyword.fetch!(opts, :name)
 
@@ -93,9 +106,52 @@ defmodule Ltix.Claims do
       label: label(uri, name),
       service: Keyword.get(opts, :service),
       strict: Keyword.get(opts, :strict, true),
-      default: Keyword.get(opts, :default)
+      default: Keyword.get(opts, :default),
+      checks: claim_checks(entry, checks, overrides)
     }
   end
+
+  @doc false
+  @spec declaration(PluginSet.t(), atom()) :: Declaration.t() | nil
+  def declaration(%PluginSet{} = plugins, name) do
+    %{by_uri: by_uri, by_name: by_name} = PluginSet.data(plugins, __MODULE__)
+    Map.get(by_uri, by_name[name])
+  end
+
+  # The checks of a claim, the declaring module's first. Each has the module
+  # that overrides refer to, or `nil` for an anonymous check, the message
+  # types it runs in, the function that runs it, and the function of each
+  # override, keyed by the message types the override lists. `overrides` are
+  # grouped by the check they replace.
+  defp claim_checks(%Entry{module: claim, opts: opts}, checks, overrides) do
+    own =
+      if function_exported?(claim, :check, 2), do: [{claim, :all, &claim.check/2}], else: []
+
+    added =
+      for %Entry{opts: check_opts} = check <- checks,
+          check_opts[:claim] == opts[:claim],
+          do: {check_module(check), Keyword.get(check_opts, :message_types, :all), run(check)}
+
+    for {check, message_types, run} <- own ++ added do
+      replacements =
+        for override <- Map.get(overrides, check, []),
+            check != nil,
+            message_type <- override.opts[:message_types],
+            into: %{},
+            do: {message_type, run(override)}
+
+      %{check: check, message_types: message_types, run: run, overrides: replacements}
+    end
+  end
+
+  # The module of a check, or `nil` for an anonymous one.
+  defp check_module(%Entry{module: module} = check),
+    do: if(Entry.anonymous?(check), do: nil, else: module)
+
+  # The function that runs a check or an override.
+  defp run(%Entry{module: Ltix.Claims.Check, opts: opts}), do: Keyword.fetch!(opts, :check)
+  defp run(%Entry{module: Ltix.Claims.Override, opts: opts}), do: Keyword.fetch!(opts, :with)
+  defp run(%Entry{module: module}), do: &module.check/2
 
   # An error refers to a claim by its registered JWT name, such as `sub`,
   # when it has one, and otherwise by its short name. A registered JWT name
@@ -112,7 +168,8 @@ defmodule Ltix.Claims do
   @spec validate_endpoints(%{module() => term()}, PluginSet.t()) :: :ok | {:error, Exception.t()}
   def validate_endpoints(endpoints, %PluginSet{} = plugins) do
     declared =
-      for %{service: service} = declaration <- Map.values(PluginSet.data(plugins, __MODULE__)),
+      for %{service: service} = declaration <-
+            Map.values(PluginSet.data(plugins, __MODULE__).by_uri),
           service != nil,
           into: %{},
           do: {service, declaration}
@@ -143,21 +200,37 @@ defmodule Ltix.Claims do
     do: {:error, InvalidEndpoint.exception(service: service)}
 
   @doc """
-  Parses raw claims with the claims a plugin set declares.
+  Parses a message's raw claims.
 
-  Returns the parsed claims keyed by short name, and the endpoints keyed by
-  service. The claims have a key for every declared claim. A claim that's
-  absent, `null`, or malformed is its `:default`, such as `[]` for `:roles`,
-  or `nil` without one. When a claim declared without `strict: false` is
-  malformed, returns the errors of every such claim, combined into one Ltix
-  error, with the claims and endpoints.
+  Returns `{:ok, claims, endpoints}`. `claims` is keyed by short name and has a
+  key for every declared claim. A claim that's absent or `null` is its
+  `:default`, such as `[]` for `:roles`, or `nil` without one. Claims no plugin
+  declares aren't keys. `endpoints` has the endpoint claims, keyed by service.
+
+  When declared claims are malformed, returns
+  `{:error, error, claims, endpoints}`, where `error` has the error of every
+  malformed claim. When a claim is declared with
+  [`strict: false`](`m:Ltix.Claim#module-options`), a malformed value is its
+  `:default` and has no error.
+
+      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+      iex> {:ok, claims, _endpoints} =
+      ...>   Ltix.Claims.parse(
+      ...>     %{
+      ...>       "https://purl.imsglobal.org/spec/lti/claim/version" => "1.3.0",
+      ...>       "https://lms.example.com/claim/unknown" => true
+      ...>     },
+      ...>     plugins
+      ...>   )
+      iex> {claims.version, claims.context, claims.roles}
+      {"1.3.0", nil, []}
   """
   @spec parse(map(), PluginSet.t()) ::
           {:ok, claims, endpoints} | {:error, Exception.t(), claims, endpoints}
         when claims: %{atom() => term()}, endpoints: %{module() => term()}
   def parse(raw, %PluginSet{} = plugins) when is_map(raw) do
     {error, sent, endpoints} = parse_sent(raw, plugins)
-    claims = Map.merge(defaults(plugins), sent)
+    claims = Map.merge(PluginSet.data(plugins, __MODULE__).defaults, sent)
 
     case error do
       nil -> {:ok, claims, endpoints}
@@ -166,19 +239,20 @@ defmodule Ltix.Claims do
   end
 
   # Parses the declared claims a message has, and leaves out the claims it
-  # doesn't have. Returns the error of the malformed claims declared without
-  # `strict: false`, or `nil`, with the claims and endpoints.
+  # doesn't have. Returns the error of every malformed claim, or `nil`, with
+  # the claims and endpoints. A malformed claim declared with `strict: false`
+  # has no error.
   @doc false
   @spec parse_sent(map(), PluginSet.t()) ::
           {Exception.t() | nil, %{atom() => term()}, %{module() => term()}}
   def parse_sent(raw, %PluginSet{} = plugins) when is_map(raw) do
-    declared = PluginSet.data(plugins, __MODULE__)
+    declared = PluginSet.data(plugins, __MODULE__).by_uri
 
     parsed =
       for {uri, value} <- raw,
           value not in [nil, :null],
           {:ok, declaration} <- [Map.fetch(declared, uri)],
-          do: {declaration, value, declaration.claim.parse(value, declaration.opts)}
+          do: {declaration, value, parse_claim(declaration, value, plugins)}
 
     errors =
       for {declaration, value, {:error, reason}} <- parsed,
@@ -200,13 +274,52 @@ defmodule Ltix.Claims do
     end
   end
 
-  # The value of each declared claim when a message doesn't have it, keyed by
-  # short name.
-  @doc false
-  @spec defaults(PluginSet.t()) :: %{atom() => term()}
-  def defaults(%PluginSet{} = plugins) do
-    for {_uri, declaration} <- PluginSet.data(plugins, __MODULE__),
-        into: %{},
-        do: {declaration.name, declaration.default}
+  defp parse_claim(%{claim: claim, opts: opts} = declaration, value, plugins) do
+    with {:ok, parsed} <- claim.parse(value, opts),
+         do: parse_extensions(parsed, declaration, plugins)
   end
+
+  # Parses the properties of an object claim.
+  defp parse_extensions(%claim{} = parsed, %{claim: claim} = declaration, plugins),
+    do: Ltix.Type.parse_extensions(parsed, plugins, name: declaration.label)
+
+  defp parse_extensions(parsed, _declaration, _plugins), do: {:ok, parsed}
+
+  @doc """
+  Runs the checks of every claim in `claims` for a message of `message_type`.
+
+  Takes the parsed claims, keyed by short name, and skips claims that are
+  `nil`. Returns the errors of every check that fails, combined into one Ltix
+  error.
+
+      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+      iex> Ltix.Claims.check(%{version: "1.3.0"}, "LtiResourceLinkRequest", plugins)
+      :ok
+      iex> {:error, error} = Ltix.Claims.check(%{version: "1.2.0"}, "LtiResourceLinkRequest", plugins)
+      iex> Exception.message(error)
+      "Invalid LTI claim version: unrecognized LTI version (got \\"1.2.0\\")"
+  """
+  @spec check(%{atom() => term()}, String.t() | nil, PluginSet.t()) ::
+          :ok | {:error, Exception.t()}
+  def check(claims, message_type, %PluginSet{} = plugins) when is_map(claims),
+    do: check(claims, claims, message_type, plugins)
+
+  # Runs the checks of the claims in `sent`, each with every claim in `claims`.
+  @doc false
+  @spec check(%{atom() => term()}, %{atom() => term()}, String.t() | nil, PluginSet.t()) ::
+          :ok | {:error, Exception.t()}
+  def check(claims, sent, message_type, %PluginSet{} = plugins) do
+    Errors.collect(
+      for {_uri, declaration} <- PluginSet.data(plugins, __MODULE__).by_uri,
+          {:ok, value} when value != nil <- [Map.fetch(sent, declaration.name)],
+          entry <- declaration.checks,
+          runs_in?(entry.message_types, message_type),
+          run <- [Map.get(entry.overrides, message_type, entry.run)],
+          {:error, reason} <- [run.(value, claims)],
+          do: Errors.from_reason(reason, value, declaration.label)
+    )
+  end
+
+  defp runs_in?(:all, _message_type), do: true
+  defp runs_in?(message_types, message_type), do: message_type in message_types
 end

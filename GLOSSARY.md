@@ -224,7 +224,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Step**. A module that receives a login, launch, client assertion, or Deep Linking response and can change it, record an error and continue, or record an error and halt the call.
 
-**Anonymous step**, **anonymous claim**, **anonymous property**. A step, claim, or property a plugin adds without a module of its own, with its provider's function, such as `Ltix.Login.add_step/2`, `Ltix.Claim.add/2`, or a content item type's `add_property/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
+**Anonymous step**, **anonymous claim**, **anonymous property**, **anonymous check**, **anonymous override**. A step, claim, property, check, or override a plugin adds without a module of its own, with its provider's function, such as `Ltix.Login.add_step/2`, `Ltix.Claim.add/2`, a content item type's `add_property/2`, or `Ltix.Claims.Check.add/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
 
 **Default step**. A step a default plugin provides. Default steps other than phases are internal and can change between releases.
 

@@ -76,28 +76,27 @@ defmodule Ltix.Launch.MessageType do
         {entry, build(own, contributions(plugins, type) ++ every)}
       end
 
-    message_types =
-      Map.new(validators, fn {entry, validator} -> {entry.module, validator.message_type} end)
+    by_type = Map.new(validators, fn {entry, validator} -> {entry.module, validator} end)
+    undeclared = build(%Validator{}, every)
 
     # Validators tag each requirement with the module that states it.
     entries =
       Map.new(
         types ++ every ++ Enum.flat_map(types, &contributions(plugins, &1.module)),
-        fn entry ->
-          {entry.module, entry}
-        end
+        &{&1.module, &1}
       )
-
-    undeclared = build(%Validator{}, every)
-    claims = by_short_name(PluginSet.data(plugins, Ltix.Claims))
 
     conflicts =
       Conflict.duplicates(
         types,
-        &Map.fetch!(message_types, &1.module),
+        &by_type[&1.module].message_type,
         &"both declare the message type #{&1}"
       ) ++
-        undeclared_claims([undeclared | Enum.map(validators, &elem(&1, 1))], claims, entries) ++
+        undeclared_claims(
+          [undeclared | Enum.map(validators, &elem(&1, 1))],
+          PluginSet.data(plugins, Ltix.Claims),
+          entries
+        ) ++
         Enum.flat_map(validators, fn {_type, validator} ->
           duplicate_overrides(validator, entries)
         end)
@@ -107,8 +106,7 @@ defmodule Ltix.Launch.MessageType do
         {:ok,
          %{
            message_types: Map.new(validators, fn {_type, v} -> {v.message_type, v} end),
-           undeclared: undeclared,
-           claims: claims
+           undeclared: undeclared
          }}
 
       conflicts ->
@@ -126,17 +124,12 @@ defmodule Ltix.Launch.MessageType do
   end
 
   # Claims that conflict have no data, and are reported already.
-  defp by_short_name(nil), do: nil
-
-  defp by_short_name(claims),
-    do: for({uri, claim} <- claims, into: %{}, do: {claim.name, Map.put(claim, :uri, uri)})
-
   defp undeclared_claims(_validators, nil, _entries), do: []
 
-  defp undeclared_claims(validators, claims, entries) do
+  defp undeclared_claims(validators, %{by_name: declared}, entries) do
     for validator <- validators,
-        {_kind, claim, _disposition, _condition, source} <- validator.requirements,
-        !Map.has_key?(claims, claim),
+        {claim, source} <- Validator.statement_sources(validator),
+        !Map.has_key?(declared, claim),
         uniq: true do
       %Conflict{
         parties: [Map.fetch!(entries, source)],
@@ -146,17 +139,13 @@ defmodule Ltix.Launch.MessageType do
   end
 
   defp duplicate_overrides(validator, entries) do
-    overrides =
-      for {:override, claim, _disposition, _condition, source} <- validator.requirements,
-          do: {claim, Map.fetch!(entries, source)}
+    overrides = Enum.uniq(Validator.override_sources(validator))
 
-    for {claim, sources} <- Enum.group_by(overrides, &elem(&1, 0), &elem(&1, 1)),
-        conflict <-
-          Conflict.duplicates(
-            sources,
-            fn _source -> claim end,
-            &"both override #{inspect(&1)} in #{validator.message_type}"
-          ),
-        do: conflict
+    for {claim, [_, _ | _] = sources} <- Enum.group_by(overrides, &elem(&1, 0), &elem(&1, 1)) do
+      %Conflict{
+        parties: Enum.map(sources, &Map.fetch!(entries, &1)),
+        reason: "both override #{inspect(claim)} in #{validator.message_type}"
+      }
+    end
   end
 end

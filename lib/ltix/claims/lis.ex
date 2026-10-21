@@ -32,4 +32,14 @@ defmodule Ltix.Claims.LIS do
         )
         |> Zoi.optional()
     ]
+
+  @doc """
+  Adds an anonymous property of the LIS claim to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

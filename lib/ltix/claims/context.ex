@@ -19,4 +19,14 @@ defmodule Ltix.Claims.Context do
       title: Zoi.string(description: "The context's full name.") |> Zoi.optional(),
       type: Zoi.list(Zoi.string(), description: "The context's type URIs.") |> Zoi.optional()
     ]
+
+  @doc """
+  Adds an anonymous property of the context claim to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

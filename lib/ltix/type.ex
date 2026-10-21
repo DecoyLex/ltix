@@ -315,6 +315,23 @@ defmodule Ltix.Type do
      InvalidClaim.exception(claim: opts[:name], value: json, message: "must be an object")}
   end
 
+  # Moves the type's properties in `plugins` from a parsed value's
+  # `unrecognized` to its `extensions`, parsing each one with its
+  # `c:Ltix.Property.parse/2`. Takes `from_json/3`'s `:name`.
+  @doc false
+  @spec parse_extensions(struct(), PluginSet.t(), keyword()) ::
+          {:ok, struct()} | {:error, Exception.t()}
+  def parse_extensions(%type{} = value, %PluginSet{} = plugins, opts) do
+    properties = properties(type, plugins)
+    {property_json, unrecognized} = Map.split(value.unrecognized, Map.keys(properties))
+    {extensions, errors} = parse_properties(properties, property_json, opts)
+
+    with :ok <- Errors.collect(errors) do
+      {:ok,
+       %{value | extensions: Map.merge(value.extensions, extensions), unrecognized: unrecognized}}
+    end
+  end
+
   # The type's properties in `plugins`, keyed by JSON name.
   defp properties(type, plugins) do
     for entry <- PluginSet.entries(plugins, type),

@@ -104,6 +104,15 @@ defmodule Ltix.LaunchTest do
       assert {:ok, launch} = launch(platform, [subject: nil], allow_anonymous: true)
       assert launch.claims.subject == nil
     end
+
+    test "rejects an empty subject", %{platform: platform} do
+      assert {:error,
+              %InvalidClaim{
+                claim: "sub",
+                value: "",
+                message: "must be a non-empty string"
+              }} = launch(platform, [subject: ""], allow_anonymous: true)
+    end
   end
 
   describe "plugin steps" do
@@ -272,12 +281,9 @@ defmodule Ltix.LaunchTest do
       assert launch.claims.roles == []
     end
 
-    test "is rejected without Deep Linking settings", %{platform: platform} do
-      assert {:error, %MissingClaim{claim: "deep_linking_settings"}} =
-               launch(platform,
-                 message_type: :deep_linking,
-                 claims: %{@deep_linking_settings => nil}
-               )
+    test "is accepted with an empty subject", %{platform: platform} do
+      assert {:ok, launch} = launch(platform, message_type: :deep_linking, subject: "")
+      assert launch.claims.subject == ""
     end
   end
 
@@ -457,7 +463,7 @@ defmodule Ltix.LaunchTest do
         }
       }
 
-      {params, state} = launch_params(platform, claims: claims)
+      {params, state} = launch_params(platform, roles: [Role.context_mentor()], claims: claims)
       assert {:ok, launch} = callback(params, state)
 
       assert %{
@@ -614,14 +620,46 @@ defmodule Ltix.LaunchTest do
       end
     end
 
-    test "from a plugin are parsed", %{platform: platform} do
-      assert {:ok, launch} =
-               launch(platform, [claims: %{@traced => "value"}],
-                 plugins: [{Modules, add: [TestPlugins.Traced]}]
-               )
+    test "have the properties plugins declare on each object claim", %{platform: platform} do
+      note = %{"https://vendor.example.com/note" => "n"}
 
-      assert_received {:parsed, "value"}
-      assert launch.claims.traced == "value"
+      claims = %{
+        (@lti <> "tool_platform") => Map.put(note, "guid", "platform-1"),
+        (@lti <> "lis") => note,
+        (@lti <> "organization") => Map.put(note, "id", "example.edu"),
+        (@lti <> "actual_user") => Map.put(note, "id", "admin-1"),
+        @deep_linking_settings =>
+          Map.merge(note, %{
+            "deep_link_return_url" => "https://platform.example.com/deep_links",
+            "accept_types" => ["link"],
+            "accept_presentation_document_targets" => ["iframe"]
+          }),
+        "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" =>
+          Map.merge(note, %{
+            "scope" => [@ags_scope],
+            "lineitem" => "https://platform.example.com/items/1"
+          }),
+        "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" =>
+          Map.merge(note, %{
+            "context_memberships_url" => "https://platform.example.com/members",
+            "service_versions" => ["2.0"]
+          })
+      }
+
+      assert {:ok, launch} =
+               launch(platform, [claims: claims], plugins: [{Modules, add: [TestPlugins.Note]}])
+
+      for name <- [
+            :tool_platform,
+            :lis,
+            :organization,
+            :actual_user,
+            :deep_linking_settings,
+            :ags_endpoint,
+            :memberships_endpoint
+          ] do
+        assert launch.claims[name].extensions == %{note: "n"}, "no note on #{name}"
+      end
     end
   end
 

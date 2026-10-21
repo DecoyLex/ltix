@@ -27,4 +27,14 @@ defmodule Ltix.Claims.ToolPlatform do
         |> Zoi.optional(),
       version: Zoi.string(description: "The platform's version.") |> Zoi.optional()
     ]
+
+  @doc """
+  Adds an anonymous property of the platform instance claim to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

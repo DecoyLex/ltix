@@ -6,7 +6,7 @@ A plugin can add a login step, a claim, a message type, an Advantage service, or
 |---|---|
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
 | Run code during login, launches, or token requests | [Add a step](#add-a-step) |
-| Read a claim, or accept a new kind of launch | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
+| Read or check a claim, or accept a new kind of launch | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
 | Add an Advantage service, or send a platform's own grade properties | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
 | Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
@@ -297,8 +297,9 @@ Exception.message(error)
 | Two properties with the same property name (`:name`) on a type | Change one property's `:name`, or enable only one of the plugins |
 | The same claim or property module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
 | A property whose name is a standard field's name, `:extensions`, `:unrecognized`, or `:plugins` | Change the property's `:name` |
-| A [statement](writing-claim-and-launch-plugins.md#declare-a-message-type) about a claim no plugin declares | Depend on the plugin that declares the claim |
+| A [requirement](writing-claim-and-launch-plugins.md#declare-a-message-type) or [check](writing-claim-and-launch-plugins.md#check-a-claim) about a claim no plugin declares | Depend on the plugin that declares the claim |
 | An [endpoint claim](writing-advantage-service-plugins.md#declare-the-endpoint-claim) missing `fields:` or `new/1` | Add the missing one |
+| Two modules that [replace](writing-claim-and-launch-plugins.md#replace-a-check) the same check in the same message type | Enable only one of the plugins |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
 
 Enabling a module that isn't a plugin raises `Ltix.Errors.Invalid.InvalidOption`.
@@ -322,7 +323,7 @@ test "blocks a listed issuer", %{platform: platform} do
 end
 ```
 
-Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-claims-and-launch-steps), [properties on service types](writing-advantage-service-plugins.md#test-properties-on-service-types), and [Deep Linking responses](writing-deep-linking-plugins.md#test-deep-linking-responses) are on their own pages.
+Tests for [claims, checks, and launch steps](writing-claim-and-launch-plugins.md#test-claims-checks-and-launch-steps), [properties on service types](writing-advantage-service-plugins.md#test-properties-on-service-types), and [Deep Linking responses](writing-deep-linking-plugins.md#test-deep-linking-responses) are on their own pages.
 
 ## Next steps
 

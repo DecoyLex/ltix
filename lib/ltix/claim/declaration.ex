@@ -4,8 +4,8 @@ defmodule Ltix.Claim.Declaration do
   # claim module's default `parse/2`. Its struct is a declared claim in a
   # plugin set, which `Ltix.Claims` builds from an entry when it resolves the
   # set. It has the entry's module and options, the claim's URI, short name,
-  # the name its errors give, service, `:strict` option, and value when a
-  # message lacks it.
+  # the name its errors give, service, `:strict` option, value when a message
+  # lacks it, and checks.
 
   defstruct [
     :claim,
@@ -15,7 +15,8 @@ defmodule Ltix.Claim.Declaration do
     :label,
     :service,
     :strict,
-    :default
+    :default,
+    checks: []
   ]
 
   @type t :: %__MODULE__{
@@ -26,7 +27,15 @@ defmodule Ltix.Claim.Declaration do
           label: String.t(),
           service: module() | nil,
           strict: boolean(),
-          default: term()
+          default: term(),
+          checks: [
+            %{
+              check: module() | nil,
+              message_types: :all | [String.t()],
+              run: (term(), map() -> :ok | {:error, term()}),
+              overrides: %{String.t() => (term(), map() -> :ok | {:error, term()})}
+            }
+          ]
         }
 
   @options [:claim, :name, :schema, :fields, :strict, :default, :service]

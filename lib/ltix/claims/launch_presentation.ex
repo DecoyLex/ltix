@@ -30,4 +30,14 @@ defmodule Ltix.Claims.LaunchPresentation do
         Zoi.string(description: "The user's language and region, such as `\"en-US\"`.")
         |> Zoi.optional()
     ]
+
+  @doc """
+  Adds an anonymous property of the launch presentation claim to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

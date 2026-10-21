@@ -2,10 +2,6 @@ defmodule Ltix.Core do
   @moduledoc """
   The default [plugin](`Ltix.Plugin`) for LTI Core 1.3.0.
 
-  It extends `Ltix.Login` with the default login steps, `Ltix.Launch` with the
-  default launch steps, `Ltix.Claim` with Core's claims, and
-  `Ltix.Launch.EveryMessageType` with `Ltix.Core.RequiredClaims`.
-
   ## Claims
 
   Every launch must have `version`, `deployment_id`, and `target_link_uri`.
@@ -51,6 +47,14 @@ defmodule Ltix.Core do
   | organization | `:organization` | `Ltix.Claims.Organization` | No |
   | actual user | `:actual_user` | `Ltix.Claims.ActualUser` | No |
 
+  ## Checks
+
+    * `Ltix.Claims.Version` rejects a version other than `"1.3.0"`.
+    * `Ltix.ResourceLinkRequest.NonEmptySubject` rejects an empty `sub` in
+      resource link launches.
+    * `Ltix.Claims.RoleScopeMentor` rejects subject identifiers in a launch
+      without the Mentor role.
+
   ## Extending
 
   Every plugin set includes Core, so a plugin can extend these modules.
@@ -58,6 +62,8 @@ defmodule Ltix.Core do
     * `Ltix.Login` to add login steps
     * `Ltix.Launch` to add launch steps
     * `Ltix.Claim` to declare claims
+    * `Ltix.Claims.Check` to add checks
+    * `Ltix.Claims.Override` to replace a check for a message type
     * `Ltix.Launch.MessageType` to declare message types
     * `Ltix.ResourceLinkRequest` to change what resource link launches require
     * `Ltix.Launch.EveryMessageType` to change what every launch requires
@@ -118,7 +124,7 @@ defmodule Ltix.Core do
   @anonymous_claims [
     # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
     [claim: "iss", name: :issuer, schema: Zoi.string()],
-    [claim: "sub", name: :subject, schema: Zoi.string() |> Zoi.min(1)],
+    [claim: "sub", name: :subject, schema: Zoi.string()],
     [claim: "aud", name: :audience, schema: Zoi.union([Zoi.string(), Zoi.list(Zoi.string())])],
     [claim: "exp", name: :expires_at, schema: Zoi.number()],
     [claim: "iat", name: :issued_at, schema: Zoi.number()],
@@ -190,6 +196,8 @@ defmodule Ltix.Core do
     |> Plugin.add(Launch)
     |> Plugin.add(Claim)
     |> Plugin.add(Claims)
+    |> Plugin.add(Claims.Check)
+    |> Plugin.add(Claims.Override)
     |> Plugin.add(ClientAssertion)
     |> Plugin.add(Launch.MessageType)
     |> Plugin.add(Launch.EveryMessageType)
@@ -199,6 +207,7 @@ defmodule Ltix.Core do
     plugin
     |> Plugin.add(ResourceLinkRequest)
     |> Plugin.add(RequiredClaims)
+    |> Plugin.add(ResourceLinkRequest.NonEmptySubject)
   end
 
   defp add_launch_steps(plugin), do: Enum.reduce(@steps, plugin, &Plugin.add(&2, &1))

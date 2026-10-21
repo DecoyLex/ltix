@@ -1,12 +1,12 @@
 # Writing Claim and Launch Plugins
 
-A plugin can declare the claims Ltix parses from a launch, and accept new message types. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
+A plugin can declare the claims Ltix parses from a launch, check their values, and accept new message types. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
 
 ## Declare a claim
 
 Declare a claim with its URI as `claim:` and its short name as `name:`. Ltix parses it into `launch.claims` under the short name.
 
-Examples in this section build this plugin for a fictional proctoring service. Add `{:zoi, "~> 0.17"}` to your dependencies.
+Examples in this section and [Check a claim](#check-a-claim) build this plugin for a fictional proctoring service. Add `{:zoi, "~> 0.17"}` to your dependencies.
 
 ```elixir
 defmodule Proctoring do
@@ -22,6 +22,7 @@ defmodule Proctoring do
     )
     |> Ltix.Plugin.add(Proctoring.Session)
     |> Ltix.Plugin.add(Proctoring.Exam)
+    |> Ltix.Plugin.add(Proctoring.WindowOnly)
   end
 end
 ```
@@ -96,6 +97,68 @@ A claim the platform didn't send, or sent as `null`, is its `default:`, or `nil`
 ### Share a claim between plugins
 
 Enabling two plugins that declare the same claim URI or short name makes calls return an [`InvalidPluginSet`](writing-plugins.md#fix-a-plugin-set-that-fails-to-resolve) error. To share a claim, have both plugins [depend on](writing-plugins.md#depend-on-another-plugin) one plugin that declares it.
+
+## Add a property to a claim
+
+Add a property to an object claim another plugin declares, such as a property that a later revision of Core adds to the `launch_presentation` claim, with the claim's `add_property/2`.
+
+```elixir
+Ltix.Plugin.new(name: "Placement", version: "1.0.0")
+|> Ltix.Claims.LaunchPresentation.add_property(
+  property: "placement",
+  name: :placement,
+  schema: Zoi.list(Zoi.string())
+)
+```
+
+Read the value from the claim's `extensions` by its name.
+
+```elixir
+launch.claims.launch_presentation.extensions.placement
+#=> ["ContentArea"]
+```
+
+A property that fails to parse makes the whole claim malformed. A property that needs code to parse is a module, as `Ltix.Property` describes.
+
+## Check a claim
+
+A check accepts or rejects a parsed claim's value. It receives the value and every parsed claim, keyed by short name. It returns `:ok` or `{:error, reason}`, with the same reasons as `parse/2`, and a failure becomes `Ltix.Errors.Invalid.InvalidClaim`.
+
+Checks run on the claims in `launch.claims`. A claim that's missing or malformed isn't checked.
+
+### Add a check
+
+`Ltix.Claims.Check.add/2` adds a check to a claim by its URI, whichever plugin declares the claim. In `Proctoring.plugin/1`, this check rejects a `live` launch without a proctoring session.
+
+```elixir
+|> Ltix.Claims.Check.add(
+  claim: "https://proctor.example.com/claim/mode",
+  check: fn
+    "live", %{proctoring_session: nil} -> {:error, "requires a proctoring session"}
+    _mode, _claims -> :ok
+  end
+)
+```
+
+`message_types:` limits a check to the message types it lists. Without it, the check runs in every message type. When another library's plugin declares the claim, [depend on](writing-plugins.md#depend-on-another-plugin) that plugin.
+
+### Write a check as a module
+
+An [override](#replace-a-check) refers to the check it replaces by its module, so a check that other plugins replace is a module. Call `use Ltix.Claims.Check` with the claim's URI and, optionally, the message types the check runs in.
+
+```elixir
+defmodule Proctoring.WindowOnly do
+  use Ltix.Claims.Check,
+    claim: "https://purl.imsglobal.org/spec/lti/claim/launch_presentation",
+    message_types: ["LtiStartProctoring"]
+
+  @impl Ltix.Claims.Check
+  def check(%{document_target: "window"}, _claims), do: :ok
+  def check(_presentation, _claims), do: {:error, "must open in a window"}
+end
+```
+
+A claim module can also check its own value by implementing `c:Ltix.Claim.check/2`.
 
 ## Declare a message type
 
@@ -253,11 +316,28 @@ IO.puts(Ltix.Validator.describe(validators["LtiResourceLinkRequest"]))
 | `target_link_uri` | Required | `Ltix.Core.RequiredClaims` |
 ```
 
-## Test claims and launch steps
+## Replace a check
+
+An override replaces a check within the message types it lists. `Ltix.Claims.Override.add/2` takes three options. `check:` is the module whose check it replaces, either a claim module or a check module, `message_types:` lists the message types, and `with:` is the function that checks the claim in them.
+
+Suppose a platform sends `role_scope_mentor` in Submission Review launches without the Mentor role. This override in the `Review` plugin accepts those launches. Resource link launches still run Core's check.
+
+```elixir
+Ltix.Plugin.new(name: "Submission Review", version: "1.0.0")
+|> Ltix.Plugin.add(Review.Request)
+|> Ltix.Plugin.add(Review.ForUser)
+|> Ltix.Claims.Override.add(
+  check: Ltix.Claims.RoleScopeMentor,
+  message_types: ["LtiSubmissionReviewRequest"],
+  with: fn _subjects, _claims -> :ok end
+)
+```
+
+## Test claims, checks, and launch steps
 
 These tests use the setup from [Test a plugin](writing-plugins.md#test-a-plugin).
 
-`Ltix.Test.build_launch/2` builds a launch without a login or a signed token. It parses your plugin's claims, runs your [launch steps](writing-plugins.md#add-a-step), and checks the claims the message type requires. It raises when the launch fails. `claims:` merges raw claims over the ones it builds.
+`Ltix.Test.build_launch/2` builds a launch without a login or a signed token. It parses your plugin's claims, runs their checks and your [launch steps](writing-plugins.md#add-a-step), and checks the claims the message type requires. It raises when the launch fails. `claims:` merges raw claims over the ones it builds.
 
 ```elixir
 test "parses the proctoring session", %{platform: platform} do

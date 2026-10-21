@@ -94,6 +94,8 @@ launch.claims.session.id
 
 A malformed value for a declared claim fails the launch. When you declare the claim with `strict: false`, a malformed value is the claim's `:default`, or `nil` without one, and the launch continues. See [Declare a claim](writing-claim-and-launch-plugins.md#declare-a-claim). A claim whose value needs only a Zoi schema needs no module, as [Declare a claim with a schema](writing-claim-and-launch-plugins.md#declare-a-claim-with-a-schema) shows.
 
+A parser for a standard claim can't become a declared claim, because Ltix already declares it. Split it into a module for each property it parsed, an `Ltix.Claims.Check` for each rule it added, and an `Ltix.Claims.Override` for each check it replaced. See [Add a property to a claim](writing-claim-and-launch-plugins.md#add-a-property-to-a-claim), [Check a claim](writing-claim-and-launch-plugins.md#check-a-claim), and [Replace a check](writing-claim-and-launch-plugins.md#replace-a-check).
+
 ### `organization` and `actual_user` are parsed
 
 Read them from `launch.claims.organization` and `launch.claims.actual_user`, where 0.2 had them in `claims.extensions`. They're `Ltix.Claims.Organization` and `Ltix.Claims.ActualUser` structs.
@@ -102,9 +104,20 @@ Read them from `launch.claims.organization` and `launch.claims.actual_user`, whe
 
 In 0.2, a malformed `resource_link` failed only resource link launches, and malformed `deep_linking_settings` only Deep Linking requests. Now either fails every launch. Your code doesn't change.
 
+### A role-scope mentor launch requires the Mentor role
+
+A launch with subject identifiers in `role_scope_mentor` fails with `Ltix.Errors.Invalid.InvalidClaim` unless `roles` has the Mentor context role or one of its sub-roles. To accept such launches from a platform, override `Ltix.Claims.RoleScopeMentor` in a message type. See [Replace a check](writing-claim-and-launch-plugins.md#replace-a-check). In tests, add the Mentor role.
+
+```elixir
+Ltix.Test.build_launch(platform,
+  roles: [Ltix.Role.context_mentor()],
+  claims: %{"https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor" => ["user-2"]}
+)
+```
+
 ### `build_launch_context/2` is now `Ltix.Test.build_launch/2`
 
-`build_launch/2` also requires the message type's claims. It raises when a required claim is missing. Pass `allow_anonymous: true` where you build a resource link launch with `subject: nil`.
+`build_launch/2` also runs claim checks and requires the message type's claims. It raises when a check fails or a required claim is missing. Pass `allow_anonymous: true` where you build a resource link launch with `subject: nil`.
 
 ### Member messages are claim maps
 

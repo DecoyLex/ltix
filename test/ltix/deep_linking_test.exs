@@ -19,6 +19,7 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.Errors.Unknown.InvalidPluginSet
   alias Ltix.PluginSet.Conflict
   alias Ltix.PluginSet.Entry
+  alias Ltix.Test.StorageAdapter
   alias TestPlugins.Modules
 
   alias TestPlugins.OtherPoll
@@ -46,11 +47,38 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 message type validation" do
-    test "returns InvalidMessageType for resource link context", %{platform: p} do
-      context = Ltix.Test.build_launch(p)
+    test "returns InvalidMessageType for a resource link launch", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform)
 
       assert {:error, %InvalidMessageType{message_type: "LtiResourceLinkRequest"}} =
-               DeepLinking.build_response(context)
+               DeepLinking.build_response(launch)
+    end
+
+    test "returns InvalidMessageType for a launch without a message type", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      launch = %{launch | claims: Map.delete(launch.claims, :message_type)}
+
+      assert {:error, %InvalidMessageType{message_type: nil}} =
+               DeepLinking.build_response(launch)
+    end
+  end
+
+  describe "build_response/3 for a launch without a deployment" do
+    test "leaves out the deployment ID", %{platform: platform} do
+      StorageAdapter.set_pid(start_supervised!({StorageAdapter, platforms: [platform]}))
+
+      {:ok, launch} =
+        LaunchFlow.launch(
+          platform,
+          [message_type: :deep_linking, claims: %{(@lti <> "deployment_id") => nil}],
+          plugins: [{Modules, add: [TestPlugins.WithoutDeploymentId]}]
+        )
+
+      {:ok, response} = DeepLinking.build_response(launch)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+
+      refute Map.has_key?(claims, @lti <> "deployment_id")
+      assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
     end
   end
 
