@@ -79,7 +79,7 @@ defmodule Ltix.Errors do
 
   defp error_definition(other, _opts) do
     raise ArgumentError,
-          "invalid :type option #{inspect(other)} — expected :error or :error_class"
+          "invalid :type option #{inspect(other)}. Expected :error or :error_class"
   end
 
   # A single failure is returned directly. Several simultaneous failures are

@@ -372,7 +372,7 @@ defmodule Ltix.ErrorsTest do
         )
 
       assert Exception.message(error) ==
-               "Platform authentication failed: access_denied — User cancelled [Sec §5.1.1.5]"
+               "Platform authentication failed: access_denied. User cancelled [Sec §5.1.1.5]"
     end
 
     test "AuthenticationFailed without description" do

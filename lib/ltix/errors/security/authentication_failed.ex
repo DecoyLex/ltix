@@ -7,5 +7,5 @@ defmodule Ltix.Errors.Security.AuthenticationFailed do
       do: "Platform authentication failed: #{error} [#{ref}]"
 
   def message(%{error: error, error_description: description, spec_ref: ref}),
-    do: "Platform authentication failed: #{error} — #{description} [#{ref}]"
+    do: "Platform authentication failed: #{error}. #{description} [#{ref}]"
 end
