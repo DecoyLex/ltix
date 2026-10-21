@@ -62,7 +62,7 @@ launch.claims.proctoring_session
 ```
 
 - A field without `Zoi.optional/1` is required.
-- A malformed value for an optional field becomes `nil`.
+- A malformed value for an optional field becomes `nil`. Give the field `strict: true` metadata to make it fail the claim, as in `Zoi.integer(metadata: [strict: true]) |> Zoi.min(0) |> Zoi.optional()`.
 - `json_key:` metadata sets a field's JSON name.
 - Properties no field declares are in `unrecognized`, under their JSON names.
 - The moduledoc gets a Fields section with each field's `description:`.
@@ -124,7 +124,7 @@ A property that fails to parse makes the whole claim malformed. A property that 
 
 A check accepts or rejects a parsed claim's value. It receives the value and every parsed claim, keyed by short name. It returns `:ok` or `{:error, reason}`, with the same reasons as `parse/2`, and a failure becomes `Ltix.Errors.Invalid.InvalidClaim`.
 
-Checks run on the claims in `launch.claims`. A claim that's missing or malformed isn't checked.
+Checks run on the claims in `launch.claims`. They also run on [member messages](memberships-service.md#reading-member-messages), the claims a platform sends for each member in a roster. A claim that's missing or malformed isn't checked.
 
 ### Add a check
 

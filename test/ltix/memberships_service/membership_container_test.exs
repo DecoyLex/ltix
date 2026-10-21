@@ -5,6 +5,8 @@ defmodule Ltix.MembershipsService.MembershipContainerTest do
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
 
+  doctest MembershipContainer
+
   describe "Enumerable" do
     setup do
       container = %MembershipContainer{

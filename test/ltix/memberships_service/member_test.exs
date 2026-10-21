@@ -1,96 +1,82 @@
 defmodule Ltix.MembershipsService.MemberTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.MembershipsService.Member
+  import Ltix.Test.MembershipsServiceHelper
 
-  defp plugins, do: elem(Ltix.PluginSet.resolve(nil), 1)
+  alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.MembershipsService.Member
 
   doctest Member
 
-  describe "from_json/2" do
-    test "returns error when user_id is missing [NRPS §2.2]" do
-      json = %{"roles" => ["Instructor"]}
-      assert {:error, error} = Member.from_json(json, plugins())
-      assert Exception.message(error) =~ "user_id"
-    end
+  setup do
+    %{client: create_client()}
+  end
 
-    test "returns error when roles is missing [NRPS §2.2]" do
-      json = %{"user_id" => "user-1"}
-      assert {:error, error} = Member.from_json(json, plugins())
-      assert Exception.message(error) =~ "roles"
-    end
+  test "parses every field", %{client: client} do
+    json = %{
+      "user_id" => "user-1",
+      "status" => "Inactive",
+      "name" => "Jane Q. Public",
+      "picture" => "https://platform.example.edu/jane.jpg",
+      "given_name" => "Jane",
+      "family_name" => "Public",
+      "middle_name" => "Q",
+      "email" => "jane@platform.example.edu",
+      "lis_person_sourcedid" => "59254-6782-12ab",
+      "lti11_legacy_user_id" => "668321221-2879",
+      "roles" => ["http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"]
+    }
 
-    test "maps status strings to atoms [NRPS §2.3]" do
-      for {string, atom} <- [{"Active", :active}, {"Inactive", :inactive}, {"Deleted", :deleted}] do
-        json = %{"user_id" => "user-1", "roles" => [], "status" => string}
-        assert {:ok, %Member{status: ^atom}} = Member.from_json(json, plugins())
-      end
-    end
+    assert {{:ok, %{members: [member]}}, {:ok, [member]}} = list_and_stream(client, [json])
 
-    test "handles minor variations in status string formatting" do
-      for {string, atom} <- [
-            {" active ", :active},
-            {"ACTIVE", :active},
-            {"inactive", :inactive},
-            {"DELETED", :deleted}
-          ] do
-        json = %{"user_id" => "user-1", "roles" => [], "status" => string}
-        assert {:ok, %Member{status: ^atom}} = Member.from_json(json, plugins())
-      end
-    end
+    assert member == %Member{
+             user_id: "user-1",
+             status: :inactive,
+             name: "Jane Q. Public",
+             picture: "https://platform.example.edu/jane.jpg",
+             given_name: "Jane",
+             family_name: "Public",
+             middle_name: "Q",
+             email: "jane@platform.example.edu",
+             lis_person_source_id: "59254-6782-12ab",
+             lti_1_1_legacy_user_id: "668321221-2879",
+             roles: ["http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor"]
+           }
+  end
 
-    test "keeps unrecognized fields in extensions" do
-      json = %{
-        "user_id" => "user-1",
-        "roles" => [],
-        "name" => "Jane",
-        "lis_person_sourcedid" => "sis-1",
-        "https://canvas.instructure.com/lti/sis_user_id" => "sis-1",
-        "nickname" => "JJ"
-      }
+  test "reads a status in any case and with surrounding spaces [NRPS §2.3]", %{client: client} do
+    statuses = ["Active", "Inactive", "Deleted", " active ", "ACTIVE", "inactive", "DELETED"]
+    members = for status <- statuses, do: Map.put(member("user-1"), "status", status)
 
-      assert {:ok, %Member{} = member} = Member.from_json(json, plugins())
+    assert {{:ok, %{members: members}}, {:ok, members}} = list_and_stream(client, members)
 
-      assert member.extensions == %{
-               "https://canvas.instructure.com/lti/sis_user_id" => "sis-1",
-               "nickname" => "JJ"
-             }
+    assert Enum.map(members, & &1.status) ==
+             [:active, :inactive, :deleted, :active, :active, :inactive, :deleted]
+  end
+
+  test "reports a missing user_id or roles [NRPS §2.2]", %{client: client} do
+    for {json, claim} <- [
+          {%{"roles" => []}, "member.user_id"},
+          {%{"user_id" => "user-1"}, "member.roles"},
+          {%{}, "member.user_id and member.roles"}
+        ] do
+      assert {{:error, %MissingClaim{claim: ^claim}}, {:error, %MissingClaim{claim: ^claim}}} =
+               list_and_stream(client, [json])
     end
   end
 
-  describe "to_map/1" do
-    test "serializes a member built without extensions" do
-      member = %Member{user_id: "user-1", roles: [], extensions: nil}
-      assert Member.to_map(member) == %{"user_id" => "user-1", "roles" => []}
-    end
+  test "keeps properties no plugin declares in unrecognized", %{client: client} do
+    json =
+      Map.merge(member("user-1"), %{
+        "https://lms.example.com/student_number" => "s-42",
+        "nickname" => "JJ"
+      })
 
-    test "leaves out the message section" do
-      member = %Member{user_id: "user-1", roles: [], message: [%{}]}
+    assert {{:ok, %{members: [member]}}, {:ok, [member]}} = list_and_stream(client, [json])
 
-      refute Map.has_key?(Member.to_map(member), "message")
-    end
-
-    test "round-trips every field except message through from_json/2" do
-      json = %{
-        "user_id" => "user-1",
-        "status" => "Inactive",
-        "name" => "Jane Q. Public",
-        "picture" => "https://platform.example.edu/jane.jpg",
-        "given_name" => "Jane",
-        "family_name" => "Public",
-        "middle_name" => "Q",
-        "email" => "jane@platform.example.edu",
-        "lis_person_sourcedid" => "59254-6782-12ab",
-        "lti11_legacy_user_id" => "668321221-2879",
-        "roles" => [
-          "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-          "http://example.com/custom/role"
-        ],
-        "https://lms.example.com/student_number" => "s-42"
-      }
-
-      {:ok, member} = Member.from_json(json, plugins())
-      assert Member.to_map(member) == json
-    end
+    assert member.unrecognized == %{
+             "https://lms.example.com/student_number" => "s-42",
+             "nickname" => "JJ"
+           }
   end
 end

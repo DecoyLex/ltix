@@ -187,7 +187,7 @@ Your service module keeps its functions, and `Ltix.OAuth.Client.request/3` still
 
 `Ltix.GradeService` and `Ltix.MembershipsService` no longer have `endpoint_from_claims/1`, `validate_endpoint/1`, or `scopes/1`. Read a launch's endpoint with `Ltix.Launch.get_endpoint/2`, and a grade service endpoint's scopes from its `scopes` field. Check a stored endpoint with its module's `new/1`, such as `Ltix.GradeService.Endpoint.new/1`.
 
-## Grade service
+## Grade and memberships services
 
 ### `extensions:` is replaced by property names
 
@@ -218,14 +218,14 @@ config :ltix, plugins: [MyApp.Canvas]
 
 ### Undeclared properties are in `unrecognized`
 
-In 0.2, line items and results kept unparsed properties in `extensions`, under their JSON names. They're now in `unrecognized`, and `extensions` has the properties plugins declare, keyed by property name.
+In 0.2, line items, results, and members kept unparsed properties in `extensions`, under their JSON names. They're now in `unrecognized`, and `extensions` has the properties plugins declare, keyed by property name.
 
 ```elixir
 # 0.2
-item.extensions["https://lms.example.com/rubric"]
+member.extensions["https://lms.example.com/student_number"]
 
 # 0.3
-item.unrecognized["https://lms.example.com/rubric"]
+member.unrecognized["https://lms.example.com/student_number"]
 ```
 
 To send a property without a plugin, set it in the line item's `unrecognized`, keyed by JSON name. Ltix sends it when it creates or updates the line item.
@@ -250,7 +250,7 @@ Ltix.GradeService.create_line_item(client, item)
 
 ### `from_json/1`, `to_map/1`, and the JSON encoders are removed
 
-Line items, scores, and results lose these. Parse with `Ltix.Type.from_json/3` and serialize with `Ltix.Type.to_json/3`.
+Line items, scores, results, members, and membership containers lose these. Parse with `Ltix.Type.from_json/3` and serialize with `Ltix.Type.to_json/3`.
 
 ```elixir
 # 0.2
@@ -263,6 +263,10 @@ json = Ltix.Type.to_json(item)
 ```
 
 Encode line items and scores with `to_json/3` where you used `JSON` or `Jason`.
+
+### Members default to active
+
+A `%Ltix.MembershipsService.Member{}` you build has a `status` of `:active`, where 0.2 had `nil`.
 
 ## Roles
 

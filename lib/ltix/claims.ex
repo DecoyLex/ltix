@@ -286,6 +286,39 @@ defmodule Ltix.Claims do
   defp parse_extensions(parsed, _declaration, _plugins), do: {:ok, parsed}
 
   @doc """
+  Serializes parsed claims, keyed by short name, to raw claims keyed as a
+  platform sends them, with the claims a plugin set declares.
+
+  An object claim includes every property it has a value for, and a `nil`
+  claim is left out. Raises `ArgumentError` for a claim no plugin in the set
+  declares.
+
+      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+      iex> Ltix.Claims.serialize(%{custom: %{"country" => "Canada"}}, plugins)
+      %{"https://purl.imsglobal.org/spec/lti/claim/custom" => %{"country" => "Canada"}}
+  """
+  @spec serialize(%{atom() => term()}, PluginSet.t()) :: map()
+  def serialize(claims, %PluginSet{} = plugins) when is_map(claims) do
+    declared =
+      for {uri, declaration} <- PluginSet.data(plugins, __MODULE__).by_uri,
+          into: %{},
+          do: {declaration.name, {uri, declaration}}
+
+    for {name, value} <- claims, value != nil, into: %{} do
+      case Map.fetch(declared, name) do
+        {:ok, {uri, declaration}} -> {uri, serialize_claim(declaration, value, plugins)}
+        :error -> raise ArgumentError, "no plugin declares the claim #{inspect(name)}"
+      end
+    end
+  end
+
+  defp serialize_claim(%{claim: claim}, %claim{} = value, plugins),
+    do: Ltix.Type.to_json(value, plugins, :read)
+
+  defp serialize_claim(%{claim: claim, opts: opts}, value, _plugins),
+    do: claim.serialize(value, opts)
+
+  @doc """
   Runs the checks of every claim in `claims` for a message of `message_type`.
 
   Takes the parsed claims, keyed by short name, and skips claims that are

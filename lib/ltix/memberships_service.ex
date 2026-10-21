@@ -32,30 +32,20 @@ defmodule Ltix.MembershipsService do
       stream
       |> Stream.filter(&(&1.status == :active))
       |> Enum.each(&process_member/1)
-
-  ## Plugin
-
-  `Ltix.MembershipsService` is also the default plugin for NRPS 2.0. It
-  declares the `Ltix.MembershipsService.Endpoint` claim, so
-  `Ltix.Launch.get_endpoint(launch, Ltix.MembershipsService)` returns a
-  launch's endpoint. It also adds the memberships scope to token requests for
-  the endpoint.
-
-  ## Member messages
-
-  A member's `message` has the claims of the messages the platform sent
-  about the member, parsed with the claims the client's plugin set declares.
-  Pass `plugins:` to parse them with other plugins.
   """
 
   @behaviour Ltix.Plugin
 
+  use Ltix.Provider
+
   alias Ltix.Claims
   alias Ltix.Errors.Invalid.CollectionTooLarge
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Launch
   alias Ltix.MembershipsService.AddScope
   alias Ltix.MembershipsService.Endpoint
+  alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
@@ -71,6 +61,9 @@ defmodule Ltix.MembershipsService do
   @impl Ltix.Plugin
   def plugin(_opts) do
     Plugin.new(name: "LTI Names and Role Provisioning Services 2.0", version: @version)
+    |> Plugin.add(__MODULE__)
+    |> Plugin.add(Member)
+    |> Plugin.add(MembershipContainer)
     |> Plugin.add(Endpoint)
     |> Plugin.add(AddScope)
   end
@@ -151,10 +144,13 @@ defmodule Ltix.MembershipsService do
     plugins:
       Zoi.list(Zoi.any(),
         description:
-          "The plugins to parse each member's `message` with, each as `MyPlugin` or " <>
-            "`{MyPlugin, opts}`. Defaults to the client's plugin set."
+          "Plugins for this call, each as `MyPlugin` or `{MyPlugin, opts}`. " <>
+            "Defaults to the client's plugins."
       ),
-    role: Zoi.string(description: "Filter by role URI, such as `Ltix.Role.context_learner/0`."),
+    role:
+      Zoi.string(
+        description: "Only members with this role URI, such as `Ltix.Role.context_learner/0`."
+      ),
     resource_link_id: Zoi.string(description: "Query resource link membership."),
     per_page:
       Zoi.integer(
@@ -332,9 +328,27 @@ defmodule Ltix.MembershipsService do
   # stop at the first failure without fetching later pages.
   defp containers(pages, plugins) do
     Stream.map(pages, fn
-      {:ok, body} -> MembershipContainer.from_json(body, plugins)
+      {:ok, body} -> parse_container(body, plugins)
       {:error, _error} = error -> error
     end)
+  end
+
+  # A container without a context is parsed as one with a `null` context.
+  # [NRPS §2.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+  defp parse_container(%{"members" => members} = body, plugins) when is_list(members) do
+    Ltix.Type.from_json(MembershipContainer, Map.put_new(body, "context", nil),
+      plugins: plugins,
+      name: "membership"
+    )
+  end
+
+  defp parse_container(body, _plugins) when is_map(body),
+    do: malformed("expected members to be a JSON array")
+
+  defp parse_container(_body, _plugins), do: malformed("expected JSON object")
+
+  defp malformed(reason) do
+    {:error, MalformedResponse.exception(service: __MODULE__, reason: reason)}
   end
 
   # The `:endpoint` option overrides the client's endpoint and is validated like it.

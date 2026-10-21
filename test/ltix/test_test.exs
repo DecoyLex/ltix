@@ -859,6 +859,59 @@ defmodule Ltix.TestTest do
       assert Role.learner?(alice.roles)
     end
 
+    test "a roster reads back as it was stubbed, with its properties and messages", %{
+      platform: platform
+    } do
+      plugins = [{TestPlugins.Modules, add: [TestPlugins.StudentNumber, TestPlugins.Section]}]
+      context = %Context{id: "course-42", extensions: %{section: "A"}}
+
+      member = %Member{
+        user_id: "student-1",
+        roles: [Role.context_learner()],
+        status: :inactive,
+        name: "Jane Q. Public",
+        picture: "https://lms.example.com/jane.jpg",
+        given_name: "Jane",
+        family_name: "Public",
+        middle_name: "Q",
+        email: "jane@lms.example.com",
+        lis_person_source_id: "59254-6782-12ab",
+        lti_1_1_legacy_user_id: "668321221-2879",
+        message: [
+          %{
+            message_type: "LtiResourceLinkRequest",
+            custom: %{"country" => "Canada"},
+            context: %Context{id: "course-42", title: "Elixir 101"}
+          }
+        ],
+        extensions: %{student_number: %{value: "s-42"}},
+        unrecognized: %{"https://lms.example.com/nickname" => "JJ"}
+      }
+
+      Ltix.Test.stub_list_members([member], context: context, plugins: plugins)
+      client = build_memberships_client(platform)
+
+      assert {:ok, %MembershipContainer{context: ^context, members: [listed]}} =
+               Ltix.MembershipsService.list_members(client, plugins: plugins)
+
+      assert %{listed | message: member.message} == member
+      assert [%{lis: nil, roles: []} = message] = listed.message
+      assert Map.take(message, [:message_type, :custom, :context]) == hd(member.message)
+
+      Ltix.Test.stub_list_members([listed], context: context, plugins: plugins)
+
+      assert {:ok, %MembershipContainer{members: [^listed]}} =
+               Ltix.MembershipsService.list_members(client, plugins: plugins)
+    end
+
+    test "raises for a message claim no plugin declares" do
+      member = %Member{user_id: "student-1", roles: [], message: [%{tenant: "acme"}]}
+
+      assert_raise ArgumentError, "no plugin declares the claim :tenant", fn ->
+        Ltix.Test.stub_list_members([member])
+      end
+    end
+
     test "uses default context when none given", %{platform: platform} do
       Ltix.Test.stub_list_members([
         %Member{user_id: "student-1", roles: [Role.context_learner()]}

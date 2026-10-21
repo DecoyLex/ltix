@@ -1,6 +1,6 @@
 # Writing Advantage Service Plugins
 
-A plugin can add an [Advantage service](advantage-services.md). It can also add properties to the line items, scores, and results of `Ltix.GradeService`. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
+A plugin can add an [Advantage service](advantage-services.md). It can also add properties to the line items, scores, and results of `Ltix.GradeService`, and to the members and membership containers of `Ltix.MembershipsService`. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
 
 Examples on this page build this plugin for a fictional proctoring service.
 
@@ -14,6 +14,7 @@ defmodule Proctoring do
     |> Ltix.Plugin.add(Proctoring.Endpoint)
     |> Ltix.Plugin.add(Proctoring.Scope)
     |> Ltix.Plugin.add(Proctoring.Integrity)
+    |> Ltix.Plugin.add(Proctoring.ExtraTime)
   end
 end
 ```
@@ -117,6 +118,27 @@ item.extensions.proctoring_integrity
 ```
 
 A property whose value needs code to convert, beyond a Zoi schema, is a module that `use`s the type's module with the same options and implements `c:Ltix.Property.parse/2` or `c:Ltix.Property.serialize/2`. [Writing a Canvas Grade Plugin](cookbooks/canvas-grade-plugin.md) builds a complete property plugin with both kinds.
+
+## Add a property to members or membership containers
+
+Plugins add properties to `Ltix.MembershipsService.Member` and `Ltix.MembershipsService.MembershipContainer` the same way as to line items.
+
+```elixir
+|> Ltix.MembershipsService.Member.add_property(
+  property: "https://proctor.example.com/extra_time",
+  name: :proctoring_extra_time,
+  schema: Zoi.integer()
+)
+```
+
+```elixir
+member.extensions.proctoring_extra_time
+#=> 30
+```
+
+Ltix doesn't send members to platforms. A member property module needs `serialize/2` only for `Ltix.Test.stub_list_members/2`.
+
+A membership container's `context` is an `Ltix.Claims.Context`. To add a property to it, [add a property to the claim](writing-claim-and-launch-plugins.md#add-a-property-to-a-claim).
 
 ## Test properties on service types
 

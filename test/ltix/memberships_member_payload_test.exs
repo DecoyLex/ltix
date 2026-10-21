@@ -111,7 +111,7 @@ defmodule Ltix.MembershipsMemberPayloadTest do
 
     stub_pages(1, body)
 
-    assert {:error, %InvalidClaim{claim: "member.roles"}} =
+    assert {:error, %InvalidClaim{claim: "member.roles.1", value: 123}} =
              MembershipsService.list_members(client)
 
     assert {:ok, stream} = MembershipsService.stream_members(client)
@@ -175,6 +175,7 @@ defmodule Ltix.MembershipsMemberPayloadTest do
   test "missing context identifiers propagate parse errors", %{client: client} do
     for body <- [
           Map.delete(container(1), "context"),
+          Map.put(container(1), "context", nil),
           Map.put(container(1), "context", %{})
         ] do
       stub_pages(1, body)

@@ -15,8 +15,8 @@ defmodule Ltix.Type do
           ]
       end
 
-  Fields without `Zoi.optional/1` are enforced keys. Besides the standard
-  fields, the struct has two more fields.
+  Fields without `Zoi.optional/1` or `Zoi.default/2` are enforced keys.
+  Besides the standard fields, the struct has two more fields.
 
     * `:extensions` - property values, keyed by each property's name, as in
       `badge.extensions.color`. `new/2` takes them by name
@@ -57,11 +57,21 @@ defmodule Ltix.Type do
         Zoi.date(metadata: [from_json: &Date.from_iso8601/1, to_json: &Date.to_iso8601/1])
         |> Zoi.optional()
 
-    * `:from_json` - a function that takes the JSON value and returns
-      `{:ok, value}` or `{:error, reason}`. `from_json/3` parses its value
-      with the field's schema
-    * `:to_json` - a function that takes the field's value and returns its
-      JSON
+    * `:from_json` - a function that takes the JSON value, or the JSON value
+      and `from_json/3`'s options, and returns `{:ok, value}` or
+      `{:error, reason}`. `from_json/3` parses its value with the field's
+      schema. A function that takes the options can parse a nested value
+      with the `:plugins` they include
+    * `:to_json` - a function that takes the field's value, or the field's
+      value and `to_json/3`'s plugin set, and returns its JSON
+
+  ## Malformed fields
+
+  `from_json/3` leaves a missing or malformed field with `Zoi.optional/1` or
+  `Zoi.default/2` at its default. Give such a field `strict: true` in its
+  schema's metadata to make a malformed value an error.
+
+      grade: Zoi.integer(metadata: [strict: true]) |> Zoi.optional()
 
   ## Properties
 
@@ -104,13 +114,15 @@ defmodule Ltix.Type do
                           )
 
         @ltix_type_json_keys unquote(json_keys)
+        @ltix_type_defaults unquote(Keyword.get(opts, :defaults, []))
       end
 
     struct =
       quote unquote: false do
         @type t :: unquote(Ltix.Type.__type_spec__(@ltix_type_schema))
-        @enforce_keys Zoi.Struct.enforce_keys(@ltix_type_schema)
-        defstruct Zoi.Struct.struct_fields(@ltix_type_schema) ++
+        @enforce_keys Zoi.Struct.enforce_keys(@ltix_type_schema) --
+                        Keyword.keys(@ltix_type_defaults)
+        defstruct Ltix.Type.__struct_fields__(@ltix_type_schema, @ltix_type_defaults) ++
                     [extensions: %{}, unrecognized: %{}]
 
         @ltix_type_json_fields Ltix.Type.__json_fields__(
@@ -156,6 +168,16 @@ defmodule Ltix.Type do
 
     for {field, field_schema} <- schema.fields do
       {field, json_name(field, field_schema, json_keys), field_schema, field in required}
+    end
+  end
+
+  @doc false
+  def __struct_fields__(schema, defaults) do
+    for field <- Zoi.Struct.struct_fields(schema) do
+      case field do
+        {key, default} -> {key, Keyword.get(defaults, key, default)}
+        key -> {key, Keyword.get(defaults, key)}
+      end
     end
   end
 
@@ -275,12 +297,14 @@ defmodule Ltix.Type do
   @doc """
   Parses JSON into a type's struct.
 
-  A missing or malformed field with `Zoi.optional/1` is left at its default,
-  and a missing or malformed field without it is an error. Each of the type's
-  properties in `:plugins` is parsed with its `c:Ltix.Property.parse/2` and
-  goes in `extensions`, and a property that fails to parse is an error.
-  Properties no field or property declares go in `unrecognized`. Returns
-  `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
+  A missing field with `Zoi.optional/1` or `Zoi.default/2` is left at its
+  default, and so is a malformed one unless its schema's metadata sets
+  `strict: true`. A missing or malformed field without either is an error.
+  Each of the type's properties in `:plugins` is parsed with its
+  `c:Ltix.Property.parse/2` and goes in `extensions`, and a property that
+  fails to parse is an error. Properties no field or property declares go in
+  `unrecognized`. Returns `Ltix.Errors.Unknown.InvalidPluginSet` when the
+  plugins conflict.
 
   ## Options
 
@@ -414,7 +438,7 @@ defmodule Ltix.Type do
           field_value <- [Map.fetch!(value, field)],
           field_value != nil,
           into: %{},
-          do: {key, field_json(field_value, schema, json_keys)}
+          do: {key, field_json(field_value, schema, json_keys, plugins)}
 
     properties =
       for %Entry{module: property, opts: opts} <- PluginSet.entries(plugins, type),
@@ -428,9 +452,10 @@ defmodule Ltix.Type do
     |> Map.merge(properties)
   end
 
-  defp field_json(value, schema, json_keys) do
+  defp field_json(value, schema, json_keys, plugins) do
     case Zoi.metadata(schema)[:to_json] do
       nil -> json_value(value, schema, json_keys)
+      to_json when is_function(to_json, 2) -> to_json.(value, plugins)
       to_json -> to_json.(value)
     end
   end
@@ -492,24 +517,32 @@ defmodule Ltix.Type do
   defp parse_value({:ok, nil}, _field, _schema, false, _opts), do: :default
 
   defp parse_value({:ok, value}, field, schema, required?, opts) do
-    case parse_json(value, schema) do
+    metadata = Zoi.metadata(schema)
+    strict? = required? || Keyword.get(metadata, :strict, false)
+
+    case parse_json(value, schema, metadata, opts) do
       {:ok, _value} = ok ->
         ok
 
-      {:error, _reason} when not required? ->
-        :default
-
-      {:error, reason} ->
+      {:error, reason} when strict? ->
         {:error, Errors.from_reason(reason, value, path(field, opts))}
+
+      {:error, _reason} ->
+        :default
     end
   end
 
-  defp parse_json(value, schema) do
-    case Zoi.metadata(schema)[:from_json] do
-      nil -> Zoi.parse(schema, value)
-      from_json -> with {:ok, value} <- from_json.(value), do: Zoi.parse(schema, value)
-    end
+  defp parse_json(value, schema, metadata, opts) do
+    with {:ok, value} <- json_to_value(value, metadata[:from_json], opts),
+         do: Zoi.parse(schema, value)
   end
+
+  defp json_to_value(value, nil, _opts), do: {:ok, value}
+
+  defp json_to_value(value, from_json, opts) when is_function(from_json, 2),
+    do: from_json.(value, opts)
+
+  defp json_to_value(value, from_json, _opts), do: from_json.(value)
 
   defp path(field, opts), do: Enum.join(Enum.reject([opts[:name], field], &is_nil/1), ".")
 

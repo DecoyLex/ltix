@@ -7,7 +7,7 @@ A plugin can add a login step, a claim, a message type, an Advantage service, or
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
 | Run code during login, launches, or token requests | [Add a step](#add-a-step) |
 | Read or check a claim, or accept a new kind of launch | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
-| Add an Advantage service, or send a platform's own grade properties | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
+| Add an Advantage service, or send a platform's own grade or roster properties | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
 | Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
 | Let other plugins extend yours | [Provide something for other plugins to extend](#provide-something-for-other-plugins-to-extend) |

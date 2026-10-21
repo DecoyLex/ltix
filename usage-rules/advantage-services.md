@@ -147,6 +147,11 @@ stream
 
 Only `user_id` and `roles` are guaranteed in roster responses. Name, email, and picture depend on platform privacy settings. **Always** handle `nil` for these fields.
 
+### Platform Properties and Messages
+
+- Undeclared member properties are in `member.unrecognized`, keyed by JSON name. Read a declared property by its name, as in `member.extensions.student_number`. To declare one, follow [Add a property to members or membership containers](https://ltix.hexdocs.pm/writing-advantage-service-plugins.md#add-a-property-to-members-or-membership-containers).
+- In a roster filtered by resource link, `member.message` is `nil` or a list of claim maps like `launch.claims`. Read a claim from every message with `for message <- member.message || [], do: message.custom`.
+
 ## Background Service Calls
 
 **Ask the user** before implementing background service patterns. These involve architectural decisions about where to store endpoint URLs, how to schedule jobs, and how to handle token caching. The pattern below is an example to adapt.

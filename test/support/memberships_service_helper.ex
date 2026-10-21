@@ -6,10 +6,13 @@ defmodule Ltix.Test.MembershipsServiceHelper do
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
 
-  def create_client do
+  # A client for the memberships endpoint, with the plugin set of the
+  # `:plugins` listing, or of the configured listing without it.
+  def create_client(opts \\ []) do
     platform = Ltix.Test.setup_platform!()
+    {:ok, plugins} = Ltix.PluginSet.resolve(opts[:plugins])
 
-    client = %Client{
+    %Client{
       token: %AccessToken{
         access_token: "nested-payload-token",
         token_type: "bearer",
@@ -24,10 +27,27 @@ defmodule Ltix.Test.MembershipsServiceHelper do
       endpoints: %{
         MembershipsService =>
           MembershipsServiceEndpoint.new!("https://platform.example.com/members")
-      }
+      },
+      plugins: plugins
     }
+  end
 
-    client
+  # Stubs one page with `members`. Returns what `list_members/2` returns, and
+  # the members `stream_members/2` streams or the error it raises.
+  def list_and_stream(client, members, opts \\ []) do
+    stub_pages(1, Map.put(container(1), "members", members))
+    listed = MembershipsService.list_members(client, opts)
+
+    streamed =
+      with {:ok, stream} <- MembershipsService.stream_members(client, opts) do
+        try do
+          {:ok, Enum.to_list(stream)}
+        rescue
+          error -> {:error, error}
+        end
+      end
+
+    {listed, streamed}
   end
 
   def stub_pages(last_page, last_body) do

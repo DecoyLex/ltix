@@ -5,30 +5,21 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
   alias Ltix.Claims.Context
   alias Ltix.Errors.Invalid.InvalidClaim
-  alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
+  alias Ltix.Role
 
   setup do
     %{client: create_client()}
   end
 
-  defp list_and_stream(client, message, opts \\ []) do
-    body = Map.put(container(1), "members", [Map.put(member("user-1"), "message", [message])])
-    stub_pages(1, body)
+  @lti "https://purl.imsglobal.org/spec/lti/claim/"
 
-    listed = MembershipsService.list_members(client, opts)
-
-    streamed =
-      with {:ok, stream} <- MembershipsService.stream_members(client, opts) do
-        try do
-          {:ok, Enum.to_list(stream)}
-        rescue
-          error in InvalidClaim -> {:error, error}
-        end
-      end
-
-    {listed, streamed}
+  # Lists and streams a member with `message`, and the `:roles` option's roles.
+  defp list_message(client, message, opts \\ []) do
+    {roles, opts} = Keyword.pop(opts, :roles, [])
+    member = Map.merge(member("user-1"), %{"roles" => roles, "message" => [message]})
+    list_and_stream(client, [member], opts)
   end
 
   # The claims of a message that aren't nil.
@@ -47,7 +38,7 @@ defmodule Ltix.MembershipsMessageClaimsTest do
         ] do
       assert {{:error, %InvalidClaim{claim: ^claim, value: ^value}},
               {:error, %InvalidClaim{claim: ^claim, value: ^value}}} =
-               list_and_stream(client, message)
+               list_message(client, message)
     end
   end
 
@@ -62,14 +53,14 @@ defmodule Ltix.MembershipsMessageClaimsTest do
     client = %{client | plugins: plugins}
 
     assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
-            {:ok, [%Member{message: [streamed]}]}} = list_and_stream(client, message)
+            {:ok, [%Member{message: [streamed]}]}} = list_message(client, message)
 
     assert present(listed) == %{traced: "traced", roles: []}
     assert present(streamed) == present(listed)
 
     assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
             {:ok, [%Member{message: [streamed]}]}} =
-             list_and_stream(client, message, plugins: [])
+             list_message(client, message, plugins: [])
 
     assert present(listed) == %{roles: []}
     assert present(streamed) == %{roles: []}
@@ -91,7 +82,7 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
     assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
             {:ok, [%Member{message: [streamed]}]}} =
-             list_and_stream(client, message, plugins: plugins)
+             list_message(client, message, plugins: plugins)
 
     for claims <- [listed, streamed] do
       assert present(claims) == %{
@@ -105,7 +96,7 @@ defmodule Ltix.MembershipsMessageClaimsTest do
     end
 
     assert {{:ok, %MembershipContainer{members: [%Member{message: [claims]}]}}, _streamed} =
-             list_and_stream(client, message)
+             list_message(client, message)
 
     refute Map.has_key?(claims, :traced)
   end
@@ -123,7 +114,7 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
         assert {{:error, %InvalidClaim{claim: ^expected_claim}},
                 {:error, %InvalidClaim{claim: ^expected_claim}}} =
-                 list_and_stream(client, %{unquote(key) => value})
+                 list_message(client, %{unquote(key) => value})
       end
     end
   end
@@ -162,12 +153,91 @@ defmodule Ltix.MembershipsMessageClaimsTest do
         ] do
       assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
               {:ok, [%Member{message: [streamed]}]}} =
-               list_and_stream(client, message, plugins: plugins)
+               list_message(client, message, plugins: plugins)
 
       assert listed.context == nil
       assert listed.traced == nil
       assert present(listed) == expected
       assert present(streamed) == expected
+    end
+  end
+
+  describe "checks" do
+    test "a message with only custom passes, because messages get no validator", %{client: client} do
+      message = %{(@lti <> "custom") => %{"country" => "Canada"}}
+
+      assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
+              {:ok, [%Member{message: [streamed]}]}} = list_message(client, message)
+
+      assert present(listed) == %{custom: %{"country" => "Canada"}, roles: []}
+      assert streamed == listed
+    end
+
+    test "checks scoped to message types run for the message's type", %{client: client} do
+      plugins = [{TestPlugins.Modules, add: [TestPlugins.TitledContext]}]
+      context = %{(@lti <> "context") => %{"id" => "course"}}
+
+      assert {{:error, %InvalidClaim{claim: "context", message: "must have a title"}},
+              {:error, %InvalidClaim{claim: "context"}}} =
+               list_message(
+                 client,
+                 Map.put(context, @lti <> "message_type", "LtiDeepLinkingRequest"),
+                 plugins: plugins
+               )
+
+      for message <- [context, Map.put(context, @lti <> "message_type", "LtiResourceLinkRequest")] do
+        assert {{:ok, _listed}, {:ok, _streamed}} =
+                 list_message(client, message, plugins: plugins)
+      end
+    end
+
+    test "checks for every message type run for a message without a type", %{client: client} do
+      message = %{(@lti <> "context") => %{"id" => "course"}}
+
+      assert {{:error, %InvalidClaim{claim: "context", message: "must have a label"}}, _streamed} =
+               list_message(client, message,
+                 plugins: [{TestPlugins.Modules, add: [TestPlugins.LabeledContext]}]
+               )
+    end
+
+    test "role_scope_mentor is checked with the message's roles, or the member's without them", %{
+      client: client
+    } do
+      mentor = %{(@lti <> "role_scope_mentor") => ["user-2"]}
+      with_roles = Map.put(mentor, @lti <> "roles", [Role.context_learner()])
+
+      assert {{:ok, _listed}, {:ok, _streamed}} =
+               list_message(client, mentor, roles: [Role.context_mentor()])
+
+      for {message, roles} <- [
+            {mentor, [Role.context_learner()]},
+            {with_roles, [Role.context_mentor()]},
+            {Map.put(mentor, @lti <> "roles", []), [Role.context_mentor()]}
+          ] do
+        assert {{:error,
+                 %InvalidClaim{
+                   claim: "role_scope_mentor",
+                   message: "requires the Mentor role in roles"
+                 }}, {:error, %InvalidClaim{claim: "role_scope_mentor"}}} =
+                 list_message(client, message, roles: roles)
+      end
+    end
+
+    test "an override applies in the message types it lists", %{client: client} do
+      mentor = %{(@lti <> "role_scope_mentor") => ["user-2"]}
+      plugins = [{TestPlugins.Modules, add: [TestPlugins.MentorWithoutRole]}]
+
+      assert {{:ok, _listed}, {:ok, _streamed}} =
+               list_message(client, Map.put(mentor, @lti <> "message_type", "LtiTestRequest"),
+                 plugins: plugins
+               )
+
+      assert {{:error, %InvalidClaim{claim: "role_scope_mentor"}}, _streamed} =
+               list_message(
+                 client,
+                 Map.put(mentor, @lti <> "message_type", "LtiResourceLinkRequest"),
+                 plugins: plugins
+               )
     end
   end
 end

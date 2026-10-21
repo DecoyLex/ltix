@@ -406,8 +406,8 @@ defmodule Ltix.Test do
 
   @stub_plugins_option Zoi.list(Zoi.any(),
                          description:
-                           "The plugins to serialize the properties of each struct with, each as " <>
-                             "`MyPlugin` or `{MyPlugin, opts}`. Defaults to the `:plugins` configuration."
+                           "The plugins to serialize properties with, each as " <>
+                             "`MyPlugin` or `{MyPlugin, opts}`. Defaults to the configured plugins."
                        )
 
   @stub_line_item_option Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
@@ -433,7 +433,11 @@ defmodule Ltix.Test do
   @stub_list_members_schema Zoi.keyword(
                               [
                                 context: @context_option,
-                                id: Zoi.string(description: "Container ID URL.")
+                                id:
+                                  Zoi.string(
+                                    description: "The membership container's `id`, a URL."
+                                  ),
+                                plugins: @stub_plugins_option
                               ],
                               unrecognized_keys: :error
                             )
@@ -972,7 +976,11 @@ defmodule Ltix.Test do
       ])
 
   Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does.
+  to the next page like a platform does. Each member and the context include
+  their unrecognized properties and every property they have a value for,
+  and each member includes the claims of its messages, using the plugin set
+  of the `:plugins` option. Give each message as a map of claims keyed by
+  short name. A claim no plugin declares raises `ArgumentError`.
 
   ## Options
 
@@ -983,10 +991,11 @@ defmodule Ltix.Test do
     require_plug!()
 
     opts = Options.parse!(opts, @stub_list_members_schema)
-    context = context_claim(Keyword.get(opts, :context, %{}))
+    plugins = ok!(PluginSet.resolve(opts[:plugins]))
+    context = context_claim(Keyword.get(opts, :context, %{}), plugins)
     container = maybe_put(%{"context" => context}, "id", Keyword.get(opts, :id))
 
-    json = Enum.map(members, &Member.to_map/1)
+    json = Enum.map(members, &stub_json(&1, plugins))
 
     ServiceStub.put(MembershipsService, :list_members, nil, fn conn ->
       ServiceStub.json_pages(conn, json, &Map.put(container, "members", &1))
@@ -1144,14 +1153,18 @@ defmodule Ltix.Test do
   defp message_type_claims(message_type, _opts) when is_binary(message_type),
     do: %{(@lti_claim_prefix <> "message_type") => message_type}
 
-  defp context_claim(context), do: claim_json(Context, %{id: "context-001"}, context)
+  defp context_claim(context, plugins \\ nil),
+    do: claim_json(Context, %{id: "context-001"}, context, plugins)
 
   # The JSON of a claim from its struct, or from a map of its fields over
-  # defaults.
-  defp claim_json(_claim, _defaults, %_{} = struct), do: Ltix.Type.to_json(struct)
+  # defaults, with the properties of `plugins`.
+  defp claim_json(claim, defaults, fields, plugins \\ nil)
 
-  defp claim_json(claim, defaults, fields),
-    do: Ltix.Type.to_json(struct!(claim, Map.merge(defaults, fields)))
+  defp claim_json(_claim, _defaults, %_{} = struct, plugins),
+    do: Ltix.Type.to_json(struct, plugins, :read)
+
+  defp claim_json(claim, defaults, fields, plugins),
+    do: Ltix.Type.to_json(struct!(claim, Map.merge(defaults, fields)), plugins, :read)
 
   defp ags_endpoint_claim(nil), do: nil
 

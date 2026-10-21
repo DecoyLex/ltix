@@ -387,4 +387,4 @@ The list stubs handle `list_*` and `stream_*` calls, one page at a time when the
 
 Stubs apply to the test process and to any process you allow with `Req.Test.allow(Ltix.GradeService, self(), pid)`, so they work in async tests and in processes your code starts.
 
-Per-operation stubs accept the struct(s) the platform would return. Line item and result stubs send each struct's unrecognized properties and every property it has a value for, using the plugins in `config :ltix, plugins:` or the stub's `plugins:` option. For custom response logic (inspecting headers, returning errors, etc.), use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.
+Per-operation stubs accept the struct(s) the platform would return. Line item, result, and member stubs send each struct's unrecognized properties and every property it has a value for, using the plugins in `config :ltix, plugins:` or the stub's `plugins:` option. For custom response logic (inspecting headers, returning errors, etc.), use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.

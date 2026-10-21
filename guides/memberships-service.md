@@ -124,13 +124,27 @@ defp display_name(member) do
 end
 ```
 
-## Platform-specific fields
+## Reading member messages
 
-Platforms may add custom fields to each member. Ltix puts any field it does not recognize in `extensions`, keyed by the original JSON name.
+In a roster filtered by resource link, each member's `message` is a list of claim maps keyed by short name, like `launch.claims`. A message has the claims the member's launches of that link would have, such as custom properties. `message` is `nil` when the platform sends none.
 
 ```elixir
-member.extensions["https://lms.example.com/student_number"]
+for member <- roster, message <- member.message || [] do
+  {member.user_id, message.custom}
+end
 ```
+
+A malformed claim declared with [`strict: false`](writing-claim-and-launch-plugins.md#malformed-and-missing-claims) is the claim's default in the message, or `nil` without one. Any other malformed claim, or a failed claim check, fails the call.
+
+## Reading a platform's own properties
+
+Properties no plugin declares are in the member's `unrecognized`, keyed by JSON name.
+
+```elixir
+member.unrecognized["https://lms.example.com/student_number"]
+```
+
+Read a property a plugin declares from `extensions` by its name, as in `member.extensions.student_number`. To declare one, see [Add a property to members or membership containers](writing-advantage-service-plugins.md#add-a-property-to-members-or-membership-containers).
 
 ## Large courses
 

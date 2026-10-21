@@ -4,7 +4,7 @@
 
 Ltix becomes a plugin system. A plugin is a module that declares what it provides and what it extends. Ltix's own functionality ships as bundled plugins that go through the same mechanism as third-party plugins.
 
-The plugin system replaces every 0.2 extension point that a library would use to add to Ltix. These are claim parsers (`Ltix.LaunchClaims.Parser`, `:claim_parsers`), `Ltix.AdvantageService`, the `Ltix.DeepLinking.ContentItem` protocol, and the `extensions:` option on scores, line items, and content items (`Ltix.Extensions`). Role parsers (`Ltix.LaunchClaims.Role.Parser`, `:role_parsers`) are removed with no replacement. Roles are the URIs the platform sent, checked with `Ltix.Role`. Core requires a non-empty `roles` list to include a role from a standard role vocabulary, so a platform that sends its own roles also sends a standard role.
+LTI Advantage keeps growing. Submission Review, Proctoring, Dynamic Registration, and Platform Notification Service add message types, claims, scopes, and properties, and vendors add their own. This document follows one example, a library that adds Submission Review. It needs five things.
 
 This document describes the system as it should be. It is not an implementation plan.
 
@@ -272,14 +272,15 @@ A property extender declares one JSON property, parses it, and serializes it. `p
 `use Ltix.Type, fields: [...]` builds a type's struct from Zoi schemas for its standard fields, given as a keyword list in field order. It defines the struct, a typed `t`, and the enforced keys, and adds `extensions` and `unrecognized` as struct fields outside the Zoi schema, so options and generated docs leave them out. `metadata:` is passed to the struct's Zoi schema.
 
 - `Ltix.Type.new/3` builds the struct from a keyword list or map. Nested keyword lists become maps, a field given `nil` counts as omitted, and missing required fields, unknown fields (`extensions:` among them), and invalid values are `InvalidField` errors.
-- `Ltix.Type.from_json/3` parses JSON into the struct. A missing or malformed field with `Zoi.optional/1` keeps its default, and a missing or malformed required field is an error. The property of each of the type's extenders in the plugin set, from `plugins:` or the configured plugins, is parsed with the extender's `parse/2` into `extensions`, and every `{:error, reason}` is reported with the other errors. Properties no field or extender declares go in `unrecognized`.
+- `Ltix.Type.from_json/3` parses JSON into the struct. A missing field with `Zoi.optional/1` or `Zoi.default/2` keeps its default, and so does a malformed one unless its metadata has `lenient: false`. A missing or malformed required field is an error. The property of each of the type's extenders in the plugin set, from `plugins:` or the configured plugins, is parsed with the extender's `parse/2` into `extensions`, and every `{:error, reason}` is reported with the other errors. Properties no field or extender declares go in `unrecognized`.
 - `Ltix.Type.to_json/3` serializes the struct with a plugin set and a write operation. Unrecognized properties go in first, then standard fields, then the property of each extender entry that has an extension and whose `writes/0` includes the operation, so standard fields replace unrecognized properties of the same name, and declared properties replace both. The `:read` operation includes every property, as a platform sends the type, which `Ltix.Test`'s stubs use. It leaves out `nil` standard fields and `nil` values inside them, and sends a `DateTime` in ISO 8601.
 - A field's JSON name is its name, or its camelCase form with `json_keys: :camel_case`, or `json_key:` from the field schema's metadata. Inside a field, the keys a nested map's schema declares follow the same style and take `json_key:` too. Keys the schema doesn't declare, such as custom property names, are sent as written.
-- A field schema checks the field's value in the struct, so `new/3` takes Elixir values. `from_json:` in a field schema's metadata turns the JSON value into one, as `{:ok, value}` or `{:error, reason}`, before `from_json/3` parses it with the schema, and `to_json:` turns the value into its JSON. A line item's date times use both, and are sent in UTC. A score's `activityProgress` and timestamps use `to_json:`.
+- A field schema checks the field's value in the struct, so `new/3` takes Elixir values. `from_json:` in a field schema's metadata turns the JSON value into one, as `{:ok, value}` or `{:error, reason}`, before `from_json/3` parses it with the schema, and `to_json:` turns the value into its JSON. A line item's date times use both, and are sent in UTC. A score's `activityProgress` and timestamps use `to_json:`. A `from_json:` function of two arguments also takes `from_json/3`'s options, so a field can parse a nested value with the plugin set, as a membership container's members and a member's messages do.
+- `lenient: false` in the metadata of a field with `Zoi.optional/1` or `Zoi.default/2` makes a malformed value an error. A `to_json:` function of two arguments also takes the plugin set, so a member's messages are serialized with `Ltix.Claims.serialize/2`.
 - An extender declares its property name with `name:` on its `use`. A type's `extensions` are keyed by property name, and `Ltix.Type.new/3` takes property values by name with the type's fields.
 - `Ltix.Type.fields/1` returns the field schemas in field order.
 
-Object claims, content item types, and the grade service's line items, scores, and results build their structs with it.
+Object claims, content item types, the grade service's line items, scores, and results, and the memberships service's members and membership containers build their structs with it.
 
 ## Grade Service Types
 
@@ -302,6 +303,16 @@ end
 - **Unrecognized properties.** A line item read from the platform keeps the properties no extender declares in `unrecognized`, and an update sends them back unchanged.
 - **Creating with properties.** `create_line_item/3` takes a `%Ltix.GradeService.LineItem{}`, or the line item's fields and property names as options. `Ltix.GradeService.Score.new/1` takes property names with the score's fields.
 - **Errors.** A property whose `parse/2` fails fails the call, with an error about `line_item.<property>` or `result.<property>`.
+
+## Memberships Service Types
+
+The NRPS plugin, `Ltix.MembershipsService`, provides itself, `Ltix.MembershipsService.Member`, and `Ltix.MembershipsService.MembershipContainer`, and extends its endpoint claim and its `Ltix.MembershipsService.AddScope` client assertion step. Both types are providers with hook `[Ltix.Property]` whose structs `Ltix.Type` builds, and each reports two extenders declaring one property with `Ltix.Property.resolve/2` as its `resolve/1`.
+
+- **Plugin sets.** `list_members/2` and `stream_members/2` resolve `plugins:`, or the OAuth client's plugin set when it's absent, and parse each membership container with `Ltix.Type.from_json/3` and that plugin set. A body that isn't an object with a `members` array is `MalformedResponse`.
+- **Members.** Each of a container's `members` is parsed with `Ltix.Type.from_json/3` and the plugin set, and its messages are then checked. The first member that fails fails the call. A member that isn't an object is a missing `user_id` and `roles`.
+- **Context.** A container's `context` is parsed with `Ltix.Type.from_json/3` and the plugin set, so it has the properties plugins declare on `Ltix.Claims.Context`.
+- **Messages.** Each of a member's messages is parsed with `Ltix.Claims.parse/2` and the plugin set, and fails the call when a claim that isn't lenient is malformed. Each then runs `Ltix.Claims.check/3` with its `message_type`, and no validator. A message without `roles` is checked with the member's roles, because the platform sends a member's roles on the member, and the member's launches would include them.
+- **Errors.** A property whose `parse/2` fails fails the call, with an error about `member.<property>` or `membership.<property>`.
 
 ## Declared Claims
 
@@ -328,7 +339,7 @@ OIDC claims keep 0.2's spelled-out short names, such as `:subject`, so 0.2 code 
 
 ### Checks and overrides
 
-Checks run after every claim is parsed, only for claims present in `claims`, so a check that reads another claim needs no ordering and a malformed claim isn't checked. `Ltix.Claims.check/3` takes the parsed claims, the message type, and the plugin set, and returns every failed check's error combined. Launches run it in `Ltix.Launch.ParseClaims` with `claims[:message_type]`.
+A check is a rule about a parsed claim's value. Checks run after every claim is parsed, and only on claims present, so a check that reads another claim needs no ordering.
 
 - **A claim's own check** is its declaring module's `check/2`.
 - **Added checks** come from `Ltix.Claims.Check`, in listed message types or all of them.
@@ -407,7 +418,7 @@ end
 ## Rules
 
 - **No replacing providers.** A plugin cannot replace or remove what another plugin provides. A different flow, such as another login mechanism, is a new provider that the application calls.
-- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, service endpoint, message type, or content item type fail at resolution, and so do a validator statement or an added check about a claim no module declares and two extenders declaring one property on one object claim, content item type, line item, score, or result.
+- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, service endpoint, message type, or content item type fail at resolution, and so do a validator statement or an added check about a claim no module declares and two extenders declaring one property on one object claim, content item type, line item, score, result, member, or membership container.
 - **Overrides.** `Ltix.Validator.override/3` is the only way a plugin makes a claim optional that another plugin requires, and `Ltix.Claims.Override` is the only way it replaces a check another plugin defines, each within named message types. Two modules overriding one claim, or one check, in one message type fail at resolution.
 - **Providers have no short names.** Every provider and target is named by its module.
 
@@ -419,7 +430,7 @@ end
 | `Ltix.LaunchClaims.Role.Parser`, `:role_parsers` | Removed. Roles are the URIs the platform sent, checked with `Ltix.Role` |
 | `Ltix.AdvantageService` | A plugin with an endpoint claim, which implements `service/0` and `new/1`, and an `Ltix.ClientAssertion` step that adds the service's scopes |
 | `Ltix.DeepLinking.ContentItem` protocol | A content item type provided by a plugin, and extenders of existing types |
-| `extensions:` on scores, line items, and content items | Extenders of the provider modules for those types |
+| `extensions:` on scores, line items, and content items, and `extensions` on members | Extenders of the provider modules for those types, and `unrecognized` for properties no extender declares |
 
 ## Not Yet Decided
 

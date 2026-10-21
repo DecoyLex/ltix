@@ -2,7 +2,7 @@ defmodule Ltix.Extensions do
   @moduledoc false
 
   # Maps with caller-chosen keys, such as the custom properties of an LTI
-  # resource link, and the unrecognized properties of a member.
+  # resource link.
 
   @doc """
   Zoi schema for a map option with caller-chosen keys, given as strings or atoms
@@ -24,11 +24,4 @@ defmodule Ltix.Extensions do
 
   @doc false
   def key_to_string(key, _opts), do: {:ok, to_string(key)}
-
-  @doc """
-  Adds `extensions` to a serialized JSON map. Standard fields take precedence over
-  extensions with the same key.
-  """
-  @spec merge(map(), map() | nil) :: map()
-  def merge(json, extensions), do: Map.merge(extensions || %{}, json)
 end
