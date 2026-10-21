@@ -96,6 +96,7 @@ defmodule Ltix.MixProject do
         "guides/grade-service.md",
         "guides/writing-plugins.md",
         "guides/writing-claim-and-launch-plugins.md",
+        "guides/writing-deep-linking-plugins.md",
         "guides/jwk-management.md",
         "guides/hardening.md",
         "guides/telemetry.md",
@@ -171,7 +172,8 @@ defmodule Ltix.MixProject do
         ],
         Plugins: [
           "guides/writing-plugins.md",
-          "guides/writing-claim-and-launch-plugins.md"
+          "guides/writing-claim-and-launch-plugins.md",
+          "guides/writing-deep-linking-plugins.md"
         ],
         Operations: [
           "guides/jwk-management.md",
@@ -201,6 +203,7 @@ defmodule Ltix.MixProject do
         Ltix.PluginSet,
         Ltix.DeepLinking,
         Ltix.DeepLinking.ContentItem,
+        Ltix.DeepLinking.ContentItemType,
         Ltix.MembershipsService,
         Ltix.GradeService,
         Ltix.OAuth,
@@ -259,9 +262,11 @@ defmodule Ltix.MixProject do
         ],
         "Deep Linking": [
           Ltix.DeepLinking,
-          Ltix.DeepLinking.ContentItem,
           Ltix.DeepLinking.Response,
           Ltix.DeepLinking.Settings,
+          Ltix.DeepLinking.ContentItemType,
+          Ltix.DeepLinking.ContentItemType.Fields,
+          Ltix.DeepLinking.LineItem,
           Ltix.DeepLinking.ContentItem.Link,
           Ltix.DeepLinking.ContentItem.LTIResourceLink,
           Ltix.DeepLinking.ContentItem.File,

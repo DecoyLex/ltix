@@ -2,9 +2,10 @@ defmodule Ltix.Type do
   @moduledoc """
   A struct that converts to and from JSON, defined from Zoi schemas.
 
-  Object claims are types. Convert one with `from_json/3` and `to_json/1`, and
-  define your own type with `use Ltix.Type` and its fields as a keyword list of
-  Zoi schemas. `use` defines the struct, its `t` type, and its enforced keys.
+  Object claims and content items are types. Convert any of them with
+  `from_json/3` and `to_json/3`, and define your own type with `use Ltix.Type`
+  and its fields as a keyword list of Zoi schemas. `use` defines the struct, its
+  `t` type, and its enforced keys.
 
       defmodule MyLibrary.Badge do
         use Ltix.Type,
@@ -17,28 +18,65 @@ defmodule Ltix.Type do
   Fields without `Zoi.optional/1` are enforced keys. Besides the standard
   fields, the struct has two more fields.
 
-    * `:extensions` - property values, keyed by each property's name
+    * `:extensions` - property values, keyed by each property's name, as in
+      `badge.extensions.color`. `new/3` takes them by name
     * `:unrecognized` - properties no field or property declares, keyed by
       their JSON names, as received. `from_json/3` fills it
+
+  ## Options
+
+    * `:fields` - the standard fields, as a keyword list of Zoi schemas
+      (required)
+    * `:json_keys` - `:camel_case` to give each field the camelCase form of
+      its name as its JSON name (defaults to `:field_name`)
+    * `:metadata` - metadata for the struct's Zoi schema, read with
+      `Zoi.metadata/1`
 
   ## JSON names
 
   A field's JSON name is the field name as a string, such as `"score_maximum"`
-  for `score_maximum`. Set another JSON name with `json_key:` metadata.
+  for `score_maximum`. With `json_keys: :camel_case`, it's the camelCase form,
+  such as `"scoreMaximum"`. Set another JSON name with `json_key:` metadata.
 
       line_items: Zoi.string(metadata: [json_key: "lineitems"]) |> Zoi.optional()
+
+  Inside a field's value, the keys of a nested `Zoi.map/2` with declared
+  fields, such as `Zoi.map(%{target_name: Zoi.string()})`, follow the same
+  style and take `json_key:` too, alone or inside `Zoi.array/2` or
+  `Zoi.nullable/2`. Other keys, such as those of
+  `Zoi.map(Zoi.string(), Zoi.string())`, are sent as written.
   """
 
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Options
+  alias Ltix.PluginSet
+  alias Ltix.PluginSet.Entry
+  alias Ltix.Property
+
+  @json_keys [:field_name, :camel_case]
 
   defmacro __using__(opts) do
     fields = Keyword.fetch!(opts, :fields)
+    json_keys = Keyword.get(opts, :json_keys, :field_name)
+
+    unless json_keys in @json_keys do
+      raise ArgumentError,
+            "Ltix.Type's :json_keys option must be one of #{inspect(@json_keys)}, got #{inspect(json_keys)}"
+    end
 
     schema =
       quote do
-        @ltix_type_schema Zoi.struct(__MODULE__, unquote(fields), coerce: true)
+        @ltix_type_schema Zoi.struct(__MODULE__, unquote(fields),
+                            coerce: true,
+                            unrecognized_keys: :error,
+                            empty_values: [nil],
+                            metadata: unquote(Keyword.get(opts, :metadata, []))
+                          )
+
+        @ltix_type_json_keys unquote(json_keys)
       end
 
     struct =
@@ -48,11 +86,15 @@ defmodule Ltix.Type do
         defstruct Zoi.Struct.struct_fields(@ltix_type_schema) ++
                     [extensions: %{}, unrecognized: %{}]
 
-        @ltix_type_json_fields Ltix.Type.__json_fields__(@ltix_type_schema)
+        @ltix_type_json_fields Ltix.Type.__json_fields__(
+                                 @ltix_type_schema,
+                                 @ltix_type_json_keys
+                               )
 
         @doc false
         def __ltix_type__(:schema), do: @ltix_type_schema
         def __ltix_type__(:json_fields), do: @ltix_type_json_fields
+        def __ltix_type__(:json_keys), do: @ltix_type_json_keys
       end
 
     [schema, struct]
@@ -82,12 +124,11 @@ defmodule Ltix.Type do
 
   # Each field as `{field, json_key, schema, required?}`.
   @doc false
-  def __json_fields__(schema) do
+  def __json_fields__(schema, json_keys) do
     required = Zoi.Struct.enforce_keys(schema)
 
     for {field, field_schema} <- schema.fields do
-      key = Keyword.get(Zoi.metadata(field_schema), :json_key, Atom.to_string(field))
-      {field, key, field_schema, field in required}
+      {field, json_name(field, field_schema, json_keys), field_schema, field in required}
     end
   end
 
@@ -106,12 +147,88 @@ defmodule Ltix.Type do
     {:%, meta, [module, {:%{}, map_meta, fields ++ extra}]}
   end
 
+  # The JSON names of a type's standard fields.
+  @doc false
+  @spec json_names(module()) :: [String.t()]
+  def json_names(type),
+    do: for({_field, key, _schema, _required?} <- type.__ltix_type__(:json_fields), do: key)
+
   @doc """
   Returns a type's standard fields as a keyword list of Zoi schemas, in
   declaration order.
   """
   @spec fields(module()) :: keyword(Zoi.schema())
   def fields(type), do: type.__ltix_type__(:schema).fields
+
+  @doc """
+  Returns a Zoi schema for a nested object with `fields`, given as a map of
+  Zoi schemas. `opts` are Zoi options for the map, such as `description:`.
+
+  The schema rejects unknown keys, and treats a key whose value is `nil` as
+  omitted. Wrap it in `Zoi.optional/1` to make the field optional.
+
+      iex> reviewer = Ltix.Type.object(%{name: Zoi.string()})
+      iex> Zoi.parse(reviewer, %{name: "Ada"})
+      {:ok, %{name: "Ada"}}
+  """
+  @spec object(map(), keyword()) :: Zoi.schema()
+  def object(fields, opts \\ []) do
+    Zoi.map(
+      fields,
+      Keyword.merge(opts,
+        unrecognized_keys: :error,
+        empty_values: [nil],
+        error: "invalid type: expected a map or keyword list"
+      )
+    )
+  end
+
+  @doc """
+  Builds a type's struct from its fields, given as a keyword list or a map.
+
+  Nested values may be keyword lists, such as `window: [width: 400]`. A field
+  given `nil` counts as omitted.
+
+  The fields can include properties by name, and each property's value goes
+  in `extensions`. Put the plugins that declare them in `fields` too, under
+  the `:plugins` key, as a list such as `[MyPlugin]` or an `Ltix.PluginSet`.
+  Without that key, `new/2` uses the configured plugins.
+
+      {:ok, link} =
+        Ltix.Type.new(Ltix.DeepLinking.ContentItem.LTIResourceLink,
+          url: "https://tool.example.com/quizzes/7",
+          weight: 2,
+          plugins: [MyLibrary]
+        )
+
+      link.extensions.weight
+      #=> 2
+
+  A missing required field, a name that's neither a field nor a property,
+  and an invalid value are `Ltix.Errors.Invalid.InvalidField` errors, and
+  several are grouped in `Ltix.Errors.Invalid`. Returns
+  `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
+  """
+  @spec new(module(), keyword() | map()) :: {:ok, struct()} | {:error, Exception.t()}
+  def new(type, fields) when is_list(fields) or is_map(fields) do
+    {plugins, fields} = Map.pop(Map.new(fields), :plugins)
+
+    with {:ok, plugins} <- PluginSet.resolve(plugins),
+         {extensions, fields} = split_properties(type, fields, plugins),
+         input = Map.new(fields, fn {key, value} -> {key, Options.keyword_to_map(value)} end),
+         {:ok, value} <- InvalidField.parse(type, type.__ltix_type__(:schema), input) do
+      {:ok, %{value | extensions: extensions}}
+    end
+  end
+
+  # Splits the names of a type's properties in a plugin set out of a map of
+  # its fields. Returns the properties and the other fields.
+  @doc false
+  @spec split_properties(module(), map(), PluginSet.t()) :: {map(), map()}
+  def split_properties(type, fields, %PluginSet{} = plugins) do
+    names = for entry <- PluginSet.entries(plugins, type), do: entry.opts[:name]
+    Map.split(fields, names)
+  end
 
   @doc """
   Parses JSON into a type's struct.
@@ -168,20 +285,101 @@ defmodule Ltix.Type do
   @doc """
   Serializes a type's struct to JSON.
 
-  Standard fields that are `nil` are left out. Unrecognized properties are
-  included, and standard fields replace them.
+  The JSON includes unrecognized properties, standard fields, and each of the
+  type's properties in `plugins` that the value has an extension for. Standard
+  fields replace unrecognized properties of the same name, and declared
+  properties replace both. Standard fields that are `nil` are left out, and so
+  are `nil` values inside them. A `DateTime` becomes an ISO 8601 string.
+
+  A property whose [`:writes`](`m:Ltix.Property#module-options`) option
+  excludes `operation` is left out. `plugins` is a list of plugins or an
+  `Ltix.PluginSet`, and defaults to `nil`,
+  which uses the configured plugins. Raises
+  `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
   """
-  @spec to_json(struct()) :: map()
-  def to_json(%type{unrecognized: unrecognized} = value) do
+  @spec to_json(
+          struct(),
+          PluginSet.enabled_plugins() | PluginSet.t() | nil,
+          Property.write_operation()
+        ) ::
+          map()
+  def to_json(%type{} = value, plugins \\ nil, operation \\ :create) do
+    plugins =
+      case PluginSet.resolve(plugins) do
+        {:ok, plugins} -> plugins
+        {:error, error} -> raise error
+      end
+
+    json_keys = type.__ltix_type__(:json_keys)
+
     standard =
-      for {field, key, _schema, _required?} <- type.__ltix_type__(:json_fields),
+      for {field, key, schema, _required?} <- type.__ltix_type__(:json_fields),
           field_value <- [Map.fetch!(value, field)],
           field_value != nil,
           into: %{},
-          do: {key, field_value}
+          do: {key, json_value(field_value, schema, json_keys)}
 
-    Map.merge(unrecognized, standard)
+    properties =
+      for %Entry{module: property, opts: opts} <- PluginSet.entries(plugins, type),
+          operation in Keyword.get(opts, :writes, [:create, :update]),
+          {:ok, extension} <- [Map.fetch(value.extensions, opts[:name])],
+          into: %{},
+          do: {opts[:property], property.serialize(extension, opts)}
+
+    value.unrecognized
+    |> Map.merge(standard)
+    |> Map.merge(properties)
   end
+
+  # Serializes a value with its schema. The keys a nested map's schema
+  # declares get JSON names, and other keys are sent as written.
+  defp json_value(%DateTime{} = date_time, _schema, _json_keys),
+    do: DateTime.to_iso8601(date_time)
+
+  defp json_value(value, %Zoi.Types.Union{schemas: schemas}, json_keys),
+    do: json_value(value, Enum.find(schemas, &shape?(value, &1)), json_keys)
+
+  defp json_value(map, schema, json_keys) when is_map(map) and not is_struct(map) do
+    for {key, value} <- map,
+        value != nil,
+        {json_key, member_schema} <- [member(schema, key, json_keys)],
+        into: %{},
+        do: {json_key, json_value(value, member_schema, json_keys)}
+  end
+
+  defp json_value(list, %Zoi.Types.Array{inner: inner}, json_keys) when is_list(list),
+    do: Enum.map(list, &json_value(&1, inner, json_keys))
+
+  defp json_value(list, _schema, json_keys) when is_list(list),
+    do: Enum.map(list, &json_value(&1, nil, json_keys))
+
+  defp json_value(value, _schema, _json_keys), do: value
+
+  defp shape?(map, %Zoi.Types.Map{fields: fields}) when is_map(map), do: is_list(fields)
+  defp shape?(list, %Zoi.Types.Array{}) when is_list(list), do: true
+  defp shape?(_value, _schema), do: false
+
+  # The JSON key and schema of a map's value at `key`.
+  defp member(%Zoi.Types.Map{fields: fields}, key, json_keys) when is_list(fields) do
+    case List.keyfind(fields, key, 0) do
+      {_key, schema} -> {json_name(key, schema, json_keys), schema}
+      nil -> {written_key(key), nil}
+    end
+  end
+
+  defp member(%Zoi.Types.Map{value_type: value_type}, key, _json_keys),
+    do: {written_key(key), value_type}
+
+  defp member(_schema, key, _json_keys), do: {written_key(key), nil}
+
+  defp json_name(field, schema, json_keys),
+    do: Keyword.get(Zoi.metadata(schema), :json_key, json_key(field, json_keys))
+
+  defp json_key(key, :camel_case) when is_atom(key), do: Recase.to_camel(Atom.to_string(key))
+  defp json_key(key, _json_keys), do: written_key(key)
+
+  defp written_key(key) when is_atom(key), do: Atom.to_string(key)
+  defp written_key(key), do: key
 
   defp parse_value(:error, field, _schema, true, opts),
     do: {:error, MissingClaim.exception(claim: path(field, opts))}

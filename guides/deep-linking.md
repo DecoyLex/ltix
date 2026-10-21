@@ -162,25 +162,31 @@ Then use the response in your template.
 ```elixir
 case Ltix.DeepLinking.build_response(launch, items) do
   {:ok, response} ->
-    # deliver response
+    render(conn, :deep_linking_response, response: response)
 
   {:error, %Ltix.Errors.Invalid.ContentItemTypeNotAccepted{index: index, type: type}} ->
     # item type not in accept_types
+    show_error(conn, index, type)
 
   {:error, %Ltix.Errors.Invalid.ContentItemsExceedLimit{}} ->
     # multiple items when accept_multiple is false
+    show_error(conn, :too_many_items)
 
   {:error, %Ltix.Errors.Invalid.LineItemNotAccepted{index: index}} ->
     # line_item present when accept_line_item is false
+    show_error(conn, index, :line_item)
 
   {:error, %Ltix.Errors.Invalid.PresentationTargetNotAccepted{index: index, target: target}} ->
     # the item has an iframe, window, or embed not in accept_presentation_document_targets
+    show_error(conn, index, target)
 
   {:error, %Ltix.Errors.Invalid.MediaTypeNotAccepted{index: index, media_type: media_type}} ->
     # the file's media_type does not match accept_media_types, such as "image/*"
+    show_error(conn, index, media_type)
 
   {:error, %Ltix.Errors.Invalid{errors: errors}} ->
     # several of the above at once
+    show_errors(conn, errors)
 end
 ```
 
@@ -196,37 +202,7 @@ can_attach_grades? = settings.accept_line_item != false
 
 ## Custom content types
 
-For one-off custom types, pass a raw map with a `"type"` key.
-
-```elixir
-custom_item = %{
-  "type" => "https://vendor.example.com/custom_type",
-  "data" => "some-payload"
-}
-
-{:ok, response} = Ltix.DeepLinking.build_response(launch, [custom_item])
-```
-
-For reusable custom types, define a struct and implement the `Ltix.DeepLinking.ContentItem` protocol.
-
-```elixir
-defmodule MyApp.ProctoredExam do
-  defstruct [:url, :title, :duration_minutes]
-
-  defimpl Ltix.DeepLinking.ContentItem do
-    def to_map(item) do
-      %{
-        "type" => "https://myapp.example.com/proctored_exam",
-        "url" => item.url,
-        "title" => item.title,
-        "https://myapp.example.com/duration" => item.duration_minutes
-      }
-    end
-  end
-end
-```
-
-In both cases, the platform's `accept_types` must include the custom type string.
+Declare each custom type with `use Ltix.DeepLinking.ContentItemType`, and add it to a plugin. `build_response/3` returns `Ltix.Errors.Invalid.InvalidContentItem` for anything else, including a plain map. See [Building Content Items](cookbooks/building-content-items.md#custom-content-item-type).
 
 ## Testing
 
@@ -307,8 +283,9 @@ end
 
 ## Next steps
 
-- [Building Content Items](cookbooks/building-content-items.md) - recipes for line items, custom properties, extensions, and more
+- [Building Content Items](cookbooks/building-content-items.md) - recipes for line items, custom properties, vendor properties, and more
 - [Grade Service](grade-service.md) - posting scores to line items created through deep linking
 - [Testing LTI Launches](cookbooks/testing-lti-launches.md) - more test patterns for both launch types
 - `Ltix.DeepLinking` - full API reference
 - `Ltix.DeepLinking.ContentItem.LTIResourceLink` - all options for the most common content item type
+- [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) - declaring content item types and adding properties to them

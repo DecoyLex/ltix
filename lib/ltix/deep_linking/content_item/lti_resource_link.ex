@@ -1,81 +1,4 @@
 defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
-  import Ltix.DeepLinking.ContentItemHelpers,
-    only: [
-      extensions_schema: 0,
-      icon_schema: 1,
-      object: 1,
-      object: 2,
-      window_schema: 1
-    ]
-
-  alias Ltix.DeepLinking.ContentItem
-  alias Ltix.DeepLinking.ContentItemHelpers
-  alias Ltix.Extensions
-  alias Ltix.GradeService.LineItem
-
-  # [DL §3.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#lti-resource-link)
-  @icon_schema icon_schema(description: "Icon or thumbnail for the LTI resource link.")
-
-  @window_schema window_schema(description: "Window presentation for the LTI resource link.")
-
-  @iframe_schema object(%{
-                   width:
-                     Zoi.integer(description: "Suggested iframe width in pixels.")
-                     |> Zoi.optional(),
-                   height:
-                     Zoi.integer(description: "Suggested iframe height in pixels.")
-                     |> Zoi.optional()
-                 })
-
-  @line_item_schema object(
-                      %{
-                        score_maximum: LineItem.score_maximum_schema(),
-                        label: Zoi.optional(LineItem.label_schema()),
-                        resource_id:
-                          Zoi.string(description: "Tool-defined identifier for the resource.")
-                          |> Zoi.optional(),
-                        tag:
-                          Zoi.string(description: "Tag for grouping line items.")
-                          |> Zoi.optional(),
-                        grades_released:
-                          Zoi.boolean(description: "Whether grades are released to students.")
-                          |> Zoi.optional()
-                      },
-                      description:
-                        "Gradebook column for the platform to create, as a keyword list, map, or `Ltix.GradeService.LineItem`."
-                    )
-
-  @time_window_schema object(%{
-                        start_date_time:
-                          Zoi.datetime(description: "Start of the window.") |> Zoi.optional(),
-                        end_date_time:
-                          Zoi.datetime(description: "End of the window.") |> Zoi.optional()
-                      })
-
-  @schema Zoi.struct(
-            __MODULE__,
-            %{
-              url: Zoi.string(description: "Launch URL for the resource link.") |> Zoi.optional(),
-              title: Zoi.string(description: "Title for the content item.") |> Zoi.optional(),
-              text: Zoi.string(description: "Plain-text description.") |> Zoi.optional(),
-              icon: @icon_schema |> Zoi.optional(),
-              thumbnail: @icon_schema |> Zoi.optional(),
-              window: @window_schema |> Zoi.optional(),
-              iframe: @iframe_schema |> Zoi.optional(),
-              custom:
-                Zoi.string()
-                |> Extensions.string_keyed_map(description: "Custom property keys and values.")
-                |> Zoi.optional(),
-              line_item: @line_item_schema |> Zoi.optional(),
-              available: @time_window_schema |> Zoi.optional(),
-              submission: @time_window_schema |> Zoi.optional(),
-              extensions: extensions_schema()
-            },
-            coerce: true,
-            unrecognized_keys: :error,
-            empty_values: [nil]
-          )
-
   @moduledoc """
   An LTI resource link content item for Deep Linking responses.
 
@@ -93,70 +16,103 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       ...>   url: "https://tool.example.com/quizzes/7",
       ...>   line_item: [score_maximum: 100]
       ...> )
-      iex> Ltix.DeepLinking.ContentItem.to_map(link)
-      %{"type" => "ltiResourceLink", "url" => "https://tool.example.com/quizzes/7", "lineItem" => %{"scoreMaximum" => 100}}
+      iex> link.line_item
+      %{score_maximum: 100}
 
-  ## Options
+  `line_item` also takes an `Ltix.GradeService.LineItem`.
 
-  #{Zoi.describe(@schema)}
+      iex> line_item = %Ltix.GradeService.LineItem{label: "Quiz 7", score_maximum: 100}
+      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(line_item: line_item)
+      iex> link.line_item
+      %{label: "Quiz 7", score_maximum: 100}
   """
 
-  @type t :: unquote(Zoi.type_spec(@schema))
-  @enforce_keys Zoi.Struct.enforce_keys(@schema)
-  defstruct Zoi.Struct.struct_fields(@schema)
+  alias Ltix.DeepLinking.Settings
+  alias Ltix.Errors.Invalid.LineItemNotAccepted
+  alias Ltix.Extensions
+  alias Ltix.GradeService.LineItem
 
-  @doc """
-  Create a new LTI resource link content item.
+  @time_window %{
+    start_date_time: Zoi.datetime(description: "Start of the window.") |> Zoi.optional(),
+    end_date_time: Zoi.datetime(description: "End of the window.") |> Zoi.optional()
+  }
 
-  Takes the module's options as a keyword list or map, and nested options such as
-  `icon` may also be keyword lists. Unknown or invalid options return an
-  `Ltix.Errors.Invalid.InvalidField` error.
+  # [DL §3.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#lti-resource-link)
+  use Ltix.DeepLinking.ContentItemType,
+    type: "ltiResourceLink",
+    fields: [
+      url: Zoi.string(description: "Launch URL for the resource link.") |> Zoi.optional(),
+      title: title(),
+      text: text(),
+      icon: icon(),
+      thumbnail: thumbnail(),
+      window: window(),
+      iframe: iframe(),
+      custom:
+        Zoi.string()
+        |> Extensions.string_keyed_map(description: "Custom property keys and values.")
+        |> Zoi.optional(),
+      line_item:
+        Ltix.Type.object(
+          %{
+            score_maximum: LineItem.score_maximum_schema(),
+            label: Zoi.optional(LineItem.label_schema()),
+            resource_id:
+              Zoi.string(description: "Tool-defined identifier for the resource.")
+              |> Zoi.optional(),
+            tag: Zoi.string(description: "Tag for grouping line items.") |> Zoi.optional(),
+            grades_released:
+              Zoi.boolean(description: "Whether grades are released to students.")
+              |> Zoi.optional()
+          },
+          description:
+            "Gradebook column for the platform to create, with `score_maximum` and optional `label`, `resource_id`, `tag`, and `grades_released`, or an `Ltix.GradeService.LineItem`."
+        )
+        |> Zoi.optional(),
+      available:
+        Ltix.Type.object(@time_window,
+          description:
+            "When learners can open the link, with optional `start_date_time` and `end_date_time`."
+        )
+        |> Zoi.optional(),
+      submission:
+        Ltix.Type.object(@time_window,
+          description:
+            "When learners can submit to the link, with optional `start_date_time` and `end_date_time`."
+        )
+        |> Zoi.optional()
+    ]
 
-  ## Examples
+  @impl Ltix.DeepLinking.ContentItemType
+  def check(%__MODULE__{line_item: line_item}, %Settings{accept_line_item: false})
+      when line_item != nil,
+      do: {:error, LineItemNotAccepted.exception()}
 
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new([])
-      iex> link.url
-      nil
+  def check(_link, _settings), do: :ok
 
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(url: "https://tool.example.com")
-      iex> link.url
-      "https://tool.example.com"
-  """
-  @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts) do
-    opts =
-      Map.new(opts, fn
+  def new(fields) do
+    super(
+      Map.new(fields, fn
         {:line_item, %LineItem{} = line_item} -> {:line_item, line_item_fields(line_item)}
-        option -> option
+        field -> field
       end)
-
-    ContentItemHelpers.new(@schema, opts)
+    )
   end
 
-  @doc """
-  Same as `new/1` but raises on error.
-
-  ## Examples
-
-      iex> Ltix.DeepLinking.ContentItem.LTIResourceLink.new!(title: "Quiz 1").title
-      "Quiz 1"
-  """
-  @spec new!(keyword() | map()) :: t()
-  def new!(opts) do
-    case new(opts) do
-      {:ok, item} -> item
-      {:error, error} -> raise error
-    end
-  end
-
-  # Returns every set field, so fields deep linking can't send are rejected as unknown.
+  # Returns every set field, so fields Deep Linking can't send are rejected as unknown.
   defp line_item_fields(line_item) do
     for {field, value} <- Map.from_struct(line_item), value not in [nil, %{}], into: %{} do
       {field, value}
     end
   end
 
-  defimpl ContentItem do
-    def to_map(item), do: ContentItemHelpers.to_map(item, "ltiResourceLink")
-  end
+  @doc """
+  Adds an anonymous property of `ltiResourceLink` content items to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  @spec add_property(Ltix.Plugin.t(), keyword()) :: Ltix.Plugin.t()
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 end

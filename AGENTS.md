@@ -49,13 +49,15 @@ Use the `qc` skill for checks on test hygiene
 Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests.
 Avoid assertions in doctests — they muddy things for the end-user. Show inputs and outputs directly.
 
-## Launch Claim Structs
+## Declared Claims and Types
 
-Claim structs (in `lib/ltix/launch_claims/`) use Zoi for parsing JSON maps:
+Object claims (in `lib/ltix/claims/`) and other types, such as line items and members, build their structs with `Ltix.Type`.
 
-1. Define `@schema` with `Zoi.struct(__MODULE__, %{...}, coerce: true)`
-2. Derive `@type`, `@enforce_keys`, `defstruct` from the schema
-3. `from_json/1` calls `Zoi.parse(@schema, json)` and maps errors to `MissingClaim`
+1. An object claim passes its fields to `use Ltix.Claim` as `fields:`, a keyword list of Zoi schemas. `use` builds the struct, its `t` type, and its enforced keys with `Ltix.Type`, and parses the claim with `Ltix.Type.from_json/3`.
+2. A scalar claim implements `parse/2`, usually with `Zoi.parse/2` over a Zoi schema.
+3. Another type writes `use Ltix.Provider, hook: [Ltix.Property]` and `use Ltix.Type, fields: [...]`. The default `resolve/1` reports its property conflicts.
+4. Every property of a type, including in test plugins, declares a `name:` in `use`.
+5. Give a field another JSON name with `json_key:` in its schema's metadata.
 
 ## Spec References
 

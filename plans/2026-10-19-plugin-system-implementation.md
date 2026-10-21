@@ -654,8 +654,11 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   # `accept_media_types` "only applies to File types" (DL §4.4.1)
   @impl true
   def check(%{media_type: media_type}, %{accept_media_types: accepted}) do
-    if Ltix.MediaType.accepted?(media_type, accepted), do: :ok, else: {:error, {:media_type_not_accepted, media_type}}
+    if accepted?(media_type, accepted), do: :ok, else: {:error, {:media_type_not_accepted, media_type}}
   end
+
+  # An exact match, `type/*`, or `*/*`, ignoring case and parameters. Passes when either side is `nil`.
+  defp accepted?(media_type, accepted), do: # ...
 end
 ```
 
@@ -953,7 +956,7 @@ end
 ### Deep Linking checks
 
 - **Presentation targets.** The check covers `~w(window iframe embed)` on every item.
-- **Media types.** `Ltix.MediaType.accepted?/2` passes when either side is `nil`, and matches the exact type, `type/*`, or `*/*` against the comma-separated `accept_media_types`.
+- **Media types.** `File`'s check passes when either side is `nil`, and matches the exact type, `type/*`, or `*/*` against the comma-separated `accept_media_types`.
 - **Error positions.** `build/3` tags each error with the item's index.
 
 ---

@@ -74,7 +74,7 @@ The manifest is readable without running any document. Ltix reads it to collect 
 - **Providers.** The providers of all manifests form a set of modules, in plugin order.
 - **Order.** Each provider's extender entries are kept in plugin order, and sorted by `Ltix.Ordered` when the provider's hook includes it. `Ltix.PluginSet.extenders/2` returns them.
 - **Resolution hook.** A provider may define the optional `resolve/1` callback from `Ltix.Provider`. It runs once per plugin set, in plugin order, and returns `{:ok, data}`, which `Ltix.PluginSet.data/2` returns, or `{:error, conflicts}`. Each provider's `resolve/1` can read the data of the providers before it.
-- **Conflicts.** A conflict is an `%Ltix.PluginSet.Conflict{}` with the `parties` in conflict and a `reason`. Dependency cycles are conflicts whose parties are the plugins in the cycle, and a plugin that depends on itself is one. Resolution returns `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}` with every conflict, and its message lists each party with the name and version of each plugin that includes it.
+- **Conflicts.** A conflict is an `%Ltix.PluginSet.Conflict{}` with the `parties` in conflict and a `reason`. Dependency cycles are conflicts whose parties are the plugins in the cycle, and a plugin that depends on itself is one. Resolution returns `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}` with every conflict, and its message lists each party with the name and version of each plugin that includes it. `Ltix.PluginSet.Conflict.duplicates/3` returns a conflict for each value that several modules declare.
 - **Caching.** Resolved plugin sets, and resolution errors, are kept in `:persistent_term`, keyed by the normalized listing, so a listing is resolved once.
 
 ## Documents
@@ -87,7 +87,6 @@ A document is the state of one call into Ltix that several specifications or ven
 | Launch | The authentication response | `%Ltix.Launch{}` |
 | Notice | Each notice in a PNS envelope | One document per notice. The envelope is not a document. A notice is not a launch |
 | Tool message | Building a tool-signed message | The Deep Linking response and Proctoring Start Assessment |
-| Content item | Building one content item | One document per item, inside a tool message |
 | Service resource | One service request or response body | Line items, scores, results, ACS requests, and Dynamic Registration payloads. Each specification defines its resource types the way it defines message types |
 | Client assertion | Requesting an access token | Specifications and vendors add claims and scopes |
 
@@ -247,14 +246,16 @@ A property extender declares one JSON property, parses it, and serializes it. `p
 
 ### `Ltix.Type`
 
-`use Ltix.Type, fields: [...]` builds a type's struct from Zoi schemas for its standard fields, given as a keyword list in field order. It defines the struct, a typed `t`, and the enforced keys, and adds `extensions` and `unrecognized` as struct fields outside the Zoi schema.
+`use Ltix.Type, fields: [...]` builds a type's struct from Zoi schemas for its standard fields, given as a keyword list in field order. It defines the struct, a typed `t`, and the enforced keys, and adds `extensions` and `unrecognized` as struct fields outside the Zoi schema, so options and generated docs leave them out. `metadata:` is passed to the struct's Zoi schema.
 
+- `Ltix.Type.new/3` builds the struct from a keyword list or map. Nested keyword lists become maps, a field given `nil` counts as omitted, and missing required fields, unknown fields (`extensions:` among them), and invalid values are `InvalidField` errors.
 - `Ltix.Type.from_json/3` parses JSON into the struct. A missing or malformed field with `Zoi.optional/1` keeps its default, and a missing or malformed required field is an error. Properties no field declares go in `unrecognized`.
-- `Ltix.Type.to_json/1` serializes the struct, leaving out `nil` standard fields. Standard fields replace unrecognized properties of the same name.
-- A field's JSON name is its name, or `json_key:` from the field schema's metadata.
+- `Ltix.Type.to_json/3` serializes the struct with a plugin set and a write operation. Unrecognized properties go in first, then standard fields, then the property of each extender entry that has an extension and whose `writes/0` includes the operation, so standard fields replace unrecognized properties of the same name, and declared properties replace both. It leaves out `nil` standard fields and `nil` values inside them, and sends a `DateTime` in ISO 8601.
+- A field's JSON name is its name, or its camelCase form with `json_keys: :camel_case`, or `json_key:` from the field schema's metadata. Inside a field, the keys a nested map's schema declares follow the same style and take `json_key:` too. Keys the schema doesn't declare, such as custom property names, are sent as written.
+- An extender declares its property name with `name:` on its `use`. A type's `extensions` are keyed by property name, and `Ltix.Type.new/3` takes property values by name with the type's fields.
 - `Ltix.Type.fields/1` returns the field schemas in field order.
 
-Object claims build their structs with it. `Ltix.GradeService.LineItem` and `Ltix.GradeService.Result` parse their JSON with its field parsing.
+Object claims and content item types build their structs with it. `Ltix.GradeService.LineItem` and `Ltix.GradeService.Result` parse their JSON with its field parsing.
 
 ## Declared Claims
 
@@ -282,10 +283,44 @@ end
 
 Overrides are scoped to message types, because a check one message type doesn't need still protects every other launch. A plugin whose message type accepts `role_scope_mentor` without the Mentor role replaces Core's check there, and resource link launches keep it. `Ltix.Claims.overrides/1` lists every replaced check.
 
+## Content Item Types
+
+A content item type is declared by `use`-ing `Ltix.DeepLinking.ContentItemType`, a provider whose hook block makes the content item type a provider itself, with hook `[Ltix.Property]`. A plugin provides it with `Ltix.Plugin.provide/2`, and extenders that `use` it add properties.
+
+```elixir
+defmodule Ltix.DeepLinking.ContentItem.File do
+  use Ltix.DeepLinking.ContentItemType,
+    type: "file",
+    fields: [
+      url: Zoi.string(description: "URL to download the file."),
+      title: title(),
+      media_type: Zoi.string(description: "Media type of the file.") |> Zoi.optional(),
+      expires_at: Zoi.datetime(description: "When the download URL expires.") |> Zoi.optional()
+      # ...
+    ]
+
+  @impl Ltix.DeepLinking.ContentItemType
+  def check(%__MODULE__{media_type: media_type}, %Ltix.DeepLinking.Settings{accept_media_types: accepted}) do
+    if accepted?(media_type, accepted), do: :ok, else: {:error, ...}
+  end
+
+  # An exact match, `type/*`, or `*/*`, ignoring case and parameters. Passes when either side is `nil`.
+  defp accepted?(media_type, accepted), do: # ...
+end
+```
+
+- **What `use` generates.** The struct through `Ltix.Type` with `json_keys: :camel_case` and the `type` string in the schema's `metadata:`, overridable `new/1` and `new!/1` built on `Ltix.Type.new/3`, and a Fields section appended to the moduledoc at `@before_compile`, unless the moduledoc is `false`.
+- **Shared fields.** `Ltix.DeepLinking.ContentItemType.Fields` has `title/1`, `text/1`, `icon/1`, `thumbnail/1`, `window/1`, `iframe/1` (`src: true` adds a required `src`), and `embed/1`. `use` imports them. `Ltix.Type.object/2` builds the schema of any other nested object.
+- **API.** `Ltix.DeepLinking.ContentItemType.type/1` and `fields/1` return a content item type's `type` string and field schemas.
+- **Checks.** `Ltix.DeepLinking.build_response/3` rejects any item that isn't a struct of a content item type in the plugin set, plain maps among them, with `InvalidContentItem`. It checks each content item's own `type` against `accept_types`, each of its `window`, `iframe`, and `embed` in the JSON against `accept_presentation_document_targets`, and then the optional `check/2` callback, which receives the content item and the `%Ltix.DeepLinking.Settings{}`. `File` checks `accept_media_types`, and `LTIResourceLink` checks `accept_line_item`. `accept_multiple` applies to the whole response, and its error has the index of the first content item over the limit. Errors Ltix builds about one content item have its index, and Ltix sets the `index` of a `check/2` error when the error has the field and it is `nil`.
+- **Serializing.** `build_response/3` serializes each content item with `Ltix.Type.to_json/3`, the plugin set, and the `:create` operation, then puts in `type`.
+- **Resolution.** `Ltix.DeepLinking.Response.resolve/1` collects the `type` string of each provider that extends `Ltix.DeepLinking.ContentItemType`, keyed by module. It reports two modules declaring one `type` and two extenders declaring one property on one content item type.
+- **Plugin sets.** `build_response/3` uses the launch's plugin set, and `plugins:` replaces it.
+
 ## Rules
 
 - **No replacing providers.** A plugin cannot replace or remove what another plugin provides. A different flow, such as another login mechanism, is a new provider that the application calls.
-- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, or service endpoint fail at resolution.
+- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, or service endpoint fail at resolution, and so do two modules declaring one content item type or two extenders declaring one property on one content item type.
 - **Providers have no short names.** Every provider and target is named by its module.
 
 ## Replacing 0.2's Extension Points
@@ -300,7 +335,7 @@ Overrides are scoped to message types, because a check one message type doesn't 
 
 ## Not Yet Decided
 
-- **The contract of each of Ltix's providers.** This covers notice, tool message, content item types, service resources, and the client assertion.
+- **The contract of each of Ltix's providers.** This covers notice, tool message, service resources, and the client assertion.
 
 ## Spike for Hooks
 

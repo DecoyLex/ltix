@@ -110,7 +110,7 @@ defmodule Ltix.Claim do
                       description:
                         "The Zoi schema that parses the claim's value. Without it, the value is the JSON value."
                     )
-                    |> Zoi.refine(&Ltix.Claim.check_schema/1)
+                    |> Zoi.refine(&Ltix.Property.check_schema/1)
                     |> Zoi.optional(),
                   strict:
                     Zoi.boolean(
@@ -160,26 +160,10 @@ defmodule Ltix.Claim do
     Plugin.add_entry(plugin, %Entry{module: __MODULE__, opts: opts})
   end
 
+  # An anonymous claim parses its value with its `:schema` option.
   @doc false
-  @spec check_schema(term()) :: :ok | {:error, String.t()}
-  def check_schema(schema) do
-    if is_struct(schema) && Zoi.Type.impl_for(schema) != nil,
-      do: :ok,
-      else: {:error, "must be a Zoi schema"}
-  end
-
-  # Parses the value of an anonymous claim, or of a claim module that doesn't
-  # implement `parse/2`, with its `:schema` option.
-  @doc false
-  @spec parse(term(), keyword()) :: {:ok, term()} | {:error, term()}
-  def parse(value, opts) do
-    case Keyword.fetch(opts, :schema) do
-      {:ok, schema} -> Zoi.parse(schema, value)
-      :error -> {:ok, value}
-    end
-  end
+  defdelegate parse(value, opts), to: Ltix.Property
 
   @doc false
-  @spec serialize(term(), keyword()) :: term()
-  def serialize(value, _opts), do: value
+  defdelegate serialize(value, opts), to: Ltix.Property
 end

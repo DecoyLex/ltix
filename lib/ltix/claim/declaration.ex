@@ -32,10 +32,7 @@ defmodule Ltix.Claim.Declaration do
   @options [:claim, :name, :schema, :fields, :strict, :default, :service]
 
   defmacro __using__(opts) do
-    case Keyword.keys(opts) -- @options do
-      [] -> :ok
-      unknown -> raise ArgumentError, "unknown Ltix.Claim options: #{inspect(unknown)}"
-    end
+    Keyword.validate!(opts, @options)
 
     for key <- [:claim, :name], !Keyword.has_key?(opts, key) do
       raise ArgumentError, "Ltix.Claim requires the #{inspect(key)} option"
@@ -45,8 +42,7 @@ defmodule Ltix.Claim.Declaration do
 
     case Keyword.fetch(opts, :fields) do
       {:ok, fields} ->
-        # An object claim is a provider. Its extenders each declare one of its
-        # properties.
+        # An object claim is a type that plugins add properties to.
         quote do
           use Ltix.Provider, hook: [Ltix.Property]
           use Ltix.Type, fields: unquote(fields)
@@ -62,12 +58,7 @@ defmodule Ltix.Claim.Declaration do
         end
 
       :error ->
-        quote do
-          @impl Ltix.Property
-          defdelegate parse(json, opts), to: Ltix.Claim
-
-          defoverridable parse: 2
-        end
+        nil
     end
   end
 

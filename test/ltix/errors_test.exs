@@ -4,8 +4,6 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors
 
   alias Ltix.Errors.Invalid.CollectionTooLarge
-  alias Ltix.Errors.Invalid.ContentItemsExceedLimit
-  alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -250,18 +248,6 @@ defmodule Ltix.ErrorsTest do
   end
 
   describe "Deep linking and Advantage error modules" do
-    test "ContentItemTypeNotAccepted includes type and accept_types" do
-      error =
-        ContentItemTypeNotAccepted.exception(
-          index: 0,
-          type: "link",
-          accept_types: ["ltiResourceLink"]
-        )
-
-      assert Exception.message(error) =~ ~s(type "link" at index 0)
-      assert Exception.message(error) =~ ~s(["ltiResourceLink"])
-    end
-
     test "CoupledLineItem includes line_item_url" do
       error =
         CoupledLineItem.exception(line_item_url: "https://lms.example.com/lineitems/1")
@@ -275,13 +261,6 @@ defmodule Ltix.ErrorsTest do
         InvalidMessageType.exception(message_type: "LtiResourceLinkRequest")
 
       assert Exception.message(error) =~ "LtiResourceLinkRequest"
-    end
-
-    test "ContentItemsExceedLimit includes count" do
-      error =
-        ContentItemsExceedLimit.exception(count: 3)
-
-      assert Exception.message(error) =~ "3"
     end
 
     test "LineItemNotAccepted includes the item index" do

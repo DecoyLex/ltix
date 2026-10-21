@@ -170,24 +170,85 @@ Include a thumbnail for list views.
 )
 ```
 
-## Using extensions
+## Vendor property
 
-Add vendor-specific properties keyed by fully qualified URLs. Extensions are merged into the top-level JSON output. A key that is a standard field, such as `type` or `url`, returns an error.
+Add the plugin that declares a vendor property to `config :ltix, plugins: [...]`, then pass the property to `new/1` by its property name.
 
 ```elixir
-{:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-  url: "https://tool.example.com/activity/5",
-  title: "Proctored Exam",
-  extensions: %{
-    "https://vendor.example.com/proctoring" => %{
-      "required" => true,
-      "duration_minutes" => 90
-    }
-  }
-)
+{:ok, link} =
+  Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+    url: "https://tool.example.com/activity/5",
+    title: "Proctored Exam",
+    proctoring_minutes: 90
+  )
 ```
 
-All five content item types support the `extensions` field.
+The response sends each property under its JSON name. To declare a property, see [Add a property to a content item type](../writing-deep-linking-plugins.md#add-a-property-to-a-content-item-type).
+
+## Custom content item type
+
+To return content that Deep Linking doesn't define, such as a poll, declare a content item type. Use a URL you control as its `type`. Fields are Zoi schemas. Add `{:zoi, "~> 0.17"}` to your dependencies.
+
+```elixir
+defmodule MyApp.Poll do
+  @moduledoc "A poll the platform shows to learners."
+
+  use Ltix.DeepLinking.ContentItemType,
+    type: "https://myapp.example.com/poll",
+    fields: [
+      question: Zoi.string(description: "The question to ask."),
+      choices: Zoi.list(Zoi.string(), description: "The answers to choose from."),
+      title: title(),
+      window: window(),
+      closes_at: Zoi.datetime(description: "When the poll closes.") |> Zoi.optional()
+    ]
+
+  @impl Ltix.DeepLinking.ContentItemType
+  def check(%__MODULE__{window: window}, %Ltix.DeepLinking.Settings{auto_create: true})
+      when window != nil,
+      do: {:error, MyApp.PollWindowNotAllowed.exception([])}
+
+  def check(_poll, _settings), do: :ok
+end
+
+defmodule MyApp.PollWindowNotAllowed do
+  defexception [:index]
+
+  @impl Exception
+  def message(%{index: index}),
+    do: "The poll at index #{index} opens a window, which auto-created content can't use"
+end
+```
+
+`use` imports the fields content item types share, such as `title()` and `window()`. `check/2` rejects a poll with a window when `auto_create` is `true`, which means the platform adds content without asking the user. Ltix sets the error's `index`.
+
+Add the type to a plugin with `Ltix.Plugin.add/2`, and enable the plugin in your configuration. [Write a plugin](../writing-plugins.md#write-a-plugin) shows how.
+
+The platform must accept the poll's `type` and the `window` presentation target.
+
+```elixir
+{:ok, poll} =
+  MyApp.Poll.new(
+    question: "Which topic next?",
+    choices: ["Recursion", "Streams"],
+    window: [target_name: "poll"],
+    closes_at: ~U[2025-03-15 12:00:00Z]
+  )
+
+{:ok, response} = Ltix.DeepLinking.build_response(launch, [poll])
+```
+
+The response sends fields under their camelCase names.
+
+```json
+{
+  "type": "https://myapp.example.com/poll",
+  "question": "Which topic next?",
+  "choices": ["Recursion", "Streams"],
+  "window": {"targetName": "poll"},
+  "closesAt": "2025-03-15T12:00:00Z"
+}
+```
 
 ## Returning multiple items
 
@@ -230,3 +291,10 @@ Return an empty list with a message when the user cancels or an error occurs.
 ```
 
 An empty items list is always valid regardless of platform constraints.
+
+## Next steps
+
+- [Deep Linking](../deep-linking.md) for handling Deep Linking launches and sending the response
+- [Writing Deep Linking Plugins](../writing-deep-linking-plugins.md) for content item types and their properties
+- `Ltix.DeepLinking.ContentItemType` for declaring a content item type
+- `Ltix.DeepLinking.ContentItem.LTIResourceLink` for every option of an LTI resource link

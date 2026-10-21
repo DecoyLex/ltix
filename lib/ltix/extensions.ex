@@ -2,7 +2,8 @@ defmodule Ltix.Extensions do
   @moduledoc false
 
   # Extension properties a caller adds to a JSON object Ltix sends, such as a
-  # score, a line item, or a deep linking content item.
+  # score or a line item, and maps with caller-chosen keys, such as the custom
+  # properties of an LTI resource link.
 
   alias Ltix.Errors.Invalid.InvalidField
 

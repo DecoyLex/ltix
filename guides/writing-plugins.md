@@ -7,6 +7,7 @@ A plugin can add a login or launch step, or a claim. Ltix supports Core, Deep Li
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
 | Run code during login or launches | [Add a step](#add-a-step) |
 | Read a claim | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
+| Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
 | Let other plugins extend yours | [Provide something for other plugins to extend](#provide-something-for-other-plugins-to-extend) |
 | Fix `InvalidPluginSet` | [Fix a plugin set that fails to resolve](#fix-a-plugin-set-that-fails-to-resolve) |
@@ -286,7 +287,7 @@ Exception.message(error)
 | Conflict | Fix |
 |---|---|
 | Plugins that depend on each other in a cycle | Remove one of the dependencies |
-| Two plugins that declare the same claim URI, short name, or service | Enable only one of the plugins, or have both depend on a plugin that declares it |
+| Two plugins that declare the same claim URI, short name, service, or content item type | Enable only one of the plugins, or have both depend on a plugin that declares it |
 | The same claim module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
 
@@ -311,7 +312,7 @@ test "blocks a listed issuer", %{platform: platform} do
 end
 ```
 
-Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-claims-and-launch-steps) are on their own page.
+Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-claims-and-launch-steps) and [Deep Linking responses](writing-deep-linking-plugins.md#test-deep-linking-responses) are on their own pages.
 
 ## Next steps
 

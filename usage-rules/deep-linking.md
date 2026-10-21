@@ -27,6 +27,9 @@ Build items with `ContentItem.*.new/1`, which takes a keyword list or map, or wi
 
 Date and time fields, such as `File`'s `expires_at` and a resource link's `available` and `submission` windows, take `DateTime` structs.
 
+- **Never** pass a plain map to `build_response/3`. For another kind of content, follow [Custom content item type](https://ltix.hexdocs.pm/building-content-items.md#custom-content-item-type).
+- **Never** pass `extensions:` to a content item's `new/1`. Pass a vendor property by its `:name`. [Vendor property](https://ltix.hexdocs.pm/building-content-items.md#vendor-property) has an example. A plugin in `config :ltix, plugins:` must declare it.
+
 ## Platform Constraints
 
 Before building items, check what the platform accepts.
@@ -72,6 +75,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 
 - Pass a list of items (or `[]` for cancellation).
 - Options are `:message`, `:log`, `:error_message`, and `:error_log`. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `:plugins` replaces the plugins the launch ran with.
 - `build_response!/3` raises on error.
 - Returns `{:ok, %Ltix.DeepLinking.Response{}}` with the signed `jwt` and the platform's `return_url`.
 
@@ -92,8 +96,8 @@ html(conn, """
 
 Errors about one item include its `index` in the list you passed.
 
-- `InvalidMessageType` - `build_response/3` called with a launch that isn't a Deep Linking request
-- `InvalidContentItem` when an item is not a content item or the items are not a list
+- `InvalidMessageType` - `build_response/3` called on a non-deep-linking launch
+- `InvalidContentItem` when an item is not a content item of a type the plugins declare, or the items are not a list
 - `ContentItemTypeNotAccepted` - item type not in `settings.accept_types`
 - `ContentItemsExceedLimit` - multiple items when `settings.accept_multiple` is `false`
 - `LineItemNotAccepted` - line item on content item when `settings.accept_line_item` is `false`

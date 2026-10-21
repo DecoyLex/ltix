@@ -179,10 +179,10 @@ These errors come from `Ltix.DeepLinking.build_response/3`. Content item constru
 
 | Error | Fields | When |
 |---|---|---|
-| `InvalidContentItem` | `index`, `value`, `reason` | A response item is not a content item or has no valid type, or the items are not a list |
+| `InvalidContentItem` | `index`, `value`, `reason` | A response item is not a content item of a type the plugins declare, such as a plain map, or the items are not a list |
 | `InvalidMessageType` | `message_type` | The launch is not a deep linking request |
 | `ContentItemTypeNotAccepted` | `index`, `type`, `accept_types` | An item's type is not in `accept_types` |
-| `ContentItemsExceedLimit` | `count` | Several items when `accept_multiple` is `false` |
+| `ContentItemsExceedLimit` | `index`, `count` | Several items when `accept_multiple` is `false`. `index` is the position of the first item over the limit |
 | `LineItemNotAccepted` | `index` | A resource link has a line item when `accept_line_item` is `false` |
 | `PresentationTargetNotAccepted` | `index`, `target`, `accept_presentation_document_targets` | An item's `iframe`, `window`, or `embed` is not in `accept_presentation_document_targets` |
 | `MediaTypeNotAccepted` | `index`, `media_type`, `accept_media_types` | A file's media type does not match `accept_media_types` |

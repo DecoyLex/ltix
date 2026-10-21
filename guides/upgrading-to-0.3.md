@@ -46,7 +46,7 @@ Pass the launch wherever you passed the launch context, such as to `authenticate
 | `Ltix.LaunchClaims.DeepLinkingSettings` | `Ltix.DeepLinking.Settings` |
 | `LaunchClaims.from_json/2` | `Ltix.Claims.parse/2` |
 | each claim's `from_json/1` | the claim module's `parse/2` |
-| `Ltix.LaunchClaims.Context.to_map/1` | `Ltix.Type.to_json/1` |
+| `Ltix.LaunchClaims.Context.to_map/1` | `Ltix.Type.to_json/3` |
 
 Claim structs have two new fields, `extensions` for properties plugins parse and `unrecognized` for the rest.
 
@@ -192,6 +192,84 @@ Ltix.Test.build_launch(platform,
 )
 ```
 
+## Deep Linking
+
+### Content items must be content item types
+
+`Ltix.DeepLinking.build_response/3` returns `Ltix.Errors.Invalid.InvalidContentItem` for a plain map or for your own struct. The `Ltix.DeepLinking.ContentItem` protocol is removed. Declare each custom type with `use Ltix.DeepLinking.ContentItemType`, and add it to a plugin.
+
+```elixir
+# 0.2
+defmodule MyApp.ProctoredExam do
+  defstruct [:url, :title, :duration_minutes]
+
+  defimpl Ltix.DeepLinking.ContentItem do
+    def to_map(exam) do
+      %{
+        "type" => "https://myapp.example.com/proctored_exam",
+        "url" => exam.url,
+        "title" => exam.title,
+        "durationMinutes" => exam.duration_minutes
+      }
+    end
+  end
+end
+
+exam = %MyApp.ProctoredExam{url: url, title: "Final Exam", duration_minutes: 90}
+
+# 0.3
+defmodule MyApp.ProctoredExam do
+  use Ltix.DeepLinking.ContentItemType,
+    type: "https://myapp.example.com/proctored_exam",
+    fields: [
+      url: Zoi.string(),
+      title: title(),
+      duration_minutes: Zoi.integer()
+    ]
+end
+
+defmodule MyApp.LtiPlugin do
+  @behaviour Ltix.Plugin
+
+  @impl Ltix.Plugin
+  def plugin(_opts) do
+    Ltix.Plugin.new(name: "My App")
+    |> Ltix.Plugin.add(MyApp.ProctoredExam)
+  end
+end
+
+# config/config.exs
+config :ltix, plugins: [MyApp.LtiPlugin]
+
+exam = MyApp.ProctoredExam.new!(url: url, title: "Final Exam", duration_minutes: 90)
+```
+
+`use` imports shared fields such as `title()`, and fields are sent under their camelCase names. See [Building Content Items](cookbooks/building-content-items.md#custom-content-item-type).
+
+### `extensions:` on content items is replaced by property names
+
+A content item's `new/1` returns `Ltix.Errors.Invalid.InvalidField` for `extensions:`. Enable a plugin that declares the property, then pass the property by its name.
+
+```elixir
+# 0.2
+LTIResourceLink.new(
+  title: "Proctored Exam",
+  extensions: %{"https://vendor.example.com/proctoring" => %{"required" => true}}
+)
+
+# 0.3
+# config/config.exs
+config :ltix, plugins: [MyApp.Proctoring]
+
+LTIResourceLink.new(title: "Proctored Exam", proctoring: %{required: true})
+```
+
+[Add a property to a content item type](writing-deep-linking-plugins.md#add-a-property-to-a-content-item-type) shows how to declare one.
+
+### `ContentItem.to_map/1` is removed
+
+In tests, read the content items from the signed response with `Ltix.Test.verify_deep_linking_response/2`, under the `https://purl.imsglobal.org/spec/lti-dl/claim/content_items` claim.
+
 ## Errors
 
 ### Some error messages changed
@@ -207,3 +285,4 @@ An error's message doesn't end with the section of the specification its check c
 ## New in 0.3
 
 - [Plugins](writing-plugins.md) extend Ltix. A tool that enables none works as before. When enabled plugins conflict, a call returns `Ltix.Errors.Unknown.InvalidPluginSet`.
+- `Ltix.Errors.Invalid.ContentItemsExceedLimit` has the `index` of the first content item over the limit.

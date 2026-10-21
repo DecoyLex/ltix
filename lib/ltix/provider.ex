@@ -80,10 +80,10 @@ defmodule Ltix.Provider do
     end
   end
 
-  # The providers an entry or a module extends. An anonymous step extends the
-  # provider in its `:to` option, and another anonymous entry, such as one
-  # `Ltix.Claim.add/2` adds, extends its own provider. A module extends the
-  # providers in its `ltix_extends` attribute.
+  # The providers an entry or a module extends. An anonymous step or property
+  # extends the provider in its `:to` option, and another anonymous entry, such
+  # as one `Ltix.Claim.add/2` adds, extends its own module. A module extends
+  # the providers in its `ltix_extends` attribute.
   @doc false
   @spec extended_providers(Entry.t() | module()) :: [module()]
   def extended_providers(%Entry{module: module, opts: opts} = entry) do
@@ -133,9 +133,11 @@ defmodule Ltix.Provider do
       end
 
       @ltix_extends unquote(provider)
-      @ltix_options unquote(opts)
       unquote(provider_behaviour)
       unquote_splicing(blocks)
+
+      # After the hook, whose `use` can import what the options call.
+      @ltix_options unquote(opts)
     end
   end
 end

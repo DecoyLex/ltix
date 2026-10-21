@@ -224,7 +224,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Step**. A module that receives a login, launch, client assertion, or Deep Linking response and can change it, record an error and continue, or record an error and halt the call.
 
-**Anonymous step**, **anonymous claim**. A step or claim a plugin adds without a module of its own, with its provider's function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
+**Anonymous step**, **anonymous claim**, **anonymous property**. A step, claim, or property a plugin adds without a module of its own, with its provider's function, such as `Ltix.Login.add_step/2`, `Ltix.Claim.add/2`, or a content item type's `add_property/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
 
 **Default step**. A step a default plugin provides. Default steps other than phases are internal and can change between releases.
 
@@ -244,7 +244,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Strict**. Whether a declared claim's malformed value fails the call. Claims are strict by default. When a claim is declared with `strict: false`, a malformed value is the claim's default, or `nil`, in the parsed claims and stays in the raw claims, and the call continues.
 
-**Check**. A rule about a parsed claim that must pass for a message to be valid. The module that declares the claim defines its checks, and other plugins can add more.
+**Check**. A rule about a parsed claim or a content item that a message must pass. The module that declares the claim or content item type defines its checks, and other plugins can add more.
 
 ## Message types
 
@@ -268,9 +268,11 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Standard field**. A field a specification defines for a type.
 
-**Property**. One JSON property on a type that a single module declares, parses, and serializes. _Avoid_ claim and own as verbs for properties.
+**Property**. One JSON property on a type, which one plugin declares with a property module or as an anonymous property, and which Ltix parses and serializes. _Avoid_ claim and own as verbs for properties.
 
-**Extension**. A property's parsed value, stored in the type's `extensions` under its property name. _Avoid_ using "extension" for a plugin, a module that extends another, or an extension claim.
+**Property name**. The atom an application uses for a property, as an option where it builds the type and as the key in `extensions`, such as `:canvas_submission_type`. A property declares it with `:name`, and its JSON name with `:property`.
+
+**Extension**. A property's value, stored in the type's `extensions` under its property name, parsed from JSON or passed by name. _Avoid_ using "extension" for a plugin, a module that extends another, or an extension claim.
 
 **Unrecognized property**. A property no plugin declares, kept as received and written back unchanged. _Avoid_ unclaimed, unowned.
 
