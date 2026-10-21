@@ -23,7 +23,7 @@ erl_crash.dump
 /tmp/
 
 # Ignore package tarball (built via "mix hex.build").
-ash_lti-*.tar
+ltix-*.tar
 
 /.direnv/
 /.elixir_ls/
