@@ -95,6 +95,7 @@ defmodule Ltix.MixProject do
         "guides/deep-linking.md",
         "guides/memberships-service.md",
         "guides/grade-service.md",
+        "guides/writing-plugins.md",
         "guides/jwk-management.md",
         "guides/hardening.md",
         "guides/telemetry.md",
@@ -169,6 +170,9 @@ defmodule Ltix.MixProject do
           "guides/memberships-service.md",
           "guides/grade-service.md"
         ],
+        Plugins: [
+          "guides/writing-plugins.md"
+        ],
         Operations: [
           "guides/jwk-management.md",
           "guides/hardening.md",
@@ -192,6 +196,8 @@ defmodule Ltix.MixProject do
         Ltix.JWT,
         Ltix.JWT.KeySet,
         Ltix.LaunchClaims,
+        Ltix.Login,
+        Ltix.PluginSet,
         Ltix.DeepLinking,
         Ltix.DeepLinking.ContentItem,
         Ltix.MembershipsService,
@@ -213,6 +219,21 @@ defmodule Ltix.MixProject do
           Ltix.LaunchContext,
           Ltix.StorageAdapter,
           Ltix.JWK
+        ],
+        Plugins: [
+          Ltix.Plugin,
+          Ltix.PluginSet,
+          Ltix.PluginSet.Conflict,
+          Ltix.DefaultPlugins,
+          Ltix.Core,
+          Ltix.Provider,
+          Ltix.Step,
+          Ltix.Ordered,
+          Ltix.Behaviour
+        ],
+        Login: [
+          Ltix.Login,
+          Ltix.Login.RegistrationFound
         ],
         JWT: [
           Ltix.JWT.Token,

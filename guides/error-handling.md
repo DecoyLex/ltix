@@ -16,7 +16,7 @@ without knowing every individual error type.
 
 ## HTTP status codes
 
-Every error has an HTTP status code derived from its class.
+Every Ltix error has an HTTP status code derived from its class. `Ltix.Errors.status_code/1` returns 500 for any other exception, such as one a plugin's step returns.
 
 | Class | Status |
 |---|---|
@@ -47,7 +47,9 @@ use the correct status code without any extra work on your part.
 ## Matching on class
 
 Every Ltix error struct has a `class` field you can match on for
-different handling per category.
+different handling per category. A plugin's login step can return its own
+exception, which has no `class` field. Match on it before matching on
+class.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -57,14 +59,14 @@ case Ltix.handle_callback(params, state) do
   {:error, error} ->
     status = Ltix.Errors.status_code(error)
 
-    case error.class do
-      :invalid ->
+    case error do
+      %{class: :invalid} ->
         conn |> put_status(status) |> text("Bad request: #{Exception.message(error)}")
 
-      :security ->
+      %{class: :security} ->
         conn |> put_status(status) |> text("Unauthorized: #{Exception.message(error)}")
 
-      :unknown ->
+      _unknown ->
         Logger.error("LTI launch failed: #{Exception.message(error)}")
         conn |> put_status(status) |> text("Internal error")
     end
@@ -177,6 +179,7 @@ These indicate an unexpected failure outside the incoming request.
 | `TransportError` | `status`, `body`, `headers`, `url` | An HTTP request to the platform failed |
 | `RedirectNotAllowed` | `status`, `url`, `location` | A platform endpoint returned an unsafe redirect |
 | `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set cache that is not started in the supervision tree |
+| `InvalidPluginSet` | `conflicts`, `plugins` | The enabled plugins conflict, such as plugins that depend on each other in a cycle |
 | `Unknown` | `error` | Any other unexpected failure |
 
 ## Deep linking errors
@@ -233,14 +236,14 @@ errors need investigation.
 
 ```elixir
 {:error, error} ->
-  case error.class do
-    :invalid ->
+  case error do
+    %{class: :invalid} ->
       Logger.info("LTI invalid request: #{Exception.message(error)}")
 
-    :security ->
+    %{class: :security} ->
       Logger.warning("LTI security violation: #{Exception.message(error)}")
 
-    :unknown ->
+    _unknown ->
       Logger.error("LTI unexpected error: #{Exception.message(error)}")
   end
 ```

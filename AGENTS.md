@@ -40,8 +40,9 @@ Use the `qc` skill for checks on test hygiene
 
 ## Pipes
 
-- Don't use a single `|>` — call the function directly. Exception: Zoi builder chains and Req response piping.
-- Pipe chains should start with a raw value, not a function call. Exception: Zoi type constructors and Req HTTP calls.
+- Don't use a single `|>`. Call the function directly. Zoi builder chains, Ltix builder chains, and Req response piping are exceptions.
+- Start pipe chains with a raw value, not a function call. Zoi type constructors, Ltix builder chains, and Req HTTP calls are exceptions.
+- Ltix builder chains (`Ltix.Plugin` manifests) always pipe from `new(...)`, even for one call, with each call on its own line. Write `Ltix.Plugin.new(name: "Blocklist")` and then `|> Ltix.Plugin.add(Blocklist.Login)`, not `Ltix.Plugin.add(Ltix.Plugin.new(name: "Blocklist"), Blocklist.Login)`.
 
 ## Doctests
 

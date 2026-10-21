@@ -143,6 +143,7 @@ service calls, giving more visibility into each step.
 | **Platform side** | No (tool only) | Yes |
 | **Ecto provider** | No (you implement the adapter) | Yes (`lti_1p3_ecto_provider`) |
 | **Test helpers** | Yes (`Ltix.Test`) | In-memory provider |
+| **Plugins** | Yes | No |
 
 ### Dependencies
 

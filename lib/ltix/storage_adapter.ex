@@ -14,10 +14,10 @@ defmodule Ltix.StorageAdapter do
   so you can access your own fields (database IDs, tenant info, etc.)
   without an extra query.
 
-  Every other callback receives the registration the same way you provided
-  it. Launch callbacks get the struct `c:get_registration/3` returned, and
-  the signing callbacks get the struct you passed to the function that
-  needed a signature.
+  During a launch, `c:get_deployment/3` and `c:validate_nonce/4` receive the
+  struct `c:get_registration/3` returned. `c:key_id/2` and `c:sign/4` receive
+  the struct you passed to `Ltix.OAuth.authenticate/2`, or a launch's
+  `source_registration`.
 
   ## Options
 

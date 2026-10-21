@@ -62,6 +62,7 @@ end
 - [Memberships Service](https://ltix.hexdocs.pm/memberships-service.html)
 - [Grade Service](https://ltix.hexdocs.pm/grade-service.html)
 - [Deep Linking](https://ltix.hexdocs.pm/deep-linking.html)
+- [Writing Plugins](https://ltix.hexdocs.pm/writing-plugins.html)
 - [JWK Management](https://ltix.hexdocs.pm/jwk-management.html)
 
 ## License

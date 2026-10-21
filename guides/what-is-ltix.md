@@ -97,6 +97,8 @@ recording used nonces. Use Ecto, Mnesia, Redis, or anything else.
 Elixir web framework. It takes maps in and returns structs out, with no
 Plug dependencies in the core path.
 
+**Plugins.** A plugin can add a vendor's claims, a message type, or a check to every launch. See [Writing Plugins](writing-plugins.md).
+
 **Structured errors.** When something goes wrong, Ltix returns structured errors organized into three classes, `:invalid` (bad input), `:security` (failed security checks), and `:unknown` (unexpected failures).
 
 ```elixir

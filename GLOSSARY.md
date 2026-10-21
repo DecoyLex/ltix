@@ -204,39 +204,31 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 ## Plugins
 
-**Plugin**. A module that declares what it provides, what it extends, and which plugins it depends on. _Avoid_ extension, add-on, parser.
+**Plugin**. A module that declares what it provides, what it extends, and which plugins it depends on. _Avoid_ extension, add-on, parser, manifest.
 
-**Manifest**. The declaration a plugin returns, with its providers, extenders, and dependencies.
-
-**Bundled plugin**. A plugin that ships with Ltix and always loads first. These are Core, Deep Linking, AGS, and NRPS. _Avoid_ built-in plugin, default plugin.
+**Default plugin**. A plugin that ships with Ltix and always loads first. These are Core, Deep Linking, AGS, and NRPS. _Avoid_ built-in plugin, bundled plugin.
 
 **Profile**. A plugin that only depends on other plugins, so an application can enable them together. _Avoid_ preset, bundle.
 
 **Dependency**. A plugin another plugin requires. Resolution adds it to the plugin set.
 
-**Listing**. The plugins an application lists, each as a module or a module with options, in configuration or at a call.
+**Enabled plugins**. The plugins an application enables, each as a module or a module with options, in configuration or at a call.
 
-**Plugin set**. The plugins in effect for one call into Ltix, including bundled plugins and dependencies.
+**Plugin set**. The plugins one call into Ltix runs with, including default plugins and dependencies.
 
-**Resolution**. Building a plugin set from a listing and reporting its conflicts.
+**Resolution**. Building a plugin set from the enabled plugins and reporting its conflicts.
 
-**Conflict**. Two plugins making declarations that can't both hold, such as two extenders declaring one claim.
+**Conflict**. Two plugins making declarations that contradict each other, such as two modules declaring one claim.
 
-**Provider**. A module a plugin provides that defines a document or type and the hook its extenders implement. _Avoid_ target, extension point.
+**Provider**. A module a plugin provides that defines a struct or type, and the behaviours of the modules that extend it. _Avoid_ target, extension point, hook.
 
-**Hook**. The behaviours a provider requires of its extenders.
+**Step**. A module that receives a login, launch, client assertion, or Deep Linking response and can change it, record an error and continue, or record an error and halt the call.
 
-**Extender**. A module that implements one or more providers' hooks. _Avoid_ parser, hook.
+**Anonymous step**. A step a plugin adds as a function, with its provider's `add_step/2`, such as `Ltix.Login.add_step/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
 
-**Extender entry**. One extender with its options in a plugin set. A plugin listed twice adds its extender entries twice.
+**Default step**. A step a default plugin provides. Default steps other than phases are internal and can change between releases.
 
-**Building block**. A behaviour that providers combine into their hooks, such as a step, ordering, or property.
-
-**Document**. The state of one call into Ltix that steps run over in order and the caller gets back. Login, launch, client assertion, and Deep Linking response are documents.
-
-**Step**. An extender that runs over a document and can change it, record an error and continue, or record an error and halt the call.
-
-**Bundled step**. A step a bundled plugin provides, with a stable module name that other steps can order against.
+**Phase**. A point in a login or launch that steps order against, such as `Ltix.Login.RegistrationFound`.
 
 ## Claims
 
@@ -244,7 +236,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Raw claims**. A message's claims as received, before parsing.
 
-**Declared claim**. A claim that a single extender declares and parses. _Avoid_ claim owner, claim parser, and own as a verb for claims.
+**Declared claim**. A claim that a single module declares and parses. _Avoid_ claim owner, claim parser, and own as a verb for claims.
 
 **Object claim**. A claim whose value is a JSON object with named fields.
 
@@ -276,10 +268,10 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Standard field**. A field a specification defines for a type.
 
-**Property**. One JSON property on a type that a single extender declares, parses, and serializes. _Avoid_ claim and own as verbs for properties.
+**Property**. One JSON property on a type that a single module declares, parses, and serializes. _Avoid_ claim and own as verbs for properties.
 
 **Extension**. A property's parsed value, stored on the type under its extender. _Avoid_ using "extension" for a plugin, an extender, or an extension claim.
 
-**Unrecognized property**. A property no extender declares, kept as received and written back unchanged. _Avoid_ unclaimed, unowned.
+**Unrecognized property**. A property no plugin declares, kept as received and written back unchanged. _Avoid_ unclaimed, unowned.
 
 **Write operation**. Whether a type is being created or updated, which determines the properties it sends.

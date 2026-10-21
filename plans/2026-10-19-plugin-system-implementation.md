@@ -101,7 +101,7 @@ Phases are vertical slices through public entry points. Phase 1 builds the plugi
 
 Tests are end to end through `handle_login/3`, `handle_callback/3`, `authenticate/2`, the service calls, and `build_response/3`, with test-only plugins under `test/support/plugins/`. Test-only plugins stand in for later specifications: a Submission Review-like extender of both line item types, a 1.4-like override, and a vendor tenant claim.
 
-Bundled step and extender modules that other plugins can order against are documented and keep stable names. Renaming one is a breaking change.
+Phase modules, such as `Ltix.Login.RegistrationFound`, are the steps other plugins order against. They're documented and keep stable names, and renaming one is a breaking change.
 
 ---
 
@@ -186,7 +186,7 @@ end
 
 #### 5. Login document
 **Files**: `lib/ltix/login.ex`, `lib/ltix/oidc/login_initiation.ex`, `lib/ltix.ex`
-**Changes**: `Ltix.Login` is a provider with hook `[Ltix.Step, Ltix.Ordered]` and fields `params`, `private`, `errors`, and `plugins`. The checks `LoginInitiation` performs become bundled step modules under `Ltix.Login`. `handle_login/3` resolves the plugin set, builds the document, runs it, and returns as 0.2 does. It accepts `plugins:`.
+**Changes**: `Ltix.Login` is a provider with hook `[Ltix.Step, Ltix.Ordered]` and fields `params`, `private`, `errors`, and `plugins`. The checks `LoginInitiation` performs become default step modules under `Ltix.Login`, with the phase `Ltix.Login.RegistrationFound` after the registration lookup. `handle_login/3` resolves the plugin set, builds the document, runs it, and returns what 0.2 returns. It accepts `plugins:`.
 
 #### 6. Errors
 **File**: `lib/ltix/errors/unknown/invalid_plugin_set.ex`

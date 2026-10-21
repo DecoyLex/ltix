@@ -96,3 +96,7 @@ Ltix.Test.build_launch_context(platform,
 ### Errors don't include a spec reference
 
 An error's message doesn't end with the section of the specification its check comes from, such as `[Sec §5.1.3 step 7]`, and errors don't have a `spec_ref` field. Update code that reads `spec_ref` or matches on error messages.
+
+## New in 0.3
+
+- [Plugins](writing-plugins.md) extend Ltix. A tool that enables none works as before. When enabled plugins conflict, a call returns `Ltix.Errors.Unknown.InvalidPluginSet`.

@@ -20,11 +20,13 @@ defmodule Ltix do
       config :ltix,
         storage_adapter: MyApp.LtiStorage
 
-  `handle_login/3` takes `:storage_adapter` and `:storage_adapter_options`,
-  and `handle_callback/3` takes both of those, `:allow_anonymous`,
-  `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`,
-  `:claim_parsers`, and `:clock_skew`, to override the setting for a single
-  call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+  `handle_login/3` takes `:storage_adapter`, `:storage_adapter_options`, and
+  `:plugins`. `handle_callback/3` takes `:storage_adapter`,
+  `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`,
+  `:local_network_access`, `:req_options`, `:key_set`, `:claim_parsers`,
+  and `:clock_skew`. An option passed to a call overrides the application
+  configuration for that call. Unknown or invalid options raise
+  `Ltix.Errors.Invalid.InvalidOption`.
 
   ### Required
 
@@ -69,6 +71,13 @@ defmodule Ltix do
     * `:default_key_size` - RSA key size in bits for `Ltix.JWK.generate/1`
       when no `:key_size` is given. Defaults to `4096`.
 
+    * `:plugins` - the plugins for calls that run plugins, such as
+      `handle_login/3`, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults
+      to `[]`. The [default plugins](`Ltix.DefaultPlugins`) always come
+      first. See [Writing Plugins](writing-plugins.md).
+
+          config :ltix, plugins: [{MyLibrary, tenant: "acme"}]
+
   ### Launch claim parsers
 
   Custom claim parsers are configured under the `Ltix.LaunchClaims` key.
@@ -83,7 +92,7 @@ defmodule Ltix do
   ## Handling Launches
 
   The LTI launch flow requires two endpoints. In your login endpoint,
-  call `handle_login/3` with the platform's initiation params and your
+  call `handle_login/3` with the platform's login parameters and your
   launch URL.
 
       def login(conn, params) do
@@ -156,15 +165,19 @@ defmodule Ltix do
   """
 
   alias Ltix.AppConfig
+  alias Ltix.Errors
   alias Ltix.LaunchContext
+  alias Ltix.Login
   alias Ltix.OIDC.Callback
-  alias Ltix.OIDC.LoginInitiation
   alias Ltix.Options
+  alias Ltix.PluginSet
+  alias Ltix.Step
 
   @login_schema Zoi.keyword(
                   [
                     storage_adapter: Zoi.module(),
-                    storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([])
+                    storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
+                    plugins: Zoi.list(Zoi.any())
                   ],
                   unrecognized_keys: :error
                 )
@@ -186,7 +199,7 @@ defmodule Ltix do
                    )
 
   @doc """
-  Handle a platform's login initiation and build an authorization redirect.
+  Handles a platform's login and builds the authentication request.
 
   The `redirect_uri` is the tool's launch URL where the platform will
   POST the authentication response.
@@ -195,12 +208,20 @@ defmodule Ltix do
   `state` in the user's session for CSRF verification, then redirect the
   user agent to `redirect_uri`.
 
+  Steps that plugins add to `Ltix.Login` run during the call, and the errors
+  they return are returned. Returns
+  `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}` when the plugins
+  conflict.
+
   ## Options
 
     * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
       (defaults to application config)
     * `:storage_adapter_options` - keyword list passed to each storage
       adapter callback (defaults to `[]`)
+    * `:plugins` - the plugins for this call, each as `MyPlugin` or
+      `{MyPlugin, opts}` (defaults to the `:plugins` application
+      configuration)
   """
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
   # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
@@ -214,15 +235,26 @@ defmodule Ltix do
 
     :telemetry.span([:ltix, :login], meta, fn ->
       result =
-        LoginInitiation.call(
-          params,
-          storage_adapter,
-          redirect_uri,
-          Keyword.fetch!(opts, :storage_adapter_options)
-        )
+        with {:ok, plugins} <- PluginSet.resolve(opts[:plugins]) do
+          private = %{
+            ltix_redirect_uri: redirect_uri,
+            ltix_storage_adapter: storage_adapter,
+            ltix_storage_adapter_options: Keyword.fetch!(opts, :storage_adapter_options)
+          }
+
+          run_login(%Login{params: params, private: private, plugins: plugins})
+        end
 
       {result, meta}
     end)
+  end
+
+  defp run_login(login) do
+    %Login{errors: errors, private: private} = Step.run(login)
+
+    with :ok <- Errors.collect(errors),
+         do:
+           {:ok, %{redirect_uri: private.ltix_authentication_request, state: private.ltix_state}}
   end
 
   @doc """

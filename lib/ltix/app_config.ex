@@ -32,6 +32,10 @@ defmodule Ltix.AppConfig do
     Application.get_env(:ltix, LaunchClaims, [])[:claim_parsers] || %{}
   end
 
+  def plugins do
+    Application.get_env(:ltix, :plugins, [])
+  end
+
   def allow_anonymous_launches? do
     Application.get_env(:ltix, :allow_anonymous, false)
   end

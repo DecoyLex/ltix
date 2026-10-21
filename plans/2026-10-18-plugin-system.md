@@ -28,24 +28,29 @@ Out of scope is everything an application does to integrate Ltix. This covers th
 
 ## Plugins
 
-A plugin is a behaviour module with one callback. The callback takes the plugin's options and returns a `%Ltix.Plugin{}`, or a keyword list that Ltix turns into one.
+- **Provides.** A provider defines a document or a type. Its hook is the behaviours its extenders implement.
+- **Extends.** An extender implements one or more providers' hooks.
+- **Depends on.** A dependency is another plugin that resolution adds before this one.
 
 ```elixir
 defmodule Lti1p4 do
   @behaviour Ltix.Plugin
 
-  @impl true
+  @impl Ltix.Plugin
   def plugin(_opts) do
     Ltix.Plugin.new(name: "LTI 1.4", version: "1.0")
+    |> Ltix.Plugin.depend_on(Lti1p3p1)
     |> Ltix.Plugin.extend(Lti1p4.Launch)
     |> Ltix.Plugin.provide(Lti1p4.MCP)
   end
 end
 ```
 
-- `Ltix.Plugin.new/1` takes `name:` and `version:`. They describe the plugin for people, in error messages and telemetry, and nothing in Ltix keys on them.
+- `Ltix.Plugin.new/1` takes `name:` and `version:`. They describe the plugin in error messages.
 - `Ltix.Plugin.provide/2` takes the plugin struct and a provider module.
 - `Ltix.Plugin.extend/2` takes the plugin struct and an extender as `Module` or `{Module, opts}`. The targets come from the providers the module `use`s, so the plugin never names them. The plugin can build the extender's options from its own, as in `extend(plugin, {AshLti.Claims, resource: opts[:resource]})`.
+- `Ltix.Plugin.depend_on/2` takes the plugin struct and another plugin module. A profile is a plugin whose manifest is only `depend_on/2` calls.
+- The builders raise `ArgumentError` for a module that isn't a provider, an extender, or a plugin, as each expects.
 - A plugin is listed as `Module` or `{Module, opts}`. The options are passed to the callback, so a plugin's manifest can depend on them. A plugin that needs several configurations takes a list in its options and adds one extender entry for each.
 - Each listing adds its own extender entries, and each entry runs with its own options. The providers in a plugin set are a set of modules, so a plugin listed twice provides each module once.
 
@@ -53,11 +58,24 @@ The manifest is readable without running any document. Ltix reads it to collect 
 
 ## Registration
 
-- Ltix's bundled plugins always load. No option removes them. They come first in plugin order, before configured and call-site plugins.
+- Ltix's default plugins always load. No option removes them. `Ltix.DefaultPlugins` depends on each one and comes first in plugin order, before configured and call-site plugins. Listing a default plugin gives it options without moving it.
 - `config :ltix, plugins: [...]` sets the plugins for every call.
 - `plugins:` at a call replaces the configured list.
 - When a call is given a `%Ltix.Launch{}`, `plugins:` defaults to the launch's `plugins` field. Passing `plugins:` replaces it.
 - A call without a launch, such as a background job using stored endpoints, uses its `plugins:` option, or the configured list when the option is absent.
+- A listing that includes a module that isn't a plugin raises `Ltix.Errors.Invalid.InvalidOption` for `:plugins`.
+
+## Resolution
+
+`Ltix.PluginSet.resolve/1` builds a plugin set from a listing, resolves the configured listing for `nil`, and returns a plugin set it is given, such as a launch's.
+
+- **Dependencies.** Resolution walks dependencies depth first. Each plugin module appears once in plugin order, at the position where the listing first includes it or where the first plugin that depends on it is placed, and its dependencies come before it. A plugin gets a manifest for each time the listing includes it, each built with that listing's options, and an unlisted dependency gets `[]`. Options come only from the application's listing.
+- **Extender entries.** Each manifest adds its extender entries. `init/1` runs once for each entry that implements `Ltix.Step` and extends a provider in the set.
+- **Providers.** The providers of all manifests form a set of modules, in plugin order.
+- **Order.** Each provider's extender entries are kept in plugin order, and sorted by `Ltix.Ordered` when the provider's hook includes it. `Ltix.PluginSet.extenders/2` returns them.
+- **Resolution hook.** A provider may define the optional `resolve/1` callback from `Ltix.Provider`. It runs once per plugin set, in plugin order, and returns `{:ok, data}`, which `Ltix.PluginSet.data/2` returns, or `{:error, conflicts}`. Each provider's `resolve/1` can read the data of the providers before it.
+- **Conflicts.** A conflict is an `%Ltix.PluginSet.Conflict{}` with the `parties` in conflict and a `reason`. Dependency cycles are conflicts whose parties are the plugins in the cycle, and a plugin that depends on itself is one. Resolution returns `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}` with every conflict, and its message lists each party with the name and version of each plugin that includes it.
+- **Caching.** Resolved plugin sets, and resolution errors, are kept in `:persistent_term`, keyed by the normalized listing, so a listing is resolved once.
 
 ## Documents
 
@@ -79,6 +97,19 @@ Login and launch are separate HTTP requests. Data from login is available to the
 
 The bundled plugins provide these documents. A plugin can provide a new one, such as `Lti1p4.MCP`, which other plugins can then extend.
 
+### `%Ltix.Login{}`
+
+`Ltix.handle_login/3` resolves the plugin set, builds the login, runs its steps with `Ltix.Step.run/1`, and returns `{:ok, %{redirect_uri: url, state: state}}` or `{:error, exception}` as in 0.2. Its hook is `[Ltix.Step, Ltix.Ordered]`.
+
+| Field | Contents |
+|---|---|
+| `params` | The login request's parameters |
+| `private` | Library data, with keys prefixed by the library's name. Ltix's keys have the call's inputs, the registration and source registration, the state, and the authentication request URL |
+| `errors` | Errors collected by steps |
+| `plugins` | The plugin set the login runs with |
+
+Its default steps check the parameters and look up the registration before the phase `Ltix.Login.RegistrationFound`, and build the authentication request after it. A phase is a step that changes nothing. Plugins order their steps against phases, and the other default steps are internal.
+
 ### `%Ltix.Launch{}`
 
 `%Ltix.Launch{}` replaces both `LaunchContext` and `LaunchClaims`. It follows `%Plug.Conn{}`.
@@ -87,8 +118,8 @@ The bundled plugins provide these documents. A plugin can provide a new one, suc
 |---|---|
 | `registration` | The registration the launch was verified against |
 | `deployment` | The deployment the launch belongs to |
-| `source_registration` | The host's own record that `registration` was built from |
-| `source_deployment` | The host's own record that `deployment` was built from |
+| `source_registration` | The application's own record that `registration` was built from |
+| `source_deployment` | The application's own record that `deployment` was built from |
 | `claims` | Parsed claims. This field has the role Plug gives `assigns` |
 | `raw` | The claims as received |
 | `private` | Library data, with keys prefixed by the library's name |
@@ -118,7 +149,9 @@ end
 Each provider is entirely responsible for defining the semantics of its document. That includes which plugin set a child document uses, whether the provider creates the child during a call, such as each line item in a page of results, or the application builds it and passes it in, such as content items given to a Deep Linking response.
 
 - `hook:` lists the building blocks the provider requires.
+- An extender's `use` options are passed to each building block in the hook, as in `use Ltix.Claim, claim: "...", name: :tenant`.
 - A provider that defines its own `@callback`s has them added to its hook automatically.
+- A provider may define `resolve/1` to build per-set data and report conflicts (see Resolution).
 - Each provider defines what extending it means. `Ltix.GradeService.LineItem` decides what happens when two extenders add the same property.
 - A provider decides how finely it can be extended by choosing which modules it provides. Submission Review can add `submissionReview` to the AGS line item because the AGS plugin provides `Ltix.GradeService.LineItem`. The line item inside a Deep Linking `ltiResourceLink` is a separate definition with fewer fields, so it is extended through its own provider module.
 
@@ -143,7 +176,7 @@ end
 
 - **One module, several documents.** A module can extend several providers, as `AddTenant` extends login and launch. Providers whose hooks share `Ltix.Step` get one `call/2` with a clause for each document.
 - **Building blocks are declared once.** A module that uses two ordered hooks declares `Ltix.Ordered` once and gets one set of defaults.
-- **Absent providers.** Extending a provider that no plugin in the call's plugin set provides does nothing. A plugin does not know which other plugins are loaded. When a provider is absent, none of its documents are built, so its extenders have nothing to do. The same holds for `after?/1` and `before?/1` naming a module that is not running. A plugin documents the providers it needs, and the application lists them.
+- **Absent providers.** Extending a provider that no plugin in the call's plugin set provides does nothing. A plugin can extend a provider whether or not the application lists the plugin that provides it. When a provider is absent, none of its documents are built, so its extenders have nothing to do. The same holds for `after?/1` and `before?/1` naming a module that is not running. A plugin that needs a provider depends on the plugin that provides it with `depend_on/2`.
 - **Conflicting callbacks.** If two providers define their own callbacks with the same name, a module that extends both gets Elixir's "conflicting behaviours" warning. That module is split into one module per provider. A contract that several providers share belongs in a building block.
 
 ## Building Blocks
@@ -158,7 +191,7 @@ Building blocks are public, so third-party providers build their hooks from the 
             {:ok, struct()} | {:error, Exception.t()} | {:halt, Exception.t()}
 ```
 
-Options work as they do in Plug. `init/1` runs once for each extender entry when the plugin set is resolved, and its result is the `opts` passed to every `call/2`. The default `init/1` returns its options unchanged.
+Options work as they do in Plug. `init/1` runs once for each extender entry when a plugin set that provides the step's document is resolved, and its result is the `opts` passed to every `call/2`. The default `init/1` returns its options unchanged.
 
 A step takes a document and returns one of three results. It is the contract for providers that run extenders as steps over a document, such as login and launch.
 
@@ -181,12 +214,12 @@ Ordering works the way Spark sorts transformers.
 - When both directions are declared for a pair, there is no edge.
 - Each extender entry is sorted on its own, so a module listed twice runs twice. Entries in one cycle run in plugin order. Every edge between entries that do not share a cycle still holds.
 
-A module can only be ordered relative to another module, so each bundled step is its own module. `before?/1` and `after?/1` name modules as atoms, so renaming or splitting a bundled step module is a breaking change for plugins that order against it.
+A module can only be ordered relative to another module, so each phase is its own module. `before?/1` and `after?/1` name modules as atoms, so renaming a phase is a breaking change for plugins that order against it. The other default steps are internal, so they can be renamed, split, or reordered within their phases.
 
 ## Rules
 
 - **No replacing providers.** A plugin cannot replace or remove what another plugin provides. A different flow, such as another login mechanism, is a new provider that the application calls.
-- **No provider collisions.** Providers and targets are modules, and module names are unique. Two plugins cannot provide the same provider. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order.
+- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order.
 - **No short names.** Every provider and target is named by its module.
 
 ## Replacing 0.2's Extension Points
@@ -201,7 +234,7 @@ A module can only be ordered relative to another module, so each bundled step is
 
 ## Not Yet Decided
 
-- **The contract of each bundled provider.** This covers login, launch, notice, tool message, content item types, service resources, and the client assertion.
+- **The contract of each of Ltix's providers.** This covers launch, notice, tool message, content item types, service resources, and the client assertion.
 
 ## Spike for Hooks
 
@@ -212,7 +245,7 @@ Two facts about Elixir shaped the design.
 - A module that declares two behaviours defining the same callback gets "conflicting behaviours found. Callback function call/2 is defined by both A and B". This is why steps share one `Ltix.Step` behaviour.
 - When two `use` macros both declare the same behaviour, the module gets "the behaviour Ordered has been declared twice" for each callback. This is why building blocks declare themselves once.
 
-`Ltix.Hook.declare_once/2` in the spike is the helper that declares a behaviour once.
+`Ltix.Hook.declare_once/2` in the spike is the helper that declares a behaviour once. The shipped building blocks follow the spike, and add `use` option pass-through, the optional `resolve/1`, and `Ltix.Step.run/1`, which reads the steps from the document's `plugins` field. The shipped `Ltix.Step` has no `init_all/1`, because resolution runs `init/1`.
 
 ```elixir
 # ---- Ltix building blocks -------------------------------------------------
