@@ -349,5 +349,6 @@ An error's message doesn't end with the section of the specification its check c
 ## New in 0.3
 
 - [Plugins](writing-plugins.md) extend Ltix. A tool that enables none works as before. When enabled plugins conflict, a call returns `Ltix.Errors.Unknown.InvalidPluginSet`.
+- Plugins declare message types. `Ltix.ResourceLinkRequest` and `Ltix.DeepLinkingRequest` require the same claims as in 0.2. The test helpers also take a message type string as `message_type:`.
 - An OAuth client uses the plugins it was authenticated with. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `authenticate/2` in background jobs.
 - `Ltix.Errors.Invalid.ContentItemsExceedLimit` has the `index` of the first content item over the limit.

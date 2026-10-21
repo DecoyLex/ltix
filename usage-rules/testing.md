@@ -134,7 +134,7 @@ end
 - `:name`, `:email`, `:given_name`, `:family_name` - user profile fields
 - `:context` - `%Ltix.Claims.Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (the default id is `"context-001"`)
 - `:resource_link` - `%Ltix.Claims.ResourceLink{}` or map with `:id`, `:title`, `:description` keys
-- `:message_type` - `:resource_link` (default) or `:deep_linking`
+- `:message_type` - `:resource_link` (default), `:deep_linking`, or a message type string, such as `"LtiSubmissionReviewRequest"`, whose launch has no resource link or Deep Linking settings
 - `:deep_linking_settings` - `%Ltix.DeepLinking.Settings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
 - `:target_link_uri` - launch URL (defaults to `"https://tool.example.com/launch"`)
 - `:ags_endpoint` - `%Ltix.GradeService.Endpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`

@@ -1,6 +1,6 @@
 # Writing Claim and Launch Plugins
 
-A plugin can declare the claims Ltix parses from a launch. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
+A plugin can declare the claims Ltix parses from a launch, and accept new message types. [Writing Plugins](writing-plugins.md) covers writing and enabling a plugin.
 
 ## Declare a claim
 
@@ -97,6 +97,162 @@ A claim the platform didn't send, or sent as `null`, is its `default:`, or `nil`
 
 Enabling two plugins that declare the same claim URI or short name makes calls return an [`InvalidPluginSet`](writing-plugins.md#fix-a-plugin-set-that-fails-to-resolve) error. To share a claim, have both plugins [depend on](writing-plugins.md#depend-on-another-plugin) one plugin that declares it.
 
+## Declare a message type
+
+Each message type, such as `LtiResourceLinkRequest`, requires its own claims. Declare one with a module that calls `use Ltix.Launch.MessageType` and lists the claims it requires in `c:Ltix.Launch.MessageType.validator/0`, with calls such as `required(:for_user)`.
+
+This plugin declares Submission Review's message type and its `for_user` claim.
+
+```elixir
+defmodule Review.Request do
+  @moduledoc "A user opens a submission for review."
+
+  use Ltix.Launch.MessageType
+
+  @impl Ltix.Launch.MessageType
+  def validator do
+    new("LtiSubmissionReviewRequest")
+    |> required(:resource_link)
+    |> required(:for_user)
+    |> optional(:roles)
+  end
+end
+
+defmodule Review.ForUser do
+  use Ltix.Claim,
+    claim: "https://purl.imsglobal.org/spec/lti/claim/for_user",
+    name: :for_user,
+    fields: [user_id: Zoi.string()]
+end
+
+defmodule Review do
+  @behaviour Ltix.Plugin
+
+  @impl Ltix.Plugin
+  def plugin(_opts) do
+    Ltix.Plugin.new(name: "Submission Review", version: "1.0.0")
+    |> Ltix.Plugin.add(Review.Request)
+    |> Ltix.Plugin.add(Review.ForUser)
+  end
+end
+```
+
+- `required/3` and `optional/3` refer to claims by short name. One of the plugins a launch runs with must declare each claim they refer to.
+- Every launch also requires `version`, `deployment_id`, and `target_link_uri`.
+- A launch missing a required claim fails with `Ltix.Errors.Invalid.MissingClaim`. A launch whose message type no plugin declares fails with `Ltix.Errors.Invalid.InvalidClaim`.
+- `validator/0` must have one clause, and must not call functions defined in its own module.
+- The module's documentation gets a "Claims" table of its requirements.
+
+### Require a claim under a condition
+
+`required/3` and `optional/3` take a condition as `when:` or `unless:`.
+
+```elixir
+new("LtiResourceLinkRequest")
+|> required(:subject, unless: option(:allow_anonymous))
+
+new("LtiDeepLinkingRequest")
+|> required(:context, when: includes(:deep_linking_settings, :accept_types, "ltiAssetProcessor"))
+```
+
+`option/1` is met when an `Ltix.handle_callback/3` option is `true`. `includes/3` is met when a field of an object claim includes a value. For any other rule, write a module that implements `Ltix.Validator.Condition`, and pass it alone or as `{module, args}`.
+
+```elixir
+defmodule Review.Graded do
+  @behaviour Ltix.Validator.Condition
+
+  @impl Ltix.Validator.Condition
+  def met?(_args, claims, _opts), do: claims.ags_endpoint != nil
+
+  @impl Ltix.Validator.Condition
+  def describe(_args), do: "the launch has a grade service endpoint"
+end
+```
+
+```elixir
+new("LtiSubmissionReviewRequest")
+|> required(:context, when: Review.Graded)
+```
+
+The "Claims" table shows this requirement as "Required when the launch has a grade service endpoint".
+
+## Change the claims a message type requires
+
+A module that changes another plugin's message type `use`s the message type's module and implements `c:Ltix.Launch.MessageType.Requirements.validator/1`. A plugin adds it with `Ltix.Plugin.add/2`.
+
+```elixir
+defmodule Review.RequireContext do
+  use Ltix.ResourceLinkRequest
+
+  @impl Ltix.Launch.MessageType.Requirements
+  def validator(validator), do: required(validator, :context)
+end
+```
+
+To change several message types, `use` each and match on the message type.
+
+```elixir
+defmodule Review.Context do
+  use Ltix.ResourceLinkRequest
+  use Ltix.DeepLinkingRequest
+
+  @impl Ltix.Launch.MessageType.Requirements
+  def validator(%{message_type: "LtiResourceLinkRequest"} = validator),
+    do: required(validator, :context)
+
+  def validator(%{message_type: "LtiDeepLinkingRequest"} = validator),
+    do: optional(validator, :context)
+end
+```
+
+`use Ltix.Launch.EveryMessageType` changes every message type.
+
+```elixir
+defmodule Review.Baseline do
+  use Ltix.Launch.EveryMessageType
+
+  @impl Ltix.Launch.MessageType.Requirements
+  def validator(validator),
+    do: defaults(validator, required: [:context], optional: [:tool_platform])
+end
+```
+
+`defaults/2` states several claims in one call, the same as `required/3` and `optional/3` without conditions.
+
+### How requirements combine
+
+Plugin order doesn't change which claims a launch requires. `Ltix.Validator` has the full rules.
+
+- A claim is required when any `required/3` call for it applies.
+- Only `override/3` makes a required claim optional.
+
+```elixir
+defmodule Review.OptionalRoles do
+  use Ltix.ResourceLinkRequest
+
+  @impl Ltix.Launch.MessageType.Requirements
+  def validator(validator), do: override(validator, :roles, :optional)
+end
+```
+
+To see what a message type requires, print it with `Ltix.Validator.describe/1`. For a launch that ran with only the default plugins, `LtiResourceLinkRequest` prints this table.
+
+```elixir
+%{message_types: validators} = Ltix.PluginSet.data(launch.plugins, Ltix.Launch.MessageType)
+IO.puts(Ltix.Validator.describe(validators["LtiResourceLinkRequest"]))
+```
+
+```
+| Claim | Requirement | Stated by |
+|---|---|---|
+| `resource_link` | Required | `Ltix.ResourceLinkRequest` |
+| `roles` | Required | `Ltix.ResourceLinkRequest` |
+| `subject` | Required unless the `:allow_anonymous` option is set | `Ltix.ResourceLinkRequest` |
+| `version` | Required | `Ltix.Core.RequiredClaims` |
+| `deployment_id` | Required | `Ltix.Core.RequiredClaims` |
+| `target_link_uri` | Required | `Ltix.Core.RequiredClaims` |
+```
+
 ## Test claims and launch steps
 
 These tests use the setup from [Test a plugin](writing-plugins.md#test-a-plugin).
@@ -115,8 +271,22 @@ test "parses the proctoring session", %{platform: platform} do
 end
 ```
 
+For your own message type, pass its string as `message_type:`, with the claims it requires.
+
+```elixir
+launch =
+  Ltix.Test.build_launch(platform,
+    message_type: "LtiSubmissionReviewRequest",
+    claims: %{
+      "https://purl.imsglobal.org/spec/lti/claim/resource_link" => %{"id" => "link-1"},
+      "https://purl.imsglobal.org/spec/lti/claim/for_user" => %{"user_id" => "user-2"}
+    },
+    plugins: [Review]
+  )
+```
+
 ## Next steps
 
-- `Ltix.Claim` and `Ltix.Property` for the full contracts
+- `Ltix.Claim`, `Ltix.Validator`, and `Ltix.Property` for the full contracts
 - `Ltix.Launch` for the launch's fields and phases
 - `Ltix.Core` for Core's claims and their short names

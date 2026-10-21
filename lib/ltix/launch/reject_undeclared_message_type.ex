@@ -4,25 +4,27 @@ defmodule Ltix.Launch.RejectUndeclaredMessageType do
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.PluginSet
 
-  @message_types ["LtiResourceLinkRequest", "LtiDeepLinkingRequest"]
   @message_type "https://purl.imsglobal.org/spec/lti/claim/message_type"
 
   # [Core §5.3.1](https://www.imsglobal.org/spec/lti/v1p3/#message-type-claim)
   # [DL §4.4.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#message-type)
   @impl Ltix.Step
   def call(%Ltix.Launch{claims: %{message_type: message_type}} = launch, _opts)
-      when message_type in @message_types,
-      do: {:ok, launch}
-
-  def call(%Ltix.Launch{claims: %{message_type: message_type}}, _opts)
       when message_type != nil do
-    {:error,
-     InvalidClaim.exception(
-       claim: "message_type",
-       message: "unrecognized message_type",
-       value: message_type
-     )}
+    case PluginSet.data(launch.plugins, Ltix.Launch.MessageType) do
+      %{message_types: %{^message_type => _validator}} ->
+        {:ok, launch}
+
+      _undeclared ->
+        {:error,
+         InvalidClaim.exception(
+           claim: "message_type",
+           message: "unrecognized message_type",
+           value: message_type
+         )}
+    end
   end
 
   # `Ltix.Launch.ParseClaims` reports a malformed message type.

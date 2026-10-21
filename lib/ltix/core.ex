@@ -3,7 +3,8 @@ defmodule Ltix.Core do
   The default [plugin](`Ltix.Plugin`) for LTI Core 1.3.0.
 
   It extends `Ltix.Login` with the default login steps, `Ltix.Launch` with the
-  default launch steps, and `Ltix.Claim` with Core's claims.
+  default launch steps, `Ltix.Claim` with Core's claims, and
+  `Ltix.Launch.EveryMessageType` with `Ltix.Core.RequiredClaims`.
 
   ## Claims
 
@@ -57,6 +58,9 @@ defmodule Ltix.Core do
     * `Ltix.Login` to add login steps
     * `Ltix.Launch` to add launch steps
     * `Ltix.Claim` to declare claims
+    * `Ltix.Launch.MessageType` to declare message types
+    * `Ltix.ResourceLinkRequest` to change what resource link launches require
+    * `Ltix.Launch.EveryMessageType` to change what every launch requires
     * `Ltix.ClientAssertion` to add client assertion steps
   """
   @behaviour Ltix.Plugin
@@ -64,9 +68,11 @@ defmodule Ltix.Core do
   alias Ltix.Claim
   alias Ltix.Claims
   alias Ltix.ClientAssertion
+  alias Ltix.Core.RequiredClaims
   alias Ltix.Launch
   alias Ltix.Login
   alias Ltix.Plugin
+  alias Ltix.ResourceLinkRequest
 
   @version Mix.Project.config()[:version]
 
@@ -161,6 +167,7 @@ defmodule Ltix.Core do
     |> Plugin.new()
     |> add_login()
     |> add_providers()
+    |> add_message_types()
     |> add_launch_steps()
     |> add_claims()
   end
@@ -184,6 +191,14 @@ defmodule Ltix.Core do
     |> Plugin.add(Claim)
     |> Plugin.add(Claims)
     |> Plugin.add(ClientAssertion)
+    |> Plugin.add(Launch.MessageType)
+    |> Plugin.add(Launch.EveryMessageType)
+  end
+
+  defp add_message_types(plugin) do
+    plugin
+    |> Plugin.add(ResourceLinkRequest)
+    |> Plugin.add(RequiredClaims)
   end
 
   defp add_launch_steps(plugin), do: Enum.reduce(@steps, plugin, &Plugin.add(&2, &1))

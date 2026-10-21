@@ -18,8 +18,9 @@ defmodule Ltix.DeepLinking do
   Plugins add content item types with `Ltix.DeepLinking.ContentItemType`.
 
   `Ltix.DeepLinking` is also the default plugin for Deep Linking 2.0. It
-  provides `Ltix.DeepLinking.ContentItemType` and the five content item types,
-  and declares the `Ltix.DeepLinking.Settings` claim.
+  provides the `Ltix.DeepLinkingRequest` message type,
+  `Ltix.DeepLinking.ContentItemType`, and the five content item types, and
+  declares the `Ltix.DeepLinking.Settings` claim.
 
   See the [Deep Linking](deep-linking.md) guide for the full workflow
   and [Building Content Items](cookbooks/building-content-items.md) for
@@ -79,6 +80,7 @@ defmodule Ltix.DeepLinking do
   def plugin(_opts) do
     plugin =
       Plugin.new(name: "LTI Deep Linking 2.0", version: @version)
+      |> Plugin.add(Ltix.DeepLinkingRequest)
       |> Plugin.add(ContentItemType)
       |> Plugin.add(Settings)
 
@@ -213,8 +215,8 @@ defmodule Ltix.DeepLinking do
     end
   end
 
-  defp build(%Launch{claims: %{message_type: mt}}, _items, _plugins, _storage_adapter, _opts) do
-    {:error, InvalidMessageType.exception(message_type: mt)}
+  defp build(%Launch{claims: claims}, _items, _plugins, _storage_adapter, _opts) do
+    {:error, InvalidMessageType.exception(message_type: claims[:message_type])}
   end
 
   # --- Content items ---
@@ -323,17 +325,21 @@ defmodule Ltix.DeepLinking do
       "exp" => now + 300,
       "iat" => now,
       "nonce" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false),
-      (@lti <> "deployment_id") => deployment.deployment_id,
       (@lti <> "message_type") => "LtiDeepLinkingResponse",
       (@lti <> "version") => "1.3.0",
       (@dl <> "content_items") => items_json
     }
+    |> maybe_put(@lti <> "deployment_id", deployment_id(deployment))
     |> maybe_put(@dl <> "data", settings.data)
     |> maybe_put(@dl <> "msg", Keyword.get(opts, :message))
     |> maybe_put(@dl <> "log", Keyword.get(opts, :log))
     |> maybe_put(@dl <> "errormsg", Keyword.get(opts, :error_message))
     |> maybe_put(@dl <> "errorlog", Keyword.get(opts, :error_log))
   end
+
+  # A launch has no deployment when a plugin makes `deployment_id` optional.
+  defp deployment_id(nil), do: nil
+  defp deployment_id(deployment), do: deployment.deployment_id
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

@@ -1,12 +1,12 @@
 # Writing Plugins
 
-A plugin can add a login or launch step, a claim, or an Advantage service. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
+A plugin can add a login step, a claim, a message type, or an Advantage service. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
 
 | Goal | See |
 |---|---|
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
 | Run code during login, launches, or token requests | [Add a step](#add-a-step) |
-| Read a claim | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
+| Read a claim, or accept a new kind of launch | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
 | Add an Advantage service | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
 | Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
@@ -57,7 +57,7 @@ end
 
 The declaration lists your plugin's modules and the plugins it needs.
 
-- `Ltix.Plugin.add/2` adds a module, such as a login step or a claim. Pass options as `{module, opts}`. Leave out the [providers](`Ltix.Provider`) your modules `use`, such as `Ltix.Login`.
+- `Ltix.Plugin.add/2` adds a module, such as a login step, a claim, or a message type. Pass options as `{module, opts}`. Leave out the modules your modules `use`, such as `Ltix.Login`.
 - `Ltix.Plugin.depend_on/2` adds a plugin this one needs.
 
 `name` and `version` are optional. Conflict errors include them to identify your plugin.
@@ -289,8 +289,9 @@ Exception.message(error)
 | Conflict | Fix |
 |---|---|
 | Plugins that depend on each other in a cycle | Remove one of the dependencies |
-| Two plugins that declare the same claim URI, short name, service, or content item type | Enable only one of the plugins, or have both depend on a plugin that declares it |
+| Two plugins that declare the same claim URI, short name, service, message type, or content item type | Enable only one of the plugins, or have both depend on a plugin that declares it |
 | The same claim module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
+| A [statement](writing-claim-and-launch-plugins.md#declare-a-message-type) about a claim no plugin declares | Depend on the plugin that declares the claim |
 | An [endpoint claim](writing-advantage-service-plugins.md#declare-the-endpoint-claim) missing `fields:` or `new/1` | Add the missing one |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
 

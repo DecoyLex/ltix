@@ -3,7 +3,8 @@ defmodule Ltix.Claim do
   Declares a claim, which Ltix parses into a message's `claims`.
 
   Declare a vendor's claim, or any claim no other plugin declares, to read it by
-  its short name, such as `launch.claims.tenant`. A declared claim is optional.
+  its short name, such as `launch.claims.tenant`. A declared claim is optional
+  unless a [message type](`Ltix.Launch.MessageType`) requires it.
 
   ## Anonymous claims
 

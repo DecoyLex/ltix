@@ -8,8 +8,10 @@ defmodule Ltix.Launch.Validated do
   `:deployment`, order a step after `Ltix.Launch.DeploymentFound`.
 
   `:errors` can have an error for a message type no plugin declares, and one
-  for the required claims the launch is missing. `Ltix.Core` says which claims
-  a message type requires. Steps ordered after this phase still run.
+  for the required claims the launch is missing.
+  [Declare a message type](writing-claim-and-launch-plugins.md#declare-a-message-type)
+  says which claims a message type requires. Steps ordered after this phase
+  still run.
   """
   use Ltix.Launch
 

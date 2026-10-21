@@ -136,7 +136,7 @@ The Core plugin provides `Ltix.Launch` and extends it with its default steps and
 3. `Ltix.Launch.ClaimsReceived`. A plugin step ordered after `Ltix.Launch.Verified` and before this phase can rewrite `raw` or write claims of its own.
 4. A step runs `Ltix.Claims` and writes `claims` and `endpoints`.
 5. `Ltix.Launch.ClaimsParsed`.
-6. Steps check the message type and the claims it requires.
+6. Steps check that a plugin declares the message type and that the launch has the claims its validator requires (see Message Types).
 7. `Ltix.Launch.Validated`.
 8. A step looks up the deployment.
 
@@ -304,6 +304,37 @@ end
 
 Overrides are scoped to message types, because a check one message type doesn't need still protects every other launch. A plugin whose message type accepts `role_scope_mentor` without the Mentor role replaces Core's check there, and resource link launches keep it. `Ltix.Claims.overrides/1` lists every replaced check.
 
+## Message types
+
+A message type's module calls `use Ltix.Launch.MessageType` and returns an `Ltix.Validator`.
+
+```elixir
+defmodule Review.Request do
+  use Ltix.Launch.MessageType
+
+  @impl Ltix.Launch.MessageType
+  def validator do
+    new("LtiSubmissionReviewRequest")
+    |> required(:resource_link)
+    |> required(:for_user)
+    |> optional(:roles)
+  end
+end
+```
+
+`Ltix.Launch.MessageType` is a provider whose hook is a building block that itself calls `use Ltix.Provider, hook: [Ltix.Validator.Contribution]`, so every message type's module is a provider without changes to `Ltix.Provider`. The building block imports the validator builders and adds a "Claims" section with `Ltix.Validator.describe/1`'s table of the module's own statements to its docs. It builds the table by evaluating the body of `validator/0` before the module compiles, so `validator/0` has one clause and calls only functions of other modules.
+
+- **Statements.** A statement has a kind, a claim, a disposition (`:required` or `:optional`), a condition, and the module that made it. Kinds are statements from `required/3` and `optional/3`, overrides from `override/3`, and defaults from `defaults/2`. Builders leave the module empty, and resolution fills it with the module whose callback made the statement.
+- **Conditions.** `when:` and `unless:` take `option/1`, `includes/3`, or a module implementing `Ltix.Validator.Condition` with `met?/3` and `describe/1`, alone or as `{module, args}` with a list of arguments. A module alone gets `[]`. `unless:` negates the condition. `option/1` holds when the call's option is `true`, and `includes/3` when a field of an object claim includes a value. Conditions are evaluated for each message, with its parsed claims and the call's options.
+- **Contributions.** `Ltix.Validator.Contribution` is the building block with `validator/1`. An extender contributes to one message type with `use Ltix.DeepLinkingRequest`, or to every message type with `use Ltix.Launch.EveryMessageType`, a provider whose hook is `[Ltix.Validator.Contribution]`. A module contributing to several message types writes one clause per message type. Contributions to a message type that isn't in the plugin set are never called.
+- **Combining.** Each claim's disposition is computed from all statements about it at once, so plugin order doesn't matter. The last override applies when there is one. Otherwise the claim is required when a default or a statement whose condition holds requires it, so a statement can't make a claim a default requires optional. `Ltix.Validator.missing/3` returns the required claims a message doesn't have, in the order the validator first mentions them.
+- **Resolution.** `Ltix.Launch.MessageType.resolve/1` builds each message type's validator once per plugin set, from its `validator/0`, its contributions, and the contributions to `Ltix.Launch.EveryMessageType`, each module once. It also builds the validator for message types no plugin declares from the contributions to `Ltix.Launch.EveryMessageType` alone, with `message_type` `nil`. Its data is `%{message_types: %{message_type => validator}, undeclared: validator, claims: %{short_name => declaration}}`, where each declaration is the claim's entry in the data of `Ltix.Claims` with its URI added. It reports two modules declaring one message type, a statement about a short name no extender of `Ltix.Claim` declares, and two modules overriding one claim in one message type. `Ltix.PluginSet.Conflict.duplicates/3` builds the conflicts for values several modules declare.
+- **Launch steps.** `Ltix.Launch.RejectUndeclaredMessageType` records an error for a message type not in `message_types`. `Ltix.Launch.ValidateMessageType` checks the launch against its message type's validator, or the validator for undeclared message types, with the launch's call options. It records a missing claim error for each required claim missing from `claims`, so a launch without a message type gets a missing claim error for `message_type`. Rules a validator can't express, such as `version` being `"1.3.0"`, stay in `Ltix.Launch.ValidateMessageType` until they become checks.
+
+The Core plugin provides `Ltix.Launch.MessageType`, `Ltix.Launch.EveryMessageType`, and `Ltix.ResourceLinkRequest`, and extends `Ltix.Launch.EveryMessageType` with `Ltix.Core.RequiredClaims`. It makes `version`, `deployment_id`, and `target_link_uri` required with `defaults/2`, so only an override makes one of them optional. A plugin that makes `deployment_id` optional gets launches without a deployment, whose Deep Linking responses leave out `deployment_id`. The Deep Linking plugin provides `Ltix.DeepLinkingRequest`, which requires `deep_linking_settings` and makes `roles` optional.
+
+Zoi can't combine plugins' statements, because `Zoi.extend` drops refinements, silently replaces fields, and fails on string keys. So Ltix has its own small validator value and keeps Zoi for claim and field shapes.
+
 ## Content Item Types
 
 A content item type is declared by `use`-ing `Ltix.DeepLinking.ContentItemType`, a provider whose hook block makes the content item type a provider itself, with hook `[Ltix.Property]`. A plugin provides it with `Ltix.Plugin.provide/2`, and extenders that `use` it add properties.
@@ -341,7 +372,8 @@ end
 ## Rules
 
 - **No replacing providers.** A plugin cannot replace or remove what another plugin provides. A different flow, such as another login mechanism, is a new provider that the application calls.
-- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, or service endpoint fail at resolution, and so do two modules declaring one content item type or two extenders declaring one property on one content item type.
+- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, service endpoint, message type, or content item type fail at resolution, and so do a validator statement about a claim no module declares and two extenders declaring one property on one content item type.
+- **Overrides.** `Ltix.Validator.override/3` is the only way a plugin makes a claim optional that another plugin requires. Two modules overriding one claim in one message type fail at resolution.
 - **Providers have no short names.** Every provider and target is named by its module.
 
 ## Replacing 0.2's Extension Points

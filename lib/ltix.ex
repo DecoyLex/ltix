@@ -365,8 +365,8 @@ defmodule Ltix do
     %{
       issuer: registration.issuer,
       client_id: registration.client_id,
-      deployment_id: claims.deployment_id,
-      message_type: claims.message_type
+      deployment_id: claims[:deployment_id],
+      message_type: claims[:message_type]
     }
   end
 

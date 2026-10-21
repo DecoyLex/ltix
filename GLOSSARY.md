@@ -248,15 +248,9 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 ## Message types
 
-**Validator**. The required and optional claims of one message type, combined from every plugin's statements.
+**Validator**. The required and optional claims of one message type, combined from what every plugin requires.
 
-**Statement**. One plugin's requirement for one claim in one message type, with a disposition and an optional condition.
-
-**Disposition**. Whether a statement makes a claim required or optional.
-
-**Condition**. Data describing when a statement applies, such as an option being set.
-
-**Contribution**. The statements a plugin adds to a message type another plugin declares.
+**Condition**. Data describing when a claim is required or optional, such as an option being set.
 
 ## Overrides
 

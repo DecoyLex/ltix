@@ -11,15 +11,16 @@ defmodule Ltix.Launch do
   ## Fields
 
     * `:registration` - the `Ltix.Registration` the launch was verified against
-    * `:deployment` - the `Ltix.Deployment` the launch belongs to
+    * `:deployment` - the `Ltix.Deployment` the launch belongs to. It's `nil`
+      only for a launch without a deployment ID, which a plugin can allow.
     * `:source_registration` - the record your storage adapter returned for the
       platform. `:registration` is built from it.
     * `:source_deployment` - the record your storage adapter returned for the
       deployment. `:deployment` is built from it.
-    * `:claims` - the parsed claims, keyed by short name, such as
-      `:resource_link`, with a key for every claim the launch's plugins
-      declare. A claim the message doesn't have is `nil`, or `[]` for
-      `:roles`.
+    * `:claims` - the parsed claims, keyed by short name, such as `:roles`, with
+      a key for every claim the launch's plugins declare. A claim the launch
+      doesn't have is `nil`, or `[]` for `:roles`. `Ltix.Core` lists Core's
+      claims.
     * `:raw` - every claim's JSON value, keyed by claim name, including claims
       no plugin declares
     * `:endpoints` - the endpoints of the services the platform grants, keyed by

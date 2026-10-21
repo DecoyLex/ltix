@@ -203,6 +203,7 @@ defmodule Ltix.MixProject do
         Ltix.Launch,
         Ltix.Login,
         Ltix.PluginSet,
+        Ltix.Validator,
         Ltix.DeepLinking,
         Ltix.DeepLinking.ContentItem,
         Ltix.DeepLinking.ContentItemType,
@@ -255,6 +256,16 @@ defmodule Ltix.MixProject do
           Ltix.Launch.ClaimsReceived,
           Ltix.Launch.ClaimsParsed,
           Ltix.Launch.Validated
+        ],
+        "Message Types": [
+          Ltix.Launch.MessageType,
+          Ltix.Launch.EveryMessageType,
+          Ltix.ResourceLinkRequest,
+          Ltix.DeepLinkingRequest,
+          Ltix.Core.RequiredClaims,
+          Ltix.Validator,
+          Ltix.Validator.Condition,
+          Ltix.Launch.MessageType.Requirements
         ],
         Claims: [
           Ltix.Claim,

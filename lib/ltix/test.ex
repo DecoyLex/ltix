@@ -250,8 +250,11 @@ defmodule Ltix.Test do
 
   @launch_option_fields [
     message_type:
-      Zoi.enum([:resource_link, :deep_linking],
-        description: "`:deep_linking` for a Deep Linking request."
+      Zoi.union([Zoi.enum([:resource_link, :deep_linking]), Zoi.string()],
+        description:
+          "One of `:resource_link`, `:deep_linking`, or a message type string, such as " <>
+            "`\"LtiSubmissionReviewRequest\"`. A message type string adds no resource link or " <>
+            "Deep Linking settings. Add the claims it requires with `:claims`."
       )
       |> Zoi.default(:resource_link),
     roles:
@@ -1093,6 +1096,9 @@ defmodule Ltix.Test do
       "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => settings
     }
   end
+
+  defp message_type_claims(message_type, _opts) when is_binary(message_type),
+    do: %{(@lti_claim_prefix <> "message_type") => message_type}
 
   defp context_claim(context), do: claim_json(Context, %{id: "context-001"}, context)
 

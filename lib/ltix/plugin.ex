@@ -84,10 +84,10 @@ defmodule Ltix.Plugin do
   Adds a module to the plugin, as `MyModule` or `{MyModule, opts}`.
   `MyModule` is the same as `{MyModule, []}`.
 
-  Add each module your plugin declares, such as a login step, a claim, or a
-  content item type. A step added twice runs twice, once with each call's
-  options. Add an anonymous step, claim, or property with its provider's
-  function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`.
+  Add each module your plugin declares, such as a login step, a claim, a
+  content item type, or a message type. A step added twice runs twice, once
+  with each call's options. Add an anonymous step, claim, or property with its
+  provider's function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`.
 
   Two claims with the same URI or short name make the plugin set fail to
   resolve. See [Conflicts](`m:Ltix.Claim#module-conflicts`).
