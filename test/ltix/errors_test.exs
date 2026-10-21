@@ -261,7 +261,8 @@ defmodule Ltix.ErrorsTest do
       error =
         KidNotFound.exception(kid: "unknown-key-id", spec_ref: "Cert §6.1.1")
 
-      assert Exception.message(error) =~ "unknown-key-id"
+      assert Exception.message(error) ==
+               "Key not found in the platform's key set for kid: unknown-key-id [Cert §6.1.1]"
     end
 
     test "AccessDenied includes URL and status [RFC 6750 §3.1]" do
