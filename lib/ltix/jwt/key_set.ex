@@ -1,13 +1,14 @@
 defmodule Ltix.JWT.KeySet do
   @moduledoc """
-  Platform public keys for verifying ID Token signatures.
+  Platform public keys for verifying ID token signatures.
 
   Platforms publish their public keys at a key set URL. Ltix gets the keys
-  it needs to verify a launch from a key set that your application starts.
+  it needs to verify a launch from a key set cache that your application
+  starts.
 
   ## Setup
 
-  Add a key set to your application's supervision tree.
+  Add a key set cache to your application's supervision tree.
 
       # lib/my_app/application.ex
       children = [
@@ -23,7 +24,7 @@ defmodule Ltix.JWT.KeySet do
 
       config :ltix, key_set: MyApp.LtiKeys
 
-  You can also choose the key set for one call.
+  You can also choose the key set cache for one call.
 
       Ltix.handle_callback(params, state, key_set: MyApp.LtiKeys)
 
@@ -60,7 +61,7 @@ defmodule Ltix.JWT.KeySet do
   @start_schema Zoi.keyword(
                   [
                     name:
-                      Zoi.atom(description: "Name of the key set.")
+                      Zoi.atom(description: "Name of the key set cache.")
                       |> Zoi.default(__MODULE__),
                     refetch_interval:
                       Zoi.integer(description: "Seconds between fetches of one key set URL.")
@@ -80,7 +81,7 @@ defmodule Ltix.JWT.KeySet do
                   )
 
   @doc """
-  Start a key set.
+  Start a key set cache.
 
   ## Options
 
@@ -106,8 +107,8 @@ defmodule Ltix.JWT.KeySet do
 
   ## Options
 
-    * `:key_set` - name of the key set to use (defaults to the application
-      configuration, then `Ltix.JWT.KeySet`)
+    * `:key_set` - name of the key set cache to use (defaults to the
+      application configuration, then `Ltix.JWT.KeySet`)
     * `:req_options` - `Req` options for requests to the key set URL
     * `:local_network_access` - `:local` or `:loopback` to fetch a key set
       from a private network address or this machine (defaults to
@@ -135,8 +136,8 @@ defmodule Ltix.JWT.KeySet do
     end
   end
 
-  # Removes the configured key set's keys for a key set URL, so the next
-  # lookup fetches them again.
+  # Removes the configured key set cache's keys for a key set URL, so the
+  # next lookup fetches them again.
   @doc false
   @spec expire_keys(String.t()) :: :ok
   def expire_keys(jwks_uri) do
@@ -182,7 +183,7 @@ defmodule Ltix.JWT.KeySet do
       reraise KeySetNotStarted.exception(key_set: key_set), __STACKTRACE__
   end
 
-  # The fetch's outcome is reported to the key set even when it raises,
+  # The fetch's outcome is reported to the key set cache even when it raises,
   # because callers waiting for it would otherwise wait forever.
   defp fetch_claimed(key_set, jwks_uri, opts) do
     result =

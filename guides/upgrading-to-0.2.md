@@ -2,7 +2,7 @@
 
 Ltix 0.2 has 60 breaking changes. Each section of this guide describes the changes to one part of Ltix and what to change in your tool.
 
-For every tool, read the sections on login and launch, the storage adapter, launch claims, the key set, and errors, platform requests, and tests. If your tool calls Advantage services or builds deep linking responses, also read the section on Advantage services.
+For every tool, read the sections on login and launch, the storage adapter, launch claims, the key set cache, and the section on errors, platform requests, and tests. If your tool calls Advantage services or builds deep linking responses, also read the section on Advantage services.
 
 Ltix 0.2 requires Elixir 1.17 or later.
 
@@ -334,13 +334,13 @@ Role.administrator?(context.claims.roles)
 Role.context_administrator?(context.claims.roles)
 ```
 
-## Key set
+## Key set cache
 
 ### `Ltix.JWT.KeySet`
 
 `Ltix.JWT.KeySet.Cache`, `Ltix.JWT.KeySet.EtsCache`, `Ltix.JWT.KeySet.CachexCache`, and the `:jwks_cache` setting are removed. `get_key/3` returns an `Ltix.JWK`. In 0.1 it returned a `JOSE.JWK`.
 
-### Your application starts the key set
+### Your application starts the key set cache
 
 In 0.1, when a token's key ID was not among a platform's cached keys, Ltix deleted the cached keys and fetched them again. Ltix reads the key ID before it checks the signature, so it did this for forged tokens too. Anyone could post forged launches, and Ltix sent the platform one request for each.
 

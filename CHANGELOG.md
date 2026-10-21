@@ -22,7 +22,7 @@ Ltix 0.2 has 60 breaking changes. [Upgrading to 0.2](guides/upgrading-to-0.2.md)
 - Storage adapter callbacks receive your registration struct and the options of the call. The registration lookup receives the platform's deployment ID.
 - A failing storage adapter callback returns `StorageError`.
 - `Ltix.JWK` is a PEM-based struct that replaces `JOSE.JWK`. `Ltix.JWK.new/1` builds a key from a PEM, a DER, a JWK map, or a public key alone.
-- `Ltix.JWT.KeySet` is a process your application starts. It replaces the key set caches and the `:jwks_cache` setting.
+- `Ltix.JWT.KeySet` is a process your application starts. It replaces `Ltix.JWT.KeySet.Cache`, its implementations, and the `:jwks_cache` setting.
 - `Ltix.Registration`, `Ltix.JWK`, and `Ltix.Deployment` validate their fields strictly and report `InvalidField`. Registration URLs must be HTTPS.
 - `Ltix.OAuth` and `Ltix.Test` accept any struct that implements `Ltix.Registerable` or `Ltix.Deployable`.
 

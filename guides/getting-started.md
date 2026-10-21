@@ -24,9 +24,9 @@ end
 
 Run `mix deps.get` to fetch the package.
 
-### Start the key set
+### Start the key set cache
 
-Ltix verifies launches with each platform's public keys, which it gets from a key set. Add the key set to your supervision tree.
+Ltix verifies launches with each platform's public keys, which it gets from a key set cache. Add the key set cache to your supervision tree.
 
 ```elixir
 # lib/my_app/application.ex

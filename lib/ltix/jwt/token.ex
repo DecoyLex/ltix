@@ -42,7 +42,7 @@ defmodule Ltix.JWT.Token do
       `3600`)
     * `:now` - override current time in unix seconds (useful for testing)
     * `:req_options` - extra options passed through to `Ltix.JWT.KeySet`
-    * `:key_set` - key set name passed through to `Ltix.JWT.KeySet`
+    * `:key_set` - key set cache name passed through to `Ltix.JWT.KeySet`
     * `:local_network_access` - passed through to `Ltix.JWT.KeySet`
   """
 

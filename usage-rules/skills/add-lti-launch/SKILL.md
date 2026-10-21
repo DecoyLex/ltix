@@ -61,8 +61,7 @@ structure, session config, endpoint setup), then ask about the rest.
 
 ## Step 1: Supervision Tree
 
-Ltix verifies launches with each platform's public keys, which it gets from a key set.
-The key set must be started in your supervision tree.
+Ltix verifies launches with each platform's public keys, which it gets from a key set cache. The key set cache must be started in your supervision tree.
 
 ```elixir
 # lib/my_app/application.ex

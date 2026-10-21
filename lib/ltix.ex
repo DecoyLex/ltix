@@ -56,14 +56,14 @@ defmodule Ltix do
       returns.
 
     * `:req_options` - default options passed to `Req.request/2` for
-      all HTTP calls (JWKS fetching, OAuth token requests, service
-      calls). Useful for setting timeouts, middleware, or test
+      all HTTP calls, such as key set fetches, OAuth token requests, and
+      service calls. Useful for setting timeouts, middleware, or test
       adapters.
 
           config :ltix, req_options: [receive_timeout: 10_000]
 
-    * `:key_set` - name of the `Ltix.JWT.KeySet` to get platform public
-      keys from. Defaults to `Ltix.JWT.KeySet`. The key set must be
+    * `:key_set` - name of the key set cache to get platform public keys
+      from. Defaults to `Ltix.JWT.KeySet`. The key set cache must be
       started in your supervision tree.
 
     * `:default_key_size` - RSA key size in bits for `Ltix.JWK.generate/1`
@@ -264,14 +264,14 @@ defmodule Ltix do
       adapter callback (defaults to `[]`)
     * `:allow_anonymous` - allow launches without a `sub` claim
       (defaults to application config, then `false`)
-    * `:req_options` - options passed to the HTTP client for JWKS fetching
-    * `:key_set` - name of the `Ltix.JWT.KeySet` to get platform public keys
+    * `:req_options` - options passed to the HTTP client for key set fetches
+    * `:key_set` - name of the key set cache to get platform public keys
       from (defaults to application config, then `Ltix.JWT.KeySet`)
     * `:claim_parsers` - custom claim parsers (see `Ltix.LaunchClaims.from_json/2`)
     * `:role_parsers` - custom role parsers (see `Ltix.LaunchClaims.Role.parse/2`)
     * `:clock_skew` - seconds of tolerance for the token's `exp`, `iat`, and
       `nbf` (defaults to `5`)
-    * `:max_token_age` - seconds after the platform issued the ID Token that
+    * `:max_token_age` - seconds after the platform issued the ID token that
       the launch is still accepted, or `:infinity` to accept any age
       (defaults to application config, then `3600`)
     * `:local_network_access` - `:local` or `:loopback` to fetch the

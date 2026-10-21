@@ -27,22 +27,21 @@ Bang variants such as `list_members!/2` emit the same events as their non-bang f
 
 - `[:ltix, :oauth, :refresh, :start | :stop | :exception]` wraps the token request made by `Ltix.OAuth.Client.refresh/1`, `Ltix.OAuth.Client.force_refresh/1`, and their bang variants. It has the same metadata as `[:ltix, :oauth, :authenticate]`. `refresh/1` emits nothing when the token has not expired.
 
-## JWKS cache
+## Key set cache
 
 These are single events (not spans), emitted during `Ltix.JWT.KeySet.get_key/3`.
 
 - `[:ltix, :jwks, :cache_hit]` - key found in cache. The metadata is `jwks_uri` and `kid`.
 - `[:ltix, :jwks, :cache_miss]` - key fetched from platform. The metadata is `jwks_uri` and `kid`.
 
-A miss is also emitted when the `kid` is not found (before the error is
-returned).
+A miss is also emitted when the `kid` is not found, before the error is returned.
 
 ## Not instrumented
 
 | Area | Reason |
 |---|---|
 | HTTP requests | Req emits `[:req, :request, :*]` already |
-| Storage adapter calls | Host app code. Instrument your own adapter. |
+| Storage adapter calls | Application code. Instrument your own adapter. |
 | JWT verification internals | Sub-steps of the callback span |
 | Claim parsing | In-memory struct building with negligible cost |
 | Pagination per-page | Service-level span covers the whole operation |

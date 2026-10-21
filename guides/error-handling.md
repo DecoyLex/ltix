@@ -183,7 +183,7 @@ These indicate an unexpected failure outside the incoming request.
 | `StorageError` | `callback`, `result`, `reason` | A storage adapter callback returned `{:error, reason}`, an unexpected value, or a deployment for a different `deployment_id` |
 | `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | An HTTP request to the platform failed |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
-| `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set that is not started in the supervision tree |
+| `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set cache that is not started in the supervision tree |
 | `Unknown` | `error` | Any other unexpected failure |
 
 ## Deep linking errors
@@ -231,7 +231,6 @@ etc.) and OAuth authentication.
 |---|---|---|
 | `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is neither an absolute HTTPS URL nor an HTTP URL for a loopback or local host |
 | `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | The platform redirected to a different origin or an invalid location |
-| `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set that is not started in the supervision tree |
 
 ## Logging recommendations
 

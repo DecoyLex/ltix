@@ -263,7 +263,7 @@ defmodule LtixTest do
                    end
     end
 
-    test "gets platform keys from the key set whose name is the key_set option", ctx do
+    test "gets platform keys from the key set cache whose name is the key_set option", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
       opts = [key_set: __MODULE__.Keys, req_options: req_options()]
 
