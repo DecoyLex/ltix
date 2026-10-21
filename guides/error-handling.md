@@ -170,7 +170,7 @@ These indicate the launch failed a security check.
 | `NonceNotFound` | `spec_ref` | Nonce wasn't issued by this tool |
 | `NonceReused` | `spec_ref` | Nonce was already consumed (replay attempt) |
 | `KidMissing` | `spec_ref` | JWT header has no `kid` field |
-| `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's JWKS |
+| `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's key set |
 | `LocalNetworkAccessDenied` | `url`, `address_space` | The platform's key set is on a local or loopback address that `:local_network_access` doesn't allow |
 | `AuthenticationFailed` | `error`, `error_description`, `error_uri`, `spec_ref` | Platform returned an error response |
 

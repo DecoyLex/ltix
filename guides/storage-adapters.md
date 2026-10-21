@@ -178,7 +178,7 @@ The insert is atomic. If two requests race with the same nonce, only one of them
 
 Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and calls your adapter to get the signature, so your private key stays wherever you keep it.
 
-Both callbacks receive the registration struct you gave Ltix, either from `get_registration/3` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/2` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-jwks-endpoint). `sign/4` receives the same ID with the message to sign.
+Both callbacks receive the registration struct you gave Ltix, either from `get_registration/3` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/2` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-key-set-endpoint). `sign/4` receives the same ID with the message to sign.
 
 For keys stored in your database, `Ltix.JWK.sign/2` produces the signature.
 
@@ -309,7 +309,7 @@ test "storage adapter satisfies the contract" do
 end
 ```
 
-When your adapter has `key_id/2` and `sign/4`, pass `:jwks` a function that returns the key set your JWKS endpoint serves. The check signs a message through your adapter and verifies it against the key in that key set whose ID `key_id/2` returned. Leave `:jwks` out for an adapter without the signing callbacks.
+When your adapter has `key_id/2` and `sign/4`, pass `:jwks` a function that returns the key set your key set endpoint serves. The check signs a message through your adapter and verifies it against the key in that key set whose ID `key_id/2` returned. Leave `:jwks` out for an adapter without the signing callbacks.
 
 Preserve the lookup identifiers supplied to your factories. If lookups preload associations or change metadata, pass `registration_identity: & &1.id` and `deployment_identity: & &1.id`, or projections suited to your records.
 

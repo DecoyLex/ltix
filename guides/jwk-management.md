@@ -1,8 +1,7 @@
 # JWK Management
 
 Requesting an access token for Advantage services requires a signed
-JWT assertion, which means your tool needs an RSA key pair. This guide
-covers generating keys, serving a JWKS endpoint, and rotating keys.
+JWT assertion, which means your tool needs an RSA signing key. This guide covers generating keys, serving a key set endpoint, and rotating keys.
 
 > #### Leaked keys let attackers impersonate your tool {: .warning}
 >
@@ -49,15 +48,15 @@ end
 
 A key in a key management service does not have to be exported. Call the service from `sign/4` and return its RS256 signature, and build the JWK for your key set endpoint from the public key the service returns. See [Storage Adapters](storage-adapters.md#signing).
 
-## Serving a JWKS endpoint
+## Serving a key set endpoint
 
 Platforms fetch your public keys to verify your tool's signed
-assertions. You provide the JWKS endpoint URL during tool
+assertions. You provide the key set endpoint URL during tool
 registration.
 
 Each key has a unique `kid`, so platforms match signatures to the
 correct key automatically. Serve the endpoint with `to_jwks/1`, which
-returns a JWKS map with only the public keys.
+returns a key set map with only the public keys.
 
 ```elixir
 def jwks(conn, _params) do
@@ -82,7 +81,7 @@ database-backed approach with key rotation.
 
 ## Key rotation
 
-When you rotate a key, your JWKS endpoint must continue serving the
+When you rotate a key, your key set endpoint must continue serving the
 old public key until platforms have refreshed their cache. A typical
 overlap period is 24-48 hours.
 
@@ -90,7 +89,7 @@ The rotation sequence has four steps.
 
 1. Generate a new key
 2. Start using the new key for signing
-3. Serve both old and new public keys from your JWKS endpoint
+3. Serve both old and new public keys from your key set endpoint
 4. After the overlap period, stop serving the old key
 
 During the overlap, `to_jwks/1` accepts a list, so serving both keys
@@ -103,7 +102,7 @@ Ltix.JWK.to_jwks([old_jwk, new_jwk])
 ## Next steps
 
 - [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) - database
-  storage, JWKS controller, and automated rotation
+  storage, key set controller, and automated rotation
 - [Advantage Services](advantage-services.md) - how keys are used
   in service authentication
 - [Storage Adapters](storage-adapters.md) - the callbacks that sign

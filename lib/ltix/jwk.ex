@@ -177,7 +177,7 @@ defmodule Ltix.JWK do
   end
 
   @doc """
-  Build a JWKS (JSON Web Key Set) map from one or more JWKs.
+  Build a key set map from one or more JWKs.
 
   The map has only public keys, so it is safe for public endpoints.
   Accepts a single `%Ltix.JWK{}` or a list.

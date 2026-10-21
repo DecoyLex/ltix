@@ -729,7 +729,7 @@ security errors vs. invalid configuration), see
 ## Public key endpoint
 
 The `jwks` action in the controller above serves your tool's public
-keys as a JSON Web Key Set (JWKS). When you register your tool with a
+keys as a key set. When you register your tool with a
 platform, give it this URL (e.g., `https://yourtool.com/lti/jwks`).
 The platform fetches your public keys from here to verify signed
 requests from your tool during Advantage service calls (grades, roster,

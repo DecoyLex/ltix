@@ -18,7 +18,7 @@ name to its own well-known stub name, so you can stub each independently.
 
 | Stub name                       | HTTP call                         |
 |---------------------------------|-----------------------------------|
-| `Ltix.JWT.KeySet`               | JWKS public key fetches           |
+| `Ltix.JWT.KeySet`               | Key set fetches                   |
 | `Ltix.OAuth.ClientCredentials`  | OAuth token requests              |
 | `Ltix.GradeService`            | Grade service (AGS) requests       |
 | `Ltix.MembershipsService`      | Memberships (NRPS) requests        |
@@ -53,7 +53,7 @@ end
 ```
 
 `setup_platform!/1` generates platform-side RSA keys, builds a registration
-and deployment, and stubs the JWKS HTTP endpoint. Pass a `:registration`
+and deployment, and stubs the key set URL. Pass a `:registration`
 function to create matching records in your persistence layer. Options are
 `:issuer`, `:client_id`, and `:deployment_id`.
 

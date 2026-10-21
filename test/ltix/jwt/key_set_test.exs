@@ -123,7 +123,7 @@ defmodule Ltix.JWT.KeySetTest do
                )
     end
 
-    test "returns KidNotFound for a JWKS with no keys array", ctx do
+    test "returns KidNotFound for a key set with no keys array", ctx do
       count_fetches(jwks(%{"not_keys" => []}))
 
       assert {:error, %Ltix.Errors.Security.KidNotFound{}} =

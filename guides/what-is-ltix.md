@@ -17,7 +17,7 @@ The protocol is built on OpenID Connect and signed JWTs. Implementing it
 correctly means handling the following.
 
 - A three-step redirect flow with CSRF protection via state parameters
-- JWKS fetching and caching to verify platform signatures
+- Key set fetching and caching to verify platform signatures
 - JWT validation (signature, expiration, issuer, audience, nonce)
 - Claim parsing (roles, context, resource links, service endpoints)
 - Spec compliance across dozens of requirements from three IMS

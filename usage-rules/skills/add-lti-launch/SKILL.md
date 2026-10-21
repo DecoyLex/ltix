@@ -278,7 +278,7 @@ These are the key points about the controller.
 - **Never store `%LaunchContext{}` in the session.** It holds the user's identity and
   course data, and session cookies are signed, not encrypted. Store only the fields you
   need (e.g., `user_id`, `course_id`).
-- **The JWKS endpoint** serves the public JWK stored with each signing key, so it never
+- **The key set endpoint** serves the public JWK stored with each signing key, so it never
   reads a private key. Private keys are encrypted at rest and only read to sign.
 - **Don't render Ltix error messages to users.** They can include URLs and claim values.
   Log them and show a general message.

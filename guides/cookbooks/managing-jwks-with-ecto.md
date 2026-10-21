@@ -1,9 +1,9 @@
 # Managing JWKs with Ecto
 
 This recipe sets up database-backed JWK storage with a dedicated table,
-a JWKS controller, and a key rotation function. If you haven't read
+a key set controller, and a key rotation function. If you haven't read
 the [JWK Management](../jwk-management.md) guide yet, start there for
-background on key pairs, JWKS endpoints, and rotation.
+background on signing keys, key set endpoints, and rotation.
 
 ## Migration
 
@@ -94,7 +94,7 @@ end
 
 `sign/4` looks the key up by the ID `key_id/2` returned, so a request that starts before a rotation still signs with the key whose ID is in its JWT header.
 
-## JWKS controller
+## Key set controller
 
 Serve the public key of every active key. The query selects only the public column, so the endpoint never reads a private key.
 
@@ -120,9 +120,9 @@ end
 get "/.well-known/jwks.json", JwksController, :index
 ```
 
-> #### Cache the JWKS response {: .tip}
+> #### Cache the key set response {: .tip}
 >
-> Platforms may fetch your JWKS endpoint frequently. Consider caching
+> Platforms may fetch your key set endpoint frequently. Consider caching
 > the response in ETS or with a cache header.
 
 ## Key rotation
@@ -141,7 +141,7 @@ def rotate_key(registration_id) do
 end
 ```
 
-The old key stays `active: true`, so the JWKS endpoint continues
+The old key stays `active: true`, so the key set endpoint continues
 serving it. After platforms have refreshed their cache (24-48 hours
 is typical), mark it inactive.
 

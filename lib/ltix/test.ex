@@ -3,7 +3,7 @@ defmodule Ltix.Test do
   Helpers for testing applications that use Ltix.
 
   Reduces LTI test setup to a single call. `setup_platform!/1` generates
-  RSA keys, builds JWKS payloads, and creates registrations and
+  RSA keys, builds key sets, and creates registrations and
   deployments.
 
       setup do
@@ -12,7 +12,7 @@ defmodule Ltix.Test do
 
   Your application's own storage adapter (configured in `config/test.exs`)
   handles persistence. `setup_platform!/1` provides the platform-side
-  simulation, which is RSA keys, a JWKS endpoint stub, and
+  simulation, which is RSA keys, a key set URL stub, and
   registration/deployment data your adapter can look up. Without an adapter of your own, start the
   in-memory `Ltix.Test.StorageAdapter` with the platform.
 
@@ -417,8 +417,8 @@ defmodule Ltix.Test do
   Set up a simulated LTI platform in one call.
 
   Generates platform-side RSA keys, builds a registration and deployment,
-  and stubs the JWKS HTTP endpoint. The configured `Ltix.JWT.KeySet` must be
-  started. Your app's own storage adapter (configured via
+  and stubs the key set URL. The configured key set cache must be
+  started. Your application's own storage adapter (configured via
   `config :ltix, storage_adapter: ...`) handles persistence during the OIDC
   flow.
 
