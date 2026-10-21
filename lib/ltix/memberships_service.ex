@@ -6,9 +6,9 @@ defmodule Ltix.MembershipsService do
   Given a successful LTI 1.3 launch that includes the memberships endpoint
   claim, retrieve the list of users enrolled in the course or resource link.
 
-  ## From a launch context
+  ## From a launch
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(launch_context)
+      {:ok, client} = Ltix.MembershipsService.authenticate(launch)
       {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
       Enum.each(roster, fn member ->
@@ -17,10 +17,10 @@ defmodule Ltix.MembershipsService do
 
   ## From a registration
 
-      alias Ltix.LaunchClaims.MembershipsEndpoint
+      alias Ltix.MembershipsService.Endpoint
 
       {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-        endpoint: MembershipsEndpoint.new!("https://lms.example.com/memberships")
+        endpoint: Endpoint.new!("https://lms.example.com/memberships")
       )
 
       {:ok, roster} = Ltix.MembershipsService.list_members(client, role: Ltix.Role.context_learner())
@@ -32,40 +32,56 @@ defmodule Ltix.MembershipsService do
       stream
       |> Stream.filter(&(&1.status == :active))
       |> Enum.each(&process_member/1)
+
+  ## Plugin
+
+  `Ltix.MembershipsService` is also the default plugin for NRPS 2.0. It
+  declares the `Ltix.MembershipsService.Endpoint` claim, so
+  `Ltix.Launch.get_endpoint(launch, Ltix.MembershipsService)` returns a
+  launch's endpoint.
+
+  ## Member messages
+
+  A member's `message` has the claims of the messages the platform sent
+  about the member, parsed with the claims the plugin set declares. Pass
+  `plugins:` to parse them with plugins other than the configured ones.
   """
 
   @behaviour Ltix.AdvantageService
+  @behaviour Ltix.Plugin
 
   alias Ltix.AdvantageService.Operation
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
+  alias Ltix.MembershipsService.Endpoint
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Options
+  alias Ltix.Plugin
+  alias Ltix.PluginSet
   alias Ltix.Registerable
+
+  @version Mix.Project.config()[:version]
 
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
   @media_type "application/vnd.ims.lti-nrps.v2.membershipcontainer+json"
 
-  @impl Ltix.AdvantageService
-  # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
-  def endpoint_from_claims(%LaunchClaims{
-        memberships_endpoint: %MembershipsEndpoint{} = endpoint
-      }),
-      do: {:ok, endpoint}
+  @impl Ltix.Plugin
+  def plugin(_opts) do
+    Plugin.add(
+      Plugin.new(name: "LTI Names and Role Provisioning Services 2.0", version: @version),
+      Endpoint
+    )
+  end
 
-  def endpoint_from_claims(_claims), do: :error
-
   @impl Ltix.AdvantageService
-  def validate_endpoint(%MembershipsEndpoint{context_memberships_url: url}) when url in [nil, ""],
+  def validate_endpoint(%Endpoint{context_memberships_url: url}) when url in [nil, ""],
     do: not_available("The endpoint has no context memberships URL")
 
-  def validate_endpoint(%MembershipsEndpoint{} = endpoint) do
-    with :ok <- MembershipsEndpoint.validate_url(endpoint),
+  def validate_endpoint(%Endpoint{} = endpoint) do
+    with :ok <- Endpoint.validate_url(endpoint),
          do: validate_service_version(endpoint)
   end
 
@@ -74,18 +90,18 @@ defmodule Ltix.MembershipsService do
 
   @impl Ltix.AdvantageService
   # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
-  def scopes(%MembershipsEndpoint{}), do: [@nrps_scope]
+  def scopes(%Endpoint{}), do: [@nrps_scope]
 
   @auth_fields Client.option_fields()
 
-  @context_auth_schema Zoi.keyword(@auth_fields, unrecognized_keys: :error)
+  @launch_auth_schema Zoi.keyword(@auth_fields, unrecognized_keys: :error)
 
   @registration_auth_schema Zoi.keyword(
                               [
                                 endpoint:
-                                  Zoi.struct(MembershipsEndpoint,
+                                  Zoi.struct(Endpoint,
                                     description:
-                                      "MembershipsEndpoint struct for the service endpoint."
+                                      "`Ltix.MembershipsService.Endpoint` struct for the service endpoint."
                                   )
                                   |> Zoi.required()
                               ] ++ Client.registration_option_fields(),
@@ -95,36 +111,36 @@ defmodule Ltix.MembershipsService do
   @doc """
   Acquire an OAuth token for the memberships service.
 
-  Accepts a `%LaunchContext{}` or any struct implementing `Ltix.Registerable`
-  (including `Ltix.Registration`). With a launch context, the endpoint is
+  Accepts a `%Ltix.Launch{}` or any struct implementing `Ltix.Registerable`
+  (including `Ltix.Registration`). With a launch, the endpoint is
   extracted from the launch claims. With a registration, pass the endpoint
   via the `:endpoint` option.
 
-  ## From a launch context
+  ## From a launch
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(launch_context)
+      {:ok, client} = Ltix.MembershipsService.authenticate(launch)
 
   ## From a registration
 
       {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-        endpoint: MembershipsEndpoint.new!("https://lms.example.com/memberships")
+        endpoint: Ltix.MembershipsService.Endpoint.new!("https://lms.example.com/memberships")
       )
 
-  ## Options (launch context)
+  ## Options (launch)
 
-  #{Zoi.describe(@context_auth_schema)}
+  #{Zoi.describe(@launch_auth_schema)}
 
   ## Options (registration)
 
   #{Zoi.describe(@registration_auth_schema)}
   """
-  @spec authenticate(LaunchContext.t() | Registerable.t(), keyword()) ::
+  @spec authenticate(Launch.t() | Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
-  def authenticate(context_or_registerable, opts \\ [])
+  def authenticate(launch_or_registerable, opts \\ [])
 
-  def authenticate(%LaunchContext{} = context, opts) do
-    opts = Options.parse!(opts, @context_auth_schema)
-    OAuth.authenticate(context, Keyword.put(opts, :services, [__MODULE__]))
+  def authenticate(%Launch{} = launch, opts) do
+    opts = Options.parse!(opts, @launch_auth_schema)
+    OAuth.authenticate(launch, Keyword.put(opts, :services, [__MODULE__]))
   end
 
   def authenticate(registerable, opts) do
@@ -136,9 +152,9 @@ defmodule Ltix.MembershipsService do
   @doc """
   Same as `authenticate/2` but raises on error.
   """
-  @spec authenticate!(LaunchContext.t() | Registerable.t(), keyword()) :: Client.t()
-  def authenticate!(context_or_registerable, opts \\ []) do
-    case authenticate(context_or_registerable, opts) do
+  @spec authenticate!(Launch.t() | Registerable.t(), keyword()) :: Client.t()
+  def authenticate!(launch_or_registerable, opts \\ []) do
+    case authenticate(launch_or_registerable, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
@@ -146,8 +162,14 @@ defmodule Ltix.MembershipsService do
 
   @query_fields [
     endpoint:
-      Zoi.struct(MembershipsEndpoint,
+      Zoi.struct(Endpoint,
         description: "Override the endpoint stored on the client."
+      ),
+    plugins:
+      Zoi.list(Zoi.any(),
+        description:
+          "The plugins to parse each member's `message` with, each as `MyPlugin` or " <>
+            "`{MyPlugin, opts}`. Defaults to the `:plugins` configuration."
       ),
     role: Zoi.string(description: "Filter by role URI, such as `Ltix.Role.context_learner/0`."),
     resource_link_id: Zoi.string(description: "Query resource link membership."),
@@ -193,11 +215,11 @@ defmodule Ltix.MembershipsService do
     opts = Options.parse!(opts, @list_members_schema)
     {max, opts} = Keyword.pop!(opts, :max_members)
 
-    with_pages(:list_members, client, opts, fn pages ->
+    with_pages(:list_members, client, opts, fn pages, plugins ->
       limit_error = [service: __MODULE__, option: :max_members]
 
       with {:ok, [first | _] = containers} <-
-             Operation.collect(containers(pages), max, limit_error, &length(&1.members)) do
+             Operation.collect(containers(pages, plugins), max, limit_error, &length(&1.members)) do
         {:ok, %{first | members: Enum.flat_map(containers, & &1.members)}}
       end
     end)
@@ -235,8 +257,8 @@ defmodule Ltix.MembershipsService do
   def stream_members(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_members_schema)
 
-    with_pages(:stream_members, client, opts, fn pages ->
-      {:ok, Stream.flat_map(Operation.stream(containers(pages)), & &1.members)}
+    with_pages(:stream_members, client, opts, fn pages, plugins ->
+      {:ok, Stream.flat_map(Operation.stream(containers(pages, plugins)), & &1.members)}
     end)
   end
 
@@ -257,22 +279,23 @@ defmodule Ltix.MembershipsService do
            do: {:ok, endpoint.context_memberships_url}
 
     Operation.run([:ltix, :memberships_service, operation], client, [@nrps_scope], url, fn url ->
-      with {:ok, pages} <-
+      with {:ok, plugins} <- PluginSet.resolve(opts[:plugins]),
+           {:ok, pages} <-
              Client.request_pages(client, __MODULE__,
                url: url,
                headers: [{"accept", @media_type}],
                params: query_params(opts)
              ) do
-        consume.(pages)
+        consume.(pages, plugins)
       end
     end)
   end
 
   # Emits `{:ok, container}` or `{:error, error}` for each page, so consumers
   # stop at the first failure without fetching later pages.
-  defp containers(pages) do
+  defp containers(pages, plugins) do
     Stream.map(pages, fn
-      {:ok, body} -> MembershipContainer.from_json(body)
+      {:ok, body} -> MembershipContainer.from_json(body, plugins)
       {:error, _error} = error -> error
     end)
   end
@@ -307,9 +330,9 @@ defmodule Ltix.MembershipsService do
   end
 
   # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
-  defp validate_service_version(%MembershipsEndpoint{service_versions: nil}), do: :ok
+  defp validate_service_version(%Endpoint{service_versions: nil}), do: :ok
 
-  defp validate_service_version(%MembershipsEndpoint{service_versions: versions}) do
+  defp validate_service_version(%Endpoint{service_versions: versions}) do
     if "2.0" in versions do
       :ok
     else

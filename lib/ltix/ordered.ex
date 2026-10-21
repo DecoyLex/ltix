@@ -4,11 +4,11 @@ defmodule Ltix.Ordered do
 
   The `use` that makes a module a step, such as `use Ltix.Login`, declares
   this behaviour. A step orders itself against other steps with
-  `c:before?/1` and `c:after?/1`, which default to `false`. Order login steps
-  against the phases that `Ltix.Login` lists, such as
-  `Ltix.Login.RegistrationFound`. A plugin can also order the steps it adds,
-  including anonymous steps, as [Order the steps a plugin adds](#module-order-the-steps-a-plugin-adds)
-  shows.
+  `c:before?/1` and `c:after?/1`, which default to `false`. Order login and
+  launch steps against the phases that `Ltix.Login` and `Ltix.Launch` list,
+  such as `Ltix.Login.RegistrationFound`. A plugin can also order the steps it
+  adds, including anonymous steps, as
+  [Order the steps a plugin adds](#module-order-the-steps-a-plugin-adds) shows.
 
       defmodule MyApp.LoginTenant do
         use Ltix.Login
@@ -43,10 +43,10 @@ defmodule Ltix.Ordered do
 
   ## Order the steps a plugin adds
 
-  `Ltix.Login.run_after/3` and `Ltix.Login.run_before/3` call a function with
-  the plugin, and order each login step the function adds after or before a
-  module. An anonymous step has no `c:before?/1` or `c:after?/1`, so this is
-  how a plugin orders one.
+  The `run_after/3` and `run_before/3` functions of `Ltix.Login` and
+  `Ltix.Launch` call a function with the plugin, and order each login or launch
+  step the function adds after or before a module. An anonymous step has no
+  `c:before?/1` or `c:after?/1`, so this is how a plugin orders one.
 
       Ltix.Plugin.new(name: "My Library")
       |> Ltix.Login.run_after(Ltix.Login.RegistrationFound, fn plugin ->
@@ -197,8 +197,12 @@ defmodule Ltix.Ordered do
       require Ltix.Behaviour
 
       Ltix.Behaviour.declare_once Ltix.Ordered do
+        @doc false
         def before?(_module), do: false
+
+        @doc false
         def after?(_module), do: false
+
         defoverridable before?: 1, after?: 1
       end
     end

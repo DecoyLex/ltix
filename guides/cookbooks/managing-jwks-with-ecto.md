@@ -1,9 +1,6 @@
 # Managing JWKs with Ecto
 
-This recipe sets up database-backed JWK storage with a dedicated table,
-a key set controller, and a key rotation function. If you haven't read
-the [JWK Management](../jwk-management.md) guide yet, start there for
-background on signing keys, key set endpoints, and rotation.
+This recipe sets up database-backed JWK storage with a dedicated table, a key set controller, and a key rotation function. If you haven't read the [JWK Management](../jwk-management.md) guide yet, start there for background on signing keys, key set endpoints, and rotation.
 
 ## Migration
 
@@ -122,14 +119,11 @@ get "/.well-known/jwks.json", JwksController, :index
 
 > #### Cache the key set response {: .tip}
 >
-> Platforms may fetch your key set endpoint frequently. Consider caching
-> the response in ETS or with a cache header.
+> Platforms may fetch your key set endpoint frequently. Consider caching the response in ETS or with a cache header.
 
 ## Key rotation
 
-Create a new key row, set it as the registration's key, and leave the
-old key active so platforms can still verify during the overlap
-period.
+Create a new key row, set it as the registration's key, and leave the old key active so platforms can still verify during the overlap period.
 
 ```elixir
 def rotate_key(registration_id) do
@@ -141,9 +135,7 @@ def rotate_key(registration_id) do
 end
 ```
 
-The old key stays `active: true`, so the key set endpoint continues
-serving it. After platforms have refreshed their cache (24-48 hours
-is typical), mark it inactive.
+The old key stays `active: true`, so the key set endpoint continues serving it. After platforms have refreshed their cache (24-48 hours is typical), mark it inactive.
 
 ```elixir
 Repo.update!(LtiKey.changeset(old_key, %{active: false}))

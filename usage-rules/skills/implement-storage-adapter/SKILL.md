@@ -5,8 +5,7 @@ description: "Use this skill when implementing an Ltix.StorageAdapter for an LTI
 
 # Implement a Storage Adapter
 
-This skill describes how to implement the `Ltix.StorageAdapter` behaviour, which is the
-primary integration point between Ltix and your application's database.
+This skill describes how to implement the `Ltix.StorageAdapter` behaviour, which is the primary integration point between Ltix and your application's database.
 
 ## Overview
 
@@ -18,8 +17,7 @@ The storage adapter has 3 callbacks.
 | `get_deployment/3` | Callback validation | `{:ok, Deployable.t()} \| {:error, :not_found \| term()}` |
 | `validate_nonce/4` | Callback validation, after the ID token is verified | `:ok \| {:error, :nonce_already_used \| term()}` |
 
-Two more callbacks are optional. Implement them when the tool calls Advantage services
-or builds deep linking responses.
+Two more callbacks are optional. Implement them when the tool calls Advantage services or builds Deep Linking responses.
 
 | Callback | Called During | Returns |
 |---|---|---|
@@ -28,72 +26,36 @@ or builds deep linking responses.
 
 Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 
-`get_registration/3` and `get_deployment/3` can return any struct that implements
-the `Ltix.Registerable` or `Ltix.Deployable` protocol. This means you return your
-own Ecto schemas directly and the library extracts what it needs via the protocol.
-Your original struct is preserved in the `Ltix.LaunchContext` after a successful
-launch, so you can access your own fields (database IDs, tenant info, etc.) without
-an extra query.
+`get_registration/3` and `get_deployment/3` can return any struct that implements the `Ltix.Registerable` or `Ltix.Deployable` protocol. This means you return your own Ecto schemas directly and the library extracts what it needs via the protocol. A successful launch has your original structs in `source_registration` and `source_deployment`, so you can access your own fields (database IDs, tenant information, etc.) without an extra query.
 
 ## Before You Start, Survey the User
 
-These decisions are app-specific. **Enter plan mode** (or use a tool that asks the user
-questions) to gather answers before writing any code. Explore the codebase first to
-pre-fill what you can infer (storage layer, naming conventions, existing schemas), then
-ask about the rest.
+These decisions are application-specific. **Enter plan mode** (or use a tool that asks the user questions) to gather answers before writing any code. Explore the codebase first to pre-fill what you can infer (storage layer, naming conventions, existing schemas), then ask about the rest.
 
-1. **Storage layer.** Ecto with Postgres? Ecto with SQLite? Something else entirely
-   (Mnesia, Redis, ETS)? The patterns below assume Ecto + Postgres but the behaviour
-   is storage-agnostic. Check what the project is already using.
+1. **Storage layer.** Ecto with Postgres? Ecto with SQLite? Something else entirely (Mnesia, Redis, ETS)? The patterns below assume Ecto + Postgres but the behaviour is storage-agnostic. Check what the project is already using.
 
 2. **Account binding model.** How does the tool model user accounts?
-   - **Platform-centric.** Users only access the tool through a single platform. The
-     tool relies entirely on the platform's user identity. If the user is removed from
-     the platform, they lose access to the tool. This is the simplest model, a `users`
-     table keyed on `(lti_sub, registration_id)` with no separate login.
-   - **Tool-centric.** Users have their own tool account that exists independently of
-     any platform. Platform identities are *bound* to the tool account (often on first
-     launch). A single tool user may be linked to multiple platforms and may also have
-     a direct login. Requires a join table between tool accounts and platform identities.
-   - **Hybrid.** Different roles get different treatment. For example, content creators
-     get tool-centric accounts (they need to log in directly), while learners are
-     platform-centric (they only arrive via LTI launch).
+   - **Platform-centric.** Users only access the tool through a single platform. The tool relies entirely on the platform's user identity. If the user is removed from the platform, they lose access to the tool. This is the simplest model, a `users` table keyed on `(lti_sub, registration_id)` with no separate login.
+   - **Tool-centric.** Users have their own tool account that exists independently of any platform. Platform identities are *bound* to the tool account (often on first launch). A single tool user may be linked to multiple platforms and may also have a direct login. Requires a join table between tool accounts and platform identities.
+   - **Hybrid.** Different roles get different treatment. For example, content creators get tool-centric accounts (they need to log in directly), while learners are platform-centric (they only arrive via LTI launch).
 
-   This decision determines whether you need a `users` table at all, what it looks like,
-   and how the launch callback creates or finds users. Ask the user which model
-   fits their product.
+   This decision determines whether you need a `users` table at all, what it looks like, and how the launch callback creates or finds users. Ask the user which model fits their product.
 
-3. **Existing schema.** Does the app already have tables for platforms, courses, or
-   users? The LTI tables may need to relate to existing models.
+3. **Existing schema.** Does the application already have tables for platforms, courses, or users? The LTI tables may need to relate to existing models.
 
-4. **Context module.** Phoenix apps typically group related functionality under a context
-   module. Suggest `MyApp.Lti` as the context (with the storage adapter at
-   `MyApp.Lti.StorageAdapter` and schemas at `MyApp.Lti.Registration`, etc.). Ask
-   the user if this fits their project structure, or if they'd prefer a different
-   grouping.
+4. **Context module.** Phoenix applications typically group related functionality under a context module. Suggest `MyApp.Lti` as the context (with the storage adapter at `MyApp.Lti.StorageAdapter` and schemas at `MyApp.Lti.Registration`, etc.). Ask the user if this fits their project structure, or if they'd prefer a different grouping.
 
-5. **Table/module naming.** What naming convention does the project use? (e.g.,
-   `lti_registrations` vs `platforms`, `MyApp.Lti.Registration` vs `MyApp.LtiStorage`)
+5. **Table/module naming.** What naming convention does the project use? (e.g., `lti_registrations` vs `platforms`, `MyApp.Lti.Registration` vs `MyApp.LtiStorage`)
 
-6. **JWK strategy.** One signing key shared across all registrations, or one per
-   registration? Per-registration allows independent rotation but adds complexity.
-   Either way, private keys are stored encrypted in `private_key_pem`, with the `kid` and
-   the public JWK next to them, and reconstructed into `%Ltix.JWK{}` structs via
-   `Ltix.JWK.new/1` to sign. A key held in a key management service can sign from `sign/4`
-   without ever being stored in the app.
+6. **JWK strategy.** One signing key shared across all registrations, or one per registration? Per-registration allows independent rotation but adds complexity. Either way, private keys are stored encrypted in `private_key_pem`, with the `kid` and the public key PEM next to them, and reconstructed into `%Ltix.JWK{}` structs via `Ltix.JWK.new/1` to sign. A key held in a key management service can sign from `sign/4` without ever being stored in the application.
 
-7. **Deployment policy.** Should new deployments be auto-created on first launch (upsert),
-   or require manual registration? Auto-create is simpler but the user may want an admin
-   approval flow.
+7. **Deployment policy.** Should new deployments be auto-created on first launch (upsert), or require manual registration? Auto-create is simpler but the user may want an administrator approval flow.
 
-8. **Nonce cleanup.** Each launch records its nonce until the token expires. How should
-   expired records be deleted, with a periodic Oban job, a database trigger, or manual
-   pruning?
+8. **Nonce cleanup.** Each launch records its nonce until the token expires. How should expired records be deleted, with a periodic Oban job, a database trigger, or manual pruning?
 
 ## Step 1: Database Schema
 
-Present this to the user for review. Table names, column types, and indices depend on
-their answers above.
+Present this to the user for review. Table names, column types, and indices depend on their answers above.
 
 This is an example Ecto migration (Postgres).
 
@@ -141,14 +103,11 @@ defmodule MyApp.Repo.Migrations.CreateLtiTables do
 end
 ```
 
-Adapt based on the user's schema decisions. They may want additional columns (e.g.,
-`name` on registrations, foreign keys to their own `courses` or `organizations` tables).
+Adapt based on the user's schema decisions. They may want additional columns (e.g., `name` on registrations, foreign keys to their own `courses` or `organizations` tables).
 
 ## Step 2: Ecto Schemas with Protocol Implementations
 
-Each Ecto schema implements the corresponding Ltix protocol so the storage adapter can
-return your structs directly. The library extracts the `Ltix.Registration` or
-`Ltix.Deployment` it needs via the protocol.
+Each Ecto schema implements the corresponding Ltix protocol so the storage adapter can return your structs directly. The library extracts the `Ltix.Registration` or `Ltix.Deployment` it needs via the protocol.
 
 ### JWK Schema
 
@@ -167,12 +126,7 @@ defmodule MyApp.Lti.Jwk do
 end
 ```
 
-Encrypt the private key at rest. `MyApp.Encrypted.Binary` is a
-[Cloak.Ecto](https://cloak-ecto.hexdocs.pm) field type. If the app has no vault yet,
-**confirm with the user** before adding the `cloak_ecto` dependency, then follow Cloak's
-[install guide](https://cloak-ecto.hexdocs.pm/install.html), or use the encryption the
-app already has. The public key is stored
-next to the private one, so the key set endpoint never reads a private key.
+Encrypt the private key at rest. `MyApp.Encrypted.Binary` is a [Cloak.Ecto](https://cloak-ecto.hexdocs.pm) field type. If the application has no vault yet, **confirm with the user** before adding the `cloak_ecto` dependency, then follow Cloak's [install guide](https://cloak-ecto.hexdocs.pm/install.html), or use the encryption the application already has. The public key is stored next to the private one, so the key set endpoint never reads a private key.
 
 ```elixir
 # lib/my_app/lti.ex
@@ -223,9 +177,7 @@ defimpl Ltix.Registerable, for: MyApp.Lti.Registration do
 end
 ```
 
-The `defimpl Ltix.Registerable` block defines how Ltix extracts a validated
-`Ltix.Registration` from your Ecto struct. The registration holds no key. Ltix calls the
-storage adapter's `key_id/2` and `sign/4` to sign.
+The `defimpl Ltix.Registerable` block defines how Ltix extracts a validated `Ltix.Registration` from your Ecto struct. The registration holds no key. Ltix calls the storage adapter's `key_id/2` and `sign/4` to sign.
 
 ### Deployment Schema
 
@@ -264,8 +216,7 @@ end
 
 ## Step 3: Context Module
 
-The context module handles the actual database queries. The storage adapter delegates
-to these functions.
+The context module handles the actual database queries. The storage adapter delegates to these functions.
 
 ```elixir
 # lib/my_app/lti.ex
@@ -327,8 +278,7 @@ defmodule MyApp.Lti do
 end
 ```
 
-Note that `get_deployment/3` receives the struct `get_registration/3` returned, so it
-pattern-matches on your Ecto schema. The nonce and signing callbacks receive it too.
+Note that `get_deployment/3` receives the struct `get_registration/3` returned, so it pattern-matches on your Ecto schema. The nonce and signing callbacks receive it too.
 
 ## Step 4: Storage Adapter Module
 
@@ -386,26 +336,17 @@ end
 
 These are requirements from the LTI spec and library.
 
-- **`client_id` can be nil** in `get_registration/3` when the platform omits it from the
-  login request. The implementation must query by issuer alone in that case.
+- **`client_id` can be nil** in `get_registration/3` when the platform omits it from the login request. The implementation must query by issuer alone in that case.
 
-- **Nonce recording must be atomic.** The `INSERT ... ON CONFLICT DO NOTHING` pattern ensures
-  that concurrent requests with the same nonce can't both succeed. A two-step "read then
-  insert" approach has a race condition.
+- **Nonce recording must be atomic.** The `INSERT ... ON CONFLICT DO NOTHING` pattern ensures that concurrent requests with the same nonce can't both succeed. A two-step "read then insert" approach has a race condition.
 
-- **The signing key is private key material.** Encrypt `private_key_pem` at rest and keep
-  it out of logs (`redact: true`). `sign/4` reconstructs the key into `%Ltix.JWK{}` via
-  `Ltix.JWK.new/1` and signs with `Ltix.JWK.sign/2`. Treat it with the same care as any
-  secret.
+- **The signing key is private key material.** Encrypt `private_key_pem` at rest and keep it out of logs (`redact: true`). `sign/4` reconstructs the key into `%Ltix.JWK{}` via `Ltix.JWK.new/1` and signs with `Ltix.JWK.sign/2`. Treat it with the same care as any secret.
 
-- **`sign/4` signs with the key whose ID `key_id/2` returned.** Look the key up by the `key_id`
-  argument, so a rotation between the two calls can't sign with a different key.
+- **`sign/4` signs with the key whose ID `key_id/2` returned.** Look the key up by the `key_id` argument, so a rotation between the two calls can't sign with a different key.
 
 - **`deployment_id` is case-sensitive** and at most 255 ASCII characters.
 
-- **`get_deployment/3`, `validate_nonce/4`, `key_id/2`, and `sign/4` receive your own
-  registration struct**, the one `get_registration/3` returned or the one you passed to
-  the function that needed a signature. `Ltix.OAuth.Client.registration` holds it too.
+- **`get_deployment/3`, `validate_nonce/4`, `key_id/2`, and `sign/4` receive your own registration struct**, the one `get_registration/3` returned or the one you passed to the function that needed a signature. `Ltix.OAuth.Client.registration` holds it too.
 
 ## Optional Patterns (Discuss with User First)
 
@@ -418,8 +359,7 @@ Repo.insert(%MyApp.Lti.Deployment{registration_id: reg_id, deployment_id: deploy
 )
 ```
 
-This is safe because `get_deployment/3` is called after JWT signature verification, so the
-`deployment_id` comes from a verified token. But the user may prefer a manual approval step.
+This is safe because `get_deployment/3` is called after JWT signature verification, so the `deployment_id` comes from a verified token. But the user may prefer a manual approval step.
 
 **Nonce cleanup.** A periodic job removes expired nonces.
 
@@ -431,13 +371,9 @@ Ask the user how they want to schedule this (Oban, Quantum, manual GenServer, et
 
 ## Step 6: Test the Callbacks
 
-Run `Ltix.Test.assert_storage_adapter!/2` against the adapter first. It checks the whole
-contract, including concurrent launches and, with the `:jwks` option, that signatures
-verify against the published key set. See the
-[Storage Adapters](https://ltix.hexdocs.pm/storage-adapters.md#testing-your-adapter) guide.
+Run `Ltix.Test.assert_storage_adapter!/2` against the adapter first. It checks the whole contract, including concurrent launches and, with the `:jwks` option, that signatures verify against the published key set. See the [Storage Adapters](https://ltix.hexdocs.pm/storage-adapters.md#testing-your-adapter) guide.
 
-Unit-test each storage adapter callback directly. These verify that your queries,
-protocol implementations, and nonce handling work correctly.
+Unit-test each storage adapter callback directly. These verify that your queries, protocol implementations, and nonce handling work correctly.
 
 ```elixir
 defmodule MyApp.Lti.StorageAdapterTest do
@@ -524,5 +460,4 @@ defmodule MyApp.Lti.StorageAdapterTest do
 end
 ```
 
-For a full end-to-end test through your controller routes, see the
-[Testing LTI Launches](https://ltix.hexdocs.pm/testing-lti-launches.md) cookbook.
+For a full end-to-end test through your controller routes, see the [Testing LTI Launches](https://ltix.hexdocs.pm/testing-lti-launches.md) cookbook.

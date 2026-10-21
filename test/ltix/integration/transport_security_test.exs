@@ -5,13 +5,13 @@ defmodule Ltix.Integration.TransportSecurityTest do
   alias Ltix.Errors.Unknown.RedirectNotAllowed
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
+  alias Ltix.GradeService.Endpoint, as: GradeServiceEndpoint
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Score
   alias Ltix.JWT.KeySet
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
@@ -37,12 +37,12 @@ defmodule Ltix.Integration.TransportSecurityTest do
       registration: platform.registration,
       req_options: [plug: {Req.Test, :ltix}, retry: false],
       endpoints: %{
-        GradeService => %AGSEndpoint{
+        GradeService => %GradeServiceEndpoint{
           line_items: "https://grades.example.com/lineitems",
           line_item: "https://grades.example.com/lineitems/1",
           scopes: scopes
         },
-        MembershipsService => %MembershipsEndpoint{
+        MembershipsService => %MembershipsServiceEndpoint{
           context_memberships_url: "https://roster.example.com/members"
         }
       }
@@ -150,8 +150,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
     client = %{
       client
       | endpoints: %{
-          GradeService => %AGSEndpoint{line_items: "http://grades.example.com/lineitems"},
-          MembershipsService => %MembershipsEndpoint{
+          GradeService => %GradeServiceEndpoint{line_items: "http://grades.example.com/lineitems"},
+          MembershipsService => %MembershipsServiceEndpoint{
             context_memberships_url: "http://roster.example.com/members"
           }
         }
@@ -906,7 +906,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
         state: login.state
       )
 
-    assert {:ok, %LaunchContext{claims: %{subject: "user-12345"}}} =
+    assert {:ok, %Launch{claims: %{subject: "user-12345"}}} =
              Ltix.handle_callback(params, login.state,
                storage_adapter: StorageAdapter,
                req_options: [plug: {Req.Test, :ltix}]

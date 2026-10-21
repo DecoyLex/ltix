@@ -24,10 +24,10 @@ defmodule Ltix.Errors.Unknown.InvalidPluginSet do
     end)
   end
 
-  defp describe(%Entry{module: module, plugin: plugin} = entry, plugins) do
+  defp describe(%Entry{module: module, plugin: {plugin, declaration}} = entry, _plugins) do
     if Entry.anonymous?(entry),
-      do: "an anonymous step of #{plugin_label(plugin, plugins)}",
-      else: "#{inspect(module)} (#{plugin_label(plugin, plugins)})"
+      do: "an anonymous #{kind(module)} of #{label(plugin, declaration)}",
+      else: "#{inspect(module)} (#{label(plugin, declaration)})"
   end
 
   defp describe(party, plugins) do
@@ -47,14 +47,17 @@ defmodule Ltix.Errors.Unknown.InvalidPluginSet do
       Enum.any?(declaration.entries, &(&1.module == party))
   end
 
-  defp plugin_label(plugin, plugins) do
-    case List.keyfind(plugins, plugin, 0) do
-      {^plugin, declaration} -> label(plugin, declaration)
-      nil -> inspect(plugin)
-    end
-  end
-
   defp upcase_first(<<first::utf8, rest::binary>>), do: String.upcase(<<first::utf8>>) <> rest
+
+  # What an anonymous entry is, from its module's name, such as "claim" for
+  # `Ltix.Claim`.
+  defp kind(module) do
+    module
+    |> Module.split()
+    |> List.last()
+    |> Macro.underscore()
+    |> String.replace("_", " ")
+  end
 
   defp label(plugin, %{name: nil}), do: inspect(plugin)
   defp label(_plugin, %{name: name, version: nil}), do: name

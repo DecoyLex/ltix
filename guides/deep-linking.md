@@ -1,40 +1,34 @@
 # Deep Linking
 
-Deep linking lets a platform ask your tool to select content. The
-platform sends an `LtiDeepLinkingRequest` and your tool responds with
-one or more content items the platform should link to. This guide
-covers handling deep linking launches, building content items, and
-sending responses back to the platform.
+Deep linking lets a platform ask your tool to select content. The platform sends an `LtiDeepLinkingRequest` and your tool responds with one or more content items the platform should link to. This guide covers handling deep linking launches, building content items, and sending responses back to the platform.
 
 ## Handling a deep linking launch
 
-Deep linking requests use the same OIDC flow as regular
-launches. Your existing login and launch endpoints work without
-changes. The difference is in `message_type`.
+Deep linking requests use the same OIDC flow as regular launches. Your existing login and launch endpoints work without changes. The difference is in `message_type`.
 
 ```elixir
 def launch(conn, params) do
   state = get_session(conn, :lti_state)
-  {:ok, context} = Ltix.handle_callback(params, state)
+  {:ok, launch} = Ltix.handle_callback(params, state)
 
-  case context.claims.message_type do
+  case launch.claims.message_type do
     "LtiDeepLinkingRequest" ->
-      context_id = MyApp.LaunchContexts.put(context)
+      launch_id = MyApp.Launches.put(launch)
 
       conn
-      |> put_session(:deep_linking_context_id, context_id)
-      |> assign(:settings, context.claims.deep_linking_settings)
+      |> put_session(:deep_linking_launch_id, launch_id)
+      |> assign(:settings, launch.claims.deep_linking_settings)
       |> render(:content_picker)
 
     "LtiResourceLinkRequest" ->
       conn
-      |> assign(:context, context)
+      |> assign(:launch, launch)
       |> render(:launch)
   end
 end
 ```
 
-Sending the response later needs the launch context, so keep it on the server and put only its ID in the session. `MyApp.LaunchContexts` stands for any server-side store with an expiry, such as an ETS table, Cachex, or a database table. Don't put the context itself in the session. It has the user's identity and course data, and Phoenix session cookies are signed, not encrypted.
+Sending the response later needs the launch, so keep it on the server and put only its ID in the session. `MyApp.Launches` stands for any server-side store with an expiry, such as an ETS table, Cachex, or a database table. Don't put the launch itself in the session. It has the user's identity and course data, and Phoenix session cookies are signed, not encrypted.
 
 The `deep_linking_settings` struct lists what the platform accepts.
 
@@ -49,13 +43,11 @@ settings.accept_line_item
 # => true
 ```
 
-Use these to adjust your selection UI. For example, hide the "create
-assignment" option if `"ltiResourceLink"` is not in `accept_types`.
+Use these to adjust your selection UI. For example, hide the "create assignment" option if `"ltiResourceLink"` is not in `accept_types`.
 
 ## Building content items
 
-The most common content item is an LTI resource link, which has the
-platform create a link that launches back into your tool.
+The most common content item is an LTI resource link, which has the platform create a link that launches back into your tool.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -105,9 +97,7 @@ Five content item types are available.
 
 ## Adding line items and custom properties
 
-LTI resource links can include a `line_item` to have the platform
-auto-create a gradebook column. You can post scores to that column
-later with the grade service.
+LTI resource links can include a `line_item` to have the platform auto-create a gradebook column. You can post scores to that column later with the grade service.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -134,8 +124,7 @@ Set availability and submission windows with `DateTime` values.
 )
 ```
 
-See [Building Content Items](cookbooks/building-content-items.md) for
-more patterns.
+See [Building Content Items](cookbooks/building-content-items.md) for more patterns.
 
 ## Sending the response
 
@@ -143,10 +132,10 @@ Once you have your content items, call `build_response/3` to create the signed J
 
 ```elixir
 def submit_selection(conn, %{"selected_ids" => ids}) do
-  {:ok, context} = MyApp.LaunchContexts.fetch(get_session(conn, :deep_linking_context_id))
+  {:ok, launch} = MyApp.Launches.fetch(get_session(conn, :deep_linking_launch_id))
   items = build_items_from_selection(ids)
 
-  {:ok, response} = Ltix.DeepLinking.build_response(context, items,
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, items,
     message: "Selected #{length(items)} item(s)"
   )
 
@@ -168,13 +157,10 @@ Then use the response in your template.
 
 ## Respecting platform constraints
 
-`build_response/3` validates content items against the platform's
-`deep_linking_settings` and returns an error if constraints are
-violated. Errors about a single item include its `index` in the list you
-passed.
+`build_response/3` validates content items against the platform's `deep_linking_settings` and returns an error if constraints are violated. Errors about a single item include its `index` in the list you passed.
 
 ```elixir
-case Ltix.DeepLinking.build_response(context, items) do
+case Ltix.DeepLinking.build_response(launch, items) do
   {:ok, response} ->
     # deliver response
 
@@ -198,11 +184,10 @@ case Ltix.DeepLinking.build_response(context, items) do
 end
 ```
 
-You can also check the settings before building items to adjust your
-UI.
+You can also check the settings before building items to adjust your UI.
 
 ```elixir
-settings = context.claims.deep_linking_settings
+settings = launch.claims.deep_linking_settings
 
 can_create_assignments? = "ltiResourceLink" in settings.accept_types
 can_select_multiple? = settings.accept_multiple != false
@@ -219,11 +204,10 @@ custom_item = %{
   "data" => "some-payload"
 }
 
-{:ok, response} = Ltix.DeepLinking.build_response(context, [custom_item])
+{:ok, response} = Ltix.DeepLinking.build_response(launch, [custom_item])
 ```
 
-For reusable custom types, define a struct and implement the
-`Ltix.DeepLinking.ContentItem` protocol.
+For reusable custom types, define a struct and implement the `Ltix.DeepLinking.ContentItem` protocol.
 
 ```elixir
 defmodule MyApp.ProctoredExam do
@@ -242,16 +226,13 @@ defmodule MyApp.ProctoredExam do
 end
 ```
 
-In both cases, the platform's `accept_types` must include the custom
-type string.
+In both cases, the platform's `accept_types` must include the custom type string.
 
 ## Testing
 
 ### Testing your controller
 
-Simulate a deep linking launch against your controller endpoints, the
-same way the [Testing LTI Launches](cookbooks/testing-lti-launches.md)
-cookbook tests regular launches.
+Simulate a deep linking launch against your controller endpoints, the same way the [Testing LTI Launches](cookbooks/testing-lti-launches.md) cookbook tests regular launches.
 
 ```elixir
 test "deep linking launch renders content picker", %{conn: conn, platform: platform} do
@@ -278,13 +259,11 @@ end
 
 ### Testing content selection logic
 
-When testing code that builds content items from your app's data, skip
-the OIDC flow and construct the context directly with
-`build_launch_context/2`.
+When testing code that builds content items from your app's data, skip the OIDC flow and build the launch directly with `Ltix.Test.build_launch/2`.
 
 ```elixir
 test "builds quiz items from selected activities", %{platform: platform} do
-  context = Ltix.Test.build_launch_context(platform,
+  launch = Ltix.Test.build_launch(platform,
     message_type: :deep_linking,
     deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
   )
@@ -295,20 +274,19 @@ test "builds quiz items from selected activities", %{platform: platform} do
   ]
 
   items = MyApp.DeepLinking.build_items(activities)
-  {:ok, response} = Ltix.DeepLinking.build_response(context, items)
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, items)
 
-  assert response.return_url == context.claims.deep_linking_settings.deep_link_return_url
+  assert response.return_url == launch.claims.deep_linking_settings.deep_link_return_url
 end
 ```
 
 ### Verifying response content
 
-Use `Ltix.Test.verify_deep_linking_response/2` to decode the signed JWT
-and assert on its content.
+Use `Ltix.Test.verify_deep_linking_response/2` to decode the signed JWT and assert on its content.
 
 ```elixir
 test "response JWT contains the selected items", %{platform: platform} do
-  context = Ltix.Test.build_launch_context(platform,
+  launch = Ltix.Test.build_launch(platform,
     message_type: :deep_linking
   )
 
@@ -318,7 +296,7 @@ test "response JWT contains the selected items", %{platform: platform} do
     line_item: [score_maximum: 100]
   )
 
-  {:ok, response} = Ltix.DeepLinking.build_response(context, [link])
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, [link])
   {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
 
   [item] = claims["https://purl.imsglobal.org/spec/lti-dl/claim/content_items"]
@@ -329,12 +307,8 @@ end
 
 ## Next steps
 
-- [Building Content Items](cookbooks/building-content-items.md) -
-  recipes for line items, custom properties, extensions, and more
-- [Grade Service](grade-service.md) - posting scores to gradebook
-  columns created through deep linking
-- [Testing LTI Launches](cookbooks/testing-lti-launches.md) -
-  more test patterns for both launch types
+- [Building Content Items](cookbooks/building-content-items.md) - recipes for line items, custom properties, extensions, and more
+- [Grade Service](grade-service.md) - posting scores to line items created through deep linking
+- [Testing LTI Launches](cookbooks/testing-lti-launches.md) - more test patterns for both launch types
 - `Ltix.DeepLinking` - full API reference
-- `Ltix.DeepLinking.ContentItem.LTIResourceLink` - all options for
-  the most common content item type
+- `Ltix.DeepLinking.ContentItem.LTIResourceLink` - all options for the most common content item type

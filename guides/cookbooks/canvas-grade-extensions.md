@@ -1,8 +1,6 @@
 # Using Canvas Grade Extensions
 
-Canvas supports extra properties on line items and scores. Pass them
-via the `:extensions` option when creating line items or posting
-scores.
+Canvas supports extra properties on line items and scores. Pass them via the `:extensions` option when creating line items or posting scores.
 
 ## Submission type on line item create
 
@@ -42,5 +40,4 @@ Attach submission details when posting a score:
 )
 ```
 
-See [Canvas LTI documentation](https://canvas.instructure.com/doc/api/score.html)
-for the full list of supported submission fields.
+See [Canvas LTI documentation](https://canvas.instructure.com/doc/api/score.html) for the full list of supported submission fields.

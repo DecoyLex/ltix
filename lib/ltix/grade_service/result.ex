@@ -22,7 +22,6 @@ defmodule Ltix.GradeService.Result do
   """
 
   alias Ltix.Extensions
-  alias Ltix.LaunchClaims.ClaimHelpers
 
   defstruct [
     :id,
@@ -57,22 +56,17 @@ defmodule Ltix.GradeService.Result do
     "comment" => :comment
   }
 
-  @json_schema ClaimHelpers.rename_claims(
-                 Zoi.struct(
-                   __MODULE__,
-                   %{
-                     id: Zoi.string() |> ClaimHelpers.optional(),
-                     score_of: Zoi.string() |> ClaimHelpers.optional(),
-                     user_id: Zoi.string() |> ClaimHelpers.optional(),
-                     result_score: Zoi.number() |> ClaimHelpers.optional(),
-                     result_maximum: Zoi.number() |> ClaimHelpers.optional(),
-                     scoring_user_id: Zoi.string() |> ClaimHelpers.optional(),
-                     comment: Zoi.string() |> ClaimHelpers.optional()
-                   },
-                   coerce: true
-                 ),
-                 Map.reject(@known_keys, fn {key, field} -> key == Atom.to_string(field) end)
-               )
+  @field_schemas %{
+    id: Zoi.string(),
+    score_of: Zoi.string(),
+    user_id: Zoi.string(),
+    result_score: Zoi.number(),
+    result_maximum: Zoi.number(),
+    scoring_user_id: Zoi.string(),
+    comment: Zoi.string()
+  }
+
+  @json_fields for {key, field} <- @known_keys, do: {field, key, @field_schemas[field], false}
 
   @doc """
   Parse a result from a decoded JSON map.
@@ -88,9 +82,9 @@ defmodule Ltix.GradeService.Result do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    with {:ok, result} <- ClaimHelpers.from_json(@json_schema, json, nil) do
-      {:ok, %{result | extensions: Map.drop(json, Map.keys(@known_keys))}}
-    end
+    # Every field is optional, so parsing never fails.
+    {:ok, fields, unrecognized} = Ltix.Type.parse_fields(@json_fields, json, [])
+    {:ok, struct!(__MODULE__, [{:extensions, unrecognized} | fields])}
   end
 
   @doc """

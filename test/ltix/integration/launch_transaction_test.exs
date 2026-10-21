@@ -2,7 +2,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Security
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Test.StorageAdapter
 
   @launch_url "https://tool.example.com/launch"
@@ -46,7 +46,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       assert {:error, %Security.NonceNotFound{}} =
                callback(other_registration_params, login.state)
 
-      assert {:ok, %LaunchContext{claims: %{subject: "original-user"}}} =
+      assert {:ok, %Launch{claims: %{subject: "original-user"}}} =
                callback(params, login.state)
     end
 
@@ -63,7 +63,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       invalid_params = Map.put(params, "id_token", invalid_token)
 
       assert {:error, %Security.SignatureInvalid{}} = callback(invalid_params, login.state)
-      assert {:ok, %LaunchContext{}} = callback(params, login.state)
+      assert {:ok, %Launch{}} = callback(params, login.state)
     end
 
     test "rejects a nonce that the login didn't issue", ctx do
@@ -74,7 +74,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
 
       assert {:error, %Security.NonceNotFound{}} = callback(unrelated_params, login.state)
 
-      assert {:ok, %LaunchContext{claims: %{subject: "original-user"}}} =
+      assert {:ok, %Launch{claims: %{subject: "original-user"}}} =
                callback(params, login.state)
     end
   end
@@ -88,7 +88,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
 
       refute_received {:validate_nonce, _nonce, _expires_at}
 
-      assert {:ok, %LaunchContext{}} =
+      assert {:ok, %Launch{}} =
                callback(launch, login.state, LaunchStorageAdapter)
 
       assert_received {:validate_nonce, ^nonce, expires_at}
@@ -115,7 +115,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       now = System.system_time(:second)
       {login, launch} = signed_launch(ctx.platform, %{"iat" => now - 60, "exp" => now + 7_200})
 
-      assert {:ok, %LaunchContext{}} = callback(launch, login.state, LaunchStorageAdapter)
+      assert {:ok, %Launch{}} = callback(launch, login.state, LaunchStorageAdapter)
       assert_received {:validate_nonce, _nonce, expires_at}
       assert expires_at == DateTime.from_unix!(now - 60 + 3_600 + 5)
     end
@@ -131,7 +131,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
 
       {login, launch} = signed_launch(ctx.platform, %{claims | "iat" => now - 86_400})
 
-      assert {:ok, %LaunchContext{}} =
+      assert {:ok, %Launch{}} =
                callback(launch, login.state, LaunchStorageAdapter, max_token_age: :infinity)
 
       assert_received {:validate_nonce, _nonce, expires_at}
@@ -174,7 +174,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       now = System.system_time(:second)
       {login, launch} = signed_launch(ctx.platform, %{"iat" => now + 3, "nbf" => now + 3})
 
-      assert {:ok, %LaunchContext{}} = callback(launch, login.state)
+      assert {:ok, %Launch{}} = callback(launch, login.state)
     end
 
     test "applies a clock_skew option to exp, iat, and nbf", ctx do
@@ -183,7 +183,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
 
       {login, launch} = signed_launch(ctx.platform, claims)
 
-      assert {:ok, %LaunchContext{}} =
+      assert {:ok, %Launch{}} =
                callback(launch, login.state, StorageAdapter, clock_skew: 60)
     end
   end
@@ -209,7 +209,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       {:ok, signature} = Ltix.JWK.sign(ctx.platform.jwk, message)
       id_token = message <> "." <> Base.url_encode64(signature, padding: false)
 
-      assert {:ok, %LaunchContext{claims: %{subject: "last-user"}}} =
+      assert {:ok, %Launch{claims: %{subject: "last-user"}}} =
                callback(%{"id_token" => id_token, "state" => login.state}, login.state)
     end
   end
@@ -225,7 +225,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       end
 
       assert {:error, %Security.StateMismatch{}} = callback(Map.delete(params, "state"), nil)
-      assert {:ok, %LaunchContext{}} = callback(params, login.state)
+      assert {:ok, %Launch{}} = callback(params, login.state)
     end
 
     test "rejects missing, empty, and nonbinary returned state without consuming the nonce",
@@ -240,7 +240,7 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       assert {:error, %Security.StateMismatch{}} =
                callback(Map.delete(params, "state"), login.state)
 
-      assert {:ok, %LaunchContext{}} = callback(params, login.state)
+      assert {:ok, %Launch{}} = callback(params, login.state)
     end
   end
 
@@ -256,11 +256,11 @@ defmodule Ltix.Integration.LaunchTransactionTest do
 
     assert {:error, %Security.StateMismatch{}} = callback(first_params, second_login.state)
 
-    assert {:ok, %LaunchContext{} = first_launch} = callback(first_params, first_login.state)
+    assert {:ok, %Launch{} = first_launch} = callback(first_params, first_login.state)
     assert first_launch.claims.subject == "first-user"
     assert first_launch.registration == first_platform.registration
 
-    assert {:ok, %LaunchContext{} = second_launch} = callback(second_params, second_login.state)
+    assert {:ok, %Launch{} = second_launch} = callback(second_params, second_login.state)
     assert second_launch.claims.subject == "second-user"
     assert second_launch.registration == second_platform.registration
 

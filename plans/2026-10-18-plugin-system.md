@@ -120,11 +120,27 @@ Its default steps check the parameters and look up the registration before the p
 | `deployment` | The deployment the launch belongs to |
 | `source_registration` | The application's own record that `registration` was built from |
 | `source_deployment` | The application's own record that `deployment` was built from |
-| `claims` | Parsed claims. This field has the role Plug gives `assigns` |
-| `raw` | The claims as received |
+| `claims` | Parsed claims, keyed by short name. This field has the role Plug gives `assigns` |
+| `raw` | The claims as received, including claims no plugin declares |
+| `endpoints` | The endpoint of each service the platform grants, keyed by service module |
 | `private` | Library data, with keys prefixed by the library's name |
 | `errors` | Errors collected by steps |
 | `plugins` | The plugin set the launch ran with |
+
+`Ltix.handle_callback/3` resolves the plugin set, builds the launch, runs its steps with `Ltix.Step.run/1`, and returns `{:ok, launch}` or `{:error, exception}` as in 0.2. Its hook is `[Ltix.Step, Ltix.Ordered]`.
+
+The Core plugin provides `Ltix.Launch` and extends it with its default steps and four phases, in this order. Plugins order their steps against the phases. Each default step declares its place against the phases with `before?/1` and `after?/1`.
+
+1. Steps check the authentication response and its state, look up the registration, and verify the ID token and its nonce. Verifying the ID token writes `raw`.
+2. `Ltix.Launch.Verified`. The message is authentic and comes from a known registration.
+3. `Ltix.Launch.ClaimsReceived`. A plugin step ordered after `Ltix.Launch.Verified` and before this phase can rewrite `raw` or write claims of its own.
+4. A step runs `Ltix.Claims` and writes `claims` and `endpoints`.
+5. `Ltix.Launch.ClaimsParsed`.
+6. Steps check the message type and the claims it requires.
+7. `Ltix.Launch.Validated`.
+8. A step looks up the deployment.
+
+A security check that fails halts the launch, so no claim is parsed from a message Ltix hasn't verified. Claim parsing records the errors of malformed claims and the launch continues, so they are reported with the claims the message type is missing. A malformed claim that isn't lenient counts as present when the required claims are checked, so it is reported once. `Ltix.Test.build_launch/2` runs every launch step except the security checks before `Ltix.Launch.Verified` and the deployment lookup, with `Ltix.Step.run/2`.
 
 ## Providers
 
@@ -199,6 +215,8 @@ A step takes a document and returns one of three results. It is the contract for
 - `{:error, error}` adds the error to the document's `errors` and runs the next step.
 - `{:halt, error}` adds the error to the document's `errors` and runs no further steps.
 
+`Ltix.Step.run/1` runs a document's steps from its plugin set. `Ltix.Step.run/2` runs the extender entries it's given, such as part of a document's steps.
+
 ### `Ltix.Ordered`
 
 ```elixir
@@ -216,17 +234,65 @@ Ordering works the way Spark sorts transformers.
 
 A module can only be ordered relative to another module, so each phase is its own module. `before?/1` and `after?/1` name modules as atoms, so renaming a phase is a breaking change for plugins that order against it. The other default steps are internal, so they can be renamed, split, or reordered within their phases.
 
+### `Ltix.Property`
+
+```elixir
+@callback property() :: String.t()
+@callback parse(json :: term(), opts :: term()) :: {:ok, term()} | {:error, term()}
+@callback serialize(value :: term(), opts :: term()) :: term()
+@callback writes() :: [:create | :update]
+```
+
+A property extender declares one JSON property, parses it, and serializes it. `parse/2` and `serialize/2` default to returning their value, and `writes/0` defaults to `[:create, :update]`. `parse/2` receives the options of the extender entry and returns `{:error, reason}` for a value it can't parse, where the reason is a message, an exception, or the errors `Zoi.parse/2` returns.
+
+### `Ltix.Type`
+
+`use Ltix.Type, fields: [...]` builds a type's struct from Zoi schemas for its standard fields, given as a keyword list in field order. It defines the struct, a typed `t`, and the enforced keys, and adds `extensions` and `unrecognized` as struct fields outside the Zoi schema.
+
+- `Ltix.Type.from_json/3` parses JSON into the struct. A missing or malformed field with `Zoi.optional/1` keeps its default, and a missing or malformed required field is an error. Properties no field declares go in `unrecognized`.
+- `Ltix.Type.to_json/1` serializes the struct, leaving out `nil` standard fields. Standard fields replace unrecognized properties of the same name.
+- A field's JSON name is its name, or `json_key:` from the field schema's metadata.
+- `Ltix.Type.fields/1` returns the field schemas in field order.
+
+Object claims build their structs with it. `Ltix.GradeService.LineItem` and `Ltix.GradeService.Result` parse their JSON with its field parsing.
+
+## Declared Claims
+
+A single extender declares and parses each claim. `Ltix.Claim` is a provider whose hook is `[Ltix.Property, Ltix.Claim.Declaration]`, so a declared claim is an `Ltix.Property` whose `property/0` is the claim's URI.
+
+```elixir
+defmodule Ltix.Claims.LaunchPresentation do
+  use Ltix.Claim,
+    claim: "https://purl.imsglobal.org/spec/lti/claim/for_user",
+    name: :for_user,
+    fields: [user_id: Zoi.string()]
+end
+```
+
+- **Options.** `claim:` is the URI and `name:` the short name, the key in `claims`. `Ltix.Provider` passes the options to each building block in the hook, and `Ltix.Claim.Declaration` defines `property/0` and `name/0` from them.
+- **Object claims.** `fields:` builds the claim's struct with `Ltix.Type` and defines `parse/2` with `Ltix.Type.from_json/3`, overridable.
+- **Scalar claims.** A claim without `fields:` implements `parse/2`.
+- **Lenient claims.** With `lenient: true`, a malformed claim is `nil` in `claims` and stays in `raw`. Without it, a malformed claim fails the call. A malformed optional field inside an object claim is `nil` either way.
+- **Endpoint claims.** A claim that implements the optional `service/0` callback has its parsed value in `endpoints[service]` too.
+
+`Ltix.Claims` is a provider without a hook. Its `resolve/1` reads the declared claims and reports two extenders declaring one claim URI, one short name, or one `service/0`. A module that several plugins list counts once. Its data maps each claim URI to the declaring module, the options of its first extender entry, and the claim's short name, the name its errors give, service, and leniency, so `Ltix.Claims.parse/2` parses raw claims without reading the modules again.
+
+- **Parsing.** Each declared claim present with a non-`null` value is parsed. A claim the message doesn't have is `nil` in `claims`, or `[]` for `roles`. Claims no extender declares are left out, and stay in `raw`.
+- **Errors.** Every malformed claim that isn't lenient is reported, combined into one Ltix error. Errors name a claim with a registered JWT name, such as `sub`, by that name, and any other claim by its short name.
+
+Overrides are scoped to message types, because a check one message type doesn't need still protects every other launch. A plugin whose message type accepts `role_scope_mentor` without the Mentor role replaces Core's check there, and resource link launches keep it. `Ltix.Claims.overrides/1` lists every replaced check.
+
 ## Rules
 
 - **No replacing providers.** A plugin cannot replace or remove what another plugin provides. A different flow, such as another login mechanism, is a new provider that the application calls.
-- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order.
-- **No short names.** Every provider and target is named by its module.
+- **No provider collisions.** Providers and targets are modules, and module names are unique. The providers in a plugin set are a set of modules, so plugins that provide the same module provide it once. When two steps write the same key in a document, such as a claim, the later write remains, because document data is maps. A provider with its own callbacks defines how its extenders' contributions combine. Extenders of a provider without `Ltix.Ordered` run in plugin order. Two modules declaring one claim URI, short name, or service endpoint fail at resolution.
+- **Providers have no short names.** Every provider and target is named by its module.
 
 ## Replacing 0.2's Extension Points
 
 | 0.2 extension point | Replacement |
 |---|---|
-| `Ltix.LaunchClaims.Parser`, `:claim_parsers` | An extender of `Ltix.Launch`, or of each document the claim appears in |
+| `Ltix.LaunchClaims.Parser`, `:claim_parsers` | A declared claim, an extender of `Ltix.Claim` |
 | `Ltix.LaunchClaims.Role.Parser`, `:role_parsers` | Removed. Roles are the URIs the platform sent, checked with `Ltix.Role` |
 | `Ltix.AdvantageService` | A service provider module in a plugin |
 | `Ltix.DeepLinking.ContentItem` protocol | A content item type provided by a plugin, and extenders of existing types |
@@ -234,7 +300,7 @@ A module can only be ordered relative to another module, so each phase is its ow
 
 ## Not Yet Decided
 
-- **The contract of each of Ltix's providers.** This covers launch, notice, tool message, content item types, service resources, and the client assertion.
+- **The contract of each of Ltix's providers.** This covers notice, tool message, content item types, service resources, and the client assertion.
 
 ## Spike for Hooks
 

@@ -1,8 +1,6 @@
 # Testing LTI Launches
 
-`Ltix.Test` provides helpers for testing your LTI application.
-Set up a simulated platform in one call, then test your controllers,
-authorization logic, and role-based behavior without a real platform.
+`Ltix.Test` provides helpers for testing your LTI application. Set up a simulated platform in one call, then test your controllers, authorization logic, and role-based behavior without a real platform.
 
 ## Setup
 
@@ -15,9 +13,7 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}]
 ```
 
-The `:ltix` atom is a sentinel. Each internal module rewrites it to its
-own stub name so that HTTP calls are isolated per service.
-`setup_platform!/1` automatically stubs key set fetches.
+The `:ltix` atom is a sentinel. Each internal module rewrites it to its own stub name so that HTTP calls are isolated per service. `setup_platform!/1` automatically stubs key set fetches.
 
 Then create a test platform in your setup block. Pass a `:registration` function to create matching records in your own persistence layer. The function receives an `Ltix.Registration` with the registration details (issuer, client_id, endpoints) and returns your application's struct.
 
@@ -49,9 +45,7 @@ end
 
 Pass the key your storage adapter signs with as `:tool_jwk`, so `Ltix.Test.verify_deep_linking_response/2` can verify what your tool signs.
 
-If your storage adapter auto-creates deployments (common pattern), you
-don't need a deployment factory. Otherwise, pass a 2-arity
-`:deployment` function that receives `(Ltix.Deployment, your_registration)`.
+If your storage adapter auto-creates deployments (common pattern), you don't need a deployment factory. Otherwise, pass a 2-arity `:deployment` function that receives `(Ltix.Deployment, your_registration)`.
 
 Without a storage adapter of your own, use the in-memory `Ltix.Test.StorageAdapter`. Set it as `storage_adapter` in `config/test.exs`, then start it in your setup with your test platforms.
 
@@ -71,9 +65,7 @@ end
 
 ## Testing your controller
 
-Simulate a full platform-initiated launch against your controller
-endpoints. This tests your routes, session handling, and response
-logic end-to-end.
+Simulate a full platform-initiated launch against your controller endpoints. This tests your routes, session handling, and response logic end-to-end.
 
 ```elixir
 test "instructor launch renders the dashboard", %{conn: conn, platform: platform} do
@@ -132,9 +124,7 @@ end
 
 ## Testing business logic
 
-When testing code that receives a `%LaunchContext{}`, skip the OIDC
-flow entirely with `build_launch_context/2`. This is faster and isolates
-your logic from controller and HTTP concerns.
+When testing code that receives a `%Ltix.Launch{}`, skip the OIDC flow entirely with `build_launch/2`. This is faster and isolates your logic from controller and HTTP concerns.
 
 ```elixir
 defmodule MyApp.PermissionsTest do
@@ -145,31 +135,31 @@ defmodule MyApp.PermissionsTest do
   end
 
   test "instructors can manage grades", %{platform: platform} do
-    context = Ltix.Test.build_launch_context(platform,
+    launch = Ltix.Test.build_launch(platform,
       roles: [Ltix.Role.context_instructor()],
       name: "Jane Doe"
     )
 
-    assert MyApp.Permissions.can_manage_grades?(context)
+    assert MyApp.Permissions.can_manage_grades?(launch)
   end
 
   test "TAs can view but not manage grades", %{platform: platform} do
-    context = Ltix.Test.build_launch_context(platform,
+    launch = Ltix.Test.build_launch(platform,
       roles: [Ltix.Role.instructor_teaching_assistant()]
     )
 
-    assert MyApp.Permissions.can_view_grades?(context)
-    refute MyApp.Permissions.can_manage_grades?(context)
+    assert MyApp.Permissions.can_view_grades?(launch)
+    refute MyApp.Permissions.can_manage_grades?(launch)
   end
 
   test "learners see their own submissions only", %{platform: platform} do
-    context = Ltix.Test.build_launch_context(platform,
+    launch = Ltix.Test.build_launch(platform,
       roles: [Ltix.Role.context_learner()],
       subject: "student-42",
       context: %{id: "course-1"}
     )
 
-    submissions = MyApp.Submissions.list_for(context)
+    submissions = MyApp.Submissions.list_for(launch)
     assert Enum.all?(submissions, &(&1.user_id == "student-42"))
   end
 end
@@ -177,7 +167,7 @@ end
 
 ## Customizing launches
 
-`launch_params/2` and `build_launch_context/2` take the same launch options with the same defaults, so a launch built either way has the same claims. Without options, the launch is a resource link launch by an instructor with subject `"user-12345"` in context `"context-001"`.
+`launch_params/2` and `build_launch/2` take the same launch options with the same defaults, so a launch built either way has the same claims. Without options, the launch is a resource link launch by an instructor with subject `"user-12345"` in context `"context-001"`.
 
 ### Roles
 
@@ -191,7 +181,7 @@ roles: ["Learner", "https://lms.example.com/roles#CourseDesigner"]
 ### Context and resource link
 
 ```elixir
-Ltix.Test.build_launch_context(platform,
+Ltix.Test.build_launch(platform,
   roles: [Ltix.Role.context_instructor()],
   context: %{
     id: "course-1",
@@ -203,14 +193,14 @@ Ltix.Test.build_launch_context(platform,
 )
 ```
 
-Both options also take the `%Ltix.LaunchClaims.Context{}` and `%Ltix.LaunchClaims.ResourceLink{}` structs.
+Both options also take the `%Ltix.Claims.Context{}` and `%Ltix.Claims.ResourceLink{}` structs.
 
 ### Deep linking
 
 Pass `message_type: :deep_linking`. Settings you leave out accept the five standard content types, every presentation target, and multiple items.
 
 ```elixir
-Ltix.Test.build_launch_context(platform,
+Ltix.Test.build_launch(platform,
   message_type: :deep_linking,
   deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
 )
@@ -230,7 +220,7 @@ Ltix.Test.launch_params(platform, nonce: nonce, state: state, subject: nil)
 Ltix.handle_callback(params, state, allow_anonymous: true)
 ```
 
-`build_launch_context/2` builds an anonymous context without either.
+`build_launch/2` also rejects it unless you pass `allow_anonymous: true` or set the configuration.
 
 ### Service endpoints
 
@@ -250,8 +240,7 @@ Ltix.Test.launch_params(platform,
 
 ### Raw claim overrides
 
-For claims not covered by the convenience options, use `:claims` to
-merge raw claims over the built ones.
+For claims not covered by the convenience options, use `:claims` to merge raw claims over the built ones.
 
 ```elixir
 Ltix.Test.launch_params(platform,
@@ -264,6 +253,10 @@ Ltix.Test.launch_params(platform,
   }
 )
 ```
+
+### Plugins
+
+`build_launch/2` runs the launch steps of your configured plugins. Pass `plugins:` to use others, such as the plugin under test.
 
 ### Hand-built tokens
 
@@ -280,9 +273,7 @@ params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" 
 
 ## Testing advantage services
 
-When your application uses `Ltix.GradeService` or
-`Ltix.MembershipsService`, you need to stub both the OAuth token
-request and the service's HTTP calls.
+When your application uses `Ltix.GradeService` or `Ltix.MembershipsService`, you need to stub both the OAuth token request and the service's HTTP calls.
 
 ### Grade service
 
@@ -294,14 +285,14 @@ test "submits a score after launch", %{platform: platform} do
 
   Ltix.Test.stub_post_score()
 
-  context = Ltix.Test.build_launch_context(platform,
+  launch = Ltix.Test.build_launch(platform,
     ags_endpoint: %{
       line_item: "https://platform.example.com/lineitems/1",
       scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
     }
   )
 
-  {:ok, client} = Ltix.GradeService.authenticate(context)
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
 
   {:ok, score} = Ltix.GradeService.Score.new(
     user_id: "student-42",
@@ -330,11 +321,11 @@ test "fetches roster", %{platform: platform} do
     context: %{id: "course-1", title: "Elixir 101"}
   )
 
-  context = Ltix.Test.build_launch_context(platform,
+  launch = Ltix.Test.build_launch(platform,
     memberships_endpoint: "https://platform.example.com/memberships"
   )
 
-  {:ok, client} = Ltix.MembershipsService.authenticate(context)
+  {:ok, client} = Ltix.MembershipsService.authenticate(launch)
   {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
   assert length(roster.members) == 1
@@ -358,7 +349,7 @@ test "creates a line item and posts a score to it", %{platform: platform} do
 
   Ltix.Test.stub_post_score()
 
-  context = Ltix.Test.build_launch_context(platform,
+  launch = Ltix.Test.build_launch(platform,
     ags_endpoint: %{
       line_items: "https://lms.example.com/lineitems",
       scopes: [
@@ -368,7 +359,7 @@ test "creates a line item and posts a score to it", %{platform: platform} do
     }
   )
 
-  {:ok, client} = Ltix.GradeService.authenticate(context)
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
   {:ok, item} = Ltix.GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
 
   score =
@@ -396,7 +387,4 @@ The list stubs handle `list_*` and `stream_*` calls, one page at a time when the
 
 Stubs apply to the test process and to any process you allow with `Req.Test.allow(Ltix.GradeService, self(), pid)`, so they work in async tests and in processes your code starts.
 
-Per-operation stubs accept the struct(s) the platform would return. For
-custom response logic (inspecting headers, returning errors, etc.), use
-`Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It
-replaces every `Ltix.Test` stub of that service.
+Per-operation stubs accept the struct(s) the platform would return. For custom response logic (inspecting headers, returning errors, etc.), use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.

@@ -1,6 +1,10 @@
 # Working with Roles
 
-Platforms send each user's roles as URIs in the launch. Ltix keeps them as sent in `context.claims.roles`, and `Ltix.Role` has checks and constants for them. Most tools only need the checks in the next section.
+A launch has the user's roles in `launch.claims.roles`, as the list of URIs the platform sent. `Ltix.Role` checks them.
+
+```elixir
+Ltix.Role.instructor?(launch.claims.roles)  #=> true
+```
 
 ## Checking roles
 
@@ -9,35 +13,22 @@ The most common check is "is this user an instructor or a learner?"
 ```elixir
 alias Ltix.Role
 
-Role.instructor?(context.claims.roles)
-Role.learner?(context.claims.roles)
-Role.mentor?(context.claims.roles)
-Role.content_developer?(context.claims.roles)
-Role.teaching_assistant?(context.claims.roles)
-Role.context_administrator?(context.claims.roles)
-Role.administrator?(context.claims.roles)
+Role.instructor?(roles)
+Role.learner?(roles)
+Role.mentor?(roles)
+Role.content_developer?(roles)
+Role.teaching_assistant?(roles)
+Role.context_administrator?(roles)
+Role.administrator?(roles)
 ```
 
-Every check covers its role's deprecated forms, and the checks for context roles also cover sub-roles. So `instructor?/1` returns `true` for a principal Instructor, for an `Instructor#TeachingAssistant`, and for the simple name `"Instructor"`.
+Each check matches its role's [sub-roles](#sub-roles) and [deprecated forms](#deprecated-forms). `instructor?/1` is `true` for an Instructor, an `Instructor#TeachingAssistant`, and the plain string `"Instructor"`. `teaching_assistant?/1` checks only the `Instructor#TeachingAssistant` sub-role.
 
-`administrator?/1` checks for the **institution** administrator. The other checks, including `context_administrator?/1`, check **context** roles. Use [`has?/2`](#checking-for-one-role) for any other role.
+These check roles in the launch's context, except `administrator?/1`, which checks the institution administrator.
 
-## Roles in launch claims
+When the platform sends no roles, `launch.claims.roles` is `[]`.
 
-After a successful launch, `context.claims.roles` has the role URIs in the order the platform sent them.
-
-```elixir
-{:ok, context} = Ltix.handle_callback(params, state)
-
-context.claims.roles
-#=> ["http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
-#=>  "http://purl.imsglobal.org/vocab/lis/v2/membership/Instructor#TeachingAssistant",
-#=>  "https://lms.example.com/roles#CourseDesigner"]
-```
-
-A platform can send roles of its own, such as the last URI above. LTI requires a platform that sends roles to include at least one standard role, so the checks apply to every launch with roles.
-
-Roster members from the [memberships service](memberships-service.md) have role URIs in `member.roles`, and the same checks work on them.
+The same checks work on `member.roles` from the [memberships service](memberships-service.md).
 
 ## Checking for one role
 
@@ -103,8 +94,8 @@ The following is a typical pattern for an LTI tool.
 defmodule MyAppWeb.LtiAuth do
   alias Ltix.Role
 
-  def authorize(context) do
-    roles = context.claims.roles
+  def authorize(launch) do
+    roles = launch.claims.roles
 
     cond do
       Role.administrator?(roles) -> :administrator
@@ -121,12 +112,12 @@ Use the result to control access in your controller.
 
 ```elixir
 def launch(conn, params) do
-  {:ok, context} = Ltix.handle_callback(params, get_session(conn, :lti_state))
-  role = MyAppWeb.LtiAuth.authorize(context)
+  {:ok, launch} = Ltix.handle_callback(params, get_session(conn, :lti_state))
+  role = MyAppWeb.LtiAuth.authorize(launch)
 
   conn
   |> put_session(:lti_role, role)
-  |> put_session(:lti_user_id, context.claims.subject)
+  |> put_session(:lti_user_id, launch.claims.subject)
   |> redirect(to: dashboard_path(role))
 end
 
@@ -204,12 +195,7 @@ end
 
 ## Deprecated forms
 
-Older platforms may send roles in forms that LTI 1.3 deprecates.
-
-- A context role by its simple name, such as `"Instructor"` or `"Learner"`
-- An institution or system role with a `person#` URI, such as `http://purl.imsglobal.org/vocab/lis/v2/person#Administrator`, which leaves out `institution/` or `system/`
-
-`context.claims.roles` keeps these as sent. The checks and `has?/2` treat each one as the role it stands for. A `person#` URI can stand for an institution role and a system role at once, so `Role.has?([Role.person_administrator()], Role.system_administrator())` and `Role.administrator?([Role.person_administrator()])` both return `true`.
+Older platforms send a context role by its plain name, such as `"Instructor"`, or an institution or system role as a `person#` URI, such as `http://purl.imsglobal.org/vocab/lis/v2/person#Administrator`. `launch.claims.roles` keeps them unchanged, and the checks treat each as the role it stands for. A `person#` URI stands for the institution role, the system role, or both, whichever has its name. `person#Administrator` stands for both, so `Role.administrator?([Role.person_administrator()])` is `true`.
 
 ## Platform differences
 
@@ -288,15 +274,15 @@ Per-tool overrides are also possible.
 
 ## Roles in tests
 
-`Ltix.Test.build_launch_context/2` and `Ltix.Test.launch_params/2` take role URIs in `:roles`. They default to an instructor.
+`Ltix.Test.build_launch/2` and `Ltix.Test.launch_params/2` take role URIs in `:roles`, and default to an instructor.
 
 ```elixir
-context =
-  Ltix.Test.build_launch_context(platform,
+launch =
+  Ltix.Test.build_launch(platform,
     roles: [Role.context_instructor(), Role.instructor_teaching_assistant()]
   )
 
-Role.teaching_assistant?(context.claims.roles)
+Role.teaching_assistant?(launch.claims.roles)
 #=> true
 ```
 

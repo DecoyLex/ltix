@@ -1,12 +1,10 @@
 defmodule Ltix.MembershipsMessageClaimsTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import Ltix.Test.MembershipsServiceHelper
 
+  alias Ltix.Claims.Context
   alias Ltix.Errors.Invalid.InvalidClaim
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.Context
-
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
@@ -15,328 +13,136 @@ defmodule Ltix.MembershipsMessageClaimsTest do
     %{client: create_client()}
   end
 
-  defmodule CustomMessage do
-    defstruct [:value]
+  defp list_and_stream(client, message, opts \\ []) do
+    body = Map.put(container(1), "members", [Map.put(member("user-1"), "message", [message])])
+    stub_pages(1, body)
+
+    listed = MembershipsService.list_members(client, opts)
+
+    streamed =
+      with {:ok, stream} <- MembershipsService.stream_members(client, opts) do
+        try do
+          {:ok, Enum.to_list(stream)}
+        rescue
+          error in InvalidClaim -> {:error, error}
+        end
+      end
+
+    {listed, streamed}
   end
 
-  test "standard message claim shapes stay classified", %{client: client} do
-    messages = [
-      {%{"https://purl.imsglobal.org/spec/lti/claim/message_type" => 123}, "message_type", 123},
-      {%{"aud" => [123]}, "aud.0", 123},
-      {%{"exp" => "invalid"}, "exp", "invalid"},
-      {%{"https://purl.imsglobal.org/spec/lti/claim/resource_link" => []}, "resource_link", []},
-      {%{"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => 123},
-       "deep_linking_settings", 123}
-    ]
+  # The claims of a message that aren't nil.
+  defp present(claims), do: Map.reject(claims, fn {_claim, value} -> value == nil end)
 
-    for {message, claim, value} <- messages do
-      body =
-        Map.put(container(1), "members", [Map.put(member("invalid"), "message", [message])])
-
-      stub_pages(1, body)
-
-      assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} =
-               MembershipsService.list_members(client)
-
-      assert {:ok, stream} = MembershipsService.stream_members(client)
-      error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
-
-      assert %InvalidClaim{claim: ^claim, value: ^value} = error
+  test "malformed claims fail the call", %{client: client} do
+    for {message, claim, value} <- [
+          {%{"https://purl.imsglobal.org/spec/lti/claim/message_type" => 123}, "message_type",
+           123},
+          {%{"aud" => [123]}, "aud.0", 123},
+          {%{"exp" => "invalid"}, "exp", "invalid"},
+          {%{"https://purl.imsglobal.org/spec/lti/claim/resource_link" => []}, "resource_link",
+           []},
+          {%{"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => 123},
+           "deep_linking_settings", 123}
+        ] do
+      assert {{:error, %InvalidClaim{claim: ^claim, value: ^value}},
+              {:error, %InvalidClaim{claim: ^claim, value: ^value}}} =
+               list_and_stream(client, message)
     end
   end
 
-  test "registered custom message parsers and standard context parsing remain available", %{
-    client: client
-  } do
-    configure_claim_parsers(%{
-      "https://vendor.example.com/claim" => fn %{"value" => value} ->
-        {:ok, %CustomMessage{value: value}}
-      end
-    })
-
+  test "claims are parsed with the call's plugins", %{client: client} do
     message = %{
       "exp" => 123.5,
       "iat" => 122.5,
       "https://purl.imsglobal.org/spec/lti/claim/context" => %{"id" => "course"},
       "https://purl.imsglobal.org/spec/lti/claim/roles" => ["Instructor"],
       "https://purl.imsglobal.org/spec/lti/claim/custom" => %{"country" => "Canada"},
-      "https://vendor.example.com/claim" => %{"value" => 123},
+      "https://tool.example.com/claim/traced" => %{"value" => 123},
       "https://vendor.example.com/unknown" => [123]
     }
 
-    stub_pages(
-      1,
-      Map.put(container(1), "members", [Map.put(member("user-1"), "message", [message])])
-    )
+    plugins = [{TestPlugins.Modules, add: [TestPlugins.Traced]}]
 
-    assert {:ok, %MembershipContainer{members: [%Member{message: [claims]}]}} =
-             MembershipsService.list_members(client)
+    assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
+            {:ok, [%Member{message: [streamed]}]}} =
+             list_and_stream(client, message, plugins: plugins)
 
-    assert %LaunchClaims{
-             expires_at: 123.5,
-             issued_at: 122.5,
-             context: %{id: "course"},
-             roles: ["Instructor"],
-             custom: %{"country" => "Canada"},
-             extensions: %{
-               "https://vendor.example.com/claim" => %CustomMessage{value: 123},
-               "https://vendor.example.com/unknown" => [123]
+    for claims <- [listed, streamed] do
+      assert present(claims) == %{
+               expires_at: 123.5,
+               issued_at: 122.5,
+               context: %Context{id: "course"},
+               roles: ["Instructor"],
+               custom: %{"country" => "Canada"},
+               traced: %{"value" => 123}
              }
-           } = claims
+    end
 
-    assert {:ok, stream} = MembershipsService.stream_members(client)
+    assert {{:ok, %MembershipContainer{members: [%Member{message: [claims]}]}}, _streamed} =
+             list_and_stream(client, message)
 
-    assert [
-             %Member{
-               message: [
-                 %LaunchClaims{
-                   extensions: %{"https://vendor.example.com/claim" => %CustomMessage{value: 123}}
-                 }
-               ]
-             }
-           ] = Enum.to_list(stream)
+    refute Map.has_key?(claims, :traced)
   end
 
-  for {key, field} <- [
-        {"https://purl.imsglobal.org/spec/lti/claim/roles", :roles},
-        {"https://purl.imsglobal.org/spec/lti-ags/claim/endpoint", :ags_endpoint}
+  for {key, claim, invalid_values} <- [
+        {"aud", "aud", [{123, ""}, {[123], ".0"}]},
+        {"exp", "exp", [{"123", ""}]},
+        {"nonce", "nonce", [{123, ""}]},
+        {"azp", "azp", [{123, ""}]},
+        {"https://purl.imsglobal.org/spec/lti/claim/version", "version", [{123, ""}]}
       ] do
-    test "configured #{field} overrides builtin parsing", %{client: client} do
-      key = unquote(key)
-      field = unquote(field)
+    test "a malformed #{claim} fails the call", %{client: client} do
+      for {value, suffix} <- unquote(Macro.escape(invalid_values)) do
+        expected_claim = unquote(claim) <> suffix
 
-      configure_claim_parsers(%{
-        key => fn raw ->
-          send(self(), {:parsed_claim, raw})
-          {:ok, %CustomMessage{value: raw}}
-        end
-      })
-
-      raw = 123
-      message = %{key => raw}
-
-      body =
-        Map.put(container(1), "members", [
-          Map.put(member("overridden"), "message", [message])
-        ])
-
-      stub_pages(1, body)
-
-      assert {:ok, %MembershipContainer{members: members}} =
-               MembershipsService.list_members(client)
-
-      assert %Member{message: [%LaunchClaims{} = claims]} = List.last(members)
-      assert Map.fetch!(claims, field) == %CustomMessage{value: raw}
-      assert_received {:parsed_claim, ^raw}
-      refute_received {:parsed_claim, _}
-
-      assert {:ok, stream} = MembershipsService.stream_members(client)
-
-      assert Enum.to_list(stream) == [
-               %Member{
-                 user_id: "overridden",
-                 status: :active,
-                 message: [struct!(LaunchClaims, [{field, %CustomMessage{value: 123}}])]
-               }
-             ]
-
-      assert_received {:parsed_claim, ^raw}
-      refute_received {:parsed_claim, _}
-    end
-  end
-
-  test "configured parsers can delegate prepared claims to the builtin schema",
-       %{client: client} do
-    configure_claim_parsers(%{
-      "https://purl.imsglobal.org/spec/lti/claim/context" => fn %{"vendor_id" => id} ->
-        Context.from_json(%Context{id: id})
-      end
-    })
-
-    for id <- ["vendor-course", 123] do
-      message = %{"https://purl.imsglobal.org/spec/lti/claim/context" => %{"vendor_id" => id}}
-
-      body =
-        Map.put(container(1), "members", [Map.put(member("vendor"), "message", [message])])
-
-      stub_pages(1, body)
-
-      case id do
-        "vendor-course" ->
-          assert {:ok, %MembershipContainer{members: members}} =
-                   MembershipsService.list_members(client)
-
-          assert %Member{message: [%LaunchClaims{context: %Context{id: "vendor-course"}}]} =
-                   List.last(members)
-
-          assert {:ok, stream} = MembershipsService.stream_members(client)
-
-          assert [%Member{message: [%LaunchClaims{context: %Context{id: "vendor-course"}}]}] =
-                   Enum.to_list(stream)
-
-        123 ->
-          assert {:error, %InvalidClaim{claim: "context.id", value: 123}} =
-                   MembershipsService.list_members(client)
-
-          assert {:ok, stream} = MembershipsService.stream_members(client)
-          error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
-          assert %InvalidClaim{claim: "context.id", value: 123} = error
+        assert {{:error, %InvalidClaim{claim: ^expected_claim}},
+                {:error, %InvalidClaim{claim: ^expected_claim}}} =
+                 list_and_stream(client, %{unquote(key) => value})
       end
     end
   end
 
-  test "configured builtin parser errors propagate unchanged", %{client: client} do
-    expected =
-      InvalidClaim.exception(
-        claim: "configured.context",
-        value: 123,
-        message: "invalid vendor context"
+  test "absent and null claims are nil, and absent roles are empty", %{client: client} do
+    plugins = [{TestPlugins.Modules, add: [TestPlugins.Traced]}]
+
+    nulls =
+      Map.new(
+        ~w(iss sub aud exp iat nonce azp email name given_name family_name middle_name picture locale) ++
+          Enum.map(
+            ~w(message_type version deployment_id target_link_uri role_scope_mentor),
+            &("https://purl.imsglobal.org/spec/lti/claim/" <> &1)
+          ),
+        &{&1, nil}
       )
 
-    configure_claim_parsers(%{
-      "https://purl.imsglobal.org/spec/lti/claim/context" => fn 123 -> {:error, expected} end
-    })
-
-    message = %{"https://purl.imsglobal.org/spec/lti/claim/context" => 123}
-
-    body =
-      Map.put(container(1), "members", [Map.put(member("invalid"), "message", [message])])
-
-    stub_pages(1, body)
-
-    assert {:error, ^expected} = MembershipsService.list_members(client)
-    assert {:ok, stream} = MembershipsService.stream_members(client)
-    error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
-    assert error == expected
-  end
-
-  test "custom parser programming errors are not converted into service errors",
-       %{client: client} do
-    configure_claim_parsers(%{
-      "https://purl.imsglobal.org/spec/lti/claim/context" => fn %{"vendor_id" => id} ->
-        {:ok, %CustomMessage{value: id}}
-      end
-    })
-
-    message = %{"https://purl.imsglobal.org/spec/lti/claim/context" => 123}
-
-    body =
-      Map.put(container(1), "members", [Map.put(member("invalid"), "message", [message])])
-
-    stub_pages(1, body)
-
-    assert_raise FunctionClauseError, fn -> MembershipsService.list_members(client) end
-    assert {:ok, stream} = MembershipsService.stream_members(client)
-    assert_raise FunctionClauseError, fn -> Enum.to_list(stream) end
-  end
-
-  for {key, field, type} <- [
-        {"aud", :audience, :audience},
-        {"exp", :expires_at, :number},
-        {"nonce", :nonce, :string},
-        {"azp", :authorized_party, :string},
-        {"https://purl.imsglobal.org/spec/lti/claim/version", :version, :string}
-      ] do
-    invalid_values =
-      case type do
-        :string -> [{123, ""}]
-        :number -> [{"123", ""}]
-        :audience -> [{123, ""}, {[123], ".0"}]
-      end
-
-    test "declared #{field} message types are validated", %{client: client} do
-      key = unquote(key)
-      claim = String.replace_prefix(key, "https://purl.imsglobal.org/spec/lti/claim/", "")
-      invalid_values = unquote(Macro.escape(invalid_values))
-
-      for {value, suffix} <- invalid_values do
-        expected_claim = claim <> suffix
-        message = %{key => value}
-
-        body =
-          Map.put(container(1), "members", [Map.put(member("invalid"), "message", [message])])
-
-        stub_pages(1, body)
-
-        assert {:error, %InvalidClaim{claim: ^expected_claim}} =
-                 MembershipsService.list_members(client)
-
-        assert {:ok, stream} = MembershipsService.stream_members(client)
-        error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
-        assert %InvalidClaim{claim: ^expected_claim} = error
-      end
-    end
-  end
-
-  test "partial message scalars accept absence, nulls, fractional dates and either audience form",
-       %{client: client} do
-    for message <- [
-          %{},
-          %{
-            "iss" => nil,
-            "sub" => nil,
-            "aud" => nil,
-            "exp" => nil,
-            "iat" => nil,
-            "nonce" => nil,
-            "azp" => nil,
-            "email" => nil,
-            "name" => nil,
-            "given_name" => nil,
-            "family_name" => nil,
-            "middle_name" => nil,
-            "picture" => nil,
-            "locale" => nil,
-            "https://purl.imsglobal.org/spec/lti/claim/message_type" => nil,
-            "https://purl.imsglobal.org/spec/lti/claim/version" => nil,
-            "https://purl.imsglobal.org/spec/lti/claim/deployment_id" => nil,
-            "https://purl.imsglobal.org/spec/lti/claim/target_link_uri" => nil,
-            "https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor" => nil
-          },
-          %{"aud" => "tool", "exp" => 123.5, "iat" => 122.5},
-          %{
-            "aud" => ["tool", "other"],
-            "exp" => 123,
-            "iat" => 122,
-            "https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor" => []
-          }
+    for {message, expected} <- [
+          {%{}, %{roles: []}},
+          {nulls, %{roles: []}},
+          {%{"aud" => "tool", "exp" => 123.5, "iat" => 122.5},
+           %{audience: "tool", expires_at: 123.5, issued_at: 122.5, roles: []}},
+          {%{
+             "aud" => ["tool", "other"],
+             "exp" => 123,
+             "iat" => 122,
+             "https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor" => []
+           },
+           %{
+             audience: ["tool", "other"],
+             expires_at: 123,
+             issued_at: 122,
+             role_scope_mentor: [],
+             roles: []
+           }}
         ] do
-      body =
-        Map.put(container(1), "members", [Map.put(member("partial"), "message", [message])])
+      assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
+              {:ok, [%Member{message: [streamed]}]}} =
+               list_and_stream(client, message, plugins: plugins)
 
-      stub_pages(1, body)
-
-      assert {:ok, %MembershipContainer{members: members}} =
-               MembershipsService.list_members(client)
-
-      assert %Member{message: [%LaunchClaims{} = claims]} = List.last(members)
-      assert claims.issuer == nil
-      assert claims.name == nil
-      assert claims.message_type == nil
-      assert claims.audience == message["aud"]
-      assert claims.expires_at == message["exp"]
-      assert claims.issued_at == message["iat"]
-
-      assert claims.role_scope_mentor ==
-               message["https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor"]
-
-      assert {:ok, stream} = MembershipsService.stream_members(client)
-
-      assert Enum.to_list(stream) == [
-               %Member{
-                 user_id: "partial",
-                 status: :active,
-                 message: [
-                   %LaunchClaims{
-                     audience: message["aud"],
-                     expires_at: message["exp"],
-                     issued_at: message["iat"],
-                     role_scope_mentor:
-                       message["https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor"]
-                   }
-                 ]
-               }
-             ]
+      assert listed.context == nil
+      assert listed.traced == nil
+      assert present(listed) == expected
+      assert present(streamed) == expected
     end
   end
 end

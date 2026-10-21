@@ -30,75 +30,58 @@ defmodule Ltix.DeepLinkingTest do
 
   describe "build_response/3 message type validation" do
     test "returns InvalidMessageType for resource link context", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p)
+      context = Ltix.Test.build_launch(p)
 
       assert {:error, %InvalidMessageType{message_type: "LtiResourceLinkRequest"}} =
                DeepLinking.build_response(context)
     end
   end
 
-  describe "build_response/3 with records that don't convert" do
-    test "raises ArgumentError that includes the protocol name", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      bare = %BareRegistration{registration: context.registration}
-
-      for {context, message} <- [
-            {%{context | registration: bare},
-             "the Ltix.Registerable implementation for BareRegistration returned something " <>
-               "other than {:ok, %Ltix.Registration{}} or {:error, exception}"},
-            {%{context | deployment: %{private_key_pem: "secret"}},
-             "expected a record that implements Ltix.Deployable, got a map"}
-          ] do
-        assert_raise ArgumentError, message, fn -> DeepLinking.build_response(context) end
-      end
-    end
-  end
-
   describe "build_response/3 success" do
-    test "JWT is verifiable with tool's public key", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
+    test "JWT is verifiable with tool's public key", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch)
 
-      assert {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
-      assert claims["iss"] == p.registration.client_id
-      assert claims["aud"] == p.registration.issuer
-      assert claims["azp"] == p.registration.issuer
+      assert {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
+      assert claims["iss"] == platform.registration.client_id
+      assert claims["aud"] == platform.registration.issuer
+      assert claims["azp"] == platform.registration.issuer
     end
 
-    test "JWT contains required LTI claims", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
+    test "JWT contains required LTI claims", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
 
       assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
       assert claims[@lti <> "version"] == "1.3.0"
-      assert claims[@lti <> "deployment_id"] == p.deployment.deployment_id
+      assert claims[@lti <> "deployment_id"] == platform.deployment.deployment_id
     end
 
-    test "JWT has correct exp/iat/nonce", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
+    test "JWT has correct exp/iat/nonce", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
 
       now = System.system_time(:second)
       assert claims["iat"] >= now - 1
       assert claims["exp"] - claims["iat"] == 300
-      assert byte_size(claims["nonce"]) > 0
+      assert claims["nonce"] =~ ~r/\A[A-Za-z0-9_-]{22}\z/
     end
 
-    test "JWT header has kid and RS256 alg", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
+    test "JWT header has kid and RS256 alg", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch)
 
       %JOSE.JWS{alg: {_mod, alg}, fields: header} = JOSE.JWT.peek_protected(jwt)
-      assert header["kid"] == p.tool_jwk.kid
+      assert header["kid"] == platform.tool_jwk.kid
       assert alg == :RS256
     end
   end
 
   describe "build_response/3 content item serialization" do
     test "serializes an LTIResourceLink item", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
 
       {:ok, item} =
         LTIResourceLink.new(
@@ -116,7 +99,7 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "includes raw map items unchanged", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
       raw = %{"type" => "link", "url" => "https://raw.example.com"}
 
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context, [raw])
@@ -129,7 +112,7 @@ defmodule Ltix.DeepLinkingTest do
 
   describe "build_response/3 data claim" do
     test "omits data when not present in settings", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
       {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
 
@@ -138,39 +121,39 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 message options" do
-    test "includes message and log in JWT", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+    test "includes message and log in JWT", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
 
       {:ok, %Response{jwt: jwt}} =
-        DeepLinking.build_response(context, [], message: "Done", log: "debug info")
+        DeepLinking.build_response(launch, [], message: "Done", log: "debug info")
 
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
 
       assert claims[@dl <> "msg"] == "Done"
       assert claims[@dl <> "log"] == "debug info"
     end
 
-    test "includes errormsg and errorlog in JWT", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+    test "includes errormsg and errorlog in JWT", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
 
       {:ok, %Response{jwt: jwt}} =
-        DeepLinking.build_response(context, [],
+        DeepLinking.build_response(launch, [],
           error_message: "Oops",
           error_log: "stack trace"
         )
 
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
 
       assert claims[@dl <> "errormsg"] == "Oops"
       assert claims[@dl <> "errorlog"] == "stack trace"
     end
 
-    test "raises on unknown and invalid options", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      resource_link_context = Ltix.Test.build_launch_context(p)
+    test "raises on unknown and invalid options", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      resource_link_context = Ltix.Test.build_launch(platform)
 
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :msg is unknown", fn ->
-        DeepLinking.build_response(context, [], msg: "Done")
+        DeepLinking.build_response(launch, [], msg: "Done")
       end
 
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :msg is unknown", fn ->
@@ -179,16 +162,16 @@ defmodule Ltix.DeepLinkingTest do
 
       error =
         assert_raise Ltix.Errors.Invalid.InvalidOption, fn ->
-          DeepLinking.build_response(context, [], log: 123)
+          DeepLinking.build_response(launch, [], log: 123)
         end
 
       assert %{key: :log, value: 123} = error
     end
 
-    test "omits absent message options from JWT", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(context)
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(p, jwt)
+    test "omits absent message options from JWT", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch)
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, jwt)
 
       refute Map.has_key?(claims, @dl <> "msg")
       refute Map.has_key?(claims, @dl <> "log")
@@ -200,7 +183,7 @@ defmodule Ltix.DeepLinkingTest do
   describe "build_response/3 type validation" do
     test "rejects item type not in accept_types", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
         )
@@ -215,13 +198,13 @@ defmodule Ltix.DeepLinkingTest do
       poll = %CustomContentItem{question: "Ready?"}
 
       accepting =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]}
         )
 
       rejecting =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["link"]}
         )
@@ -240,7 +223,7 @@ defmodule Ltix.DeepLinkingTest do
   describe "build_response/3 multiplicity validation" do
     test "rejects multiple items when accept_multiple is false", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["link"], accept_multiple: false}
         )
@@ -254,7 +237,7 @@ defmodule Ltix.DeepLinkingTest do
 
     test "allows single item when accept_multiple is false", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["link"], accept_multiple: false}
         )
@@ -266,7 +249,7 @@ defmodule Ltix.DeepLinkingTest do
 
     test "allows multiple items when accept_multiple is nil", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["link"], accept_multiple: nil}
         )
@@ -279,9 +262,9 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 line item validation" do
-    test "rejects line_item when accept_line_item is false", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
+    test "rejects line_item when accept_line_item is false", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
         )
@@ -289,38 +272,40 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
 
       assert {:error, %LineItemNotAccepted{index: 0}} =
-               DeepLinking.build_response(context, [item])
+               DeepLinking.build_response(launch, [item])
     end
 
-    test "allows line_item when accept_line_item is true", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
+    test "allows line_item when accept_line_item is true", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
         )
 
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
 
-      assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
+      assert {:ok, %Response{}} = DeepLinking.build_response(launch, [item])
     end
 
-    test "allows LTIResourceLink without line_item when accept_line_item is false", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
+    test "allows LTIResourceLink without line_item when accept_line_item is false", %{
+      platform: platform
+    } do
+      launch =
+        Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
         )
 
       {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
 
-      assert {:ok, %Response{}} = DeepLinking.build_response(context, [item])
+      assert {:ok, %Response{}} = DeepLinking.build_response(launch, [item])
     end
   end
 
   describe "build_response/3 presentation target validation" do
     test "rejects presentations not in accept_presentation_document_targets", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_presentation_document_targets: ["iframe"]}
         )
@@ -351,7 +336,7 @@ defmodule Ltix.DeepLinkingTest do
 
     test "accepts items without a presentation when no targets are accepted", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{
             accept_types: ["link", "https://vendor.example.com/poll"],
@@ -370,7 +355,7 @@ defmodule Ltix.DeepLinkingTest do
   describe "build_response/3 media type validation" do
     setup %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_media_types: "image/*, text/html"}
         )
@@ -415,9 +400,9 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response/3 with several violations" do
-    test "returns every violation, identifying each item", %{platform: p} do
-      context =
-        Ltix.Test.build_launch_context(p,
+    test "returns every violation, identifying each item", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
           deep_linking_settings: %{
             accept_types: ["ltiResourceLink"],
@@ -431,7 +416,7 @@ defmodule Ltix.DeepLinkingTest do
       {:ok, file} = File.new(url: "https://example.com/f.pdf")
 
       assert {:error, %Ltix.Errors.Invalid{errors: errors} = error} =
-               DeepLinking.build_response(context, [link, resource, file])
+               DeepLinking.build_response(launch, [link, resource, file])
 
       assert [
                %ContentItemTypeNotAccepted{
@@ -450,7 +435,7 @@ defmodule Ltix.DeepLinkingTest do
 
   describe "build_response/3 malformed items" do
     test "returns an error for a map without a \"type\" key", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
       item = %{url: "https://example.com", type: "link"}
 
       assert {:error, %InvalidContentItem{index: 0, value: ^item} = error} =
@@ -460,7 +445,7 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "returns an error for a type that is not a string", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
 
       assert {:error, %InvalidContentItem{index: 0, value: :link} = error} =
                DeepLinking.build_response(context, [%{"type" => :link}])
@@ -470,7 +455,7 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "returns an error for a value that is not a content item", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
       {:ok, link} = Link.new(url: "https://example.com")
 
       assert {:error, %InvalidContentItem{index: 1, value: "https://example.com"} = error} =
@@ -480,7 +465,7 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "returns an error for items that are not a list", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
       {:ok, link} = Link.new(url: "https://example.com")
 
       assert {:error, %InvalidContentItem{index: nil, value: ^link} = error} =
@@ -490,7 +475,7 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "groups every malformed item", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+      context = Ltix.Test.build_launch(p, message_type: :deep_linking)
 
       assert {:error,
               %Ltix.Errors.Invalid{
@@ -520,20 +505,23 @@ defmodule Ltix.DeepLinkingTest do
       %{ref: ref}
     end
 
-    test "reports the item count and types", %{platform: p, ref: ref} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+    test "reports the item count and types", %{platform: platform, ref: ref} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
       {:ok, link} = Link.new(url: "https://example.com")
       {:ok, image} = Image.new(url: "https://example.com/i.png")
 
-      {:ok, _} = DeepLinking.build_response(context, [link, image, link])
+      {:ok, _} = DeepLinking.build_response(launch, [link, image, link])
 
       assert_received {^ref, :start, %{item_count: 3, item_types: ["link", "image"]}}
       assert_received {^ref, :stop, %{item_count: 3, item_types: ["link", "image"]}}
     end
 
-    test "emits start and stop events for calls that return an error", %{platform: p, ref: ref} do
-      deep_linking = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
-      resource_link = Ltix.Test.build_launch_context(p)
+    test "emits start and stop events for calls that return an error", %{
+      platform: platform,
+      ref: ref
+    } do
+      deep_linking = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      resource_link = Ltix.Test.build_launch(platform)
 
       {:error, _} = DeepLinking.build_response(deep_linking, :not_a_list)
       assert_received {^ref, :start, %{item_count: 0, item_types: []}}
@@ -546,24 +534,24 @@ defmodule Ltix.DeepLinkingTest do
   end
 
   describe "build_response!/3" do
-    test "returns the response", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p, message_type: :deep_linking)
+    test "returns the response", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
 
       assert %Response{return_url: "https://platform.example.com/deep_links"} =
-               DeepLinking.build_response!(context, [], message: "Done")
+               DeepLinking.build_response!(launch, [], message: "Done")
     end
 
-    test "raises the error build_response/3 returns", %{platform: p} do
-      context = Ltix.Test.build_launch_context(p)
+    test "raises the error build_response/3 returns", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform)
 
-      assert_raise InvalidMessageType, fn -> DeepLinking.build_response!(context) end
+      assert_raise InvalidMessageType, fn -> DeepLinking.build_response!(launch) end
     end
   end
 
   describe "build_response/3 round-trip" do
     test "round-trips all content item types plus raw map", %{platform: p} do
       context =
-        Ltix.Test.build_launch_context(p,
+        Ltix.Test.build_launch(p,
           message_type: :deep_linking,
           deep_linking_settings: %{data: "echo-me"}
         )

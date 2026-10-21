@@ -3,9 +3,9 @@ defmodule Ltix.MembershipsMemberPayloadTest do
 
   import Ltix.Test.MembershipsServiceHelper
 
+  alias Ltix.Claims.Context
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
-  alias Ltix.LaunchClaims.Context
 
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member

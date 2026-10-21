@@ -61,7 +61,13 @@ defmodule Ltix.PluginSet do
 
       iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
       iex> Enum.map(plugins.plugins, fn {module, _plugin} -> module end)
-      [Ltix.Core, Ltix.DefaultPlugins]
+      [
+        Ltix.Core,
+        Ltix.DeepLinking,
+        Ltix.GradeService,
+        Ltix.MembershipsService,
+        Ltix.DefaultPlugins
+      ]
 
   Raises `Ltix.Errors.Invalid.InvalidOption` when the list includes a module
   that isn't a plugin, and `ArgumentError` when a plugin's
@@ -93,13 +99,35 @@ defmodule Ltix.PluginSet do
   they implement `Ltix.Ordered`. Returns `[]` when no plugin in the set
   provides `module`.
 
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
-      iex> Ltix.PluginSet.entries(plugins, Ltix.Login)
+      iex> defmodule MyLibrary.Report do
+      ...>   use Ltix.Provider, hook: [Ltix.Step]
+      ...>   defstruct plugins: nil, errors: []
+      ...> end
+      iex> defmodule MyLibrary.CountRows do
+      ...>   use MyLibrary.Report
+      ...>   def call(report, _opts), do: {:ok, report}
+      ...> end
+      iex> defmodule MyLibrary do
+      ...>   @behaviour Ltix.Plugin
+      ...>   def plugin(_opts) do
+      ...>     Ltix.Plugin.new(name: "My Library")
+      ...>     |> Ltix.Plugin.add(MyLibrary.Report)
+      ...>     |> Ltix.Plugin.add(MyLibrary.CountRows)
+      ...>   end
+      ...> end
+      iex> {:ok, plugins} = Ltix.PluginSet.resolve([MyLibrary])
+      iex> Ltix.PluginSet.entries(plugins, MyLibrary.Report)
       [
-        %Ltix.PluginSet.Entry{module: Ltix.Login.CheckParameters, plugin: Ltix.Core},
-        %Ltix.PluginSet.Entry{module: Ltix.Login.LookUpRegistration, plugin: Ltix.Core},
-        %Ltix.PluginSet.Entry{module: Ltix.Login.RegistrationFound, plugin: Ltix.Core},
-        %Ltix.PluginSet.Entry{module: Ltix.Login.BuildAuthenticationRequest, plugin: Ltix.Core}
+        %Ltix.PluginSet.Entry{
+          module: MyLibrary.CountRows,
+          plugin:
+            {MyLibrary,
+             %Ltix.Plugin{
+               name: "My Library",
+               providers: [MyLibrary.Report],
+               entries: [%Ltix.PluginSet.Entry{module: MyLibrary.CountRows}]
+             }}
+        }
       ]
   """
   @spec entries(t(), module()) :: [Entry.t()]
@@ -205,7 +233,7 @@ defmodule Ltix.PluginSet do
   # step that can never run isn't initialized.
   defp provider_extenders(plugins, providers) do
     entries =
-      for {plugin, declaration} <- plugins,
+      for {_module, declaration} = plugin <- plugins,
           entry <- declaration.entries,
           extended = Enum.filter(Provider.extended_providers(entry), &(&1 in providers)),
           extended != [],

@@ -4,8 +4,8 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
   alias Ltix.DeepLinking
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
-  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Test.StorageAdapter
@@ -55,7 +55,8 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
     Ltix.Test.stub_token_response()
 
     endpoints = %{
-      MembershipsService => MembershipsEndpoint.new!("https://platform.example.com/members")
+      MembershipsService =>
+        MembershipsServiceEndpoint.new!("https://platform.example.com/members")
     }
 
     %{
@@ -159,9 +160,9 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
       assert_received {:sign, [tenant: "acme"]}
     end
 
-    test "passes the options from a launch context", ctx do
+    test "passes the options from a launch", ctx do
       context =
-        Ltix.Test.build_launch_context(ctx.platform,
+        Ltix.Test.build_launch(ctx.platform,
           memberships_endpoint: "https://platform.example.com/members"
         )
 
@@ -199,9 +200,9 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
 
   describe "deep linking responses" do
     test "pass the options to the signing callbacks", ctx do
-      context = Ltix.Test.build_launch_context(ctx.platform, message_type: :deep_linking)
+      launch = Ltix.Test.build_launch(ctx.platform, message_type: :deep_linking)
 
-      assert {:ok, _response} = DeepLinking.build_response(context, [], ctx.adapter)
+      assert {:ok, _response} = DeepLinking.build_response(launch, [], ctx.adapter)
       assert_received {:key_id, [tenant: "acme"]}
       assert_received {:sign, [tenant: "acme"]}
     end

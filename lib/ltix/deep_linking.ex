@@ -15,17 +15,23 @@ defmodule Ltix.DeepLinking do
     * `Ltix.DeepLinking.ContentItem.HTMLFragment` - inline HTML to embed
     * `Ltix.DeepLinking.ContentItem.Image` - an image for direct rendering
 
+  `Ltix.DeepLinking` is also the default plugin for Deep Linking 2.0. It
+  declares the `Ltix.DeepLinking.Settings` claim.
+
   See the [Deep Linking](deep-linking.md) guide for the full workflow
   and [Building Content Items](cookbooks/building-content-items.md) for
   recipes.
   """
 
+  @behaviour Ltix.Plugin
+
   alias Ltix.DeepLinking.ContentItem
   alias Ltix.DeepLinking.Response
+  alias Ltix.DeepLinking.Settings
 
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Options
-  alias Ltix.Records
+  alias Ltix.Plugin
   alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
@@ -35,6 +41,8 @@ defmodule Ltix.DeepLinking do
   alias Ltix.Errors.Invalid.LineItemNotAccepted
   alias Ltix.Errors.Invalid.MediaTypeNotAccepted
   alias Ltix.Errors.Invalid.PresentationTargetNotAccepted
+
+  @version Mix.Project.config()[:version]
 
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
   @dl "https://purl.imsglobal.org/spec/lti-dl/claim/"
@@ -56,10 +64,15 @@ defmodule Ltix.DeepLinking do
                     unrecognized_keys: :error
                   )
 
+  @impl Ltix.Plugin
+  def plugin(_opts) do
+    Plugin.add(Plugin.new(name: "LTI Deep Linking 2.0", version: @version), Settings)
+  end
+
   @doc """
   Build a signed Deep Linking response JWT.
 
-  Takes a `LaunchContext` from an `LtiDeepLinkingRequest` launch, a list of
+  Takes an `Ltix.Launch` from an `LtiDeepLinkingRequest` launch, a list of
   content items, and optional message/log fields. Returns a `Response` with
   the signed JWT and the platform's return URL.
 
@@ -76,8 +89,8 @@ defmodule Ltix.DeepLinking do
 
   ## Errors
 
-    * `Ltix.Errors.Invalid.InvalidMessageType` - context is not a deep
-      linking launch
+    * `Ltix.Errors.Invalid.InvalidMessageType` - the launch isn't a Deep
+      Linking request
     * `Ltix.Errors.Invalid.InvalidContentItem` - an item is not a content
       item, has no `"type"` or one that is not a string, or `items` is not a
       list
@@ -104,7 +117,7 @@ defmodule Ltix.DeepLinking do
         title: "Quiz 1"
       )
 
-      {:ok, response} = Ltix.DeepLinking.build_response(context, [link],
+      {:ok, response} = Ltix.DeepLinking.build_response(launch, [link],
         message: "Selected 1 item"
       )
 
@@ -112,9 +125,9 @@ defmodule Ltix.DeepLinking do
 
   See the [Deep Linking](deep-linking.md) guide for the full workflow.
   """
-  @spec build_response(LaunchContext.t(), list(), keyword()) ::
+  @spec build_response(Launch.t(), list(), keyword()) ::
           {:ok, Response.t()} | {:error, Exception.t()}
-  def build_response(context, items \\ [], opts \\ []) do
+  def build_response(launch, items \\ [], opts \\ []) do
     opts = Options.parse!(opts, @options_schema)
     storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
     serialized = serialize_items(items)
@@ -125,7 +138,7 @@ defmodule Ltix.DeepLinking do
     }
 
     :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
-      {build(context, serialized, storage_adapter, opts), metadata}
+      {build(launch, serialized, storage_adapter, opts), metadata}
     end)
   end
 
@@ -134,34 +147,33 @@ defmodule Ltix.DeepLinking do
 
   ## Examples
 
-      response = Ltix.DeepLinking.build_response!(context, [link], message: "Selected 1 item")
+      response = Ltix.DeepLinking.build_response!(launch, [link], message: "Selected 1 item")
   """
-  @spec build_response!(LaunchContext.t(), list(), keyword()) :: Response.t()
-  def build_response!(context, items \\ [], opts \\ []) do
-    case build_response(context, items, opts) do
+  @spec build_response!(Launch.t(), list(), keyword()) :: Response.t()
+  def build_response!(launch, items \\ [], opts \\ []) do
+    case build_response(launch, items, opts) do
       {:ok, response} -> response
       {:error, error} -> raise error
     end
   end
 
   defp build(
-         %LaunchContext{claims: %{message_type: "LtiDeepLinkingRequest"}} = context,
+         %Launch{claims: %{message_type: "LtiDeepLinkingRequest"}} = launch,
          serialized,
          storage_adapter,
          opts
        ) do
-    settings = context.claims.deep_linking_settings
+    settings = launch.claims.deep_linking_settings
 
-    with {:ok, registration} <- Records.convert!(context.registration, :registration),
-         {:ok, deployment} <- Records.convert!(context.deployment, :deployment),
-         {:ok, items_json} <- collect_items(serialized),
+    with {:ok, items_json} <- collect_items(serialized),
          :ok <- validate_items(items_json, settings),
-         claims = build_jwt_claims(registration, deployment, settings, items_json, opts),
+         claims =
+           build_jwt_claims(launch.registration, launch.deployment, settings, items_json, opts),
          # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
          {:ok, jwt} <-
            StorageAdapter.sign_jwt(
              storage_adapter,
-             context.registration,
+             launch.source_registration,
              claims,
              Keyword.fetch!(opts, :storage_adapter_options)
            ) do
@@ -169,7 +181,7 @@ defmodule Ltix.DeepLinking do
     end
   end
 
-  defp build(%LaunchContext{claims: %{message_type: mt}}, _serialized, _storage_adapter, _opts) do
+  defp build(%Launch{claims: %{message_type: mt}}, _serialized, _storage_adapter, _opts) do
     {:error, InvalidMessageType.exception(message_type: mt)}
   end
 

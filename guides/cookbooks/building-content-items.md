@@ -1,12 +1,10 @@
 # Building Content Items
 
-Common content item patterns for deep linking responses. Each section
-shows a self-contained example you can adapt.
+Common content item patterns for deep linking responses. Each section shows a self-contained example you can adapt.
 
 ## LTI resource link
 
-The simplest content item. The platform creates a link that launches
-back into your tool.
+The simplest content item. The platform creates a link that launches back into your tool.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -15,8 +13,7 @@ back into your tool.
 )
 ```
 
-Omit `url` to use the tool's base launch URL configured in the
-platform.
+Omit `url` to use the tool's base launch URL configured in the platform.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -26,8 +23,7 @@ platform.
 
 ## Resource link with a line item
 
-Include a `line_item` so the platform auto-creates a gradebook column.
-You can then post scores to it using the grade service.
+Include a `line_item` to ask the platform to create a line item for the link. The platform can ignore the request. When it creates the line item, post scores to it with the grade service.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -42,17 +38,13 @@ You can then post scores to it using the grade service.
 )
 ```
 
-`score_maximum` is required and must be positive. The `label` defaults
-to the content item's title if omitted, and must not be blank when
-given.
+`score_maximum` is required and must be positive. The `label` defaults to the content item's title if omitted, and must not be blank when given.
 
 `line_item` also accepts an `Ltix.GradeService.LineItem`. Deep linking can only send `label`, `score_maximum`, `resource_id`, `tag`, and `grades_released`, so a line item that sets any other field, such as `id`, returns an error.
 
 ## Resource link with custom properties
 
-Custom properties are sent to your tool on every launch of the
-created link. Pass them as a keyword list or a map with string or atom
-keys. Values must be strings.
+Custom properties are sent to your tool on every launch of the created link. Pass them as a keyword list or a map with string or atom keys. Values must be strings.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -84,13 +76,11 @@ Control when the link is accessible and when submissions are accepted.
 )
 ```
 
-Both fields in each window are optional. You can set just an end time
-and leave the start unset.
+Both fields in each window are optional. You can set just an end time and leave the start unset.
 
 ## External link
 
-For URLs outside your tool. Use `Link` when the resource isn't an LTI
-launch.
+For URLs outside your tool. Use `Link` when the resource isn't an LTI launch.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
@@ -122,8 +112,7 @@ Include embeddable HTML with `embed`.
 
 ## File with expiry
 
-File URLs are expected to be short-lived. Set `expires_at` to send the
-platform the time the URL stops working.
+File URLs are expected to be short-lived. Set `expires_at` to send the platform the time the URL stops working.
 
 ```elixir
 {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(
@@ -152,9 +141,7 @@ Inline HTML the platform embeds directly in its page.
 
 > #### Prefer Link with embed {: .tip}
 >
-> If your HTML renders a single resource that also has a direct URL,
-> use `Link` with an `embed`. This gives the platform both the
-> embeddable HTML and a fallback URL.
+> If your HTML renders a single resource that also has a direct URL, use `Link` with an `embed`. This gives the platform both the embeddable HTML and a fallback URL.
 
 ## Image
 
@@ -185,9 +172,7 @@ Include a thumbnail for list views.
 
 ## Using extensions
 
-Add vendor-specific properties keyed by fully qualified URLs. Extensions
-are merged into the top-level JSON output. A key that is a standard
-field, such as `type` or `url`, returns an error.
+Add vendor-specific properties keyed by fully qualified URLs. Extensions are merged into the top-level JSON output. A key that is a standard field, such as `type` or `url`, returns an error.
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -220,28 +205,25 @@ Pass a list of mixed content item types to `build_response/3`.
   title: "Chapter 3 Reading"
 )
 
-{:ok, response} = Ltix.DeepLinking.build_response(context, [quiz, reading],
+{:ok, response} = Ltix.DeepLinking.build_response(launch, [quiz, reading],
   message: "Added 2 items"
 )
 ```
 
-Check `settings.accept_multiple` before offering multi-select. If
-`accept_multiple` is `false`, `build_response/3` returns a
-`ContentItemsExceedLimit` error for more than one item.
+Check `settings.accept_multiple` before offering multi-select. If `accept_multiple` is `false`, `build_response/3` returns a `ContentItemsExceedLimit` error for more than one item.
 
 ## Returning no items
 
-Return an empty list with a message when the user cancels or an error
-occurs.
+Return an empty list with a message when the user cancels or an error occurs.
 
 ```elixir
 # User cancelled
-{:ok, response} = Ltix.DeepLinking.build_response(context, [],
+{:ok, response} = Ltix.DeepLinking.build_response(launch, [],
   message: "No items selected"
 )
 
 # Something went wrong
-{:ok, response} = Ltix.DeepLinking.build_response(context, [],
+{:ok, response} = Ltix.DeepLinking.build_response(launch, [],
   error_message: "Could not load available activities",
   error_log: "ActivityService returned 503"
 )

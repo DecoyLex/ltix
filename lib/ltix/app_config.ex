@@ -1,8 +1,6 @@
 defmodule Ltix.AppConfig do
   @moduledoc false
 
-  alias Ltix.LaunchClaims
-
   @json_library (cond do
                    Application.compile_env(:ltix, :json_library) ->
                      Application.compile_env(:ltix, :json_library)
@@ -26,10 +24,6 @@ defmodule Ltix.AppConfig do
 
   def json_library! do
     @json_library
-  end
-
-  def claims_parsers! do
-    Application.get_env(:ltix, LaunchClaims, [])[:claim_parsers] || %{}
   end
 
   def plugins do

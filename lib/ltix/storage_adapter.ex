@@ -9,10 +9,10 @@ defmodule Ltix.StorageAdapter do
   ## Returning your own structs
 
   `c:get_registration/3` and `c:get_deployment/3` can return any struct that
-  implements `Ltix.Registerable` or `Ltix.Deployable`. Your struct is
-  passed through to the `Ltix.LaunchContext` after a successful launch,
-  so you can access your own fields (database IDs, tenant info, etc.)
-  without an extra query.
+  implements `Ltix.Registerable` or `Ltix.Deployable`. A launch has your
+  structs in `source_registration` and `source_deployment`, and a login has
+  your registration struct in `source_registration`. Read your own fields,
+  such as database IDs, from them without another query.
 
   During a launch, `c:get_deployment/3` and `c:validate_nonce/4` receive the
   struct `c:get_registration/3` returned. `c:key_id/2` and `c:sign/4` receive
@@ -104,7 +104,7 @@ defmodule Ltix.StorageAdapter do
 
   Return any struct that implements `Ltix.Registerable`. The library
   extracts the `Ltix.Registration` it needs via the protocol and
-  preserves your original struct in the `Ltix.LaunchContext`.
+  preserves your original struct in the `Ltix.Launch`.
 
   Return `{:error, :not_found}` when no registration matches, and the login
   or launch returns `Ltix.Errors.Invalid.RegistrationNotFound`.
@@ -125,7 +125,7 @@ defmodule Ltix.StorageAdapter do
 
   Return any struct that implements `Ltix.Deployable`. The library
   validates it via the protocol and preserves your original struct
-  in the `Ltix.LaunchContext`. A deployment with a different
+  in the `Ltix.Launch`. A deployment with a different
   `deployment_id` fails the launch with `Ltix.Errors.Unknown.StorageError`.
 
   Return `{:error, :not_found}` when no deployment matches, and the launch
@@ -224,9 +224,10 @@ defmodule Ltix.StorageAdapter do
     end
   end
 
+  # Returns the adapter's record and the `Ltix.Deployment` converted from it.
   @doc false
   @spec get_deployment(module(), Registerable.t(), String.t(), keyword()) ::
-          {:ok, Deployable.t()} | {:error, Exception.t()}
+          {:ok, Deployable.t(), Deployment.t()} | {:error, Exception.t()}
   def get_deployment(adapter, registration, deployment_id, opts) do
     case adapter.get_deployment(registration, deployment_id, opts) do
       {:ok, deployment} ->
@@ -243,8 +244,8 @@ defmodule Ltix.StorageAdapter do
   # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
   defp check_deployment_id(deployment, deployment_id) do
     case convert(:get_deployment, deployment, :deployment) do
-      {:ok, %Deployment{deployment_id: ^deployment_id}} ->
-        {:ok, deployment}
+      {:ok, %Deployment{deployment_id: ^deployment_id} = resolved} ->
+        {:ok, deployment, resolved}
 
       {:ok, %Deployment{deployment_id: other_deployment_id}} ->
         {:error,

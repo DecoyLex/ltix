@@ -2,7 +2,7 @@ defmodule Ltix.Integration.FullLaunchTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Deployment
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Registration
   alias Ltix.Test.StorageAdapter
 
@@ -49,14 +49,14 @@ defmodule Ltix.Integration.FullLaunchTest do
 
   # [Sec §5.1.1](https://www.imsglobal.org/spec/security/v1p0/#openid_connect_launch_flow)
   describe "complete launch flow [Sec §5.1.1]" do
-    test "login → callback → LaunchContext", ctx do
+    test "login → callback → Launch", ctx do
       {:ok, login_result} = do_login()
 
       nonce = extract_nonce(login_result.redirect_uri)
       claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => nonce})
       id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:ok, %LaunchContext{} = launch} =
+      assert {:ok, %Launch{} = launch} =
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,
@@ -84,7 +84,7 @@ defmodule Ltix.Integration.FullLaunchTest do
 
       id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
-      assert {:ok, %LaunchContext{} = launch} =
+      assert {:ok, %Launch{} = launch} =
                Ltix.handle_callback(
                  %{"id_token" => id_token, "state" => login_result.state},
                  login_result.state,

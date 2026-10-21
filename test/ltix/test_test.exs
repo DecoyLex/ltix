@@ -1,26 +1,29 @@
 defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
+  alias Ltix.Claims.Context
+  alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.GradeService
+  alias Ltix.GradeService.Endpoint, as: GradeServiceEndpoint
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
   alias Ltix.JWT.Token
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchClaims.Context
-  alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.Role
   alias Ltix.Test.StorageAdapter
+  alias TestPlugins.Modules
 
   @launch_url "https://tool.example.com/launch"
 
@@ -41,7 +44,7 @@ defmodule Ltix.TestTest do
             fn -> Ltix.Test.setup_platform!(unknown: true) end,
             fn -> Ltix.Test.login_params(platform, unknown: true) end,
             fn -> Ltix.Test.launch_params(platform, nonce: "n", state: "s", unknown: true) end,
-            fn -> Ltix.Test.build_launch_context(platform, unknown: true) end,
+            fn -> Ltix.Test.build_launch(platform, unknown: true) end,
             fn -> Ltix.Test.stub_token_response(unknown: true) end,
             fn -> Ltix.Test.stub_list_members([], unknown: true) end,
             fn -> Ltix.Test.sign_id_token(%{}, platform.jwk, unknown: true) end,
@@ -107,7 +110,7 @@ defmodule Ltix.TestTest do
     end
   end
 
-  describe "launch options shared by launch_params/2 and build_launch_context/2" do
+  describe "launch options shared by launch_params/2 and build_launch/2" do
     @custom_role "http://example.com/roles#Grader"
     @course_type "http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"
     @ags_scope "https://purl.imsglobal.org/spec/lti-ags/scope/score"
@@ -129,113 +132,161 @@ defmodule Ltix.TestTest do
             ],
             [claims: %{"https://purl.imsglobal.org/spec/lti/claim/custom" => %{"a" => "b"}}]
           ] do
-        assert comparable(launch_context(platform, opts)) ==
-                 comparable(Ltix.Test.build_launch_context(platform, opts)),
+        assert comparable(launch(platform, opts)) ==
+                 comparable(Ltix.Test.build_launch(platform, opts)),
                "claims differ for #{inspect(opts)}"
       end
     end
 
     test "default to an instructor with a subject and context", %{platform: platform} do
-      for context <- [launch_context(platform, []), Ltix.Test.build_launch_context(platform)] do
-        assert Role.instructor?(context.claims.roles)
-        assert context.claims.subject == "user-12345"
-        assert context.claims.context.id == "context-001"
+      for launch <- [launch(platform, []), Ltix.Test.build_launch(platform)] do
+        assert Role.instructor?(launch.claims.roles)
+        assert launch.claims.subject == "user-12345"
+        assert launch.claims.context.id == "context-001"
       end
     end
 
     test "set the subject", %{platform: platform} do
-      context = Ltix.Test.build_launch_context(platform, subject: "student-1")
+      launch = Ltix.Test.build_launch(platform, subject: "student-1")
 
-      assert context.claims.subject == "student-1"
+      assert launch.claims.subject == "student-1"
     end
 
     test "take the context as a struct", %{platform: platform} do
-      context =
-        Ltix.Test.build_launch_context(platform,
+      launch =
+        Ltix.Test.build_launch(platform,
           context: %Context{id: "course-2", title: "Elixir"}
         )
 
-      assert context.claims.context.id == "course-2"
-      assert context.claims.context.title == "Elixir"
+      assert launch.claims.context.id == "course-2"
+      assert launch.claims.context.title == "Elixir"
     end
 
     test "set the resource link", %{platform: platform} do
-      context =
-        Ltix.Test.build_launch_context(platform,
+      launch =
+        Ltix.Test.build_launch(platform,
           resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}
         )
 
-      assert context.claims.resource_link.id == "quiz-1"
-      assert context.claims.resource_link.title == "Quiz"
-      assert context.claims.resource_link.description == "First quiz"
+      assert launch.claims.resource_link.id == "quiz-1"
+      assert launch.claims.resource_link.title == "Quiz"
+      assert launch.claims.resource_link.description == "First quiz"
     end
 
     test "set deep linking settings over the defaults", %{platform: platform} do
-      context =
-        Ltix.Test.build_launch_context(platform,
+      launch =
+        Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
           deep_linking_settings: %{accept_line_item: true, accept_multiple: false}
         )
 
-      assert context.claims.deep_linking_settings.accept_line_item == true
-      assert context.claims.deep_linking_settings.accept_multiple == false
+      assert launch.claims.deep_linking_settings.accept_line_item == true
+      assert launch.claims.deep_linking_settings.accept_multiple == false
     end
 
     test "set the grade service endpoint", %{platform: platform} do
-      context =
-        Ltix.Test.build_launch_context(platform,
+      launch =
+        Ltix.Test.build_launch(platform,
           ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}
         )
 
-      assert context.claims.ags_endpoint.line_item == "https://lms.example.com/items/1"
-      assert context.claims.ags_endpoint.scopes == [@ags_scope]
+      assert launch.claims.ags_endpoint.line_item == "https://lms.example.com/items/1"
+      assert launch.claims.ags_endpoint.scopes == [@ags_scope]
     end
 
     test "take the memberships endpoint as a map", %{platform: platform} do
-      context =
-        Ltix.Test.build_launch_context(platform,
+      launch =
+        Ltix.Test.build_launch(platform,
           memberships_endpoint: %{
             context_memberships_url: "https://lms.example.com/memberships",
             service_versions: ["1.0", "2.0"]
           }
         )
 
-      assert context.claims.memberships_endpoint.context_memberships_url ==
+      assert launch.claims.memberships_endpoint.context_memberships_url ==
                "https://lms.example.com/memberships"
 
-      assert context.claims.memberships_endpoint.service_versions == ["1.0", "2.0"]
+      assert launch.claims.memberships_endpoint.service_versions == ["1.0", "2.0"]
     end
 
     test "subject: nil makes an anonymous launch", %{platform: platform} do
-      context =
-        Ltix.Test.build_launch_context(platform, message_type: :deep_linking, subject: nil)
+      launch =
+        Ltix.Test.build_launch(platform, message_type: :deep_linking, subject: nil)
 
-      assert context.claims.subject == nil
+      assert launch.claims.subject == nil
+    end
+
+    test "build_launch runs the launch's steps after the claims are parsed", %{platform: platform} do
+      plugins = [{Modules, add: [TestPlugins.Traced, TestPlugins.ReadClaims]}]
+
+      launch =
+        Ltix.Test.build_launch(platform,
+          claims: %{"https://tool.example.com/claim/traced" => "value"},
+          plugins: plugins
+        )
+
+      assert launch.claims.traced == "value"
+      assert_received {:claims, %{traced: "value"}}
+      assert {:ok, launch.plugins} == Ltix.PluginSet.resolve(plugins)
+    end
+
+    test "build_launch runs plugin steps ordered before the claims are parsed",
+         %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
+          plugins: [{Modules, add: [TestPlugins.AddTenant]}]
+        )
+
+      assert launch.claims.tenant == "acme"
+    end
+
+    test "build_launch sets the deployment after Ltix.Launch.Validated", %{platform: platform} do
+      steps = [{TestPlugins.ReadVerified, pid: self()}, {TestPlugins.ReadLast, pid: self()}]
+
+      Ltix.Test.build_launch(platform, plugins: [{Modules, add: steps}])
+
+      assert_received {:verified, %Launch{deployment: nil, source_deployment: nil}}
+      assert_received {:last, last}
+      assert last.deployment == platform.deployment
+      assert last.source_deployment == platform.deployment
+    end
+
+    test "build_launch checks the claims the message type requires", %{platform: platform} do
+      assert_raise MissingClaim, ~r/sub/, fn -> Ltix.Test.build_launch(platform, subject: nil) end
+
+      launch = Ltix.Test.build_launch(platform, subject: nil, allow_anonymous: true)
+      assert launch.claims.subject == nil
+
+      assert_raise InvalidClaim, ~r/resource_link/, fn ->
+        Ltix.Test.build_launch(platform,
+          claims: %{"https://purl.imsglobal.org/spec/lti/claim/resource_link" => 1}
+        )
+      end
     end
 
     test "claims override the built claims", %{platform: platform} do
-      context = Ltix.Test.build_launch_context(platform, claims: %{"sub" => "override"})
+      launch = Ltix.Test.build_launch(platform, claims: %{"sub" => "override"})
 
-      assert context.claims.subject == "override"
+      assert launch.claims.subject == "override"
     end
 
     test "a launch with service endpoints authenticates both services", %{platform: platform} do
       Ltix.Test.stub_token_response()
 
-      context =
-        launch_context(platform,
+      launch =
+        launch(platform,
           ags_endpoint: %{line_items: "https://lms.example.com/items", scopes: [@ags_scope]},
           memberships_endpoint: "https://lms.example.com/memberships"
         )
 
       opts = [req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]]
 
-      assert {:ok, grade_client} = Ltix.GradeService.authenticate(context, opts)
+      assert {:ok, grade_client} = Ltix.GradeService.authenticate(launch, opts)
 
       assert grade_client.endpoints[Ltix.GradeService].line_items ==
                "https://lms.example.com/items"
 
-      assert {:ok, memberships_client} = Ltix.MembershipsService.authenticate(context, opts)
+      assert {:ok, memberships_client} = Ltix.MembershipsService.authenticate(launch, opts)
 
       assert memberships_client.endpoints[Ltix.MembershipsService].context_memberships_url ==
                "https://lms.example.com/memberships"
@@ -247,7 +298,7 @@ defmodule Ltix.TestTest do
             {[memberships_endpoint: "http://lms.example.com/memberships"], ~r"HTTPS"}
           ] do
         assert_raise InvalidField, message, fn ->
-          Ltix.Test.build_launch_context(platform, opts)
+          Ltix.Test.build_launch(platform, opts)
         end
       end
     end
@@ -264,14 +315,14 @@ defmodule Ltix.TestTest do
           ] do
         error =
           assert_raise InvalidOption, fn ->
-            Ltix.Test.build_launch_context(platform, [{key, value}])
+            Ltix.Test.build_launch(platform, [{key, value}])
           end
 
         assert %{key: ^key, value: ^value} = error
       end
 
       assert_raise InvalidOption, ~r/Option :roles is invalid/, fn ->
-        Ltix.Test.build_launch_context(platform, roles: [:instructor])
+        Ltix.Test.build_launch(platform, roles: [:instructor])
       end
     end
   end
@@ -295,7 +346,7 @@ defmodule Ltix.TestTest do
         {:ok, login_result} = do_login(platform)
         nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
 
-        assert {:ok, %LaunchContext{}} = do_callback(platform, login_result, nonce, [])
+        assert {:ok, %Launch{}} = do_callback(platform, login_result, nonce, [])
       end
     end
   end
@@ -352,24 +403,22 @@ defmodule Ltix.TestTest do
         params =
           Map.put(Ltix.Test.login_params(platform), "client_id", platform.registration.client_id)
 
-        {:ok, login_result} =
-          Ltix.handle_login(params, @launch_url, storage_adapter: StorageAdapter)
+        {:ok, login} = Ltix.handle_login(params, @launch_url)
 
-        nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+        params =
+          Ltix.Test.launch_params(platform, nonce: LaunchFlow.nonce(login), state: login.state)
 
-        assert {:ok, %LaunchContext{}} = do_callback(platform, login_result, nonce, [])
+        assert {:ok, %Launch{}} = LaunchFlow.callback(params, login.state)
       end
     end
 
     test "is available to processes the test starts", %{platform: platform} do
       task =
         Task.async(fn ->
-          {:ok, login_result} = do_login(platform)
-          nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-          do_callback(platform, login_result, nonce, [])
+          LaunchFlow.launch(platform)
         end)
 
-      assert {:ok, %LaunchContext{}} = Task.await(task)
+      assert {:ok, %Launch{}} = Task.await(task)
     end
 
     test "resolves registrations given without a deployment" do
@@ -387,15 +436,12 @@ defmodule Ltix.TestTest do
 
   describe "setup_platform!/1 with custom structs" do
     setup do
-      registration = %CustomRegistration{
-        id: "reg-uuid-001",
-        tenant_id: "tenant-1",
-        platform_issuer: "https://custom-lms.example.com",
-        oauth_client_id: "custom-tool-client",
-        oidc_auth_url: "https://custom-lms.example.com/auth",
-        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token"
-      }
+      registration =
+        CustomRegistration.new(
+          id: "reg-uuid-001",
+          platform_issuer: "https://custom-lms.example.com",
+          oauth_client_id: "custom-tool-client"
+        )
 
       deployment = %CustomDeployment{
         id: "dep-uuid-001",
@@ -437,16 +483,16 @@ defmodule Ltix.TestTest do
                    end
     end
 
-    test "build_launch_context returns the custom structs",
+    test "build_launch returns the custom structs",
          %{custom_registration: reg, custom_deployment: dep} do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
-      context = Ltix.Test.build_launch_context(platform, roles: [Role.context_instructor()])
+      launch = Ltix.Test.build_launch(platform, roles: [Role.context_instructor()])
 
-      assert %CustomRegistration{id: "reg-uuid-001"} = context.registration
-      assert %CustomDeployment{id: "dep-uuid-001"} = context.deployment
-      assert context.claims.issuer == "https://custom-lms.example.com"
-      assert context.claims.audience == "custom-tool-client"
-      assert context.claims.deployment_id == "custom-dep-001"
+      assert %CustomRegistration{id: "reg-uuid-001"} = launch.source_registration
+      assert %CustomDeployment{id: "dep-uuid-001"} = launch.source_deployment
+      assert launch.claims.issuer == "https://custom-lms.example.com"
+      assert launch.claims.audience == "custom-tool-client"
+      assert launch.claims.deployment_id == "custom-dep-001"
     end
 
     test "full OIDC flow returns the custom structs",
@@ -463,8 +509,8 @@ defmodule Ltix.TestTest do
 
       {:ok, context} = do_callback(platform, login_result, nonce, [])
 
-      assert %CustomRegistration{id: "reg-uuid-001"} = context.registration
-      assert %CustomDeployment{id: "dep-uuid-001"} = context.deployment
+      assert %CustomRegistration{id: "reg-uuid-001"} = context.source_registration
+      assert %CustomDeployment{id: "dep-uuid-001"} = context.source_deployment
     end
   end
 
@@ -515,8 +561,8 @@ defmodule Ltix.TestTest do
     end
 
     test "returns SignatureInvalid for malformed tokens", %{platform: platform} do
-      context = Ltix.Test.build_launch_context(platform, message_type: :deep_linking)
-      {:ok, response} = Ltix.DeepLinking.build_response(context)
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+      {:ok, response} = Ltix.DeepLinking.build_response(launch)
 
       for token <- [
             response.jwt <> "tampered",
@@ -817,7 +863,7 @@ defmodule Ltix.TestTest do
     build_client(
       platform,
       GradeService,
-      %AGSEndpoint{
+      %GradeServiceEndpoint{
         line_items: "https://lms.example.com/lineitems",
         line_item: "https://lms.example.com/lineitems/1",
         scopes: scopes
@@ -830,7 +876,7 @@ defmodule Ltix.TestTest do
     build_client(
       platform,
       Ltix.MembershipsService,
-      MembershipsEndpoint.new!("https://lms.example.com/memberships"),
+      MembershipsServiceEndpoint.new!("https://lms.example.com/memberships"),
       ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
     )
   end
@@ -849,7 +895,7 @@ defmodule Ltix.TestTest do
     }
   end
 
-  defp launch_context(platform, opts) do
+  defp launch(platform, opts) do
     {:ok, login_result} = do_login(platform)
     nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
     {:ok, context} = do_callback(platform, login_result, nonce, opts)
@@ -857,9 +903,8 @@ defmodule Ltix.TestTest do
   end
 
   # Launch time fields differ between two launches.
-  defp comparable(%LaunchContext{claims: claims}) do
-    %{claims | nonce: nil, expires_at: nil, issued_at: nil}
-  end
+  defp comparable(%Launch{claims: claims}),
+    do: Map.drop(claims, [:nonce, :expires_at, :issued_at])
 
   defp verify_token(token, platform) do
     Token.verify(token, platform.registration, req_options: [plug: {Req.Test, Ltix.JWT.KeySet}])

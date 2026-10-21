@@ -30,22 +30,6 @@ defmodule Ltix.Options do
       raise InvalidOption, key: key, reason: :not_configured
   end
 
-  # Returns a parser as a function, accepting a module that exports `parse/1`
-  # or a 1-arity function. Raises `InvalidOption` for `key` otherwise.
-  @spec parser_function!(module() | (term() -> term()), atom()) :: (term() -> term())
-  def parser_function!(parser, _key) when is_function(parser, 1), do: parser
-
-  def parser_function!(parser, key) do
-    if is_atom(parser) and Code.ensure_loaded?(parser) and function_exported?(parser, :parse, 1) do
-      &parser.parse/1
-    else
-      raise InvalidOption,
-        key: key,
-        value: parser,
-        reason: "parsers must be modules implementing parse/1 or 1-arity functions"
-    end
-  end
-
   # Returns a keyword list option value as a map. Other values are returned
   # unchanged.
   @spec keyword_to_map(term()) :: term()

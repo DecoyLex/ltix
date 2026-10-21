@@ -10,6 +10,10 @@ defmodule Ltix.Login.RegistrationFound do
 
   `:errors` has only the errors that steps returned with `{:error, exception}`.
   A login with errors makes `Ltix.handle_login/3` return an error.
+
+  The login request isn't signed, so anyone can send any parameters. Repeat a
+  check that controls access in a launch step ordered after
+  `Ltix.Launch.Verified`.
   """
   use Ltix.Login
 

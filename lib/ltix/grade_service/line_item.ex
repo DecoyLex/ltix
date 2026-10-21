@@ -24,7 +24,6 @@ defmodule Ltix.GradeService.LineItem do
 
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Extensions
-  alias Ltix.LaunchClaims.ClaimHelpers
 
   defstruct [
     :id,
@@ -86,24 +85,19 @@ defmodule Ltix.GradeService.LineItem do
     "gradesReleased" => :grades_released
   }
 
-  @json_schema ClaimHelpers.rename_claims(
-                 Zoi.struct(
-                   __MODULE__,
-                   %{
-                     id: Zoi.string() |> ClaimHelpers.optional(),
-                     label: Zoi.string() |> ClaimHelpers.optional(),
-                     score_maximum: Zoi.number() |> ClaimHelpers.optional(),
-                     resource_link_id: Zoi.string() |> ClaimHelpers.optional(),
-                     resource_id: Zoi.string() |> ClaimHelpers.optional(),
-                     tag: Zoi.string() |> ClaimHelpers.optional(),
-                     start_date_time: ClaimHelpers.optional(@date_time_schema),
-                     end_date_time: ClaimHelpers.optional(@date_time_schema),
-                     grades_released: Zoi.boolean() |> ClaimHelpers.optional()
-                   },
-                   coerce: true
-                 ),
-                 Map.reject(@known_keys, fn {key, field} -> key == Atom.to_string(field) end)
-               )
+  @field_schemas %{
+    id: Zoi.string(),
+    label: Zoi.string(),
+    score_maximum: Zoi.number(),
+    resource_link_id: Zoi.string(),
+    resource_id: Zoi.string(),
+    tag: Zoi.string(),
+    start_date_time: @date_time_schema,
+    end_date_time: @date_time_schema,
+    grades_released: Zoi.boolean()
+  }
+
+  @json_fields for {key, field} <- @known_keys, do: {field, key, @field_schemas[field], false}
 
   @doc """
   Parse a line item from a decoded JSON map.
@@ -121,9 +115,9 @@ defmodule Ltix.GradeService.LineItem do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    with {:ok, item} <- ClaimHelpers.from_json(@json_schema, json, nil) do
-      {:ok, %{item | extensions: Map.drop(json, Map.keys(@known_keys))}}
-    end
+    # Every field is optional, so parsing never fails.
+    {:ok, fields, unrecognized} = Ltix.Type.parse_fields(@json_fields, json, [])
+    {:ok, struct!(__MODULE__, [{:extensions, unrecognized} | fields])}
   end
 
   @doc """

@@ -11,7 +11,8 @@ defmodule Ltix.PluginSet.Conflict do
       }
 
   The message of `Ltix.Errors.Unknown.InvalidPluginSet` lists each party's
-  module and plugin, or only its plugin for an anonymous step.
+  module and plugin, or what an anonymous party is and its plugin, such as
+  "an anonymous claim of My Library".
 
   ## Fields
 

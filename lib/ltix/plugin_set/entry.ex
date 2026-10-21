@@ -7,11 +7,13 @@ defmodule Ltix.PluginSet.Entry do
 
   ## Fields
 
-    * `:module` - the module the plugin added, or `Ltix.Step` for an anonymous
-      step
+    * `:module` - the module the plugin added. The module of an anonymous
+      entry extends nothing, such as `Ltix.Step` for an anonymous step and
+      `Ltix.Claim` for an anonymous claim.
     * `:opts` - the options the plugin added it with. A step's options are what
       its `c:Ltix.Step.init/1` returned.
-    * `:plugin` - the plugin that added it
+    * `:plugin` - the plugin that added it, as a `{module, %Ltix.Plugin{}}`
+      pair from `Ltix.PluginSet`'s `:plugins`
     * `:orders` - the orders that
       [calls such as `Ltix.Login.run_after/3`](`m:Ltix.Ordered#module-order-the-steps-a-plugin-adds`)
       around it give, innermost first, such as
@@ -27,7 +29,7 @@ defmodule Ltix.PluginSet.Entry do
   @type t :: %__MODULE__{
           module: module(),
           opts: term(),
-          plugin: module() | nil,
+          plugin: {module(), Ltix.Plugin.t()} | nil,
           orders: [order()]
         }
 

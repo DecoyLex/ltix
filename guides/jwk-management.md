@@ -1,15 +1,10 @@
 # JWK Management
 
-Requesting an access token for Advantage services requires a signed
-JWT assertion, which means your tool needs an RSA signing key. This guide covers generating keys, serving a key set endpoint, and rotating keys.
+Requesting an access token for Advantage services requires a signed JWT assertion, which means your tool needs an RSA signing key. This guide covers generating keys, serving a key set endpoint, and rotating keys.
 
 > #### Leaked keys let attackers impersonate your tool {: .warning}
 >
-> Your private key signs the OAuth assertions that prove your tool's
-> identity to platforms. If an attacker obtains it, they can request
-> access tokens and call platform APIs as your tool, accessing roster
-> data, posting grades, or reading course content. Never commit key
-> material to version control, log it, or expose it via API responses.
+> Your private key signs the OAuth assertions that prove your tool's identity to platforms. If an attacker obtains it, they can request access tokens and call Advantage services as your tool, accessing roster data, posting grades, or reading a context's content. Never commit key material to version control, log it, or expose it via API responses.
 
 ## Generating a key
 
@@ -17,15 +12,9 @@ JWT assertion, which means your tool needs an RSA signing key. This guide covers
 jwk = Ltix.JWK.generate()
 ```
 
-Store `kid`, `public_key_pem`, and `private_key_pem` in your database or
-config, and encrypt the private key wherever you keep it. To reconstruct the
-struct later, pass `kid` and one of the keys to `Ltix.JWK.new/1` or
-`Ltix.JWK.new!/1`. A missing, invalid, or unknown field returns an
-`Ltix.Errors.Invalid.InvalidField` error, and several bad fields are
-returned together in an `Ltix.Errors.Invalid` error.
+Store `kid`, `public_key_pem`, and `private_key_pem` in your database or configuration, and encrypt the private key wherever you keep it. To reconstruct the struct later, pass `kid` and one of the keys to `Ltix.JWK.new/1` or `Ltix.JWK.new!/1`. A missing, invalid, or unknown field returns an `Ltix.Errors.Invalid.InvalidField` error, and several bad fields are returned together in an `Ltix.Errors.Invalid` error.
 
-Use a separate key per registration so you can rotate them
-independently.
+Use a separate key per registration so you can rotate them independently.
 
 ## Signing with a key
 
@@ -50,13 +39,9 @@ A key in a key management service does not have to be exported. Call the service
 
 ## Serving a key set endpoint
 
-Platforms fetch your public keys to verify your tool's signed
-assertions. You provide the key set endpoint URL during tool
-registration.
+Platforms fetch your public keys to verify your tool's signed assertions. You provide the key set endpoint URL during tool registration.
 
-Each key has a unique `kid`, so platforms match signatures to the
-correct key automatically. Serve the endpoint with `to_jwks/1`, which
-returns a key set map with only the public keys.
+Each key has a unique `kid`, so platforms match signatures to the correct key automatically. Serve the endpoint with `to_jwks/1`, which returns a key set map with only the public keys.
 
 ```elixir
 def jwks(conn, _params) do
@@ -64,26 +49,19 @@ def jwks(conn, _params) do
 end
 ```
 
-A JWK built from a public key is enough for this. Store each key's
-`public_key_pem` and build the JWKs for the endpoint from that.
+A JWK built from a public key is enough for this. Store each key's `public_key_pem` and build the JWKs for the endpoint from that.
 
 ```elixir
 Ltix.JWK.new!(public_key_pem: key.public_key_pem, kid: key.kid)
 ```
 
-`Ltix.JWK.new/1` also takes a public key as a DER binary or a JWK map,
-which are the formats key management services return.
+`Ltix.JWK.new/1` also takes a public key as a DER binary or a JWK map, which are the formats key management services return.
 
-For tools with a single registration, you can hard-code a single key.
-For tools managing multiple registrations, see the
-[Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) cookbook for a
-database-backed approach with key rotation.
+For tools with a single registration, you can hard-code a single key. For tools managing multiple registrations, see the [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) cookbook for a database-backed approach with key rotation.
 
 ## Key rotation
 
-When you rotate a key, your key set endpoint must continue serving the
-old public key until platforms have refreshed their cache. A typical
-overlap period is 24-48 hours.
+When you rotate a key, serve the new public key from your key set endpoint and wait for platforms to refresh their cache before you sign with it. A typical overlap period is 24-48 hours.
 
 The rotation sequence has four steps.
 
@@ -92,8 +70,7 @@ The rotation sequence has four steps.
 3. Serve both old and new public keys from your key set endpoint
 4. After the overlap period, stop serving the old key
 
-During the overlap, `to_jwks/1` accepts a list, so serving both keys
-is straightforward.
+During the overlap, `to_jwks/1` accepts a list, so serving both keys is straightforward.
 
 ```elixir
 Ltix.JWK.to_jwks([old_jwk, new_jwk])
@@ -101,10 +78,7 @@ Ltix.JWK.to_jwks([old_jwk, new_jwk])
 
 ## Next steps
 
-- [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) - database
-  storage, key set controller, and automated rotation
-- [Advantage Services](advantage-services.md) - how keys are used
-  in service authentication
-- [Storage Adapters](storage-adapters.md) - the callbacks that sign
-  with your keys
+- [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) - database storage, key set controller, and automated rotation
+- [Advantage Services](advantage-services.md) - how keys are used in service authentication
+- [Storage Adapters](storage-adapters.md) - the callbacks that sign with your keys
 - `Ltix.JWK` - API reference

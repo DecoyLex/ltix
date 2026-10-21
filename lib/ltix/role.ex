@@ -2,16 +2,16 @@ defmodule Ltix.Role do
   @moduledoc """
   Role URIs, checks, and filters for the roles in a launch or a roster.
 
-  Platforms send each role as a URI. `context.claims.roles` and
-  `member.roles` have the URIs as sent. The checks cover the common
-  questions about a user's roles.
+  The checks and filters take a list of roles, such as `launch.claims.roles` or
+  `member.roles`. Core defines the standard roles in its
+  [role vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies).
 
-      Ltix.Role.instructor?(context.claims.roles)
+      Ltix.Role.instructor?(launch.claims.roles)
       Ltix.Role.learner?(member.roles)
 
   Use `has?/2` with a constant to check for one role.
 
-      Ltix.Role.has?(context.claims.roles, Ltix.Role.system_test_user())
+      Ltix.Role.has?(launch.claims.roles, Ltix.Role.system_test_user())
 
   [Working with Roles](working-with-roles.md) covers authorization and how
   platforms differ.

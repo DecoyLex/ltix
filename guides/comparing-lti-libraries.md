@@ -1,8 +1,6 @@
 # Comparing Elixir LTI Libraries
 
-Elixir's LTI ecosystem is small. If you need LTI 1.3 support, there are
-two real options, Ltix and `lti_1p3`. This guide compares their design
-philosophies so you can choose the right fit for your project.
+Elixir's LTI ecosystem is small. If you need LTI 1.3 support, there are two real options, Ltix and `lti_1p3`. This guide compares their design philosophies so you can choose the right fit for your project.
 
 ## Landscape
 
@@ -14,30 +12,17 @@ philosophies so you can choose the right fit for your project.
 | `plug_lti` | 1.x | Unmaintained | Not on Hex |
 | `lightbulb` | 1.3 | Active (Gleam, not Elixir) | ~370 |
 
-[`lti_1p3`](https://hex.pm/packages/lti_1p3) comes from the
-Simon Initiative at Carnegie Mellon University. It was generously
-extracted from [OLI Torus](https://github.com/Simon-Initiative/oli-torus),
-a large Phoenix/LiveView learning platform, and has been in production
-since 2021. The same team maintains `lightbulb`, a Gleam LTI library
-targeting the BEAM.
+[`lti_1p3`](https://hex.pm/packages/lti_1p3) comes from the Simon Initiative at Carnegie Mellon University. It was generously extracted from [OLI Torus](https://github.com/Simon-Initiative/oli-torus), a large Phoenix/LiveView learning platform, and has been in production since 2021. The same team maintains `lightbulb`, a Gleam LTI library targeting the BEAM.
 
-Ltix would not exist without `lti_1p3`. It was written after extensive
-experience building tools on top of `lti_1p3` and reflects lessons
-learned about what a tool-focused LTI library could look like when
-designed from scratch.
+Ltix would not exist without `lti_1p3`. It was written after extensive experience building tools on top of `lti_1p3` and reflects lessons learned about what a tool-focused LTI library could look like when designed from scratch.
 
 ## Different starting points
 
 The libraries come from different contexts, which shaped their designs.
 
-**`lti_1p3`** was extracted from a production learning platform. It supports both the
-platform and tool sides of LTI, includes database-backed storage with
-Ecto schemas, and reflects the needs of a large application that manages
-its own registrations, JWKs, and platform instances.
+**`lti_1p3`** was extracted from a production learning platform. It supports both the platform and tool sides of LTI, includes database-backed storage with Ecto schemas, and reflects the needs of a large application that manages its own registrations, JWKs, and platform instances.
 
-**Ltix** was designed as a standalone library for tool developers. It
-focuses on the tool side only, keeps storage abstract, and tries to
-minimize the surface area an application needs to implement.
+**Ltix** was designed as a standalone library for tool developers. It focuses on the tool side only, keeps storage abstract, and asks an application to implement as little as possible.
 
 Neither approach is wrong. They serve different audiences.
 
@@ -45,8 +30,7 @@ Neither approach is wrong. They serve different audiences.
 
 ### Launch flow
 
-Both libraries handle the three-step OIDC launch. The main difference
-is how claims are returned.
+Both libraries handle the three-step OIDC launch. The main difference is how claims are returned.
 
 **Ltix** parses claims into typed structs during validation.
 
@@ -54,15 +38,14 @@ is how claims are returned.
 {:ok, %{redirect_uri: url, state: state}} =
   Ltix.handle_login(params, launch_url)
 
-{:ok, context} = Ltix.handle_callback(params, state)
+{:ok, launch} = Ltix.handle_callback(params, state)
 
-Ltix.Role.instructor?(context.claims.roles)  #=> true
-context.claims.context.title                 #=> "Intro to Elixir"
-context.claims.target_link_uri               #=> "https://mytool.example.com/launch"
+Ltix.Role.instructor?(launch.claims.roles)  #=> true
+launch.claims.context.title                 #=> "Intro to Elixir"
+launch.claims.target_link_uri               #=> "https://mytool.example.com/launch"
 ```
 
-**`lti_1p3`** returns the validated JWT as a map, preserving the
-original claim URIs.
+**`lti_1p3`** returns the validated JWT as a map, preserving the original claim URIs.
 
 ```elixir
 {:ok, state, redirect_url} =
@@ -80,16 +63,9 @@ claims["https://purl.imsglobal.org/spec/lti/claim/context"]["title"]
 
 ### Storage
 
-**Ltix** defines a single `Ltix.StorageAdapter` behaviour with three
-callbacks for registration lookup, deployment lookup, and recording used
-nonces. Two optional callbacks sign with your tool's key, so the
-private key stays in your application or a key management service.
+**Ltix** defines a single `Ltix.StorageAdapter` behaviour with three callbacks for registration lookup, deployment lookup, and recording used nonces. Two optional callbacks sign with your tool's key, so the private key stays in your application or a key management service.
 
-**`lti_1p3`** provides three behaviours (`DataProvider`,
-`ToolDataProvider`, `PlatformDataProvider`) with a broader callback
-surface. This gives the application more control over JWK lifecycle,
-login hints, and platform instances. The companion package
-`lti_1p3_ecto_provider` provides a ready-made Ecto implementation.
+**`lti_1p3`** provides four behaviours (`DataProvider`, `ToolDataProvider`, `PlatformDataProvider`, `KeyProvider`) with more callbacks. This gives the application more control over JWK lifecycle, login hints, and platform instances. The companion package `lti_1p3_ecto_provider` provides a ready-made Ecto implementation.
 
 ### Error handling
 
@@ -114,16 +90,14 @@ end
 
 ### Advantage services
 
-**Ltix** wraps service authentication and queries behind an
-authenticate-then-call pattern.
+**Ltix** wraps service authentication and queries behind an authenticate-then-call pattern.
 
 ```elixir
 {:ok, client} = Ltix.MembershipsService.authenticate(context)
 {:ok, roster} = Ltix.MembershipsService.list_members(client)
 ```
 
-**`lti_1p3`** provides separate modules for token acquisition and
-service calls, giving more visibility into each step.
+**`lti_1p3`** provides separate modules for token acquisition and service calls, giving more visibility into each step.
 
 ```elixir
 {:ok, token} = Lti_1p3.Tool.Services.AccessToken.fetch_access_token(
@@ -162,15 +136,9 @@ service calls, giving more visibility into each step.
 
 ## Choosing between them
 
-**Ltix** is a good fit when you are building a tool and want typed
-claims, structured errors, and a small integration surface (three
-required storage callbacks). It focuses on ergonomics and correctness for the
-tool side of LTI.
+**Ltix** is a good fit when you are building a tool and want typed claims, structured errors, and few callbacks to implement (three required storage callbacks). It focuses on ergonomics and correctness for the tool side of LTI.
 
-**`lti_1p3`** is a good fit when you need platform-side support, want
-a ready-made Ecto storage layer, or prefer a library with several years
-of production history. Its broader callback surface gives more control
-over JWK lifecycle and platform management.
+**`lti_1p3`** is a good fit when you need platform-side support, want a ready-made Ecto storage layer, or prefer a library with several years of production history. Its larger set of callbacks gives more control over JWK lifecycle and platform management.
 
 ## Next steps
 

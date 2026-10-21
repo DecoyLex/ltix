@@ -7,16 +7,20 @@ defmodule Ltix.MembershipsService.Member do
   Additional fields like `name`, `email`, and `picture` depend on platform
   consent.
   Fields Ltix does not recognize, such as platform-specific extensions,
-  are in `extensions` with their original JSON keys.
+  are in `extensions` with their original JSON keys. A member's `message`
+  has the claims of each message the platform sent about the member, parsed
+  as a launch's claims are.
 
   ## Examples
+
+      {:ok, plugins} = Ltix.PluginSet.resolve(nil)
 
       {:ok, member} = Ltix.MembershipsService.Member.from_json(%{
         "user_id" => "user-1",
         "roles" => ["http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"],
         "name" => "Jane Doe",
         "email" => "jane@example.edu"
-      })
+      }, plugins)
 
       member.user_id
       #=> "user-1"
@@ -31,8 +35,7 @@ defmodule Ltix.MembershipsService.Member do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Extensions
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.ClaimHelpers
+  alias Ltix.PluginSet
 
   defstruct [
     :user_id,
@@ -61,7 +64,7 @@ defmodule Ltix.MembershipsService.Member do
           email: String.t() | nil,
           lis_person_source_id: String.t() | nil,
           lti_1_1_legacy_user_id: String.t() | nil,
-          message: [LaunchClaims.t()] | nil,
+          message: [%{atom() => term()}] | nil,
           roles: [String.t()],
           extensions: %{optional(String.t()) => term()} | nil
         }
@@ -88,73 +91,47 @@ defmodule Ltix.MembershipsService.Member do
 
   @status_strings Map.new(@status_map, fn {string, status} -> {status, string} end)
 
-  # [standard-claims]:
-  # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
-  #
-  # [OIDC §5.1][standard-claims]
-  @profile_struct_schema Zoi.struct(
-                           __MODULE__,
-                           %{
-                             name: Zoi.string() |> ClaimHelpers.optional(),
-                             picture: Zoi.string() |> ClaimHelpers.optional(),
-                             given_name: Zoi.string() |> ClaimHelpers.optional(),
-                             family_name: Zoi.string() |> ClaimHelpers.optional(),
-                             middle_name: Zoi.string() |> ClaimHelpers.optional(),
-                             email: Zoi.string() |> ClaimHelpers.optional(),
-                             lis_person_source_id: Zoi.string() |> ClaimHelpers.optional(),
-                             lti_1_1_legacy_user_id: Zoi.string() |> ClaimHelpers.optional()
-                           },
-                           coerce: true
-                         )
-
-  @profile_schema ClaimHelpers.rename_claims(
-                    @profile_struct_schema,
-                    for(
-                      {field, key} <- @profile_json_keys,
-                      key != Atom.to_string(field),
-                      into: %{},
-                      do: {key, field}
-                    )
-                  )
-
   @doc """
   Parse a member from a JSON map in a membership container response.
 
-  Returns `{:ok, member}` on success or `{:error, exception}` if
+  Parses the claims of each `message` with the claims `plugins` declares, as
+  `Ltix.Claims.parse/2` does. Returns `{:ok, member}` on success or `{:error, exception}` if
   required fields are missing or invalid.
   """
-  @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec from_json(map(), PluginSet.t()) :: {:ok, t()} | {:error, Exception.t()}
   # [sharing-of-personal-data]:
   # https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data
   #
   # [NRPS §2.2][sharing-of-personal-data]
-  def from_json(%{"user_id" => user_id, "roles" => roles} = json) do
+  def from_json(%{"user_id" => user_id, "roles" => roles} = json, plugins) do
     with :ok <- validate_user_id(user_id),
-         {:ok, profile} <- ClaimHelpers.from_json(@profile_schema, json, "member"),
          :ok <- validate_roles(roles),
          {:ok, status} <- parse_status(json["status"]),
-         {:ok, message} <- parse_message(json["message"]) do
+         {:ok, message} <- parse_message(json["message"], plugins) do
       {:ok,
-       %{
-         profile
-         | user_id: user_id,
-           status: status,
-           message: message,
-           roles: roles,
-           extensions: Map.drop(json, @known_keys)
-       }}
+       struct!(
+         __MODULE__,
+         profile(json) ++
+           [
+             user_id: user_id,
+             status: status,
+             message: message,
+             roles: roles,
+             extensions: Map.drop(json, @known_keys)
+           ]
+       )}
     end
   end
 
-  def from_json(%{"user_id" => _}) do
+  def from_json(%{"user_id" => _}, _plugins) do
     {:error, MissingClaim.exception(claim: "member.roles")}
   end
 
-  def from_json(%{"roles" => _}) do
+  def from_json(%{"roles" => _}, _plugins) do
     {:error, MissingClaim.exception(claim: "member.user_id")}
   end
 
-  def from_json(_json) do
+  def from_json(_json, _plugins) do
     {:error, MissingClaim.exception(claim: "member.user_id and member.roles")}
   end
 
@@ -188,12 +165,22 @@ defmodule Ltix.MembershipsService.Member do
 
     fields =
       for {field, key} <- @profile_json_keys,
-          value = Map.fetch!(member, field),
+          value <- [Map.fetch!(member, field)],
           not is_nil(value),
           into: required,
           do: {key, value}
 
     Extensions.merge(put_status(fields, member.status), member.extensions)
+  end
+
+  # A profile field that isn't a string is `nil`.
+  #
+  # [standard-claims]:
+  # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+  #
+  # [OIDC §5.1][standard-claims]
+  defp profile(json) do
+    for {field, key} <- @profile_json_keys, is_binary(json[key]), do: {field, json[key]}
   end
 
   defp put_status(map, nil), do: map
@@ -243,12 +230,12 @@ defmodule Ltix.MembershipsService.Member do
     do: invalid_field("status", status, "must be a string")
 
   # [NRPS §3.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#message-section)
-  defp parse_message(nil), do: {:ok, nil}
+  defp parse_message(nil, _plugins), do: {:ok, nil}
 
-  defp parse_message(messages) when is_list(messages) do
+  defp parse_message(messages, plugins) when is_list(messages) do
     messages
     |> Enum.reduce_while({:ok, []}, fn msg, {:ok, acc} ->
-      case parse_message_entry(msg) do
+      case parse_message_entry(msg, plugins) do
         {:ok, parsed} -> {:cont, {:ok, [parsed | acc]}}
         {:error, _} = error -> {:halt, error}
       end
@@ -259,14 +246,17 @@ defmodule Ltix.MembershipsService.Member do
     end
   end
 
-  defp parse_message(message),
+  defp parse_message(message, _plugins),
     do: invalid_field("message", message, "must be an array of objects")
 
-  defp parse_message_entry(message) when is_map(message) do
-    LaunchClaims.from_json(message)
+  defp parse_message_entry(message, plugins) when is_map(message) do
+    case Ltix.Claims.parse(message, plugins) do
+      {:ok, claims, _endpoints} -> {:ok, claims}
+      {:error, error, _claims, _endpoints} -> {:error, error}
+    end
   end
 
-  defp parse_message_entry(message),
+  defp parse_message_entry(message, _plugins),
     do: invalid_field("message", message, "must contain JSON objects")
 
   defp invalid_field(field, value, message) do

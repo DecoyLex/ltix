@@ -1,10 +1,6 @@
 # Error Handling
 
-When a launch fails, you need to know what went wrong and how to
-respond. Ltix returns `{:error, exception}` from both `handle_login/3`
-and `handle_callback/3`, with errors organized into three classes using
-[Splode](https://splode.hexdocs.pm). You can match on the category
-without knowing every individual error type.
+When a launch fails, you need to know what went wrong and how to respond. Ltix returns `{:error, exception}` from both `handle_login/3` and `handle_callback/3`, with errors organized into three classes using [Splode](https://splode.hexdocs.pm). You can match on the category without knowing every individual error type.
 
 ## Error classes
 
@@ -40,16 +36,11 @@ end
 
 ### Plug.Exception
 
-If your application depends on Plug, Ltix errors automatically implement
-the `Plug.Exception` protocol. Phoenix error views and `Plug.Debugger`
-use the correct status code without any extra work on your part.
+If your application depends on Plug, Ltix errors automatically implement the `Plug.Exception` protocol. Phoenix error views and `Plug.Debugger` use the correct status code without any extra work on your part.
 
 ## Matching on class
 
-Every Ltix error struct has a `class` field you can match on for
-different handling per category. A plugin's login step can return its own
-exception, which has no `class` field. Match on it before matching on
-class.
+Every Ltix error struct has a `class` field you can match on for different handling per category. A plugin's step can return its own exception, which has no `class` field, so handle any other exception in a last clause.
 
 ```elixir
 case Ltix.handle_callback(params, state) do
@@ -99,9 +90,9 @@ end
 A single failure returns its error struct directly. When validation finds several problems at once, such as two malformed claims, they are grouped in their class struct and `errors` lists each one.
 
 ```elixir
-case Ltix.LaunchClaims.from_json(claims) do
-  {:ok, claims} ->
-    claims
+case Ltix.handle_callback(params, state) do
+  {:ok, launch} ->
+    launch
 
   {:error, %Ltix.Errors.Invalid{errors: errors}} ->
     Enum.each(errors, &Logger.warning(Exception.message(&1)))
@@ -141,7 +132,7 @@ These indicate problems with the incoming data or the calling code.
 |---|---|---|
 | `MissingParameter` | `parameter` | OIDC login request missing a required param |
 | `MissingClaim` | `claim` | A JWT or platform response, such as a memberships page, is missing a required claim, such as `sub` or `resource_link.id` |
-| `InvalidClaim` | `claim`, `value`, `message` | A claim in a JWT or platform response has an invalid value, or a custom claim parser returned an error |
+| `InvalidClaim` | `claim`, `value`, `message` | A claim in a JWT or platform response has an invalid value, or a plugin's declared claim is malformed |
 | `InvalidField` | `struct`, `field`, `value`, `reason` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
 | `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
 | `InvalidJSON` | — | The ID token is not a JWT whose header and payload are JSON objects |
@@ -198,8 +189,7 @@ These errors come from `Ltix.DeepLinking.build_response/3`. Content item constru
 
 ## Advantage service errors
 
-These errors apply to LTI Advantage service calls (memberships, AGS,
-etc.) and OAuth authentication.
+These errors apply to LTI Advantage service calls (memberships, AGS, etc.) and OAuth authentication.
 
 ### Invalid
 
@@ -230,9 +220,7 @@ etc.) and OAuth authentication.
 
 ## Logging recommendations
 
-Invalid errors are usually the platform's fault (misconfiguration,
-bad requests). Security errors could be attacks or clock skew. Unknown
-errors need investigation.
+Invalid errors are usually the platform's fault (misconfiguration, bad requests). Security errors could be attacks or clock skew. Unknown errors need investigation.
 
 ```elixir
 {:error, error} ->

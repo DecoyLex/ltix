@@ -10,7 +10,7 @@ defmodule LtixTest do
   alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.Errors.Security.TokenExpired
   alias Ltix.Errors.Unknown.StorageError
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Registration
   alias Ltix.Test.StorageAdapter
 
@@ -67,7 +67,7 @@ defmodule LtixTest do
 
   setup do
     previous_configuration =
-      Map.new([:allow_anonymous, :max_token_age, :storage_adapter, Ltix.LaunchClaims], fn key ->
+      Map.new([:allow_anonymous, :max_token_age, :storage_adapter], fn key ->
         {key, Application.fetch_env(:ltix, key)}
       end)
 
@@ -227,10 +227,10 @@ defmodule LtixTest do
   end
 
   describe "handle_callback!/3" do
-    test "returns the launch context or raises the error", ctx do
+    test "returns the launch or raises the error", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
 
-      assert %LaunchContext{} =
+      assert %Launch{} =
                Ltix.handle_callback!(params, ctx.state, req_options: req_options())
 
       assert_raise MissingParameter, fn ->
@@ -272,7 +272,7 @@ defmodule LtixTest do
       end
 
       start_supervised!({Ltix.JWT.KeySet, name: __MODULE__.Keys})
-      assert {:ok, %LaunchContext{}} = Ltix.handle_callback(params, ctx.state, opts)
+      assert {:ok, %Launch{}} = Ltix.handle_callback(params, ctx.state, opts)
     end
 
     test "reports the registration's client_id in callback telemetry", ctx do
@@ -282,7 +282,7 @@ defmodule LtixTest do
       id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
-      assert {:ok, %LaunchContext{}} =
+      assert {:ok, %Launch{}} =
                Ltix.handle_callback(params, ctx.state, req_options: req_options())
 
       assert_received {[:ltix, :callback, :stop], ^ref, _measurements,
@@ -296,7 +296,7 @@ defmodule LtixTest do
       id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
       params = %{"id_token" => id_token, "state" => ctx.state}
 
-      assert {:ok, %LaunchContext{} = launch} =
+      assert {:ok, %Launch{} = launch} =
                Ltix.handle_callback(params, ctx.state, req_options: req_options())
 
       assert launch.claims.subject == nil
@@ -312,7 +312,7 @@ defmodule LtixTest do
       assert {:error, %TokenExpired{}} =
                Ltix.handle_callback(params, ctx.state, req_options: req_options())
 
-      assert {:ok, %LaunchContext{}} =
+      assert {:ok, %Launch{}} =
                Ltix.handle_callback(params, ctx.state,
                  max_token_age: :infinity,
                  req_options: req_options()
@@ -373,7 +373,7 @@ defmodule LtixTest do
         required = unquote(Macro.escape(required))
 
         for value <- [123, false, %{}, [], [%{}]] do
-          assert {:ok, %LaunchContext{claims: claims}} =
+          assert {:ok, %Launch{claims: claims}} =
                    callback_with_claim(ctx, key, Map.put(required, field, value))
 
           parsed = Map.fetch!(claims, String.to_existing_atom(unquote(prefix)))
@@ -389,14 +389,14 @@ defmodule LtixTest do
       for {key, body, field, expected} <- [
             {"https://purl.imsglobal.org/spec/lti/claim/context",
              %{"id" => "course", "label" => nil, "title" => "Biology", "type" => []}, :context,
-             %Ltix.LaunchClaims.Context{id: "course", label: nil, title: "Biology", type: []}},
+             %Ltix.Claims.Context{id: "course", label: nil, title: "Biology", type: []}},
             {"https://purl.imsglobal.org/spec/lti/claim/resource_link",
              %{"id" => "link", "title" => nil, "description" => "Read this"}, :resource_link,
-             %Ltix.LaunchClaims.ResourceLink{id: "link", title: nil, description: "Read this"}},
+             %Ltix.Claims.ResourceLink{id: "link", title: nil, description: "Read this"}},
             {"https://purl.imsglobal.org/spec/lti/claim/tool_platform",
              %{"guid" => "platform", "name" => nil, "url" => "https://platform.example.com"},
              :tool_platform,
-             %Ltix.LaunchClaims.ToolPlatform{
+             %Ltix.Claims.ToolPlatform{
                guid: "platform",
                name: nil,
                url: "https://platform.example.com"
@@ -408,7 +408,7 @@ defmodule LtixTest do
                "width" => 800,
                "return_url" => nil
              }, :launch_presentation,
-             %Ltix.LaunchClaims.LaunchPresentation{
+             %Ltix.Claims.LaunchPresentation{
                document_target: "tab",
                height: 600.5,
                width: 800,
@@ -416,14 +416,14 @@ defmodule LtixTest do
              }},
             {"https://purl.imsglobal.org/spec/lti/claim/lis",
              %{"person_sourcedid" => nil, "course_offering_sourcedid" => "course"}, :lis,
-             %Ltix.LaunchClaims.LIS{person_source_id: nil, course_offering_source_id: "course"}},
+             %Ltix.Claims.LIS{person_source_id: nil, course_offering_source_id: "course"}},
             {"https://purl.imsglobal.org/spec/lti-ags/claim/endpoint",
              %{
                "scope" => [],
                "lineitems" => nil,
                "lineitem" => "https://platform.example.com/item"
              }, :ags_endpoint,
-             %Ltix.LaunchClaims.AGSEndpoint{
+             %Ltix.GradeService.Endpoint{
                scopes: [],
                line_items: nil,
                line_item: "https://platform.example.com/item"
@@ -431,7 +431,7 @@ defmodule LtixTest do
             {"https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice",
              %{"context_memberships_url" => nil, "service_versions" => ["2.0"]},
              :memberships_endpoint,
-             %Ltix.LaunchClaims.MembershipsEndpoint{
+             %Ltix.MembershipsService.Endpoint{
                context_memberships_url: nil,
                service_versions: ["2.0"]
              }},
@@ -445,7 +445,7 @@ defmodule LtixTest do
                "auto_create" => nil,
                "title" => nil
              }, :deep_linking_settings,
-             %Ltix.LaunchClaims.DeepLinkingSettings{
+             %Ltix.DeepLinking.Settings{
                deep_link_return_url: "https://platform.example.com/return",
                accept_types: [],
                accept_presentation_document_targets: [],
@@ -455,24 +455,24 @@ defmodule LtixTest do
                title: nil
              }}
           ] do
-        assert {:ok, %LaunchContext{claims: claims}} = callback_with_claim(ctx, key, body)
+        assert {:ok, %Launch{claims: claims}} = callback_with_claim(ctx, key, body)
         assert Map.fetch!(claims, field) == expected
       end
     end
 
-    test "omits malformed email profile claims", ctx do
+    test "leaves a malformed email profile claim nil", ctx do
       field = "email"
 
       for value <- [123, false, %{}, [], [%{}]] do
-        assert {:ok, %LaunchContext{claims: claims}} =
+        assert {:ok, %Launch{claims: claims}} =
                  callback_with_claim(ctx, field, value)
 
-        assert Map.fetch!(claims, String.to_existing_atom(field)) == nil
+        assert claims.email == nil
         assert claims.subject == "user-12345"
       end
 
-      assert {:ok, %LaunchContext{claims: claims}} = callback_with_claim(ctx, field, nil)
-      assert Map.fetch!(claims, String.to_existing_atom(field)) == nil
+      assert {:ok, %Launch{claims: claims}} = callback_with_claim(ctx, field, nil)
+      assert claims.email == nil
     end
 
     test "rejects nonnumeric issued-at claims and preserves fractional NumericDates", ctx do
@@ -481,44 +481,11 @@ defmodule LtixTest do
                  callback_with_claim(ctx, "iat", value)
       end
 
-      for {key, field} <- [{"iat", :issued_at}, {"exp", :expires_at}] do
+      for {key, name} <- [{"iat", :issued_at}, {"exp", :expires_at}] do
         value = ctx.claims[key] + 0.5
-        assert {:ok, %LaunchContext{claims: claims}} = callback_with_claim(ctx, key, value)
-        assert Map.fetch!(claims, field) == value
+        assert {:ok, %Launch{claims: claims}} = callback_with_claim(ctx, key, value)
+        assert Map.fetch!(claims, name) == value
       end
-    end
-
-    test "a claim parser that returns neither {:ok, value} nor {:error, reason} fails the launch",
-         ctx do
-      parser = fn _value -> "overridden name" end
-
-      assert {:error, %Ltix.Errors.Unknown.Unknown{} = error} =
-               callback_with_claim(ctx, "name", "Jane", claim_parsers: %{"name" => parser})
-
-      assert Exception.message(error) =~ ~s(returned "overridden name")
-    end
-
-    test "per-call standard claim parsers override configured builtin parsers", ctx do
-      key = "https://purl.imsglobal.org/spec/lti/claim/context"
-
-      configured = fn _raw ->
-        {:error, InvalidClaim.exception(claim: "configured.context")}
-      end
-
-      Application.put_env(:ltix, Ltix.LaunchClaims, claim_parsers: %{key => configured})
-
-      raw = %{"id" => [%{}]}
-
-      assert {:error, %InvalidClaim{claim: "configured.context"}} =
-               callback_with_claim(ctx, key, raw)
-
-      override = fn ^raw -> {:ok, %Ltix.LaunchClaims.Context{id: "overridden"}} end
-
-      assert {:ok,
-              %LaunchContext{
-                claims: %Ltix.LaunchClaims{context: %Ltix.LaunchClaims.Context{id: "overridden"}}
-              }} =
-               callback_with_claim(ctx, key, raw, claim_parsers: %{key => override})
     end
 
     test "accepts null optional nested claims", ctx do
@@ -534,8 +501,8 @@ defmodule LtixTest do
             {"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings",
              :deep_linking_settings}
           ] do
-        assert {:ok, %LaunchContext{claims: claims}} = callback_with_claim(ctx, key, nil)
-        assert Map.fetch!(claims, field) == nil
+        assert {:ok, %Launch{claims: claims}} = callback_with_claim(ctx, key, nil)
+        assert claims[field] == nil
       end
     end
 

@@ -2,18 +2,18 @@ defmodule Ltix.AdvantageService do
   @moduledoc """
   Behaviour for LTI Advantage service modules.
 
-  Each Advantage service implements this behaviour to describe its endpoint
-  type and required OAuth scopes. `Ltix.OAuth` uses these callbacks to
-  read endpoints from launch claims, validate endpoints, derive scopes, and
+  Each Advantage service implements this behaviour to validate its endpoint
+  and name the OAuth scopes it needs. `Ltix.OAuth` uses these callbacks to
   build OAuth clients for any service.
+
+  `Ltix.Launch.get_endpoint/2` returns a launch's endpoint for a service when
+  a plugin declares the service's endpoint claim. See `Ltix.Claim` for
+  endpoint claims.
 
   ## Implementing a custom service
 
       defmodule MyApp.ProctorService do
         @behaviour Ltix.AdvantageService
-
-        @impl true
-        def endpoint_from_claims(%Ltix.LaunchClaims{} = _claims), do: :error
 
         @impl true
         def validate_endpoint(%MyApp.ProctorEndpoint{}), do: :ok
@@ -28,9 +28,6 @@ defmodule Ltix.AdvantageService do
 
   Send the service's requests with `Ltix.OAuth.Client.request/3`.
   """
-
-  @doc "Extract the service's endpoint from launch claims, or return `:error` when the launch has none."
-  @callback endpoint_from_claims(Ltix.LaunchClaims.t()) :: {:ok, term()} | :error
 
   @doc "Validate that the given value is a valid endpoint for this service."
   @callback validate_endpoint(term()) :: :ok | {:error, Exception.t()}

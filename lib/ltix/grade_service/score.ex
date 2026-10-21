@@ -231,7 +231,7 @@ defmodule Ltix.GradeService.Score do
   def to_map(%__MODULE__{} = score) do
     json =
       for {field, key} <- @json_keys,
-          value = Map.fetch!(score, field),
+          value <- [Map.fetch!(score, field)],
           value != nil,
           into: %{},
           do: {key, to_json(field, value)}

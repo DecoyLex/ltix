@@ -9,7 +9,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.JWT.Token
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Test.StorageAdapter
 
   setup do
@@ -61,7 +61,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
     assert {:error, %KidNotFound{kid: "casesensitivekey"}} = callback(token, context)
 
     token = sign(context.claims, %{"alg" => "RS256", "kid" => "CaseSensitiveKey"}, context)
-    assert {:ok, %LaunchContext{}} = callback(token, context)
+    assert {:ok, %Launch{}} = callback(token, context)
   end
 
   test "callback rejects malformed signature", context do
@@ -162,7 +162,7 @@ defmodule Ltix.Integration.MalformedTokenTest do
   test "callback permits an unknown noncritical header", context do
     protected = Map.put(header(context), "https://platform.example.com/extension", true)
     token = sign(context.claims, protected, context)
-    assert {:ok, %LaunchContext{claims: %{subject: "user-12345"}}} = callback(token, context)
+    assert {:ok, %Launch{claims: %{subject: "user-12345"}}} = callback(token, context)
   end
 
   defp header(context), do: %{"alg" => "RS256", "kid" => context.platform.jwk.kid}

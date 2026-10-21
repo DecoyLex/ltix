@@ -1,9 +1,8 @@
 defmodule Ltix.Test.MembershipsServiceHelper do
   @moduledoc false
 
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
 
@@ -23,23 +22,12 @@ defmodule Ltix.Test.MembershipsServiceHelper do
       registration: platform.registration,
       req_options: [plug: {Req.Test, MembershipsService}, retry: false],
       endpoints: %{
-        MembershipsService => MembershipsEndpoint.new!("https://platform.example.com/members")
+        MembershipsService =>
+          MembershipsServiceEndpoint.new!("https://platform.example.com/members")
       }
     }
 
     client
-  end
-
-  def configure_claim_parsers(parsers) do
-    previous = Application.get_env(:ltix, LaunchClaims)
-
-    ExUnit.Callbacks.on_exit(fn ->
-      if previous == nil,
-        do: Application.delete_env(:ltix, LaunchClaims),
-        else: Application.put_env(:ltix, LaunchClaims, previous)
-    end)
-
-    Application.put_env(:ltix, LaunchClaims, Keyword.put(previous || [], :claim_parsers, parsers))
   end
 
   def stub_pages(last_page, last_body) do

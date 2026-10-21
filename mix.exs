@@ -89,13 +89,13 @@ defmodule Ltix.MixProject do
         "guides/upgrading-to-0.2.md",
         "guides/upgrading-to-0.3.md",
         "guides/working-with-roles.md",
-        "guides/custom-claim-parsers.md",
         "guides/error-handling.md",
         "guides/advantage-services.md",
         "guides/deep-linking.md",
         "guides/memberships-service.md",
         "guides/grade-service.md",
         "guides/writing-plugins.md",
+        "guides/writing-claim-and-launch-plugins.md",
         "guides/jwk-management.md",
         "guides/hardening.md",
         "guides/telemetry.md",
@@ -161,7 +161,6 @@ defmodule Ltix.MixProject do
         ],
         "Launch flow": [
           "guides/working-with-roles.md",
-          "guides/custom-claim-parsers.md",
           "guides/error-handling.md"
         ],
         Services: [
@@ -171,7 +170,8 @@ defmodule Ltix.MixProject do
           "guides/grade-service.md"
         ],
         Plugins: [
-          "guides/writing-plugins.md"
+          "guides/writing-plugins.md",
+          "guides/writing-claim-and-launch-plugins.md"
         ],
         Operations: [
           "guides/jwk-management.md",
@@ -195,7 +195,8 @@ defmodule Ltix.MixProject do
       nest_modules_by_prefix: [
         Ltix.JWT,
         Ltix.JWT.KeySet,
-        Ltix.LaunchClaims,
+        Ltix.Claims,
+        Ltix.Launch,
         Ltix.Login,
         Ltix.PluginSet,
         Ltix.DeepLinking,
@@ -209,14 +210,16 @@ defmodule Ltix.MixProject do
         Ltix.Errors.Unknown,
         Ltix.Test
       ],
-      redirects: %{"custom-role-parsers" => "working-with-roles"},
+      redirects: %{
+        "custom-claim-parsers" => "writing-claim-and-launch-plugins",
+        "custom-role-parsers" => "working-with-roles"
+      },
       groups_for_modules: [
         Core: [
           Ltix.Deployable,
           Ltix.Registerable,
           Ltix.Registration,
           Ltix.Deployment,
-          Ltix.LaunchContext,
           Ltix.StorageAdapter,
           Ltix.JWK
         ],
@@ -229,6 +232,8 @@ defmodule Ltix.MixProject do
           Ltix.Provider,
           Ltix.Step,
           Ltix.Ordered,
+          Ltix.Property,
+          Ltix.Type,
           Ltix.Behaviour
         ],
         Login: [
@@ -239,23 +244,24 @@ defmodule Ltix.MixProject do
           Ltix.JWT.Token,
           Ltix.JWT.KeySet
         ],
-        "Launch Claims": [
-          Ltix.LaunchClaims,
-          Ltix.LaunchClaims.Parser,
+        Launch: [
+          Ltix.Launch,
+          Ltix.Launch.Verified,
+          Ltix.Launch.ClaimsReceived,
+          Ltix.Launch.ClaimsParsed,
+          Ltix.Launch.Validated
+        ],
+        Claims: [
+          Ltix.Claim,
+          Ltix.Claims,
           Ltix.Role,
-          Ltix.LaunchClaims.Context,
-          Ltix.LaunchClaims.ResourceLink,
-          Ltix.LaunchClaims.LaunchPresentation,
-          Ltix.LaunchClaims.ToolPlatform,
-          Ltix.LaunchClaims.LIS,
-          Ltix.LaunchClaims.AGSEndpoint,
-          Ltix.LaunchClaims.MembershipsEndpoint,
-          Ltix.LaunchClaims.DeepLinkingSettings
+          ~r/^Ltix\.Claims\./
         ],
         "Deep Linking": [
           Ltix.DeepLinking,
           Ltix.DeepLinking.ContentItem,
           Ltix.DeepLinking.Response,
+          Ltix.DeepLinking.Settings,
           Ltix.DeepLinking.ContentItem.Link,
           Ltix.DeepLinking.ContentItem.LTIResourceLink,
           Ltix.DeepLinking.ContentItem.File,
@@ -271,11 +277,13 @@ defmodule Ltix.MixProject do
         ],
         "Memberships Service": [
           Ltix.MembershipsService,
+          Ltix.MembershipsService.Endpoint,
           Ltix.MembershipsService.Member,
           Ltix.MembershipsService.MembershipContainer
         ],
         "Grade Service": [
           Ltix.GradeService,
+          Ltix.GradeService.Endpoint,
           Ltix.GradeService.LineItem,
           Ltix.GradeService.Score,
           Ltix.GradeService.Result

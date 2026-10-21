@@ -1,6 +1,6 @@
 defmodule Ltix.OAuth do
   alias Ltix.Errors.Invalid.ServiceNotAvailable
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
@@ -19,18 +19,18 @@ defmodule Ltix.OAuth do
                          unrecognized_keys: :error
                        )
 
-  @context_schema Zoi.keyword(
-                    [
-                      services:
-                        Zoi.list(Zoi.atom(),
-                          description:
-                            "Service modules whose endpoints are read from the launch claims."
-                        )
-                        |> Zoi.min(1)
-                        |> Zoi.required()
-                    ] ++ @shared_fields,
-                    unrecognized_keys: :error
-                  )
+  @launch_schema Zoi.keyword(
+                   [
+                     services:
+                       Zoi.list(Zoi.atom(),
+                         description:
+                           "Service modules whose endpoints are read from the launch claims."
+                       )
+                       |> Zoi.min(1)
+                       |> Zoi.required()
+                   ] ++ @shared_fields,
+                   unrecognized_keys: :error
+                 )
 
   @moduledoc """
   OAuth 2.0 client credentials authentication for LTI Advantage services.
@@ -38,9 +38,9 @@ defmodule Ltix.OAuth do
   Acquires an access token from the platform's token endpoint and returns
   an authenticated `Ltix.OAuth.Client` ready for service calls.
 
-  ## From a launch context
+  ## From a launch
 
-      {:ok, client} = Ltix.OAuth.authenticate(launch_context,
+      {:ok, client} = Ltix.OAuth.authenticate(launch,
         services: [Ltix.MembershipsService, MyApp.AttendanceService]
       )
 
@@ -53,7 +53,7 @@ defmodule Ltix.OAuth do
         }
       )
 
-  A token request from a launch context includes the launch's deployment ID. With a registration, pass `:deployment` to include one. A platform may require it before it issues a token.
+  A token request from a launch includes the launch's deployment ID. With a registration, pass `:deployment` to include one. A platform may require it before it issues a token.
 
       {:ok, client} = Ltix.OAuth.authenticate(registration,
         endpoints: %{Ltix.GradeService => ags_endpoint},
@@ -62,9 +62,9 @@ defmodule Ltix.OAuth do
 
   The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2`.
 
-  ## Options (launch context)
+  ## Options (launch)
 
-  #{Zoi.describe(@context_schema)}
+  #{Zoi.describe(@launch_schema)}
 
   ## Options (registration)
 
@@ -74,26 +74,26 @@ defmodule Ltix.OAuth do
   @doc """
   Authenticate with a platform's token endpoint.
 
-  Accepts a `%LaunchContext{}` or any struct implementing `Ltix.Registerable`,
-  including `Ltix.Registration` itself. With a launch context, list the
-  services in the `:services` option, and Ltix reads each endpoint from the
-  launch claims. With a registration, pass the endpoints in the `:endpoints` option.
+  Accepts an `Ltix.Launch` or any struct implementing `Ltix.Registerable`,
+  including `Ltix.Registration` itself. With a launch, list the services in
+  the `:services` option, and Ltix reads each endpoint from the launch. With
+  a registration, pass the endpoints in the `:endpoints` option.
   A service missing from the launch returns a `ServiceNotAvailable` error.
   """
   # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
-  @spec authenticate(LaunchContext.t() | Registerable.t(), keyword()) ::
+  @spec authenticate(Launch.t() | Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
-  def authenticate(context_or_registerable, opts \\ [])
+  def authenticate(launch_or_registerable, opts \\ [])
 
-  def authenticate(%LaunchContext{} = context, opts) do
-    {services, opts} = Keyword.pop!(Options.parse!(opts, @context_schema), :services)
+  def authenticate(%Launch{} = launch, opts) do
+    {services, opts} = Keyword.pop!(Options.parse!(opts, @launch_schema), :services)
 
-    case endpoints_from_claims(context.claims, services) do
+    case launch_endpoints(launch, services) do
       {:ok, endpoints} ->
         request_client(
-          context.registration,
+          launch.source_registration,
           endpoints,
-          Keyword.put(opts, :deployment, context.deployment)
+          Keyword.put(opts, :deployment, launch.source_deployment)
         )
 
       {:error, _} = error ->
@@ -109,9 +109,9 @@ defmodule Ltix.OAuth do
   @doc """
   Same as `authenticate/2` but raises on error.
   """
-  @spec authenticate!(LaunchContext.t() | Registerable.t(), keyword()) :: Client.t()
-  def authenticate!(context_or_registerable, opts \\ []) do
-    case authenticate(context_or_registerable, opts) do
+  @spec authenticate!(Launch.t() | Registerable.t(), keyword()) :: Client.t()
+  def authenticate!(launch_or_registerable, opts \\ []) do
+    case authenticate(launch_or_registerable, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
@@ -137,12 +137,10 @@ defmodule Ltix.OAuth do
   end
 
   # [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
-  defp endpoints_from_claims(claims, services) do
-    results = Enum.map(services, &{&1, &1.endpoint_from_claims(claims)})
-
-    case for({service, :error} <- results, do: service) do
+  defp launch_endpoints(%Launch{endpoints: endpoints}, services) do
+    case Enum.reject(services, &Map.has_key?(endpoints, &1)) do
       [] ->
-        {:ok, Map.new(results, fn {service, {:ok, endpoint}} -> {service, endpoint} end)}
+        {:ok, Map.take(endpoints, services)}
 
       missing ->
         errors =

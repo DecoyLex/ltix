@@ -81,12 +81,15 @@ defmodule Ltix.Provider do
   end
 
   # The providers an entry or a module extends. An anonymous step extends the
-  # provider in its `:to` option, and a module extends the providers in its
-  # `ltix_extends` attribute.
+  # provider in its `:to` option, and another anonymous entry, such as one
+  # `Ltix.Claim.add/2` adds, extends its own provider. A module extends the
+  # providers in its `ltix_extends` attribute.
   @doc false
   @spec extended_providers(Entry.t() | module()) :: [module()]
   def extended_providers(%Entry{module: module, opts: opts} = entry) do
-    if Entry.anonymous?(entry), do: [Keyword.fetch!(opts, :to)], else: extended_providers(module)
+    if Entry.anonymous?(entry),
+      do: [Keyword.get(opts, :to, module)],
+      else: extended_providers(module)
   end
 
   def extended_providers(module),

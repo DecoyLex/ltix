@@ -9,8 +9,8 @@ defmodule Ltix.Step do
     * `{:error, exception}` records the error and runs the next step.
     * `{:halt, exception}` records the error and runs no further steps.
 
-  `Ltix.handle_login/3` returns an error when the login has errors after its
-  steps run.
+  `Ltix.handle_login/3` and `Ltix.handle_callback/3` return an error when the
+  login or launch has errors after its steps run.
 
       defmodule MyApp.LoginTenant do
         use Ltix.Login
@@ -61,6 +61,7 @@ defmodule Ltix.Step do
       require Ltix.Behaviour
 
       Ltix.Behaviour.declare_once Ltix.Step do
+        @doc false
         def init(opts), do: opts
         defoverridable init: 1
       end
@@ -78,15 +79,24 @@ defmodule Ltix.Step do
       {:ok, plugins} = Ltix.PluginSet.resolve(opts[:plugins])
       report = Ltix.Step.run(%MyLibrary.Report{plugins: plugins})
   """
-  @spec run(document) :: document when document: struct()
-  def run(%provider{plugins: plugins, errors: _} = document) do
-    plugins
-    |> PluginSet.entries(provider)
-    |> Enum.reduce_while(document, fn %Entry{module: step, opts: opts}, document ->
-      case step.call(document, opts) do
-        {:ok, document} -> {:cont, document}
-        {:error, error} -> {:cont, add_error(document, error)}
-        {:halt, error} -> {:halt, add_error(document, error)}
+  @spec run(struct) :: struct when struct: struct()
+  def run(%provider{plugins: plugins} = struct),
+    do: run(struct, PluginSet.entries(plugins, provider))
+
+  @doc """
+  Calls the given steps with a struct, in the order given, and returns the
+  struct.
+
+  Takes the entries that `Ltix.PluginSet.entries/2` returns. Use it to run some
+  of a struct's steps.
+  """
+  @spec run(struct, [Entry.t()]) :: struct when struct: struct()
+  def run(%_{errors: _} = struct, steps) do
+    Enum.reduce_while(steps, struct, fn %Entry{module: step, opts: opts}, struct ->
+      case step.call(struct, opts) do
+        {:ok, struct} -> {:cont, struct}
+        {:error, error} -> {:cont, add_error(struct, error)}
+        {:halt, error} -> {:halt, add_error(struct, error)}
       end
     end)
   end

@@ -167,8 +167,8 @@ defmodule Ltix.Integration.ConsumerBuildTest do
           other_token = Ltix.Test.sign_id_token(%{"sub" => "consumer-user"}, platform.jwk)
           assert {:error, %Ltix.Errors.Security.SignatureInvalid{}} =
                    Ltix.Test.verify_deep_linking_response(platform, other_token)
-          assert {:ok, claims} = Ltix.LaunchClaims.from_json(Ltix.Test.valid_lti_claims(platform))
-          assert claims.resource_link.id == "resource-link-001"
+          launch = Ltix.Test.build_launch(platform)
+          assert launch.claims.resource_link.id == "resource-link-001"
           assert {:error, %Ltix.Errors.Security.AlgorithmNotAllowed{algorithm: "HS256"}} =
                    Ltix.JWT.Token.verify("eyJhbGciOiJIUzI1NiJ9.e30.c2ln", registration)
           assert {:ok, %{"sub" => "last", "custom" => [%{"id" => 2}]}} =

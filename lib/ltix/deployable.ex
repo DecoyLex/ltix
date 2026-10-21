@@ -3,7 +3,7 @@ defprotocol Ltix.Deployable do
   Protocol for converting your deployment struct to an `Ltix.Deployment`.
 
   Implement it for your deployment struct, and your storage adapter can
-  return that struct. The `Ltix.LaunchContext` from a launch has your struct.
+  return that struct. An `Ltix.Launch` has your struct in `source_deployment`.
 
       defmodule MyApp.ToolDeployment do
         defstruct [:id, :registration_id, :deployment_id, :label]

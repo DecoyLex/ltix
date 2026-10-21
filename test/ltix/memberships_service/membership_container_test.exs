@@ -1,7 +1,7 @@
 defmodule Ltix.MembershipsService.MembershipContainerTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.LaunchClaims.Context
+  alias Ltix.Claims.Context
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
 

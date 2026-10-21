@@ -83,18 +83,18 @@ defmodule Ltix.Test do
         assert html_response(conn, 200) =~ "Dashboard"
       end
 
-  ## Unit tests (direct context construction)
+  ## Unit tests (direct launch construction)
 
-  When testing business logic that receives a `%LaunchContext{}`, skip
-  the OIDC flow entirely with `build_launch_context/2`.
+  When testing business logic that receives an `Ltix.Launch`, skip the OIDC
+  flow entirely with `build_launch/2`.
 
       test "instructors can manage grades", %{platform: platform} do
-        context = Ltix.Test.build_launch_context(platform,
+        launch = Ltix.Test.build_launch(platform,
           roles: [Ltix.Role.context_instructor()],
           name: "Jane Smith"
         )
 
-        assert MyApp.Permissions.can_manage_grades?(context)
+        assert MyApp.Permissions.can_manage_grades?(launch)
       end
 
   ## Hand-built tokens
@@ -136,7 +136,7 @@ defmodule Ltix.Test do
       end
 
       test "posts a score to every line item", %{platform: platform} do
-        context = Ltix.Test.build_launch_context(platform,
+        launch = Ltix.Test.build_launch(platform,
           ags_endpoint: %{
             line_items: "https://platform.example.com/lineitems",
             scopes: [
@@ -146,7 +146,7 @@ defmodule Ltix.Test do
           }
         )
 
-        {:ok, client} = Ltix.GradeService.authenticate(context)
+        {:ok, client} = Ltix.GradeService.authenticate(launch)
 
         score =
           Ltix.GradeService.Score.new!(
@@ -174,29 +174,34 @@ defmodule Ltix.Test do
               {Plug.Conn, :send_resp, 3}
             ]}
 
+  alias Ltix.AppConfig
+  alias Ltix.Claims.Context
+  alias Ltix.Claims.ResourceLink
+  alias Ltix.DeepLinking.Settings
   alias Ltix.Deployment
+  alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.GradeService
+  alias Ltix.GradeService.Endpoint, as: GradeServiceEndpoint
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.JWT.KeySet
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchClaims.Context
-  alias Ltix.LaunchClaims.DeepLinkingSettings
-  alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchClaims.ResourceLink
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.Member
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
+  alias Ltix.PluginSet
+  alias Ltix.PluginSet.Entry
   alias Ltix.Records
   alias Ltix.Registration
   alias Ltix.Role
+  alias Ltix.Step
   alias Ltix.Test.Platform
   alias Ltix.Test.ServiceStub
+  alias Ltix.Test.SetDeployment
   alias Ltix.Test.StorageAdapter
   alias Ltix.Test.StorageAdapterContract
 
@@ -239,7 +244,7 @@ defmodule Ltix.Test do
                       )
                     ],
                     description:
-                      "Course or section, as a `%Ltix.LaunchClaims.Context{}` or a map of its fields. " <>
+                      "Course or section, as an `Ltix.Claims.Context` or a map of its fields. " <>
                         "The `:id` defaults to `\"context-001\"`."
                   )
 
@@ -258,7 +263,8 @@ defmodule Ltix.Test do
     subject:
       Zoi.nullable(Zoi.string(),
         description:
-          "User identifier. Defaults to `\"user-12345\"`. Pass `nil` for an anonymous launch."
+          "The user's subject identifier, or `nil` for an anonymous launch. " <>
+            "Defaults to `\"user-12345\"`."
       ),
     name: Zoi.string(description: "Full name."),
     email: Zoi.string(description: "Email address."),
@@ -282,13 +288,13 @@ defmodule Ltix.Test do
           )
         ],
         description:
-          "Resource link of a resource link launch, as a `%Ltix.LaunchClaims.ResourceLink{}` " <>
+          "Resource link of a resource link launch, as an `Ltix.Claims.ResourceLink` " <>
             "or a map of its fields. Defaults to `%{id: \"resource-link-001\", title: \"Example Assignment\"}`."
       ),
     deep_linking_settings:
       Zoi.union(
         [
-          Zoi.struct(DeepLinkingSettings),
+          Zoi.struct(Settings),
           Zoi.map(
             %{
               deep_link_return_url: Zoi.nullish(Zoi.string()),
@@ -306,14 +312,14 @@ defmodule Ltix.Test do
           )
         ],
         description:
-          "Settings of a Deep Linking request, as a `%Ltix.LaunchClaims.DeepLinkingSettings{}` " <>
+          "Settings of a Deep Linking request, as an `Ltix.DeepLinking.Settings` " <>
             "or a map of its fields. Fields you leave out accept the five standard content " <>
             "types, every presentation target, and multiple items."
       ),
     ags_endpoint:
       Zoi.union(
         [
-          Zoi.struct(AGSEndpoint),
+          Zoi.struct(GradeServiceEndpoint),
           Zoi.map(
             %{
               scopes: Zoi.nullish(Zoi.list(Zoi.string())),
@@ -324,13 +330,13 @@ defmodule Ltix.Test do
           )
         ],
         description:
-          "Grade service endpoint, as a `%Ltix.LaunchClaims.AGSEndpoint{}` or a map of its " <>
+          "Grade service endpoint, as an `Ltix.GradeService.Endpoint` or a map of its " <>
             "fields. Requires `:scopes`."
       ),
     memberships_endpoint:
       Zoi.union(
         [
-          Zoi.struct(MembershipsEndpoint),
+          Zoi.struct(MembershipsServiceEndpoint),
           Zoi.string(),
           Zoi.map(
             %{
@@ -341,7 +347,7 @@ defmodule Ltix.Test do
           )
         ],
         description:
-          "Memberships service endpoint, as a `%Ltix.LaunchClaims.MembershipsEndpoint{}`, " <>
+          "Memberships service endpoint, as an `Ltix.MembershipsService.Endpoint`, " <>
             "its URL, or a map of its fields. `:service_versions` defaults to `[\"2.0\"]`."
       ),
     claims:
@@ -365,7 +371,26 @@ defmodule Ltix.Test do
                           unrecognized_keys: :error
                         )
 
-  @build_launch_context_schema Zoi.keyword(@launch_option_fields, unrecognized_keys: :error)
+  @launch_options_schema Zoi.keyword(@launch_option_fields, unrecognized_keys: :error)
+
+  @build_launch_schema Zoi.keyword(
+                         @launch_option_fields ++
+                           [
+                             allow_anonymous:
+                               Zoi.boolean(
+                                 description:
+                                   "When `true`, accept a resource link launch without a subject. " <>
+                                     "Defaults to the configured `:allow_anonymous`."
+                               ),
+                             plugins:
+                               Zoi.list(Zoi.any(),
+                                 description:
+                                   "The plugins the launch runs with, each as `MyPlugin` or " <>
+                                     "`{MyPlugin, opts}`. Defaults to the configured plugins."
+                               )
+                           ],
+                         unrecognized_keys: :error
+                       )
 
   @stub_token_response_schema Zoi.keyword(
                                 [
@@ -589,8 +614,9 @@ defmodule Ltix.Test do
   Build POST params for `Ltix.handle_callback/3`.
 
   Signs a JWT with the platform's private key and returns
-  `%{"id_token" => jwt, "state" => state}`. Takes the same launch options
-  as `build_launch_context/2`, plus the `:nonce` and `:state` of the login.
+  `%{"id_token" => jwt, "state" => state}`. Takes the options of
+  `build_launch/2` that build claims, plus the `:nonce` and `:state` of the
+  login.
 
   ## Options
 
@@ -621,40 +647,78 @@ defmodule Ltix.Test do
     |> Map.fetch!("nonce")
   end
 
-  # --- Direct Context Construction ---
+  # --- Direct Launch Construction ---
 
   @doc """
-  Build a `%LaunchContext{}` directly for unit testing.
+  Returns a launch from the test platform without the login flow, for testing
+  code that takes an `Ltix.Launch`.
 
-  Returns the context `Ltix.handle_callback/3` would return for a launch
-  from `launch_params/2` with the same launch options, without the OIDC flow.
+  It skips the security checks and the storage adapter. Otherwise the launch
+  matches what `Ltix.handle_callback/3` returns for `launch_params/2` with the
+  same options, apart from Ltix's own data in `:private`. Plugins' launch steps
+  run too. Raises the failing step's error, such as
+  `Ltix.Errors.Invalid.MissingClaim`.
 
-      context = Ltix.Test.build_launch_context(platform,
+      launch = Ltix.Test.build_launch(platform,
         roles: [Ltix.Role.context_instructor(), Ltix.Role.instructor_teaching_assistant()],
         name: "Jane Smith",
         context: %{id: "course-1", title: "Elixir 101"}
       )
 
-  For Deep Linking contexts, pass `message_type: :deep_linking`.
+  This builds a Deep Linking launch.
 
-      context = Ltix.Test.build_launch_context(platform,
+      launch = Ltix.Test.build_launch(platform,
         message_type: :deep_linking,
         deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
       )
 
   ## Options
 
-  #{Zoi.describe(@build_launch_context_schema)}
+  #{Zoi.describe(@build_launch_schema)}
   """
-  @spec build_launch_context(Platform.t(), keyword()) :: LaunchContext.t()
-  def build_launch_context(%Platform{} = platform, opts \\ []) do
-    claims = build_claims(platform, Options.parse!(opts, @build_launch_context_schema))
+  @spec build_launch(Platform.t(), keyword()) :: Launch.t()
+  def build_launch(%Platform{} = platform, opts \\ []) do
+    opts = Options.parse!(opts, @build_launch_schema)
+    {enabled, opts} = Keyword.pop(opts, :plugins)
 
-    %LaunchContext{
-      claims: ok!(LaunchClaims.from_json(claims)),
-      registration: platform.registration,
-      deployment: platform.deployment
+    {allow_anonymous, opts} =
+      Keyword.pop_lazy(opts, :allow_anonymous, &AppConfig.allow_anonymous_launches?/0)
+
+    plugins = ok!(PluginSet.resolve(enabled))
+
+    steps = Enum.flat_map(PluginSet.entries(plugins, Launch), &build_launch_step(&1, platform))
+
+    launch = %Launch{
+      registration: resolved_registration(platform),
+      source_registration: platform.registration,
+      raw: build_claims(platform, opts),
+      private: %{ltix_options: [allow_anonymous: allow_anonymous]},
+      plugins: plugins
     }
+
+    launch = Step.run(launch, steps)
+
+    case Errors.collect(launch.errors) do
+      :ok -> launch
+      {:error, error} -> raise error
+    end
+  end
+
+  defp build_launch_step(%Entry{module: Launch.LookUpDeployment} = entry, platform) do
+    [
+      %{
+        entry
+        | module: SetDeployment,
+          opts: [
+            deployment: resolved_deployment(platform),
+            source_deployment: platform.deployment
+          ]
+      }
+    ]
+  end
+
+  defp build_launch_step(%Entry{module: step} = entry, _platform) do
+    if step in Ltix.Core.security_steps(), do: [], else: [entry]
   end
 
   # --- Service Test Helpers ---
@@ -892,7 +956,7 @@ defmodule Ltix.Test do
   Returns `Ltix.Errors.Security.SignatureInvalid` when the token is
   malformed or was not signed with the tool's key.
 
-      {:ok, response} = Ltix.DeepLinking.build_response(context, items)
+      {:ok, response} = Ltix.DeepLinking.build_response(launch, items)
       {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
       assert claims["https://purl.imsglobal.org/spec/lti/claim/message_type"] ==
                "LtiDeepLinkingResponse"
@@ -954,7 +1018,7 @@ defmodule Ltix.Test do
   @spec valid_lti_claims(Platform.t(), map()) :: map()
   def valid_lti_claims(%Platform{} = platform, overrides \\ %{}) do
     nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-    claims = build_claims(platform, Options.parse!([], @build_launch_context_schema))
+    claims = build_claims(platform, Options.parse!([], @launch_options_schema))
     Map.merge(Map.put(claims, "nonce", nonce), overrides)
   end
 
@@ -998,51 +1062,51 @@ defmodule Ltix.Test do
   # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
   defp message_type_claims(:resource_link, opts) do
     resource_link =
-      Map.merge(
+      claim_json(
+        ResourceLink,
         %{id: "resource-link-001", title: "Example Assignment"},
-        plain_map(Keyword.get(opts, :resource_link, %{}))
+        Keyword.get(opts, :resource_link, %{})
       )
 
     %{
       (@lti_claim_prefix <> "message_type") => "LtiResourceLinkRequest",
-      (@lti_claim_prefix <> "resource_link") => json_map(resource_link)
+      (@lti_claim_prefix <> "resource_link") => resource_link
     }
   end
 
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
   defp message_type_claims(:deep_linking, opts) do
     settings =
-      Map.merge(
+      claim_json(
+        Settings,
         %{
           deep_link_return_url: "https://platform.example.com/deep_links",
           accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
           accept_presentation_document_targets: ["iframe", "window", "embed"],
           accept_multiple: true
         },
-        plain_map(Keyword.get(opts, :deep_linking_settings, %{}))
+        Keyword.get(opts, :deep_linking_settings, %{})
       )
-
-    {accept_line_item, settings} = Map.pop(settings, :accept_line_item)
-    settings = Map.put(settings, :accept_lineitem, accept_line_item)
 
     %{
       (@lti_claim_prefix <> "message_type") => "LtiDeepLinkingRequest",
-      "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => json_map(settings)
+      "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => settings
     }
   end
 
-  defp context_claim(context), do: json_map(Map.merge(%{id: "context-001"}, plain_map(context)))
+  defp context_claim(context), do: claim_json(Context, %{id: "context-001"}, context)
+
+  # The JSON of a claim from its struct, or from a map of its fields over
+  # defaults.
+  defp claim_json(_claim, _defaults, %_{} = struct), do: Ltix.Type.to_json(struct)
+
+  defp claim_json(claim, defaults, fields),
+    do: Ltix.Type.to_json(struct!(claim, Map.merge(defaults, fields)))
 
   defp ags_endpoint_claim(nil), do: nil
 
   defp ags_endpoint_claim(endpoint) do
-    endpoint = AGSEndpoint.new!(plain_map(endpoint))
-
-    json_map(%{
-      scope: endpoint.scopes,
-      lineitems: endpoint.line_items,
-      lineitem: endpoint.line_item
-    })
+    Ltix.Type.to_json(GradeServiceEndpoint.new!(plain_map(endpoint)))
   end
 
   defp memberships_endpoint_claim(nil), do: nil
@@ -1054,21 +1118,18 @@ defmodule Ltix.Test do
     endpoint = plain_map(endpoint)
     url = endpoint[:context_memberships_url]
     # Raises for an invalid URL.
-    MembershipsEndpoint.new!(url)
+    MembershipsServiceEndpoint.new!(url)
 
-    json_map(%{
+    Ltix.Type.to_json(%MembershipsServiceEndpoint{
       context_memberships_url: url,
       service_versions: endpoint[:service_versions] || ["2.0"]
     })
   end
 
-  defp plain_map(%_{} = struct), do: Map.from_struct(struct)
-  defp plain_map(map), do: map
+  # The standard fields of an endpoint struct.
+  defp plain_map(%type{} = struct), do: Map.take(struct, Keyword.keys(Ltix.Type.fields(type)))
 
-  # Claim JSON omits absent fields.
-  defp json_map(map) do
-    for {key, value} <- map, not is_nil(value), into: %{}, do: {Atom.to_string(key), value}
-  end
+  defp plain_map(map), do: map
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

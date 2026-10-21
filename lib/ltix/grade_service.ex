@@ -9,21 +9,27 @@ defmodule Ltix.GradeService do
   **Coupled.** The platform creates a single line item for the resource
   link. The tool posts scores against that line item directly.
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch_context)
+      {:ok, client} = Ltix.GradeService.authenticate(launch)
       :ok = Ltix.GradeService.post_score(client, score)
 
   **Programmatic.** The tool manages its own line items and can create,
   update, or delete them.
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch_context)
+      {:ok, client} = Ltix.GradeService.authenticate(launch)
       {:ok, items} = Ltix.GradeService.list_line_items(client)
       {:ok, item} = Ltix.GradeService.create_line_item(client,
         label: "Quiz 1", score_maximum: 100
       )
       :ok = Ltix.GradeService.post_score(client, score, line_item: item)
+
+  `Ltix.GradeService` is also the default plugin for AGS 2.0. It declares the
+  `Ltix.GradeService.Endpoint` claim, so
+  `Ltix.Launch.get_endpoint(launch, Ltix.GradeService)` returns a launch's
+  endpoint.
   """
 
   @behaviour Ltix.AdvantageService
+  @behaviour Ltix.Plugin
 
   alias Ltix.AdvantageService.Operation
   alias Ltix.AppConfig
@@ -33,17 +39,19 @@ defmodule Ltix.GradeService do
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Extensions
+  alias Ltix.GradeService.Endpoint
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
   alias Ltix.GradeService.Score
   alias Ltix.HTTP
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.Options
+  alias Ltix.Plugin
   alias Ltix.Registerable
+
+  @version Mix.Project.config()[:version]
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
   @scope_lineitem_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
@@ -57,7 +65,7 @@ defmodule Ltix.GradeService do
 
   @no_endpoint "The client has no grade service endpoint. Authenticate with one or pass the endpoint option"
 
-  @endpoint_option Zoi.struct(AGSEndpoint,
+  @endpoint_option Zoi.struct(Endpoint,
                      description: "Override the endpoint stored on the client."
                    )
 
@@ -80,14 +88,19 @@ defmodule Ltix.GradeService do
                         "Line item URL or struct. Defaults to the endpoint's `line_item`."
                     )
 
-  @impl Ltix.AdvantageService
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def endpoint_from_claims(%LaunchClaims{ags_endpoint: %AGSEndpoint{} = ep}), do: {:ok, ep}
-  def endpoint_from_claims(_), do: :error
+  @impl Ltix.Plugin
+  def plugin(_opts) do
+    Plugin.add(
+      Plugin.new(name: "LTI Assignment and Grade Services 2.0", version: @version),
+      Endpoint
+    )
+  end
 
   @impl Ltix.AdvantageService
-  def validate_endpoint(%AGSEndpoint{} = endpoint) do
-    with {:ok, _endpoint} <- AGSEndpoint.new(Map.from_struct(endpoint)), do: :ok
+  def validate_endpoint(%Endpoint{} = endpoint) do
+    with {:ok, _endpoint} <-
+           Endpoint.new(Map.take(endpoint, Keyword.keys(Ltix.Type.fields(Endpoint)))),
+         do: :ok
   end
 
   def validate_endpoint(_),
@@ -95,16 +108,16 @@ defmodule Ltix.GradeService do
 
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def scopes(%AGSEndpoint{scopes: scopes}), do: List.wrap(scopes)
+  def scopes(%Endpoint{scopes: scopes}), do: List.wrap(scopes)
 
   @auth_fields Client.option_fields()
 
-  @context_auth_schema Zoi.keyword(@auth_fields, unrecognized_keys: :error)
+  @launch_auth_schema Zoi.keyword(@auth_fields, unrecognized_keys: :error)
 
   @registration_auth_schema Zoi.keyword(
                               [
                                 endpoint:
-                                  Zoi.struct(AGSEndpoint, description: "AGS endpoint struct.")
+                                  Zoi.struct(Endpoint, description: "AGS endpoint struct.")
                                   |> Zoi.required()
                               ] ++ Client.registration_option_fields(),
                               unrecognized_keys: :error
@@ -113,42 +126,42 @@ defmodule Ltix.GradeService do
   @doc """
   Acquire an OAuth token for the grade service.
 
-  Accepts a `%LaunchContext{}` or any struct implementing `Ltix.Registerable`
-  (including `Ltix.Registration`). With a launch context, the endpoint and
+  Accepts a `%Ltix.Launch{}` or any struct implementing `Ltix.Registerable`
+  (including `Ltix.Registration`). With a launch, the endpoint and
   scopes are extracted from the AGS claim. With a registration, pass the
   endpoint via the `:endpoint` option, built with
-  `Ltix.LaunchClaims.AGSEndpoint.new/1`.
+  `Ltix.GradeService.Endpoint.new/1`.
 
-  ## From a launch context
+  ## From a launch
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch_context)
+      {:ok, client} = Ltix.GradeService.authenticate(launch)
 
   ## From a registration
 
       {:ok, client} = Ltix.GradeService.authenticate(registration,
         endpoint:
-          AGSEndpoint.new!(
+          Ltix.GradeService.Endpoint.new!(
             line_items: "https://lms.example.com/lineitems",
             scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
           )
       )
 
-  ## Options (launch context)
+  ## Options (launch)
 
-  #{Zoi.describe(@context_auth_schema)}
+  #{Zoi.describe(@launch_auth_schema)}
 
   ## Options (registration)
 
   #{Zoi.describe(@registration_auth_schema)}
   """
-  @spec authenticate(LaunchContext.t() | Registerable.t(), keyword()) ::
+  @spec authenticate(Launch.t() | Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
-  def authenticate(context_or_registerable, opts \\ [])
+  def authenticate(launch_or_registerable, opts \\ [])
 
-  def authenticate(%LaunchContext{} = context, opts) do
-    opts = Options.parse!(opts, @context_auth_schema)
+  def authenticate(%Launch{} = launch, opts) do
+    opts = Options.parse!(opts, @launch_auth_schema)
 
-    OAuth.authenticate(context, Keyword.put(opts, :services, [__MODULE__]))
+    OAuth.authenticate(launch, Keyword.put(opts, :services, [__MODULE__]))
   end
 
   def authenticate(registerable, opts) do
@@ -160,9 +173,9 @@ defmodule Ltix.GradeService do
   @doc """
   Same as `authenticate/2` but raises on error.
   """
-  @spec authenticate!(LaunchContext.t() | Registerable.t(), keyword()) :: Client.t()
-  def authenticate!(context_or_registerable, opts \\ []) do
-    case authenticate(context_or_registerable, opts) do
+  @spec authenticate!(Launch.t() | Registerable.t(), keyword()) :: Client.t()
+  def authenticate!(launch_or_registerable, opts \\ []) do
+    case authenticate(launch_or_registerable, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
     end
@@ -603,9 +616,9 @@ defmodule Ltix.GradeService do
   end
 
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  defp line_items_url(%AGSEndpoint{line_items: url}) when is_binary(url), do: {:ok, url}
+  defp line_items_url(%Endpoint{line_items: url}) when is_binary(url), do: {:ok, url}
 
-  defp line_items_url(%AGSEndpoint{}), do: not_available("The endpoint has no line items URL")
+  defp line_items_url(%Endpoint{}), do: not_available("The endpoint has no line items URL")
   defp line_items_url(nil), do: not_available(@no_endpoint)
 
   defp resolve_line_item_url(endpoint, opts) do
@@ -613,9 +626,9 @@ defmodule Ltix.GradeService do
   end
 
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  defp line_item_url(nil, %AGSEndpoint{line_item: url}) when is_binary(url), do: {:ok, url}
+  defp line_item_url(nil, %Endpoint{line_item: url}) when is_binary(url), do: {:ok, url}
 
-  defp line_item_url(nil, %AGSEndpoint{}) do
+  defp line_item_url(nil, %Endpoint{}) do
     not_available("The endpoint has no coupled line item URL. Pass the line_item option")
   end
 
@@ -645,7 +658,7 @@ defmodule Ltix.GradeService do
   defp derive_url({:error, _error} = error, _suffix), do: error
 
   # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
-  defp check_coupled_guard(%AGSEndpoint{line_item: url}, url, false) do
+  defp check_coupled_guard(%Endpoint{line_item: url}, url, false) do
     {:error, CoupledLineItem.exception(line_item_url: url)}
   end
 

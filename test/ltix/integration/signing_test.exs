@@ -6,8 +6,8 @@ defmodule Ltix.Integration.SigningTest do
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
-  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
@@ -60,7 +60,8 @@ defmodule Ltix.Integration.SigningTest do
     end)
 
     endpoints = %{
-      MembershipsService => MembershipsEndpoint.new!("https://platform.example.com/members")
+      MembershipsService =>
+        MembershipsServiceEndpoint.new!("https://platform.example.com/members")
     }
 
     %{
@@ -103,16 +104,16 @@ defmodule Ltix.Integration.SigningTest do
     end
 
     # [Core §6.2.1](https://www.imsglobal.org/spec/lti/v1p3/#deployment-id)
-    test "sends the deployment ID of a launch context, and again on refresh", ctx do
-      context =
-        Ltix.Test.build_launch_context(ctx.platform,
+    test "sends the deployment ID of a launch, and again on refresh", ctx do
+      launch =
+        Ltix.Test.build_launch(ctx.platform,
           memberships_endpoint: "https://platform.example.com/members"
         )
 
       opts =
         Keyword.put(Keyword.delete(ctx.opts, :endpoints), :services, [MembershipsService])
 
-      assert {:ok, %Client{} = client} = OAuth.authenticate(context, opts)
+      assert {:ok, %Client{} = client} = OAuth.authenticate(launch, opts)
       assert_received {:client_assertion, assertion}
       assert {:ok, %{@deployment_claim => "deployment-001"}} = verify(assertion, ctx.signing_key)
 
@@ -154,13 +155,13 @@ defmodule Ltix.Integration.SigningTest do
       assert_received {:client_assertion, assertion}
       assert {:ok, %{@deployment_claim => "deployment-007"}} = verify(assertion, ctx.signing_key)
 
-      context =
-        Ltix.Test.build_launch_context(ctx.platform,
+      launch =
+        Ltix.Test.build_launch(ctx.platform,
           memberships_endpoint: "https://platform.example.com/members"
         )
 
       assert_raise InvalidOption, "Option :deployment is unknown", fn ->
-        MembershipsService.authenticate(context, deployment: "deployment-007")
+        MembershipsService.authenticate(launch, deployment: "deployment-007")
       end
     end
 
@@ -189,24 +190,17 @@ defmodule Ltix.Integration.SigningTest do
                  deployment: "é"
                )
 
-      context = Ltix.Test.build_launch_context(ctx.platform)
+      launch = Ltix.Test.build_launch(ctx.platform)
 
       assert_raise InvalidOption, "Option :deployment is unknown", fn ->
-        OAuth.authenticate(context, services: [MembershipsService], deployment: "deployment-007")
+        OAuth.authenticate(launch, services: [MembershipsService], deployment: "deployment-007")
       end
 
       refute_received {:client_assertion, _assertion}
     end
 
     test "passes the adapter the registration record it was called with", ctx do
-      record = %CustomRegistration{
-        id: 42,
-        platform_issuer: ctx.registration.issuer,
-        oauth_client_id: ctx.registration.client_id,
-        oidc_auth_url: ctx.registration.auth_endpoint,
-        platform_jwks_url: ctx.registration.jwks_uri,
-        platform_token_url: ctx.registration.token_endpoint
-      }
+      record = CustomRegistration.from_registration(ctx.registration, id: 42)
 
       assert {:ok, %Client{registration: ^record} = client} =
                OAuth.authenticate(record, ctx.opts)
@@ -250,12 +244,12 @@ defmodule Ltix.Integration.SigningTest do
 
   describe "deep linking responses" do
     test "are signed with the storage adapter's key", ctx do
-      context = Ltix.Test.build_launch_context(ctx.platform, message_type: :deep_linking)
+      launch = Ltix.Test.build_launch(ctx.platform, message_type: :deep_linking)
       key_id = ctx.signing_key.kid
-      registration = context.registration
+      registration = launch.registration
 
       assert {:ok, response} =
-               DeepLinking.build_response(context, [], storage_adapter: KeyStorageAdapter)
+               DeepLinking.build_response(launch, [], storage_adapter: KeyStorageAdapter)
 
       assert_received {:key_id, ^registration}
 
@@ -266,10 +260,10 @@ defmodule Ltix.Integration.SigningTest do
     end
 
     test "return StorageError when the adapter can't sign", ctx do
-      context = Ltix.Test.build_launch_context(ctx.platform, message_type: :deep_linking)
+      launch = Ltix.Test.build_launch(ctx.platform, message_type: :deep_linking)
 
       assert {:error, %StorageError{callback: :sign}} =
-               DeepLinking.build_response(context, [], storage_adapter: LaunchStorageAdapter)
+               DeepLinking.build_response(launch, [], storage_adapter: LaunchStorageAdapter)
     end
   end
 

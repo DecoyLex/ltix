@@ -1,10 +1,6 @@
 # Storage Adapters
 
-Ltix doesn't assume your database, ORM, or persistence strategy. Your
-application manages all storage and provides lookups through the
-`Ltix.StorageAdapter` behaviour. This guide covers what each callback
-does, how to build a production-ready implementation with Ecto, and
-common mistakes.
+Ltix doesn't assume your database, ORM, or persistence strategy. Your application manages all storage and provides lookups through the `Ltix.StorageAdapter` behaviour. This guide covers what each callback does, how to build a production-ready implementation with Ecto, and common mistakes.
 
 ## Callback overview
 
@@ -33,17 +29,9 @@ When storage fails, return `{:error, reason}` from any callback. The login or la
             {:ok, Registerable.t()} | {:error, :not_found | term()}
 ```
 
-Return any struct that implements `Ltix.Registerable`. The library
-extracts the `Ltix.Registration` it needs via the protocol, and
-your original struct is preserved in the `Ltix.LaunchContext`, so
-you can access your own fields (database IDs, tenant info, etc.)
-after a successful launch without an extra query.
+Return any struct that implements `Ltix.Registerable`. The library extracts the `Ltix.Registration` it needs via the protocol, and a launch has your original struct in `source_registration`, so you can access your own fields (database IDs, tenant information, etc.) after a successful launch without an extra query.
 
-Ltix calls `get_registration/3` during login initiation with the login
-request's issuer and client_id, and again during launch validation
-with the ID token's issuer and audience.
-The `client_id` may be `nil` because some platforms don't include it in
-the login initiation request. Your adapter must handle both cases.
+Ltix calls `get_registration/3` during login initiation with the login request's issuer and client_id, and again during launch validation with the ID token's issuer and audience. The `client_id` may be `nil` because some platforms don't include it in the login initiation request. Your adapter must handle both cases.
 
 ```elixir
 def get_registration(issuer, nil, _opts) do
@@ -92,8 +80,7 @@ end
             {:ok, Deployable.t()} | {:error, :not_found | term()}
 ```
 
-Return any struct that implements `Ltix.Deployable`. Like registrations,
-your original struct is preserved in the `Ltix.LaunchContext`.
+Return any struct that implements `Ltix.Deployable`. Like registrations, a launch has your original struct in `source_deployment`.
 
 The `registration` parameter is the struct your `get_registration/3` returned. The `deployment_id` is case-sensitive and assigned by the platform.
 
@@ -271,14 +258,12 @@ defimpl Ltix.Deployable, for: MyApp.Lti.PlatformDeployment do
 end
 ```
 
-After a successful launch, `context.registration` is your
-`%PlatformRegistration{}` and `context.deployment` is your
-`%PlatformDeployment{}`, so you can access your own fields directly.
+After a successful launch, `launch.source_registration` is your `%PlatformRegistration{}` and `launch.source_deployment` is your `%PlatformDeployment{}`, so you can access your own fields directly.
 
 ```elixir
-context.registration.id          #=> 42
-context.registration.tenant_id   #=> 7
-context.deployment.id            #=> 99
+launch.source_registration.id         #=> 42
+launch.source_registration.tenant_id  #=> 7
+launch.source_deployment.id           #=> 99
 ```
 
 ## Testing your adapter
@@ -356,12 +341,17 @@ To check an adapter that needs options, pass the same `:storage_adapter_options`
 
 ## Per-call override
 
-You can bypass the configured adapter for a specific call by passing
-`:storage_adapter` in opts.
+You can bypass the configured adapter for a specific call by passing the `:storage_adapter` option.
 
 ```elixir
 Ltix.handle_login(params, launch_url, storage_adapter: MyApp.TestStorage)
 ```
 
-This is useful in tests or when different routes use different storage
-backends.
+This is useful in tests or when different routes use different storage adapters.
+
+## Next steps
+
+- `Ltix.StorageAdapter` - every callback and its return values
+- [Auto-creating Deployments on First Launch](cookbooks/auto-create-deployments.md) - storing deployments the first time a platform launches them
+- [Managing JWKs with Ecto](cookbooks/managing-jwks-with-ecto.md) - storing signing keys and implementing the signing callbacks
+- [Testing LTI Launches](cookbooks/testing-lti-launches.md) - testing your adapter and your launch endpoints

@@ -1,14 +1,13 @@
 # Syncing Grades in the Background
 
-For scheduled grade sync or Oban workers, store the AGS endpoint
-during launch and authenticate from a registration later.
+For scheduled grade sync or Oban workers, store the AGS endpoint during launch and authenticate from a registration later.
 
 ## Storing the endpoint
 
 Save the endpoint URLs and scopes from the first launch. The scopes are required to authenticate later.
 
 ```elixir
-endpoint = context.claims.ags_endpoint
+endpoint = Ltix.Launch.get_endpoint(launch, Ltix.GradeService)
 
 MyApp.Courses.store_ags_endpoint(course_id, %{
   line_items_url: endpoint.line_items,
@@ -19,17 +18,17 @@ MyApp.Courses.store_ags_endpoint(course_id, %{
 
 ## Posting grades in a background job
 
-Rebuild the endpoint with `Ltix.LaunchClaims.AGSEndpoint.new!/1`.
+Rebuild the endpoint with `Ltix.GradeService.Endpoint.new!/1`.
 
 ```elixir
-alias Ltix.LaunchClaims.AGSEndpoint
+alias Ltix.GradeService.Endpoint
 
 def perform(%{args: %{"course_id" => course_id, "user_id" => user_id}}) do
   registration = MyApp.Courses.get_registration(course_id)
   stored = MyApp.Courses.get_ags_endpoint(course_id)
 
   endpoint =
-    AGSEndpoint.new!(
+    Endpoint.new!(
       line_items: stored.line_items_url,
       line_item: stored.line_item_url,
       scopes: stored.scopes
@@ -51,7 +50,4 @@ def perform(%{args: %{"course_id" => course_id, "user_id" => user_id}}) do
 end
 ```
 
-See [Persisting Service Endpoints](persisting-service-endpoints.md) for
-schema examples, [Advantage Services](../advantage-services.md) for an
-overview of token management, and [Token Caching and Reuse](token-caching-and-reuse.md)
-for batch refreshing, multi-course tokens, and ETS caching patterns.
+See [Persisting Service Endpoints](persisting-service-endpoints.md) for schema examples, [Advantage Services](../advantage-services.md) for an overview of token management, and [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing, multi-course tokens, and ETS caching patterns.

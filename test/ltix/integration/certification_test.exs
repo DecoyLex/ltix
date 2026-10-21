@@ -6,7 +6,7 @@ defmodule Ltix.Integration.CertificationTest do
   alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Security
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Registration
   alias Ltix.Role
   alias Ltix.Test.StorageAdapter
@@ -194,7 +194,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert Role.instructor?(launch.claims.roles)
       assert launch.claims.name == "Jane Doe"
@@ -211,7 +211,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == [
                "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
@@ -223,7 +223,7 @@ defmodule Ltix.Integration.CertificationTest do
       claims = put_lti_claim(ctx.claims, "roles", ["Instructor"])
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == ["Instructor"]
       assert Role.instructor?(launch.claims.roles)
@@ -237,7 +237,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == ["http://example.com/custom/TeachingAssistant"]
     end
@@ -246,7 +246,7 @@ defmodule Ltix.Integration.CertificationTest do
       claims = put_lti_claim(ctx.claims, "roles", [])
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == []
     end
@@ -261,7 +261,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.email == "instructor@example.com"
       assert launch.claims.name == nil
@@ -277,7 +277,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.name == "Jane Doe"
       assert launch.claims.email == nil
@@ -293,7 +293,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{}} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{}} = handle_callback(params, ctx.state)
     end
 
     test "Valid Instructor Email Without Context", ctx do
@@ -304,7 +304,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.email == "instructor@example.com"
       assert launch.claims.context == nil
@@ -329,7 +329,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert Role.learner?(launch.claims.roles)
       assert launch.claims.name == "John Smith"
@@ -346,7 +346,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == [
                "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner",
@@ -358,7 +358,7 @@ defmodule Ltix.Integration.CertificationTest do
       claims = put_lti_claim(ctx.claims, "roles", ["Learner"])
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == ["Learner"]
       assert Role.learner?(launch.claims.roles)
@@ -372,7 +372,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.roles == ["http://example.com/custom/Auditor"]
     end
@@ -381,7 +381,7 @@ defmodule Ltix.Integration.CertificationTest do
       claims = put_lti_claim(ctx.claims, "roles", [])
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{}} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{}} = handle_callback(params, ctx.state)
     end
 
     test "Valid Student Launch Email Only", ctx do
@@ -397,7 +397,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.email == "student@example.com"
       assert launch.claims.name == nil
@@ -416,7 +416,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.name == "John Smith"
       assert launch.claims.email == nil
@@ -435,7 +435,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{}} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{}} = handle_callback(params, ctx.state)
     end
 
     test "Valid Student Email Without Context", ctx do
@@ -449,7 +449,7 @@ defmodule Ltix.Integration.CertificationTest do
 
       params = mint_and_params(claims, ctx)
 
-      assert {:ok, %LaunchContext{} = launch} = handle_callback(params, ctx.state)
+      assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
       assert launch.claims.email == "student@example.com"
       assert launch.claims.context == nil

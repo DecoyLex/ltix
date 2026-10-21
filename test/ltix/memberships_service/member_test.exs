@@ -3,25 +3,27 @@ defmodule Ltix.MembershipsService.MemberTest do
 
   alias Ltix.MembershipsService.Member
 
+  defp plugins, do: elem(Ltix.PluginSet.resolve(nil), 1)
+
   doctest Member
 
-  describe "from_json/1" do
+  describe "from_json/2" do
     test "returns error when user_id is missing [NRPS §2.2]" do
       json = %{"roles" => ["Instructor"]}
-      assert {:error, error} = Member.from_json(json)
+      assert {:error, error} = Member.from_json(json, plugins())
       assert Exception.message(error) =~ "user_id"
     end
 
     test "returns error when roles is missing [NRPS §2.2]" do
       json = %{"user_id" => "user-1"}
-      assert {:error, error} = Member.from_json(json)
+      assert {:error, error} = Member.from_json(json, plugins())
       assert Exception.message(error) =~ "roles"
     end
 
     test "maps status strings to atoms [NRPS §2.3]" do
       for {string, atom} <- [{"Active", :active}, {"Inactive", :inactive}, {"Deleted", :deleted}] do
         json = %{"user_id" => "user-1", "roles" => [], "status" => string}
-        assert {:ok, %Member{status: ^atom}} = Member.from_json(json)
+        assert {:ok, %Member{status: ^atom}} = Member.from_json(json, plugins())
       end
     end
 
@@ -33,7 +35,7 @@ defmodule Ltix.MembershipsService.MemberTest do
             {"DELETED", :deleted}
           ] do
         json = %{"user_id" => "user-1", "roles" => [], "status" => string}
-        assert {:ok, %Member{status: ^atom}} = Member.from_json(json)
+        assert {:ok, %Member{status: ^atom}} = Member.from_json(json, plugins())
       end
     end
 
@@ -47,7 +49,7 @@ defmodule Ltix.MembershipsService.MemberTest do
         "nickname" => "JJ"
       }
 
-      assert {:ok, %Member{} = member} = Member.from_json(json)
+      assert {:ok, %Member{} = member} = Member.from_json(json, plugins())
 
       assert member.extensions == %{
                "https://canvas.instructure.com/lti/sis_user_id" => "sis-1",
@@ -63,12 +65,12 @@ defmodule Ltix.MembershipsService.MemberTest do
     end
 
     test "leaves out the message section" do
-      member = %Member{user_id: "user-1", roles: [], message: [%Ltix.LaunchClaims{}]}
+      member = %Member{user_id: "user-1", roles: [], message: [%{}]}
 
       refute Map.has_key?(Member.to_map(member), "message")
     end
 
-    test "round-trips every field except message through from_json/1" do
+    test "round-trips every field except message through from_json/2" do
       json = %{
         "user_id" => "user-1",
         "status" => "Inactive",
@@ -87,7 +89,7 @@ defmodule Ltix.MembershipsService.MemberTest do
         "https://lms.example.com/student_number" => "s-42"
       }
 
-      {:ok, member} = Member.from_json(json)
+      {:ok, member} = Member.from_json(json, plugins())
       assert Member.to_map(member) == json
     end
   end

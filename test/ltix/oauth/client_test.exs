@@ -16,9 +16,6 @@ defmodule Ltix.OAuth.ClientTest do
     @behaviour Ltix.AdvantageService
 
     @impl Ltix.AdvantageService
-    def endpoint_from_claims(_), do: :error
-
-    @impl Ltix.AdvantageService
     def validate_endpoint(endpoint) when endpoint in [:valid_endpoint, :other_valid_endpoint],
       do: :ok
 
@@ -32,9 +29,6 @@ defmodule Ltix.OAuth.ClientTest do
 
   defmodule OtherService do
     @behaviour Ltix.AdvantageService
-
-    @impl Ltix.AdvantageService
-    def endpoint_from_claims(_), do: :error
 
     @impl Ltix.AdvantageService
     def validate_endpoint(:other_endpoint), do: :ok

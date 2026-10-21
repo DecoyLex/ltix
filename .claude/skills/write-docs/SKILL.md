@@ -62,12 +62,12 @@ For facade modules that tie together multiple submodules, list them early:
 
 ```elixir
 @moduledoc """
-Ltix handles the LTI 1.3 OIDC launch flow. It is built around 4 components:
+Ltix handles the LTI 1.3 OIDC launch flow. It is built around these components.
 
   * `Ltix.Registration` - what the tool knows about a platform
   * `Ltix.StorageAdapter` - behaviour your app implements
-  * `Ltix.LaunchContext` - the validated output of a launch
-  * `Ltix.LaunchClaims` - structured data from the ID Token
+  * `Ltix.Launch` - the verified launch, with its parsed claims
+  * `Ltix.Plugin` - plugins that extend Ltix
 """
 ```
 
@@ -194,7 +194,7 @@ Same as `authenticate/2` but raises on error.
 ```elixir
 ## Examples
 
-    {:ok, client} = MembershipsService.authenticate(context)
+    {:ok, client} = MembershipsService.authenticate(launch)
     {:ok, roster} = MembershipsService.list_members(client)
 ```
 
@@ -290,7 +290,7 @@ Types: `.info`, `.warning`, `.error`, `.tip`, `.neutral`
 
 ### Cross-linking
 
-- Link to module docs with backtick syntax: `` `Ltix.LaunchContext` ``
+- Link to module docs with backtick syntax: `` `Ltix.Launch` ``
 - Link to other guides with relative paths: `[Error Handling](error-handling.md)`
 - End each guide with a "Next steps" section listing 3-5 related resources
 

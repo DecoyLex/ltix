@@ -1,24 +1,16 @@
 # Token Caching and Reuse
 
-Most LTI tools authenticate once per request or job and need no
-token management. But when a background job processes hundreds of
-grades or syncs multiple courses, understanding the token lifecycle
-avoids redundant authentication and handles mid-job expiry.
+Most LTI tools authenticate once per request or job and need no token management. But when a background job processes hundreds of grades or syncs multiple courses, understanding the token lifecycle avoids redundant authentication and handles mid-job expiry.
 
 ## Refreshing during a batch
 
-When processing many items in a single job, the token may expire before
-you finish. Call `refresh!/1` between batches. The endpoint is rebuilt
-from the URL and scopes saved during a launch, as in
-[Syncing Grades in the Background](background-grade-sync.md).
+When processing many items in a single job, the token may expire before you finish. Call `refresh!/1` between batches. The endpoint is rebuilt from the URL and scopes saved during a launch. [Syncing Grades in the Background](background-grade-sync.md) shows how to save and rebuild it.
 
 ```elixir
-alias Ltix.LaunchClaims.AGSEndpoint
-
 def perform(%{args: %{"course_id" => course_id}}) do
   registration = MyApp.Courses.get_registration(course_id)
   stored = MyApp.Courses.get_ags_endpoint(course_id)
-  endpoint = AGSEndpoint.new!(line_item: stored.line_item_url, scopes: stored.scopes)
+  endpoint = Ltix.GradeService.Endpoint.new!(line_item: stored.line_item_url, scopes: stored.scopes)
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint
@@ -53,17 +45,11 @@ defp ensure_fresh(client) do
 end
 ```
 
-`refresh/1` requests a new token only when `Ltix.OAuth.Client.expired?/1`
-is true for the current one. Otherwise it returns the client unchanged.
-The returned client has the same endpoints and registration, and only
-the token changes. To request a new token regardless of expiry, use
-`force_refresh!/1`.
+`refresh/1` requests a new token only when `Ltix.OAuth.Client.expired?/1` is true for the current one. Otherwise it returns the client unchanged. The returned client has the same endpoints and registration, and only the token changes. To request a new token regardless of expiry, use `force_refresh!/1`.
 
 ## Syncing multiple courses
 
-A token is scoped to a registration, identified by issuer and client\_id. If you sync
-several courses on the same platform in one job, authenticate once and
-swap endpoints with `with_endpoints!/3`.
+A token is scoped to a registration, identified by issuer and client\_id. If you sync several courses on the same platform in one job, authenticate once and swap endpoints with `with_endpoints!/3`.
 
 ```elixir
 def perform(%{args: %{"registration_id" => registration_id}}) do
@@ -100,12 +86,7 @@ The token's granted scopes do not change. If it lacks a scope a new endpoint nee
 
 ## Caching tokens across workers
 
-When many Oban workers call the same platform concurrently (say, one
-job per course), each authenticates independently by default. To share
-tokens, cache them in ETS. A token has only the scopes it was
-requested for, and a platform may limit it to the deployment it was requested for, so key the cache by the registration, the deployment, and the scopes the
-service requests. Workers calling the same service share one token, and
-a service that needs other scopes gets a separate token.
+When many Oban workers call the same platform concurrently (say, one job per course), each authenticates independently by default. To share tokens, cache them in ETS. A token has only the scopes it was requested for, and a platform may limit it to the deployment it was requested for, so key the cache by the registration, the deployment, and the scopes the service requests. Workers calling the same service share one token, and a service that needs other scopes gets a separate token.
 
 ```elixir
 defmodule MyApp.LTI.TokenCache do
@@ -188,10 +169,7 @@ end
 
 > #### Race conditions {: .info}
 >
-> This ETS cache uses last-write-wins. Concurrent workers may both
-> miss the cache and authenticate simultaneously, producing two valid
-> tokens. This is harmless because the platform issues independent
-> tokens, and one simply goes unused.
+> This ETS cache uses last-write-wins. Concurrent workers may both miss the cache and authenticate simultaneously, producing two valid tokens. This is harmless because the platform issues independent tokens, and one simply goes unused.
 
 ## Storing tokens outside ETS
 
@@ -218,9 +196,7 @@ Don't add caching complexity unless you have a reason.
 
 ## Next steps
 
-- [Advantage Services](../advantage-services.md) for an overview of
-  service authentication and token management
-- [Syncing Grades in the Background](background-grade-sync.md) for
-  simple background grading without caching
+- [Advantage Services](../advantage-services.md) for an overview of service authentication and token management
+- [Syncing Grades in the Background](background-grade-sync.md) for simple background grading without caching
 - `Ltix.OAuth.Client` for the full token lifecycle API reference
 - `Ltix.OAuth.AccessToken` for the cacheable token struct

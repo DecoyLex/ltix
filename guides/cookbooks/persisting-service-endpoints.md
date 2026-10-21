@@ -1,17 +1,10 @@
 # Persisting Service Endpoints
 
-Service calls that happen outside an LTI launch need endpoint URLs that
-were stored during one. Consider a mobile attendance app. The LTI launch
-sets up the course, but grade posting happens later when students check
-in on their phones. This cookbook shows what to persist and where, using
-that app as a running example.
+Service calls that happen outside an LTI launch need endpoint URLs that were stored during one. Consider a mobile attendance app. The LTI launch sets up the course, but grade posting happens later when students check in on their phones. This cookbook shows what to persist and where, using that app as a running example.
 
 ## Programmatic line items
 
-The tool creates its own "Attendance" line item in the gradebook and
-posts scores to it. It also syncs the roster so it can pair students'
-mobile accounts with their platform identities using the LIS data from
-membership responses.
+The tool creates its own "Attendance" line item in the gradebook and posts scores to it. It also syncs the roster so it can pair students' mobile accounts with their platform identities using the LIS data from membership responses.
 
 Both URLs are context-scoped, so store them on the course. The grade service also needs the scopes from the launch claim, and the line item URL the platform returns when the tool creates its line item.
 
@@ -70,20 +63,20 @@ end
 
 ### Storing during launch
 
-Extract the endpoint URLs in `create_course!/1`. Either claim may be
-`nil` if the platform doesn't support that service. The upsert replaces
-endpoint URLs on every launch, keeping them current if the platform
-ever changes them.
+Extract the endpoint URLs in `create_course!/1`. Either claim may be `nil` if the platform doesn't support that service. The upsert replaces endpoint URLs on every launch, keeping them current if the platform ever changes them.
 
 ```elixir
-def create_course!(%Ltix.LaunchContext{claims: claims, registration: registration}) do
+def create_course!(%Ltix.Launch{claims: %{context: context}} = launch) do
+  memberships = Ltix.Launch.get_endpoint(launch, Ltix.MembershipsService)
+  grades = Ltix.Launch.get_endpoint(launch, Ltix.GradeService)
+
   attrs = %{
-    context_id: claims.context.id,
-    registration_id: registration.id,
-    title: claims.context.title,
-    memberships_url: claims.memberships_endpoint && claims.memberships_endpoint.context_memberships_url,
-    lineitems_url: claims.ags_endpoint && claims.ags_endpoint.line_items,
-    ags_scopes: claims.ags_endpoint && claims.ags_endpoint.scopes
+    context_id: context.id,
+    registration_id: launch.source_registration.id,
+    title: context.title,
+    memberships_url: memberships && memberships.context_memberships_url,
+    lineitems_url: grades && grades.line_items,
+    ags_scopes: grades && grades.scopes
   }
 
   %Course{}
@@ -99,11 +92,11 @@ end
 Create the attendance line item once, during the first launch, and store its URL.
 
 ```elixir
-def ensure_attendance_line_item!(course, context) do
+def ensure_attendance_line_item!(course, launch) do
   if course.attendance_line_item_url do
     course
   else
-    {:ok, client} = Ltix.GradeService.authenticate(context)
+    {:ok, client} = Ltix.GradeService.authenticate(launch)
 
     {:ok, item} = Ltix.GradeService.create_line_item(client,
       label: "Attendance",
@@ -123,11 +116,9 @@ end
 Sync the roster periodically to pair mobile accounts with platform users.
 
 ```elixir
-alias Ltix.LaunchClaims.MembershipsEndpoint
-
 def sync_roster(course) do
   registration = get_registration(course)
-  endpoint = MembershipsEndpoint.new!(course.memberships_url)
+  endpoint = Ltix.MembershipsService.Endpoint.new!(course.memberships_url)
 
   {:ok, client} = Ltix.MembershipsService.authenticate(registration,
     endpoint: endpoint
@@ -141,13 +132,11 @@ end
 Post a score to the line item the tool created earlier.
 
 ```elixir
-alias Ltix.LaunchClaims.AGSEndpoint
-
 def post_attendance(course, user_id) do
   registration = get_registration(course)
 
   endpoint =
-    AGSEndpoint.new!(line_items: course.lineitems_url, scopes: course.ags_scopes)
+    Ltix.GradeService.Endpoint.new!(line_items: course.lineitems_url, scopes: course.ags_scopes)
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint
@@ -169,11 +158,7 @@ end
 
 ## Coupled line items
 
-With coupled line items, the instructor creates one resource link per
-class session, such as "Week 1" and "Week 2". The platform pre-creates a
-grade column for each resource link. The lineitem URL for that column and
-its scopes are resource-link-scoped (different per session), so store
-them in a separate schema.
+With coupled line items, the instructor creates one resource link per class session, such as "Week 1" and "Week 2". The platform creates a line item for each resource link. Its URL and scopes are specific to the resource link, so store them in a separate schema.
 
 ### Migration
 
@@ -225,12 +210,14 @@ end
 ### Storing during launch
 
 ```elixir
-def create_class_session!(%Ltix.LaunchContext{claims: claims}, course) do
+def create_class_session!(%Ltix.Launch{claims: claims} = launch, course) do
+  grades = Ltix.Launch.get_endpoint(launch, Ltix.GradeService)
+
   attrs = %{
     resource_link_id: claims.resource_link.id,
     title: claims.resource_link.title,
-    lineitem_url: claims.ags_endpoint && claims.ags_endpoint.line_item,
-    ags_scopes: claims.ags_endpoint && claims.ags_endpoint.scopes,
+    lineitem_url: grades && grades.line_item,
+    ags_scopes: grades && grades.scopes,
     course_id: course.id
   }
 
@@ -246,16 +233,13 @@ end
 
 ### Using stored endpoints
 
-When a student checks in for a specific session, post the score directly
-to that session's grade column.
+When a student checks in for a specific session, post the score directly to that session's line item.
 
 ```elixir
-alias Ltix.LaunchClaims.AGSEndpoint
-
 def post_check_in(session, user_id) do
   course = Repo.preload(session, :course).course
   registration = get_registration(course)
-  endpoint = AGSEndpoint.new!(line_item: session.lineitem_url, scopes: session.ags_scopes)
+  endpoint = Ltix.GradeService.Endpoint.new!(line_item: session.lineitem_url, scopes: session.ags_scopes)
 
   {:ok, client} = Ltix.GradeService.authenticate(registration,
     endpoint: endpoint
@@ -273,8 +257,4 @@ def post_check_in(session, user_id) do
 end
 ```
 
-See [Advantage Services](../advantage-services.md) for an overview of
-token management, [Syncing Grades in the Background](background-grade-sync.md)
-for Oban worker patterns, and
-[Token Caching and Reuse](token-caching-and-reuse.md) for batch
-refreshing across courses.
+See [Advantage Services](../advantage-services.md) for an overview of token management, [Syncing Grades in the Background](background-grade-sync.md) for Oban worker patterns, and [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing across courses.

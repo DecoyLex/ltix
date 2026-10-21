@@ -20,11 +20,12 @@ defmodule Ltix.MembershipsService.MembershipContainer do
       Enum.count(roster)
   """
 
+  alias Ltix.Claims.Context
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MalformedResponse
-  alias Ltix.LaunchClaims.Context
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Member
+  alias Ltix.PluginSet
 
   defstruct [:id, :context, members: []]
 
@@ -38,30 +39,28 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   Parse a membership container from a decoded JSON response body.
 
   Returns `{:ok, container}` on success or `{:error, exception}` if the body
-  is not a membership container or a member fails to parse.
+  is not a membership container or a member fails to parse. Members' messages
+  are parsed with the claims `plugins` declares.
   """
-  @spec from_json(term()) :: {:ok, t()} | {:error, Exception.t()}
+  @spec from_json(term(), PluginSet.t()) :: {:ok, t()} | {:error, Exception.t()}
   # [membership-container-media-type]:
   # https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type
   #
   # [NRPS §2.1][membership-container-media-type]
-  def from_json(%{"members" => members} = json) when is_list(members) do
+  def from_json(%{"members" => members} = json, plugins) when is_list(members) do
+    # A missing context is reported as a context without an ID.
+    # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data)
     with :ok <- validate_id(json["id"]),
-         {:ok, context} <- parse_context(json["context"]),
-         {:ok, members} <- parse_members(members) do
+         {:ok, context} <- Context.parse(json["context"] || %{}, []),
+         {:ok, members} <- parse_members(members, plugins) do
       {:ok, %__MODULE__{id: json["id"], context: context, members: members}}
     end
   end
 
-  def from_json(json) when is_map(json), do: malformed("expected members to be a JSON array")
-  def from_json(_json), do: malformed("expected JSON object")
+  def from_json(json, _plugins) when is_map(json),
+    do: malformed("expected members to be a JSON array")
 
-  # [sharing-of-personal-data]:
-  # https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data
-  #
-  # [NRPS §2.2][sharing-of-personal-data]
-  defp parse_context(nil), do: Context.from_json(%{})
-  defp parse_context(context), do: Context.from_json(context)
+  def from_json(_json, _plugins), do: malformed("expected JSON object")
 
   defp validate_id(id) when is_nil(id) or is_binary(id), do: :ok
 
@@ -74,10 +73,10 @@ defmodule Ltix.MembershipsService.MembershipContainer do
      )}
   end
 
-  defp parse_members(members) do
+  defp parse_members(members, plugins) do
     members
     |> Enum.reduce_while({:ok, []}, fn member_json, {:ok, acc} ->
-      case Member.from_json(member_json) do
+      case Member.from_json(member_json, plugins) do
         {:ok, member} -> {:cont, {:ok, [member | acc]}}
         {:error, _} = error -> {:halt, error}
       end

@@ -1,13 +1,10 @@
 # Building Scores
 
-Beyond posting a final grade, you can track student progress, award
-extra credit, and attach feedback. This cookbook shows common
-scoring scenarios.
+Beyond posting a final grade, you can track student progress, award extra credit, and attach feedback. This cookbook shows common scoring scenarios.
 
 ## Posting a final grade
 
-Set both progress fields to their "done" values so the platform
-records the grade.
+Set both progress fields to their "done" values so the platform records the grade.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -21,14 +18,11 @@ records the grade.
 
 > #### Use `:fully_graded` for final scores {: .warning}
 >
-> Platforms may ignore scores with any other `grading_progress` value.
-> If you want the grade to appear in the gradebook, always use
-> `:fully_graded`.
+> Platforms may ignore scores with any other `grading_progress` value. If you want the grade to appear in the gradebook, always use `:fully_graded`.
 
 ## Tracking progress without a grade
 
-Report that a student has started an activity before you have a score
-to post.
+Report that a student has started an activity before you have a score to post.
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -118,5 +112,4 @@ Invalid or unknown fields return an `Ltix.Errors.Invalid.InvalidField` error.
 
 > #### Timestamps {: .info}
 >
-> `Score.new/1` auto-generates a timestamp if you don't provide one.
-> You can pass an explicit `DateTime` as `:timestamp` for testing or replays.
+> `Score.new/1` auto-generates a timestamp if you don't provide one. You can pass an explicit `DateTime` as `:timestamp` for testing or replays.

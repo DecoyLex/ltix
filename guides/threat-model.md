@@ -6,7 +6,7 @@ Ltix authenticates LTI launches and calls platform services for your tool. This 
 
 Ltix follows the trust model of the LTI specifications. Registering a platform is the decision to trust it. After that, Ltix accepts what the platform signs and what its services return, including the roles it assigns, the URLs in its launch claims, and the data in its responses.
 
-Ltix also trusts your application's code and configuration, such as your storage adapter, claim parsers, and options.
+Ltix also trusts your application's code and configuration, such as your storage adapter, plugins, and options.
 
 Everything else is untrusted.
 
@@ -30,7 +30,7 @@ A successful `Ltix.handle_callback/3` means all of the following hold.
 
 Ltix fetches a key set URL at most once every 30 seconds, however many launches arrive and whatever key IDs they have. A fetch retries a temporary failure up to three times. While a platform's key set URL is failing, launches for that platform return the error until 30 seconds have passed. The limit applies to each node separately.
 
-Ltix rejects input only when authenticating the launch or doing what you asked depends on it. A launch with a malformed optional field still succeeds, and that field is left out.
+Claims declared with `strict: false`, such as `:context`, don't fail a launch when they're malformed. A malformed value is the claim's default in `launch.claims`, which is `nil` for each Core claim, and stays in `launch.raw`. [`Ltix.Core`](`m:Ltix.Core#module-claims`) lists the `:strict` option of each Core claim.
 
 ## Platform requests
 

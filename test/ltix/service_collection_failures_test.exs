@@ -7,11 +7,11 @@ defmodule Ltix.ServiceCollectionFailuresTest do
   alias Ltix.Errors.Security.AccessDenied
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
+  alias Ltix.GradeService.Endpoint, as: GradeServiceEndpoint
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
-  alias Ltix.LaunchClaims.AGSEndpoint
-  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.AccessToken
@@ -253,7 +253,7 @@ defmodule Ltix.ServiceCollectionFailuresTest do
              GradeService.list_results(client)
   end
 
-  test "members retain parsed custom messages and accept unknown properties", context do
+  test "members retain parsed messages and accept unrecognized properties", context do
     client = build_client(context.registration)
 
     body = %{
@@ -286,12 +286,16 @@ defmodule Ltix.ServiceCollectionFailuresTest do
              status: :active,
              roles: ["Instructor", "https://vendor.example.com/role"],
              message: [
-               %{
-                 custom: %{"country" => "Canada"},
-                 extensions: %{"https://vendor.example.com/claim" => "extension"}
-               }
+               %{message_type: "LtiResourceLinkRequest", custom: %{"country" => "Canada"}} =
+                 message
              ]
            } = member
+
+    assert Map.reject(message, fn {_claim, value} -> value == nil end) == %{
+             message_type: "LtiResourceLinkRequest",
+             custom: %{"country" => "Canada"},
+             roles: []
+           }
 
     assert {:ok, stream} = MembershipsService.stream_members(client)
 
@@ -363,12 +367,12 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       registration: registration,
       req_options: request_options(),
       endpoints: %{
-        GradeService => %AGSEndpoint{
+        GradeService => %GradeServiceEndpoint{
           line_items: page_url(:line_items, 1),
           line_item: "https://platform.example.com/lineitems/1",
           scopes: scopes
         },
-        MembershipsService => MembershipsEndpoint.new!(page_url(:members, 1))
+        MembershipsService => MembershipsServiceEndpoint.new!(page_url(:members, 1))
       }
     }
   end

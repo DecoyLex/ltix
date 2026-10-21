@@ -171,7 +171,7 @@ defmodule Ltix.RoleTest do
   end
 
   defp launch_roles(platform, roles) do
-    Ltix.Test.build_launch_context(platform, roles: roles).claims.roles
+    Ltix.Test.build_launch(platform, roles: roles).claims.roles
   end
 
   defp by_kind(roles) do

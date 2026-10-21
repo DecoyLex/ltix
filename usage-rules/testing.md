@@ -12,9 +12,7 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}]
 ```
 
-Configure your own storage adapter. The `req_options` plug routes all
-outbound HTTP through `Req.Test`. Each internal module rewrites the plug
-name to its own well-known stub name, so you can stub each independently.
+Configure your own storage adapter. The `req_options` plug routes all outbound HTTP through `Req.Test`. Each internal module rewrites the plug name to its own well-known stub name, so you can stub each independently.
 
 | Stub name                       | HTTP call                         |
 |---------------------------------|-----------------------------------|
@@ -52,10 +50,7 @@ setup do
 end
 ```
 
-`setup_platform!/1` generates platform-side RSA keys, builds a registration
-and deployment, and stubs the key set URL. Pass a `:registration`
-function to create matching records in your persistence layer. Options are
-`:issuer`, `:client_id`, and `:deployment_id`.
+`setup_platform!/1` generates platform-side RSA keys, builds a registration and deployment, and stubs the key set URL. Pass `:registration` and `:deployment` functions to create matching records in your database. It also takes `:issuer`, `:client_id`, `:deployment_id`, `:deployment`, and `:tool_jwk`.
 
 Without a storage adapter of your own, configure the in-memory `Ltix.Test.StorageAdapter` and start it with your test platforms. Use it only in tests.
 
@@ -94,18 +89,18 @@ test "launch renders dashboard", %{conn: conn, platform: platform} do
 end
 ```
 
-### 2. Direct Context Construction (Unit Tests)
+### 2. Direct Launch Construction (Unit Tests)
 
 Skip the OIDC flow entirely for business logic tests.
 
 ```elixir
 test "instructors can manage grades", %{platform: platform} do
-  context = Ltix.Test.build_launch_context(platform,
+  launch = Ltix.Test.build_launch(platform,
     roles: [Ltix.Role.context_instructor()],
     name: "Jane Smith"
   )
 
-  assert MyApp.Permissions.can_manage_grades?(context)
+  assert MyApp.Permissions.can_manage_grades?(launch)
 end
 ```
 
@@ -115,14 +110,14 @@ Verify signed response JWTs from your tool.
 
 ```elixir
 test "content selection returns valid JWT", %{platform: platform} do
-  context = Ltix.Test.build_launch_context(platform, message_type: :deep_linking)
+  launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
 
   {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
     url: "https://tool.example.com/quiz/1",
     title: "Quiz"
   )
 
-  {:ok, response} = Ltix.DeepLinking.build_response(context, [link])
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, [link])
   {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
 
   content_items = claims["https://purl.imsglobal.org/spec/lti-dl/claim/content_items"]
@@ -132,22 +127,21 @@ end
 
 ## Claim Customization
 
-`launch_params/2` and `build_launch_context/2` take the same launch options with the same defaults. Unknown options, including unknown keys in nested maps, raise `Ltix.Errors.Invalid.InvalidOption`.
+`launch_params/2` and `build_launch/2` take the same options for building claims, with the same defaults. Unknown options, including unknown keys in nested maps, raise `Ltix.Errors.Invalid.InvalidOption`.
 
-- `:roles` - list of role URIs, such as `Ltix.Role.context_learner()` and
-  `Ltix.Role.instructor_teaching_assistant()` (defaults to an instructor). URIs are sent as given.
+- `:roles` - list of role URIs, such as `Ltix.Role.context_learner()` and `Ltix.Role.instructor_teaching_assistant()` (defaults to an instructor). URIs are sent as given.
 - `:subject` - user identifier (defaults to `"user-12345"`), `nil` for an anonymous launch
 - `:name`, `:email`, `:given_name`, `:family_name` - user profile fields
-- `:context` - `%Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (the default id is `"context-001"`)
-- `:resource_link` - `%ResourceLink{}` or map with `:id`, `:title`, `:description` keys
+- `:context` - `%Ltix.Claims.Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (the default id is `"context-001"`)
+- `:resource_link` - `%Ltix.Claims.ResourceLink{}` or map with `:id`, `:title`, `:description` keys
 - `:message_type` - `:resource_link` (default) or `:deep_linking`
-- `:deep_linking_settings` - `%DeepLinkingSettings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
+- `:deep_linking_settings` - `%Ltix.DeepLinking.Settings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
 - `:target_link_uri` - launch URL (defaults to `"https://tool.example.com/launch"`)
-- `:ags_endpoint` - `%AGSEndpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
-- `:memberships_endpoint` - `%MembershipsEndpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
+- `:ags_endpoint` - `%Ltix.GradeService.Endpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
+- `:memberships_endpoint` - `%Ltix.MembershipsService.Endpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
 - `:claims` - raw claim map merged last (for advanced overrides)
 
-`launch_params/2` also requires `:nonce` and `:state`.
+`launch_params/2` also requires `:nonce` and `:state`. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It skips the security checks before `Ltix.Launch.Verified` and the deployment lookup, runs the other launch steps, including every plugin's, and raises when one fails.
 
 ## Hand-Built Tokens
 
@@ -160,8 +154,7 @@ params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" 
 
 ## Testing Advantage Services
 
-When testing code that uses `Ltix.GradeService` or `Ltix.MembershipsService`,
-stub both the OAuth token endpoint and the service endpoint.
+When testing code that uses `Ltix.GradeService` or `Ltix.MembershipsService`, stub both the OAuth token endpoint and the service endpoint.
 
 ```elixir
 test "posts a score after launch", %{platform: platform} do
@@ -171,14 +164,14 @@ test "posts a score after launch", %{platform: platform} do
 
   Ltix.Test.stub_post_score()
 
-  context = Ltix.Test.build_launch_context(platform,
-    ags_endpoint: %Ltix.LaunchClaims.AGSEndpoint{
+  launch = Ltix.Test.build_launch(platform,
+    ags_endpoint: %Ltix.GradeService.Endpoint{
       line_item: "https://platform.example.com/lineitems/1",
       scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
     }
   )
 
-  {:ok, client} = Ltix.GradeService.authenticate(context)
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
 
   {:ok, score} = Ltix.GradeService.Score.new(
     user_id: "student-42",
@@ -194,15 +187,12 @@ end
 
 Per-operation stubs are available for each service call.
 
-- `stub_list_line_items/1`, `stub_get_line_item/1`, `stub_create_line_item/1`,
-  `stub_update_line_item/1`, `stub_delete_line_item/0`
+- `stub_list_line_items/1`, `stub_get_line_item/1`, `stub_create_line_item/1`, `stub_update_line_item/1`, `stub_delete_line_item/0`
 - `stub_post_score/0`, `stub_list_results/1`
 - `stub_list_members/1`
 
 Each stub handles one operation, and stubs for different operations work together, so stub every operation the code under test calls. Stubbing an operation again replaces its stub. A request without a matching stub fails the test with its method and URL. Per-line-item stubs take `line_item:` (URL or `%LineItem{}`) to handle only that line item. List stubs also handle `stream_*` calls and page through results when the call passes `:per_page`.
 
-Each accepts the struct(s) the platform would return. For custom response
-logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly.
-It replaces every `Ltix.Test` stub of that service.
+Each accepts the struct(s) the platform would return. For custom response logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.
 
 `stub_token_response/1` accepts `:scopes`, `:access_token`, and `:expires_in`.

@@ -50,9 +50,9 @@ For browsers that block the cookie, see [Keeping Login State in Platform Storage
 
 Sign the session cookie, which Phoenix does by default. Add `:encryption_salt` if you keep anything in it that the user shouldn't read.
 
-## Launch contexts
+## Launches
 
-A `Ltix.LaunchContext` has the user's identity, roles, and course data. Keep contexts in a server-side store with an expiry, and put only an ID in the session. A signed cookie can be read by the user, and a launch context is too large for one.
+An `Ltix.Launch` has the user's identity, roles, and context data. Keep launches in a server-side store with an expiry, and put only an ID in the session. A signed cookie can be read by the user, and a launch is too large for one.
 
 ## After the launch
 
@@ -82,7 +82,7 @@ Decide what a user may do from the roles in the verified launch.
 ```elixir
 alias Ltix.Role
 
-if Role.instructor?(context.claims.roles) do
+if Role.instructor?(launch.claims.roles) do
   # show grading tools
 end
 ```
@@ -91,7 +91,7 @@ Platforms report roles differently, so check the broad role your feature needs. 
 
 ### Data from later requests
 
-Take the course, resource link, and service endpoints a user acts on from the launch context you stored. Don't accept them from form fields or query parameters. A line item URL from the browser, for example, sends your platform access token to whatever URL the user supplies.
+Take the context, resource link, and service endpoints a user acts on from the launch you stored. Don't accept them from form fields or query parameters. A line item URL from the browser, for example, sends your platform access token to whatever URL the user supplies.
 
 ```elixir
 # The line item comes from the stored launch, never from params
@@ -115,7 +115,7 @@ plug :put_secure_browser_headers, %{
 
 ## Redirects
 
-`context.claims.target_link_uri` is the URL the platform requests as the user's destination. Check that it points at your tool before redirecting, so a launch can't send users to another site through your domain.
+`launch.claims.target_link_uri` is the URL the platform requests as the user's destination. Check that it points at your tool before redirecting, so a launch can't send users to another site through your domain.
 
 ```elixir
 defp tool_url?(url) do

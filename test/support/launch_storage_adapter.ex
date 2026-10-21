@@ -2,8 +2,8 @@ defmodule LaunchStorageAdapter do
   @moduledoc false
 
   # Implements only the callbacks a launch needs by calling
-  # `Ltix.Test.StorageAdapter`, and sends each nonce it records to the
-  # calling process.
+  # `Ltix.Test.StorageAdapter`, and sends each deployment ID it looks up and
+  # each nonce it records to the calling process.
 
   @behaviour Ltix.StorageAdapter
 
@@ -13,7 +13,10 @@ defmodule LaunchStorageAdapter do
   defdelegate get_registration(issuer, client_id, opts), to: StorageAdapter
 
   @impl Ltix.StorageAdapter
-  defdelegate get_deployment(registration, deployment_id, opts), to: StorageAdapter
+  def get_deployment(registration, deployment_id, opts) do
+    send(self(), {:get_deployment, deployment_id})
+    StorageAdapter.get_deployment(registration, deployment_id, opts)
+  end
 
   @impl Ltix.StorageAdapter
   def validate_nonce(nonce, registration, expires_at, opts) do

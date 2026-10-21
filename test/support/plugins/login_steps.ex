@@ -123,6 +123,24 @@ defmodule TestPlugins.Announced do
   end
 end
 
+defmodule TestPlugins.LoginAndLaunch do
+  @moduledoc false
+  # Extends login and launch, and sends which one each clause runs over.
+  use Ltix.Login
+  use Ltix.Launch
+
+  @impl Ltix.Step
+  def call(%Ltix.Login{} = login, _opts) do
+    send(self(), {:ran, :login})
+    {:ok, login}
+  end
+
+  def call(%Ltix.Launch{} = launch, _opts) do
+    send(self(), {:ran, :launch})
+    {:ok, launch}
+  end
+end
+
 defmodule TestPlugins.ReadRegistration do
   @moduledoc false
   # Sends `{:registration, registration, source_registration}` from the login to

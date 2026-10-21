@@ -9,21 +9,15 @@ defmodule Ltix.OAuthTest do
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.Errors.Unknown.TransportError
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.OAuth
   alias Ltix.OAuth.Client
 
   @test_scope "https://example.com/scope/test.readonly"
   @other_scope "https://example.com/scope/other.write"
-  @launch_extensions %{"test" => :valid_endpoint, "other" => :other_endpoint}
 
   defmodule TestService do
     @behaviour Ltix.AdvantageService
-
-    @impl Ltix.AdvantageService
-    def endpoint_from_claims(%{extensions: %{"test" => endpoint}}), do: {:ok, endpoint}
-    def endpoint_from_claims(_), do: :error
 
     @impl Ltix.AdvantageService
     def validate_endpoint(:valid_endpoint), do: :ok
@@ -40,10 +34,6 @@ defmodule Ltix.OAuthTest do
     @behaviour Ltix.AdvantageService
 
     @impl Ltix.AdvantageService
-    def endpoint_from_claims(%{extensions: %{"other" => endpoint}}), do: {:ok, endpoint}
-    def endpoint_from_claims(_), do: :error
-
-    @impl Ltix.AdvantageService
     def validate_endpoint(:other_endpoint), do: :ok
 
     def validate_endpoint(_),
@@ -53,6 +43,8 @@ defmodule Ltix.OAuthTest do
     def scopes(:other_endpoint),
       do: ["https://example.com/scope/other.write"]
   end
+
+  @launch_endpoints %{TestService => :valid_endpoint, OtherService => :other_endpoint}
 
   setup do
     {:ok, registration} =
@@ -69,8 +61,8 @@ defmodule Ltix.OAuthTest do
 
   defp req_options, do: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
 
-  defp launch_context(registration, extensions) do
-    %LaunchContext{claims: %LaunchClaims{extensions: extensions}, registration: registration}
+  defp launch_with_endpoints(registration, endpoints) do
+    %Launch{endpoints: endpoints, registration: registration, source_registration: registration}
   end
 
   defp stub_token_response(scope_string) do
@@ -484,13 +476,13 @@ defmodule Ltix.OAuthTest do
     end
   end
 
-  describe "authenticate/2 from a launch context" do
+  describe "authenticate/2 from a launch" do
     test "requests the scopes of each service's endpoint from the launch", ctx do
       stub_token_response("#{@test_scope} #{@other_scope}")
-      context = launch_context(ctx.registration, @launch_extensions)
+      launch = launch_with_endpoints(ctx.registration, @launch_endpoints)
 
       assert {:ok, %Client{} = client} =
-               OAuth.authenticate(context,
+               OAuth.authenticate(launch,
                  services: [TestService, OtherService],
                  req_options: req_options()
                )
@@ -505,10 +497,10 @@ defmodule Ltix.OAuthTest do
     end
 
     test "returns ServiceNotAvailable for each service missing from the launch", ctx do
-      context = launch_context(ctx.registration, %{})
+      launch = launch_with_endpoints(ctx.registration, %{})
 
       assert {:error, %ServiceNotAvailable{service: TestService} = error} =
-               OAuth.authenticate(context, services: [TestService])
+               OAuth.authenticate(launch, services: [TestService])
 
       assert Exception.message(error) =~ "The launch has no endpoint claim for this service"
 
@@ -519,15 +511,15 @@ defmodule Ltix.OAuthTest do
                   %ServiceNotAvailable{service: OtherService}
                 ]
               }} =
-               OAuth.authenticate(context, services: [TestService, OtherService])
+               OAuth.authenticate(launch, services: [TestService, OtherService])
     end
 
     test "require_all_scopes returns ScopeMismatch when the platform grants only some", ctx do
       stub_token_response(@test_scope)
-      context = launch_context(ctx.registration, @launch_extensions)
+      launch = launch_with_endpoints(ctx.registration, @launch_endpoints)
 
       assert {:error, %ScopeMismatch{scopes: [@other_scope]}} =
-               OAuth.authenticate(context,
+               OAuth.authenticate(launch,
                  services: [TestService, OtherService],
                  req_options: req_options(),
                  require_all_scopes: true
@@ -535,18 +527,18 @@ defmodule Ltix.OAuthTest do
     end
 
     test "raises on missing, unknown, and invalid options", ctx do
-      context = launch_context(ctx.registration, @launch_extensions)
+      launch = launch_with_endpoints(ctx.registration, @launch_endpoints)
 
       assert_raise InvalidOption, "Option :services is required", fn ->
-        OAuth.authenticate(context)
+        OAuth.authenticate(launch)
       end
 
       assert_raise InvalidOption, "Option :endpoints is unknown", fn ->
-        OAuth.authenticate(context, services: [TestService], endpoints: %{})
+        OAuth.authenticate(launch, services: [TestService], endpoints: %{})
       end
 
       assert_raise InvalidOption, ~r/Option :services is invalid/, fn ->
-        OAuth.authenticate(context, services: TestService)
+        OAuth.authenticate(launch, services: TestService)
       end
     end
   end

@@ -4,8 +4,9 @@ defprotocol Ltix.Registerable do
 
   Implement it for your registration struct, and your storage adapter can
   return that struct. Ltix passes your struct to the other
-  `Ltix.StorageAdapter` callbacks, and the `Ltix.LaunchContext` and
-  `Ltix.OAuth.Client` have it.
+  `Ltix.StorageAdapter` callbacks. It's in `source_registration` on an
+  `Ltix.Login` and an `Ltix.Launch`, and in `registration` on an
+  `Ltix.OAuth.Client`.
 
       defmodule MyApp.PlatformRegistration do
         defstruct [:id, :tenant_id, :issuer, :client_id,

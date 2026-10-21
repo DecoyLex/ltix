@@ -9,8 +9,8 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.Errors.Unknown.TransportError
-  alias Ltix.LaunchClaims.MembershipsEndpoint
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
@@ -97,7 +97,7 @@ defmodule Ltix.MembershipsServiceTest do
       Keyword.get(
         opts,
         :endpoint,
-        MembershipsEndpoint.new!(@memberships_url)
+        MembershipsServiceEndpoint.new!(@memberships_url)
       )
 
     scopes =
@@ -127,12 +127,12 @@ defmodule Ltix.MembershipsServiceTest do
   describe "options" do
     test "every operation raises on unknown options", ctx do
       client = build_client(ctx.platform)
-      context = Ltix.Test.build_launch_context(ctx.platform)
-      endpoint = MembershipsEndpoint.new!(@memberships_url)
+      launch = Ltix.Test.build_launch(ctx.platform)
+      endpoint = MembershipsServiceEndpoint.new!(@memberships_url)
 
       for call <- [
-            fn -> MembershipsService.authenticate(context, unknown: true) end,
-            fn -> MembershipsService.authenticate!(context, unknown: true) end,
+            fn -> MembershipsService.authenticate(launch, unknown: true) end,
+            fn -> MembershipsService.authenticate!(launch, unknown: true) end,
             fn ->
               MembershipsService.authenticate(ctx.platform.registration,
                 endpoint: endpoint,
@@ -165,46 +165,46 @@ defmodule Ltix.MembershipsServiceTest do
     end
   end
 
-  describe "authenticate/2 from LaunchContext" do
+  describe "authenticate/2 from Launch" do
     test "acquires token with correct scope", ctx do
       stub_token_response()
 
-      context =
-        Ltix.Test.build_launch_context(ctx.platform,
+      launch =
+        Ltix.Test.build_launch(ctx.platform,
           memberships_endpoint: @memberships_url
         )
 
       assert {:ok, %Client{} = client} =
-               MembershipsService.authenticate(context,
+               MembershipsService.authenticate(launch,
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
       assert MapSet.member?(client.token.granted_scopes, @nrps_scope)
-      assert %MembershipsEndpoint{} = client.endpoints[MembershipsService]
+      assert %MembershipsServiceEndpoint{} = client.endpoints[MembershipsService]
     end
 
     test "errors when no NRPS claim in launch", ctx do
-      context = Ltix.Test.build_launch_context(ctx.platform)
+      launch = Ltix.Test.build_launch(ctx.platform)
 
       assert {:error, %ServiceNotAvailable{} = error} =
-               MembershipsService.authenticate(context)
+               MembershipsService.authenticate(launch)
 
       assert Exception.message(error) =~ "The launch has no endpoint claim for this service"
     end
 
     test "validates service_versions includes 2.0", ctx do
-      endpoint = %MembershipsEndpoint{
+      endpoint = %MembershipsServiceEndpoint{
         context_memberships_url: @memberships_url,
         service_versions: ["1.0"]
       }
 
-      context =
-        Ltix.Test.build_launch_context(ctx.platform,
+      launch =
+        Ltix.Test.build_launch(ctx.platform,
           memberships_endpoint: endpoint
         )
 
       assert {:error, %ServiceNotAvailable{} = error} =
-               MembershipsService.authenticate(context)
+               MembershipsService.authenticate(launch)
 
       assert Exception.message(error) =~ "The endpoint does not support NRPS version 2.0"
     end
@@ -216,7 +216,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       assert {:ok, %Client{} = client} =
                MembershipsService.authenticate(ctx.platform.registration,
-                 endpoint: MembershipsEndpoint.new!(@memberships_url),
+                 endpoint: MembershipsServiceEndpoint.new!(@memberships_url),
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
@@ -226,9 +226,9 @@ defmodule Ltix.MembershipsServiceTest do
     test "accepts a token without the NRPS scope unless require_all_scopes is set, from a registration or a launch",
          ctx do
       Ltix.Test.stub_token_response(scopes: ["other:scope"])
-      endpoint = MembershipsEndpoint.new!(@memberships_url)
+      endpoint = MembershipsServiceEndpoint.new!(@memberships_url)
       req_options = [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-      context = Ltix.Test.build_launch_context(ctx.platform, memberships_endpoint: endpoint)
+      launch = Ltix.Test.build_launch(ctx.platform, memberships_endpoint: endpoint)
 
       assert {:ok, client} =
                MembershipsService.authenticate(ctx.platform.registration,
@@ -247,7 +247,7 @@ defmodule Ltix.MembershipsServiceTest do
                )
 
       assert {:error, %ScopeMismatch{scopes: [@nrps_scope]}} =
-               MembershipsService.authenticate(context,
+               MembershipsService.authenticate(launch,
                  req_options: req_options,
                  require_all_scopes: true
                )
@@ -262,19 +262,11 @@ defmodule Ltix.MembershipsServiceTest do
     test "accepts a custom Registerable struct", _ctx do
       stub_token_response()
 
-      custom_registration = %CustomRegistration{
-        id: "reg-001",
-        tenant_id: "tenant-1",
-        platform_issuer: "https://custom-lms.example.com",
-        oauth_client_id: "custom-tool-client",
-        oidc_auth_url: "https://custom-lms.example.com/auth",
-        platform_jwks_url: "https://custom-lms.example.com/.well-known/jwks.json",
-        platform_token_url: "https://custom-lms.example.com/token"
-      }
+      custom_registration = CustomRegistration.new()
 
       assert {:ok, %Client{} = client} =
                MembershipsService.authenticate(custom_registration,
-                 endpoint: MembershipsEndpoint.new!(@memberships_url),
+                 endpoint: MembershipsServiceEndpoint.new!(@memberships_url),
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
@@ -391,9 +383,12 @@ defmodule Ltix.MembershipsServiceTest do
 
     test "validates an endpoint override like the client's endpoint", ctx do
       client = build_client(ctx.platform)
-      insecure = %MembershipsEndpoint{context_memberships_url: "http://platform.example.com/m"}
 
-      old_version = %MembershipsEndpoint{
+      insecure = %MembershipsServiceEndpoint{
+        context_memberships_url: "http://platform.example.com/m"
+      }
+
+      old_version = %MembershipsServiceEndpoint{
         context_memberships_url: @memberships_url,
         service_versions: ["1.0"]
       }
@@ -415,7 +410,7 @@ defmodule Ltix.MembershipsServiceTest do
         |> Req.Test.json(build_membership_response([]))
       end)
 
-      override = MembershipsEndpoint.new!("https://platform.example.com/other-memberships")
+      override = MembershipsServiceEndpoint.new!("https://platform.example.com/other-memberships")
 
       assert {:ok, %MembershipContainer{}} =
                MembershipsService.list_members(build_client(ctx.platform), endpoint: override)
@@ -586,7 +581,11 @@ defmodule Ltix.MembershipsServiceTest do
 
   describe "AdvantageService callbacks" do
     test "validate_endpoint rejects an endpoint without a valid URL" do
-      missing = %MembershipsEndpoint{context_memberships_url: nil, service_versions: ["2.0"]}
+      missing = %MembershipsServiceEndpoint{
+        context_memberships_url: nil,
+        service_versions: ["2.0"]
+      }
+
       insecure = %{missing | context_memberships_url: "http://platform.example.com/memberships"}
 
       assert {:error, %ServiceNotAvailable{} = error} =
@@ -594,7 +593,8 @@ defmodule Ltix.MembershipsServiceTest do
 
       assert Exception.message(error) =~ "The endpoint has no context memberships URL"
 
-      assert {:error, %InvalidField{struct: MembershipsEndpoint, field: :context_memberships_url}} =
+      assert {:error,
+              %InvalidField{struct: MembershipsServiceEndpoint, field: :context_memberships_url}} =
                MembershipsService.validate_endpoint(insecure)
     end
 

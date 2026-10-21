@@ -1,11 +1,12 @@
 # Writing Plugins
 
-A plugin can add a step to login. Ltix's own login steps come from `Ltix.Core`, a default plugin.
+A plugin can add a login or launch step, or a claim. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
 
 | Goal | See |
 |---|---|
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
-| Run code during login | [Add a step](#add-a-step) |
+| Run code during login or launches | [Add a step](#add-a-step) |
+| Read a claim | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
 | Let other plugins extend yours | [Provide something for other plugins to extend](#provide-something-for-other-plugins-to-extend) |
 | Fix `InvalidPluginSet` | [Fix a plugin set that fails to resolve](#fix-a-plugin-set-that-fails-to-resolve) |
@@ -54,7 +55,7 @@ end
 
 The declaration lists your plugin's modules and the plugins it needs.
 
-- `Ltix.Plugin.add/2` adds a module, such as a login step. Pass options as `{module, opts}`. Leave out the [providers](`Ltix.Provider`) your modules `use`, such as `Ltix.Login`.
+- `Ltix.Plugin.add/2` adds a module, such as a login step or a claim. Pass options as `{module, opts}`. Leave out the [providers](`Ltix.Provider`) your modules `use`, such as `Ltix.Login`.
 - `Ltix.Plugin.depend_on/2` adds a plugin this one needs.
 
 `name` and `version` are optional. Conflict errors include them to identify your plugin.
@@ -74,10 +75,12 @@ config :ltix, plugins: [{Blocklist, issuers: ["https://lms.example.com"]}]
 Ltix.handle_login(params, launch_url, plugins: [Blocklist])
 ```
 
-- A plugin that appears twice in `plugins:` runs each of its steps twice, once with each entry's options.
+- A plugin that appears twice in `plugins:` runs each of its steps twice, once with each entry's options. If its `plugin/1` also adds a claim with different options for each entry, the plugin set [fails to resolve](#fix-a-plugin-set-that-fails-to-resolve). In that case, enable the plugin once with a list of configurations in its options. Add the claim once, and add each step once per configuration.
 - Each distinct `plugins:` list stays in memory until the node stops. In production, build these lists from values that don't change between requests.
 
 A call runs with the [default plugins](`Ltix.DefaultPlugins`) first, then the enabled plugins, each after its [dependencies](#depend-on-another-plugin). This is plugin order.
+
+A launch's `plugins` field has the plugin set the launch ran with. `Ltix.DeepLinking.build_response/3` and other calls that take the launch use that set.
 
 ## Add a step
 
@@ -86,6 +89,7 @@ A step receives a login, launch, client assertion, or Deep Linking response, and
 | Module | Runs during |
 |---|---|
 | `Ltix.Login` | `Ltix.handle_login/3` |
+| `Ltix.Launch` | `Ltix.handle_callback/3` |
 
 `c:Ltix.Step.call/2` returns one of three results.
 
@@ -108,9 +112,11 @@ def call(login, _opts) do
 end
 ```
 
+A module can extend several of these modules. It has a `use` for each, and a `call/2` clause for each struct, such as `%Ltix.Login{}` and `%Ltix.Launch{}`.
+
 ### Add a function as a step
 
-`Ltix.Login.add_step/2` adds a function as a login step, an anonymous step. The function receives the login and returns the same results as `c:Ltix.Step.call/2`.
+`Ltix.Login.add_step/2` and `Ltix.Launch.add_step/2` add a function as a step, an anonymous step. The function receives the login or launch and returns the same results as `c:Ltix.Step.call/2`.
 
 ```elixir
 def plugin(_opts) do
@@ -125,7 +131,7 @@ No step's `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1` receives an an
 
 ### Order steps
 
-Order a step against a phase, such as `Ltix.Login.RegistrationFound`, with `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1`. `Ltix.Login` lists its phases and what's true at each. Implement only the callback you need. Both default to `false`.
+Order a step against a phase, such as `Ltix.Login.RegistrationFound`, with `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1`. `Ltix.Login` and `Ltix.Launch` list their phases and what's true at each. Implement only the callback you need. Both default to `false`.
 
 This login step rejects logins for a suspended tenant. It runs after `Ltix.Login.RegistrationFound`, so `login.source_registration` is your application's registration record.
 
@@ -150,7 +156,9 @@ end
 
 Declare an order for everything your step relies on. A step can rely only on its orders, and its place among other steps can change when plugins change. To run between two phases, order the step after the first and before the second. To run after every other step, return `true` from `c:Ltix.Ordered.after?/1` for every module. Ordering against a module that isn't running, or a misspelled one, has no effect. `Ltix.Ordered` has the full rules.
 
-Order the steps your plugin adds, anonymous steps included, with `Ltix.Login.run_after/3` and `Ltix.Login.run_before/3`. Each calls a function with your plugin, and orders every login step the function adds after or before a module. This plugin rejects suspended tenants with an anonymous step after `Ltix.Login.RegistrationFound`.
+A launch step ordered after `Ltix.Launch.Verified` and before `Ltix.Launch.ClaimsReceived` can change `launch.raw` before Ltix parses it. A launch step ordered after `Ltix.Launch.DeploymentFound` can read the launch's deployment.
+
+Order the steps your plugin adds, anonymous steps included, with `run_after/3` and `run_before/3` of `Ltix.Login` or `Ltix.Launch`. Each calls a function with your plugin, and orders every step the function adds after or before a module. This plugin rejects suspended tenants with an anonymous step after `Ltix.Login.RegistrationFound`.
 
 ```elixir
 def plugin(_opts) do
@@ -278,6 +286,8 @@ Exception.message(error)
 | Conflict | Fix |
 |---|---|
 | Plugins that depend on each other in a cycle | Remove one of the dependencies |
+| Two plugins that declare the same claim URI, short name, or service | Enable only one of the plugins, or have both depend on a plugin that declares it |
+| The same claim module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
 
 Enabling a module that isn't a plugin raises `Ltix.Errors.Invalid.InvalidOption`.
@@ -301,7 +311,9 @@ test "blocks a listed issuer", %{platform: platform} do
 end
 ```
 
+Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-claims-and-launch-steps) are on their own page.
+
 ## Next steps
 
-- `Ltix.Plugin` and `Ltix.PluginSet` for manifests and plugin sets
-- `Ltix.Login` for the login's fields and phases
+- `Ltix.Plugin` and `Ltix.PluginSet` for plugins and plugin sets
+- `Ltix.Login` and `Ltix.Launch` for each document's fields and phases

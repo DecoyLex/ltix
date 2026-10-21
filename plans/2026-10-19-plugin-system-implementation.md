@@ -10,7 +10,7 @@ The design decisions below were settled during planning and are recorded in "Des
 
 - **Launch** is one fixed `with` chain in `lib/ltix/oidc/callback.ex:48-86`. It checks the error response, id_token, state, issuer claims, registration, token, nonce binding, `validate_nonce`, required claims, deployment, and then calls `LaunchClaims.from_json`. It returns `%LaunchContext{}` (`lib/ltix/launch_context.ex:23`) whose `registration` is the host's record.
 - **Message types are hardcoded.** `callback.ex:201-216` accepts only `LtiResourceLinkRequest` and `LtiDeepLinkingRequest`. Required claims per type are at `callback.ex:184-197`, and `launch_claims.ex:402-406` loosens `resource_link` and `deep_linking_settings` parsing by type.
-- **Claim parsing** is `LaunchClaims.from_json/2` with fixed Zoi structs per claim (`lib/ltix/launch_claims/*.ex`), plus `:claim_parsers` merged from app config and call options (`app_config.ex:31-37`, `launch_claims.ex:263-269`). Unknown claims land raw in `claims.extensions`. Claims Core never requires are parsed leniently through `ClaimHelpers.optional` (`claim_helpers.ex:4-18`), so a malformed one becomes `nil` (`launch_claims.ex:238-249,272-283`).
+- **Claim parsing** is `LaunchClaims.from_json/2` with fixed Zoi structs per claim (`lib/ltix/launch_claims/*.ex`), plus `:claim_parsers` merged from app config and call options (`app_config.ex:31-37`, `launch_claims.ex:263-269`). Unknown claims land raw in `claims.extensions`. Claims Core never requires are parsed through `ClaimHelpers.optional` (`claim_helpers.ex:4-18`), so a malformed one becomes `nil` (`launch_claims.ex:238-249,272-283`).
 - **Roles** are parsed into `%Role{}` structs by prefix-keyed parsers (`launch_claims/role.ex`, `role/lis.ex`), with app-config parsers only for NRPS members (`member.ex:129`, `membership_container.ex:80`).
 - **Advantage services** implement `Ltix.AdvantageService` (`advantage_service.ex:33-39`). `Ltix.OAuth.authenticate/2` unions scopes across services (`oauth.ex:140-159`, `client.ex:425-440`), and `Client.force_refresh/1` does it again (`client.ex:307-326`). The client assertion is built in `client_credentials.ex:151-167`. `%Ltix.OAuth.Client{}` keeps no plugin information.
 - **`extensions:`** on `Score`, `LineItem`, `Result`, `Member`, and the five content items is a string-keyed map checked against standard keys (`extensions.ex:47-66`). `LineItem`, `Result`, and `Member` also keep unrecognized response keys there.
@@ -90,7 +90,7 @@ These were settled during planning. Numbers are the planning agenda's.
 14. **Scope.** Only converting 0.2 is in scope (see "What We're NOT Doing").
 15. **Errors.** Entry points return `{:ok, document}` when the document has no errors. Otherwise they return `{:error, exception}`, with the errors combined into one Ltix error as in 0.2.
 16. **Resolution hook.** A provider can define an optional `resolve/1` callback that runs when the plugin set is resolved. It returns per-set data, such as validators, or resolution errors.
-17. **Malformed claims.** Bundled Core 1.3.0 claim owners keep 0.2's leniency. A malformed claim that 0.2 parsed through `ClaimHelpers.optional` is left out of `claims`, and stays in `raw`. A malformed optional property inside a claim becomes `nil`. The stricter 1.3.1 rule belongs to the future 1.3.1 plugin as a claim check.
+17. **Malformed claims.** Core 1.3.0's claim owners keep 0.2's behavior for malformed claims. A malformed claim that 0.2 parsed through `ClaimHelpers.optional` is left out of `claims`, and stays in `raw`. A malformed optional property inside a claim becomes `nil`. The stricter 1.3.1 rule belongs to the future 1.3.1 plugin as a claim check.
 
 ## Implementation Approach
 
@@ -244,12 +244,15 @@ The provider's hook is `[Ltix.Step, Ltix.Ordered]`. Delete `lib/ltix/launch_cont
 
 #### 2. Bundled launch steps
 **File**: `lib/ltix/launch/` (one module per step)
-**Changes**: Split `callback.ex:48-86` into documented step modules in 0.2's order:
+**Changes**: Split `callback.ex:48-86` into step modules in 0.2's order, with the phases plugins order against between them:
 - `CheckErrorResponse`, `ExtractIdToken`, `VerifyState`
-- `LookUpRegistration`, `VerifyToken`, `VerifyNonceBinding`, `ValidateNonce`, `LookUpDeployment`
-- `ParseClaims`, `RejectUndeclaredMessageType`, `ValidateMessageType`
+- `LookUpRegistration`, `VerifyIdToken`, `VerifyNonceBinding`, `ValidateNonce`
+- the phases `Verified` and `ClaimsReceived`
+- `ParseClaims`, then the phase `ClaimsParsed`
+- `RejectUndeclaredMessageType`, `ValidateMessageType`, then the phase `Validated`
+- `LookUpDeployment`, after the claims pass, as 0.2 looked up the deployment
 
-Each declares its order with `after?/1`. `validate_required_lti_claims` (`callback.ex:170-299`) is split three ways:
+A phase module is a documented step that changes nothing. The other steps have `@moduledoc false`, and each declares its place against the phase modules, and its order among the steps between the same two, with `before?/1` and `after?/1`. `validate_required_lti_claims` (`callback.ex:170-299`) is split three ways:
 - Shape rules go to claim owners.
 - Rules `Ltix.Validator` can't express, such as `version` being `"1.3.0"`, become claim checks.
 - Per-type requirements go to message types.
@@ -260,7 +263,7 @@ Each declares its order with `after?/1`. `validate_required_lti_claims` (`callba
 - **The owner contract.** `Ltix.Claim` is a provider whose extenders implement `Ltix.Property`. An owner declares `claim:` and `name:` as `use` options.
 - **Object claims.** These declare `fields:` (a Zoi keyword list, as content item types do in decision 4), and `use` generates the struct with `extensions` and `unrecognized`.
 - **Scalar claims.** These implement `parse/2`.
-- **Leniency.** An owner opts into 0.2's leniency with `lenient: true`. A lenient owner's parse failure leaves the claim out of `claims`.
+- **The `strict` option.** An owner declared with `strict: false` keeps 0.2's behavior. When its parse fails, the claim is left out of `claims`.
 - **Checks.** An owner may define `check/2`, which reads the parsed claims.
 
 `Ltix.Claims` handles these:
@@ -284,7 +287,7 @@ defmodule Ltix.Claims.LaunchPresentation do
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/launch_presentation",
     name: :launch_presentation,
-    lenient: true,
+    strict: false,
     fields: [
       document_target: Zoi.enum(~w(frame iframe window), description: "How the tool is displayed.") |> Zoi.optional(),
       height: Zoi.number(description: "Height of the window or frame.") |> Zoi.optional(),
@@ -343,7 +346,7 @@ defmodule Ltix.ResourceLinkRequest do
     new("LtiResourceLinkRequest")
     |> required(:resource_link)
     |> required(:roles)
-    |> required(:sub, unless: option(:allow_anonymous))
+    |> required(:subject, unless: option(:allow_anonymous))
   end
 end
 ```
@@ -407,7 +410,7 @@ All tests live in `test/ltix/plugins/launch_test.exs`, with plugins in `test/sup
    - two overrides of one check, or of one validator claim, in one type
    - two modules declaring one message type string
    - an unknown claim name in a validator
-10. A launch step ordered `before?(Ltix.Launch.ParseClaims)` can write `claims`, and one ordered after it reads parsed claims.
+10. A launch step ordered after `Ltix.Launch.Verified` and before `Ltix.Launch.ClaimsReceived` can rewrite `raw` and write `claims`, and one ordered after `Ltix.Launch.ClaimsParsed` reads parsed claims.
 
 ### Changes Required:
 
@@ -895,7 +898,7 @@ defp met?({module, args}, claims, opts), do: module.met?(args, claims, opts)
 defp met?(module, claims, opts) when is_atom(module), do: module.met?([], claims, opts)
 ```
 
-`defaults/2` only fills claims no statement mentions. `missing/3` reads the parsed `claims`, and presence means the claim's short name is a key there. A claim whose owner parsed it leniently and left it out (decision 17) therefore counts as missing when its type requires it. 0.2 does the same for required claims, because the claims it parses leniently are the ones Core never requires.
+`defaults/2` only fills claims no statement mentions. `missing/3` reads the parsed `claims`, and presence means the claim's short name is a key there. When an owner declared with `strict: false` leaves a malformed claim out (decision 17), the claim counts as missing if its type requires it. 0.2 does the same for required claims, because the claims it parses through `ClaimHelpers.optional` are the ones Core never requires.
 
 Building validators for a plugin set applies the type's own `validator/0`, then each contribution, both from the type's extenders and from `Ltix.Launch.EveryMessageType`. It then checks unknown claim names against the owners' `name/0`, and two overrides of one claim in one type.
 

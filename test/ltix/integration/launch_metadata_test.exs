@@ -3,8 +3,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Security.NonceReused
-  alias Ltix.LaunchClaims
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.Role
   alias Ltix.Test.StorageAdapter
 
@@ -12,10 +11,6 @@ defmodule Ltix.Integration.LaunchMetadataTest do
   @ags "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"
   @memberships "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice"
   @deep_linking "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings"
-
-  defmodule ParserError do
-    defexception message: "the parser failed"
-  end
 
   setup do
     platform = Ltix.Test.setup_platform!()
@@ -28,18 +23,19 @@ defmodule Ltix.Integration.LaunchMetadataTest do
   end
 
   for field <- ~w(name email given_name family_name middle_name picture locale) do
-    test "launch omits malformed #{field} without losing identity or valid metadata", context do
+    test "launch leaves a malformed #{field} nil without losing identity or valid metadata",
+         context do
       field = unquote(field)
 
       for value <- [123, false, [], [%{}], %{"name" => "not a string"}] do
         {login, params} = begin_launch(context.platform, %{field => value, "custom-raw" => value})
 
-        assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
-        assert Map.fetch!(claims, String.to_existing_atom(field)) == nil
+        assert {:ok, %Launch{claims: claims} = launch} = callback(login, params)
+        assert claims[String.to_existing_atom(field)] == nil
         assert claims.subject == "user-12345"
         assert claims.resource_link.id == "resource-link-001"
         assert Role.instructor?(claims.roles)
-        assert claims.extensions["custom-raw"] == value
+        assert launch.raw["custom-raw"] == value
         assert claims.custom == %{"arbitrary" => value}
         assert {:error, %NonceReused{}} = callback(login, params)
       end
@@ -76,7 +72,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
       {login, params} =
         begin_launch(context.platform, %{unquote(key) => unquote(Macro.escape(json))})
 
-      assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
+      assert {:ok, %Launch{claims: claims}} = callback(login, params)
       parsed = Map.fetch!(claims, unquote(field))
       assert Map.take(parsed, unquote(Map.keys(expected))) == unquote(Macro.escape(expected))
       assert claims.subject == "user-12345"
@@ -92,23 +88,23 @@ defmodule Ltix.Integration.LaunchMetadataTest do
         {@memberships, :memberships_endpoint},
         {@lti <> "role_scope_mentor", :role_scope_mentor}
       ] do
-    test "launch omits unusable optional #{field} claims", context do
+    test "launch leaves an unusable optional #{field} claim nil", context do
       for value <- [123, false, "invalid", [123]] do
         {login, params} = begin_launch(context.platform, %{unquote(key) => value})
-        assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
-        assert Map.fetch!(claims, unquote(field)) == nil
+        assert {:ok, %Launch{claims: claims}} = callback(login, params)
+        assert claims[unquote(field)] == nil
         assert claims.subject == "user-12345"
         assert claims.resource_link.id == "resource-link-001"
       end
     end
   end
 
-  test "launch omits optional objects with unusable identifiers", context do
+  test "launch leaves optional objects with unusable identifiers nil", context do
     for field <- [:context, :tool_platform], value <- [%{}, %{"id" => 123}] do
       {login, params} = begin_launch(context.platform, %{(@lti <> to_string(field)) => value})
 
-      assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
-      assert Map.fetch!(claims, field) == nil
+      assert {:ok, %Launch{claims: claims}} = callback(login, params)
+      assert claims[field] == nil
     end
   end
 
@@ -132,7 +128,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
         @deep_linking => settings
       })
 
-    assert {:ok, %LaunchContext{claims: %{deep_linking_settings: parsed}}} =
+    assert {:ok, %Launch{claims: %{deep_linking_settings: parsed}}} =
              callback(login, params)
 
     assert parsed.deep_link_return_url == settings["deep_link_return_url"]
@@ -147,36 +143,6 @@ defmodule Ltix.Integration.LaunchMetadataTest do
     assert parsed.text == nil
   end
 
-  test "resource launches omit unusable deep linking settings", context do
-    for settings <- [123, false, [], %{}, %{"deep_link_return_url" => 123}] do
-      {login, params} = begin_launch(context.platform, %{@deep_linking => settings})
-      assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
-      assert claims.deep_linking_settings == nil
-      assert claims.resource_link.id == "resource-link-001"
-    end
-  end
-
-  test "deep linking launches omit unusable resource links", context do
-    settings = %{
-      "deep_link_return_url" => "https://platform.example.com/return",
-      "accept_types" => ["ltiResourceLink"],
-      "accept_presentation_document_targets" => ["iframe"]
-    }
-
-    for resource_link <- [123, false, [], %{}, %{"id" => 123}] do
-      {login, params} =
-        begin_launch(context.platform, %{
-          (@lti <> "message_type") => "LtiDeepLinkingRequest",
-          @deep_linking => settings,
-          (@lti <> "resource_link") => resource_link
-        })
-
-      assert {:ok, %LaunchContext{claims: claims}} = callback(login, params)
-      assert claims.resource_link == nil
-      assert claims.deep_linking_settings.accept_types == ["ltiResourceLink"]
-    end
-  end
-
   test "malformed identity and essential resource launch fields are invalid", context do
     for {overrides, claim, value} <- [
           {%{"sub" => 123}, "sub", 123},
@@ -186,36 +152,42 @@ defmodule Ltix.Integration.LaunchMetadataTest do
           {%{(@lti <> "target_link_uri") => false}, "target_link_uri", false},
           {%{(@lti <> "deployment_id") => []}, "deployment_id", []},
           {%{(@lti <> "roles") => "Instructor"}, "roles", "Instructor"},
-          {%{(@lti <> "roles") => [123]}, "roles", [123]}
+          {%{(@lti <> "roles") => [123]}, "roles.0", 123}
         ] do
       {login, params} = begin_launch(context.platform, overrides)
       assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} = callback(login, params)
     end
   end
 
-  test "deep linking required settings remain validated despite a message type parser", context do
+  test "malformed Deep Linking settings or resource links fail every launch", context do
     settings = %{
       "deep_link_return_url" => "https://platform.example.com/return",
       "accept_types" => ["ltiResourceLink"],
       "accept_presentation_document_targets" => ["iframe"]
     }
 
-    for field <- ~w(deep_link_return_url accept_types accept_presentation_document_targets) do
-      for value <- [123, false, %{}] do
+    for message_type <- ["LtiResourceLinkRequest", "LtiDeepLinkingRequest"] do
+      for field <- ~w(deep_link_return_url accept_types accept_presentation_document_targets),
+          value <- [123, false, %{}] do
         {login, params} =
           begin_launch(context.platform, %{
-            (@lti <> "message_type") => "LtiDeepLinkingRequest",
+            (@lti <> "message_type") => message_type,
             @deep_linking => Map.put(settings, field, value)
           })
 
         claim = "deep_linking_settings." <> field
+        assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} = callback(login, params)
+      end
 
-        assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} =
-                 callback(login, params,
-                   claim_parsers: %{
-                     (@lti <> "message_type") => fn _ -> {:ok, "LtiResourceLinkRequest"} end
-                   }
-                 )
+      for {resource_link, claim} <- [{123, "resource_link"}, {%{"id" => 123}, "resource_link.id"}] do
+        {login, params} =
+          begin_launch(context.platform, %{
+            (@lti <> "message_type") => message_type,
+            @deep_linking => settings,
+            (@lti <> "resource_link") => resource_link
+          })
+
+        assert {:error, %InvalidClaim{claim: ^claim}} = callback(login, params)
       end
     end
   end
@@ -231,7 +203,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
       })
 
     assert {:ok,
-            %LaunchContext{
+            %Launch{
               claims: %{
                 launch_presentation: %{
                   height: 600,
@@ -266,7 +238,7 @@ defmodule Ltix.Integration.LaunchMetadataTest do
           }
         })
 
-      assert {:ok, %LaunchContext{} = launch} = callback(login, params)
+      assert {:ok, %Launch{} = launch} = callback(login, params)
       assert launch.claims.deep_linking_settings.title == nil
       assert launch.claims.deep_linking_settings.data == data
       assert {:ok, response} = Ltix.DeepLinking.build_response(launch)
@@ -285,44 +257,6 @@ defmodule Ltix.Integration.LaunchMetadataTest do
       assert json_claims["https://purl.imsglobal.org/spec/lti-dl/claim/data"] == data
       assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
       assert claims["https://purl.imsglobal.org/spec/lti-dl/claim/content_items"] == []
-    end
-  end
-
-  test "custom parsers receive raw malformed metadata before builtins and retain exact results",
-       context do
-    {login, params} = begin_launch(context.platform, %{"name" => 123})
-    result = %{"vendor" => [123]}
-
-    parser = fn raw ->
-      send(self(), {:name, raw})
-      {:ok, result}
-    end
-
-    assert {:ok, %LaunchContext{claims: %LaunchClaims{name: ^result}}} =
-             callback(login, params, claim_parsers: %{"name" => parser})
-
-    assert_received {:name, 123}
-    refute_received {:name, _}
-  end
-
-  test "custom parser errors and programming exceptions are not omitted", context do
-    expected = InvalidClaim.exception(claim: "vendor.name", value: 123, message: "invalid name")
-    {login, params} = begin_launch(context.platform, %{"name" => 123})
-
-    assert {:error, ^expected} =
-             callback(login, params, claim_parsers: %{"name" => fn 123 -> {:error, expected} end})
-
-    {login, params} = begin_launch(context.platform, %{"name" => 123})
-
-    assert {:error, %InvalidClaim{claim: "name", value: 123, message: "must be a string"}} =
-             callback(login, params,
-               claim_parsers: %{"name" => fn 123 -> {:error, "must be a string"} end}
-             )
-
-    {login, params} = begin_launch(context.platform, %{"name" => 123})
-
-    assert_raise ParserError, fn ->
-      callback(login, params, claim_parsers: %{"name" => fn 123 -> raise ParserError end})
     end
   end
 

@@ -1,22 +1,12 @@
 # LTI Advantage Concepts
 
-LTI 1.3 defines how learning platforms connect with external tools.
-Understanding these concepts will help you configure Ltix, implement
-your storage adapter, and debug launch issues. If you're already
-familiar with LTI 1.3, skip ahead to
-[How Ltix fits in](#how-ltix-fits-in).
+LTI 1.3 defines how learning platforms connect with external tools. Understanding these concepts will help you configure Ltix, implement your storage adapter, and debug launch issues. If you're already familiar with LTI 1.3, skip ahead to [How Ltix fits in](#how-ltix-fits-in).
 
 ## What is LTI?
 
-Learning Tools Interoperability (LTI) connects learning platforms
-(like Canvas, Moodle, or Blackboard) with external tools (like a
-quiz engine, coding sandbox, or video player). When a student clicks
-a link in their course, the platform launches the tool with
-information about who the user is, what course they're in, and what
-role they have.
+Learning Tools Interoperability (LTI) connects learning platforms (like Canvas, Moodle, or Blackboard) with external tools (like a quiz engine, coding sandbox, or video player). When a student clicks a link in their course, the platform launches the tool with information about who the user is, what course they're in, and what role they have.
 
-LTI 1.3 uses OpenID Connect (OIDC) for the launch flow and signed
-JWTs for the data payload.
+LTI 1.3 uses OpenID Connect (OIDC) for the launch flow and signed JWTs for the data payload.
 
 ## Launch flow
 
@@ -39,22 +29,13 @@ sequenceDiagram
     T->>B: Render launch
 ```
 
-1. **Login initiation** - the platform sends the tool a login request
-   for a user who wants to launch. The tool doesn't have the user's
-   identity yet. It just gets the platform's identity and a hint.
-   Ltix handles this in `handle_login/3`.
+1. **Login initiation** - the platform sends the tool a login request for a user who wants to launch. The tool doesn't have the user's identity yet. It receives only the platform's identity and a hint. Ltix handles this in `handle_login/3`.
 
-2. **Authorization redirect** - the tool sends the browser to the
-   platform's auth endpoint with a nonce and state parameter. The
-   platform authenticates the user and builds a signed JWT.
+2. **Authentication request** - the tool sends the browser to the platform's authentication endpoint with a nonce and state parameter. The platform authenticates the user and builds a signed JWT.
 
-3. **Launch** - the platform POSTs the signed JWT back to the tool.
-   The tool validates the signature, checks the nonce, and extracts the
-   launch data. Ltix handles this in `handle_callback/3`.
+3. **Launch** - the platform POSTs the signed JWT back to the tool. The tool validates the signature, checks the nonce, and extracts the launch data. Ltix handles this in `handle_callback/3`.
 
-The state parameter (stored in the session between steps 1 and 3)
-provides CSRF protection. It proves the launch callback came from
-the same browser session that initiated the login.
+The state parameter (stored in the session between steps 1 and 3) provides CSRF protection. It proves the launch callback came from the same browser session that initiated the login.
 
 ## Registrations
 
@@ -71,45 +52,44 @@ A registration contains the following fields.
 | `token_endpoint` | Where to request access tokens for service calls (optional) |
 | `audience` | The audience the platform expects in token requests, when it differs from the token endpoint (optional) |
 
-In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter`
-looks up registrations by issuer and client_id, both during login
-initiation and again during launch validation.
+In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter` looks up registrations by issuer and client_id, both during login initiation and again during launch validation.
 
 ## Deployments
 
 A **deployment** is the set of contexts on a platform where your tool is available, such as one course or a whole institution. One registration, identified by issuer and client_id, can have many deployments, for example a tool installed in three different departments of the same university.
 
-A deployment has a single `deployment_id` assigned by the platform.
-It's immutable, case-sensitive, and guaranteed unique within the
-registration.
+A deployment has a single `deployment_id` assigned by the platform. It's immutable, case-sensitive, and guaranteed unique within the registration.
 
-In Ltix, this is `Ltix.Deployment`. Your storage adapter looks up
-deployments during launch validation, after the JWT's deployment_id is
-extracted.
+In Ltix, this is `Ltix.Deployment`. Your storage adapter looks up deployments during launch validation, after the JWT is verified and its claims pass.
 
-## Launch claims
+## Claims
 
-The signed JWT in step 3 contains **claims**, which are structured data
-about the launch. Ltix parses these into `Ltix.LaunchClaims`.
+A **claim** is one property of the ID token, such as the user's name or the context. Ltix parses claims into `launch.claims`, keyed by short names.
 
-| Claim group | Examples | Struct field |
-|---|---|---|
-| User identity | subject, name, email | `claims.subject`, `claims.name` |
-| Roles | instructor, learner, TA | `claims.roles` (list of role URIs) |
-| Context | course ID, title, label | `claims.context` |
-| Resource link | link ID, title | `claims.resource_link` |
-| Launch metadata | message type, version, target URI | `claims.message_type`, `claims.target_link_uri` |
-| Service endpoints | gradebook, names & roles | `claims.ags_endpoint`, `claims.memberships_endpoint` |
-| Custom | anything the platform adds | `claims.custom`, `claims.extensions` |
+| Claims | Short names |
+|---|---|
+| User identity | `:subject`, `:name`, `:email` |
+| Roles | `:roles` |
+| Context | `:context` |
+| Resource link, the link the user followed | `:resource_link` |
+| Launch details | `:message_type`, `:version`, `:target_link_uri` |
+| Service endpoints | `:ags_endpoint`, `:memberships_endpoint` |
+| Values the platform sets for the link | `:custom` |
 
-The full launch result is `Ltix.LaunchContext`, which contains the claims
-together with the matched registration and deployment.
+The **subject** is the platform's ID for the user. It never changes and is never reused. It's unique only within one platform. Key your users by subject and registration together.
+
+Every launch has `:message_type`, `:version`, `:deployment_id`, and `:target_link_uri`. Every resource link launch also has `:roles` and `:resource_link`, and `:subject` unless you allow anonymous launches. Other claims are `nil` when the platform leaves them out, and `:roles` is `[]`.
+
+```elixir
+launch.claims.subject          #=> "user-12345"
+launch.claims.context.title    #=> "Intro to Elixir", when the platform sent a context
+```
+
+Claims Ltix doesn't parse, such as a vendor's own, are in `launch.raw` under their full names. `Ltix.Core` lists Core's claims and their short names, and `Ltix.Launch` links the modules of the other claims Ltix parses.
 
 ## Roles
 
-Platforms send roles as URI strings. A user can have multiple roles
-simultaneously, for example an instructor in the course and a
-staff member at the institution.
+Platforms send roles as URI strings. A user can have multiple roles simultaneously, for example an instructor in the course and a staff member at the institution.
 
 Roles come from three [vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies).
 
@@ -117,9 +97,7 @@ Roles come from three [vocabularies](https://standards.1edtech.org/lti/specifica
 - **Institution** - org-level (faculty, student, staff, administrator)
 - **System** - platform-level (system administrator, account administrator)
 
-Ltix keeps the role URIs as the platform sent them, and `Ltix.Role` has
-checks like `Ltix.Role.instructor?/1` for authorization. See
-[Working with Roles](working-with-roles.md) for details.
+`launch.claims.roles` has the user's roles, and `Ltix.Role` checks them. See [Working with Roles](working-with-roles.md).
 
 ## Nonces
 
@@ -134,8 +112,7 @@ If someone intercepts a JWT and tries to replay it, the nonce check fails becaus
 
 ## How Ltix fits in
 
-Ltix handles the protocol (OIDC redirects, JWT parsing, signature
-verification, claim validation). Your application handles the rest.
+Ltix handles the protocol (OIDC redirects, JWT parsing, signature verification, claim validation). Your application handles the rest.
 
 | Ltix's job | Your app's job |
 |---|---|

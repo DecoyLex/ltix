@@ -1,23 +1,14 @@
 # Auto-creating Deployments on First Launch
 
-In the standard LTI flow, registrations and deployments are both created
-out-of-band before the first launch. But many tools don't need
-per-deployment configuration. Their configuration is per platform
-(registration), and they only record deployments. For these tools, you can
-auto-create deployments the first time a new `deployment_id` appears in
-a launch.
+In the standard LTI flow, registrations and deployments are both created out-of-band before the first launch. But many tools don't need per-deployment configuration. Their configuration is per platform (registration), and they only record deployments. For these tools, you can auto-create deployments the first time a new `deployment_id` appears in a launch.
 
-This works because `get_deployment/3` runs after JWT signature
-verification and nonce validation, so the `deployment_id` is already
-verified by the time your adapter receives it.
+This works because `get_deployment/3` runs after JWT signature verification and nonce validation, so the `deployment_id` is already verified by the time your adapter receives it.
 
 <!-- tabs-open -->
 
 ### Storage adapter
 
-The simplest approach is to make `get_deployment/3` upsert. The first
-launch creates the deployment row, and subsequent launches find it. No
-controller changes needed.
+The simplest approach is to make `get_deployment/3` upsert. The first launch creates the deployment row, and subsequent launches find it. No controller changes needed.
 
 ```elixir
 @impl true
@@ -35,16 +26,11 @@ def get_deployment(%PlatformRegistration{id: registration_id}, deployment_id, _o
 end
 ```
 
-The insert-then-select pattern handles the race condition where two
-concurrent launches for the same new deployment both call
-`get_deployment/3` at the same time. `on_conflict: :nothing` means the
-second insert silently succeeds without duplicating the row, and both
-calls find the same record on the subsequent select.
+The insert-then-select pattern handles the race condition where two concurrent launches for the same new deployment both call `get_deployment/3` at the same time. `on_conflict: :nothing` means the second insert silently succeeds without duplicating the row, and both calls find the same record on the subsequent select.
 
 > #### Migration {: .tip}
 >
-> Your `platform_deployments` table needs a unique index for the
-> upsert's conflict target.
+> Your `platform_deployments` table needs a unique index for the upsert's conflict target.
 >
 > ```elixir
 > create unique_index(:platform_deployments, [:registration_id, :deployment_id])
@@ -52,10 +38,7 @@ calls find the same record on the subsequent select.
 
 ### Controller
 
-If deployments have meaning in your domain (per-deployment settings,
-onboarding flows, approval steps), handle creation in the controller.
-This lets you show a registration form, collect extra information, or
-require admin approval before the deployment is active.
+If deployments have meaning in your domain (per-deployment settings, onboarding flows, approval steps), handle creation in the controller. This lets you show a registration form, collect extra information, or require admin approval before the deployment is active.
 
 ```elixir
 def launch(conn, params) do
@@ -87,8 +70,7 @@ def launch(conn, params) do
 end
 ```
 
-For an onboarding flow where you need to collect information before
-creating the deployment, use this clause.
+For an onboarding flow where you need to collect information before creating the deployment, use this clause.
 
 ```elixir
 {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: id}} ->
@@ -100,8 +82,7 @@ creating the deployment, use this clause.
 
 > #### Nonce is used before deployment lookup {: .warning}
 >
-> `handle_callback/3` records the nonce as used before looking up the deployment. When the call fails with `DeploymentNotFound`, the nonce is already used. You cannot retry `handle_callback/3` with the
-> same params. The user must re-launch from the platform.
+> `handle_callback/3` records the nonce as used before looking up the deployment. When the call fails with `DeploymentNotFound`, the nonce is already used. You cannot retry `handle_callback/3` with the same params. The user must re-launch from the platform.
 
 <!-- tabs-close -->
 

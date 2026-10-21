@@ -224,7 +224,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Step**. A module that receives a login, launch, client assertion, or Deep Linking response and can change it, record an error and continue, or record an error and halt the call.
 
-**Anonymous step**. A step a plugin adds as a function, with its provider's `add_step/2`, such as `Ltix.Login.add_step/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
+**Anonymous step**, **anonymous claim**. A step or claim a plugin adds without a module of its own, with its provider's function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`. No step can order itself against an anonymous step. The word has nothing to do with an anonymous launch.
 
 **Default step**. A step a default plugin provides. Default steps other than phases are internal and can change between releases.
 
@@ -236,15 +236,15 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Raw claims**. A message's claims as received, before parsing.
 
-**Declared claim**. A claim that a single module declares and parses. _Avoid_ claim owner, claim parser, and own as a verb for claims.
+**Declared claim**. A claim that one plugin declares, with a claim module or as an anonymous claim, and that Ltix parses. _Avoid_ claim owner, claim parser, and own as a verb for claims.
 
 **Object claim**. A claim whose value is a JSON object with named fields.
 
 **Scalar claim**. A claim whose value is a string, number, or list.
 
-**Lenient claim**. A claim whose malformed value is left out of the parsed claims and kept in the raw claims, without failing the call.
+**Strict**. Whether a declared claim's malformed value fails the call. Claims are strict by default. When a claim is declared with `strict: false`, a malformed value is the claim's default, or `nil`, in the parsed claims and stays in the raw claims, and the call continues.
 
-**Check**. A rule about a parsed claim that must pass for a message to be valid, defined by the extender that declares the claim or added by another plugin.
+**Check**. A rule about a parsed claim that must pass for a message to be valid. The module that declares the claim defines its checks, and other plugins can add more.
 
 ## Message types
 
@@ -270,7 +270,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Property**. One JSON property on a type that a single module declares, parses, and serializes. _Avoid_ claim and own as verbs for properties.
 
-**Extension**. A property's parsed value, stored on the type under its extender. _Avoid_ using "extension" for a plugin, an extender, or an extension claim.
+**Extension**. A property's parsed value, stored in the type's `extensions` under its property name. _Avoid_ using "extension" for a plugin, a module that extends another, or an extension claim.
 
 **Unrecognized property**. A property no plugin declares, kept as received and written back unchanged. _Avoid_ unclaimed, unowned.
 

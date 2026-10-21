@@ -4,9 +4,9 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
   alias Ltix.Errors.Security.LocalNetworkAccessDenied
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.JWK
-  alias Ltix.LaunchClaims.MembershipsEndpoint
-  alias Ltix.LaunchContext
+  alias Ltix.Launch
   alias Ltix.MembershipsService
+  alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.OAuth
   alias Ltix.Pagination
   alias Ltix.Test.StorageAdapter
@@ -178,7 +178,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
 
       {state, params} = launch(ctx.platform)
 
-      assert {:ok, %LaunchContext{}} =
+      assert {:ok, %Launch{}} =
                Ltix.handle_callback(params, state, [local_network_access: :loopback] ++ opts)
 
       assert [request] = Task.await(ctx.server)
@@ -198,7 +198,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       }
 
       endpoints = %{
-        MembershipsService => MembershipsEndpoint.new!("http://127.0.0.1:#{port}/members")
+        MembershipsService => MembershipsServiceEndpoint.new!("http://127.0.0.1:#{port}/members")
       }
 
       opts = [endpoints: endpoints, req_options: [retry: false]]

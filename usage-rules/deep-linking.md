@@ -1,18 +1,17 @@
 # Deep Linking
 
-Rules for implementing LTI Deep Linking flows, covering content selection, item construction,
-and response delivery.
+Rules for implementing LTI Deep Linking flows, covering content selection, item construction, and response delivery.
 
 ## Launch Type Detection
 
 The same `handle_callback/3` handles both launch types. Branch on message type.
 
 ```elixir
-{:ok, context} = Ltix.handle_callback(params, state)
+{:ok, launch} = Ltix.handle_callback(params, state)
 
-case context.claims.message_type do
-  "LtiDeepLinkingRequest" -> render(conn, :content_picker, context: context)
-  "LtiResourceLinkRequest" -> redirect(conn, external: context.claims.target_link_uri)
+case launch.claims.message_type do
+  "LtiDeepLinkingRequest" -> render(conn, :content_picker, launch: launch)
+  "LtiResourceLinkRequest" -> redirect(conn, external: launch.claims.target_link_uri)
 end
 ```
 
@@ -33,7 +32,7 @@ Date and time fields, such as `File`'s `expires_at` and a resource link's `avail
 Before building items, check what the platform accepts.
 
 ```elixir
-settings = context.claims.deep_linking_settings
+settings = launch.claims.deep_linking_settings
 settings.accept_types          # ["ltiResourceLink", "link", ...]
 settings.accept_multiple       # true, false, or nil
 settings.accept_line_item      # true, false, or nil
@@ -66,7 +65,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 ## Building the Response
 
 ```elixir
-{:ok, response} = Ltix.DeepLinking.build_response(context, [link],
+{:ok, response} = Ltix.DeepLinking.build_response(launch, [link],
   message: "Content selected successfully"
 )
 ```
@@ -93,7 +92,7 @@ html(conn, """
 
 Errors about one item include its `index` in the list you passed.
 
-- `InvalidMessageType` - `build_response/3` called on a non-deep-linking context
+- `InvalidMessageType` - `build_response/3` called with a launch that isn't a Deep Linking request
 - `InvalidContentItem` when an item is not a content item or the items are not a list
 - `ContentItemTypeNotAccepted` - item type not in `settings.accept_types`
 - `ContentItemsExceedLimit` - multiple items when `settings.accept_multiple` is `false`
