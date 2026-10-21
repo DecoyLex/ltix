@@ -27,9 +27,27 @@ defmodule Ltix.MembershipsService.Endpoint do
     ]
 
   alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
+
+  @new_schema Zoi.struct(
+                __MODULE__,
+                %{
+                  context_memberships_url: Zoi.string(),
+                  service_versions: Zoi.list(Zoi.string()) |> Zoi.optional()
+                },
+                coerce: true,
+                unrecognized_keys: :error,
+                empty_values: [nil, ""]
+              )
 
   @doc """
-  Create a memberships endpoint from a URL string.
+  Build a memberships endpoint from its URL, or from its fields as a keyword
+  list or a map.
+
+  The URL must use HTTPS, or HTTP for a loopback or private network host. Returns
+  `Ltix.Errors.Invalid.InvalidField` for any other URL, and for an unknown
+  or invalid field. Returns `Ltix.Errors.Invalid.ServiceNotAvailable` for
+  fields without a URL, or with `:service_versions` that leave out `"2.0"`.
 
   ## Examples
 
@@ -37,42 +55,49 @@ defmodule Ltix.MembershipsService.Endpoint do
       iex> endpoint.context_memberships_url
       "https://lms.example.com/memberships"
 
+      iex> {:ok, endpoint} = Ltix.MembershipsService.Endpoint.new(
+      ...>   context_memberships_url: "https://lms.example.com/memberships",
+      ...>   service_versions: ["2.0"]
+      ...> )
+      iex> endpoint.service_versions
+      ["2.0"]
+
       iex> {:error, error} = Ltix.MembershipsService.Endpoint.new("http://lms.example.com/memberships")
       iex> error.field
       :context_memberships_url
   """
-  @spec new(String.t() | nil) :: {:ok, t()} | {:error, Exception.t()}
-  # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#claim-for-inclusion-in-lti-messages)
-  def new(url) when url in [nil, ""] do
-    {:error, InvalidField.required(__MODULE__, :context_memberships_url)}
-  end
+  @impl Ltix.Claim
+  @spec new(String.t() | nil | keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
+  def new(url_or_fields)
 
-  def new(url) do
-    endpoint = %__MODULE__{context_memberships_url: url}
-    with :ok <- validate_url(endpoint), do: {:ok, endpoint}
+  # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#claim-for-inclusion-in-lti-messages)
+  def new(url) when url in [nil, ""],
+    do: {:error, InvalidField.required(__MODULE__, :context_memberships_url)}
+
+  def new(url) when is_binary(url), do: new(context_memberships_url: url)
+
+  def new(attributes) when is_list(attributes) or is_map(attributes) do
+    attributes = Map.new(attributes)
+
+    with :ok <- require_url(attributes[:context_memberships_url]),
+         {:ok, endpoint} <- InvalidField.parse(__MODULE__, @new_schema, attributes),
+         :ok <- validate_url(endpoint),
+         do: validate_service_versions(endpoint)
   end
 
   @doc """
-  Same as `new/1` but raises on an invalid URL.
-
-  ## Examples
-
-      iex> endpoint = Ltix.MembershipsService.Endpoint.new!("https://lms.example.com/memberships")
-      iex> endpoint.context_memberships_url
-      "https://lms.example.com/memberships"
+  Same as `new/1` but raises on error.
   """
-  @spec new!(String.t()) :: t()
-  def new!(url) do
-    case new(url) do
+  @spec new!(String.t() | nil | keyword() | map()) :: t()
+  def new!(url_or_fields) do
+    case new(url_or_fields) do
       {:ok, endpoint} -> endpoint
       {:error, error} -> raise error
     end
   end
 
-  @doc false
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  @spec validate_url(t()) :: :ok | {:error, Exception.t()}
-  def validate_url(%__MODULE__{context_memberships_url: url}) do
+  defp validate_url(%__MODULE__{context_memberships_url: url}) do
     case Ltix.HTTP.validate_url(url) do
       {:ok, _uri} ->
         :ok
@@ -86,5 +111,24 @@ defmodule Ltix.MembershipsService.Endpoint do
            "must be an absolute HTTPS URL"
          )}
     end
+  end
+
+  # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
+  defp require_url(url) when url in [nil, ""],
+    do: not_available("The endpoint has no context memberships URL")
+
+  defp require_url(_url), do: :ok
+
+  defp validate_service_versions(%__MODULE__{service_versions: nil} = endpoint),
+    do: {:ok, endpoint}
+
+  defp validate_service_versions(%__MODULE__{service_versions: versions} = endpoint) do
+    if "2.0" in versions,
+      do: {:ok, endpoint},
+      else: not_available("The endpoint does not support NRPS version 2.0")
+  end
+
+  defp not_available(reason) do
+    {:error, ServiceNotAvailable.exception(service: Ltix.MembershipsService, reason: reason)}
   end
 end

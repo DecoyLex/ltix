@@ -96,6 +96,7 @@ defmodule Ltix.MixProject do
         "guides/grade-service.md",
         "guides/writing-plugins.md",
         "guides/writing-claim-and-launch-plugins.md",
+        "guides/writing-advantage-service-plugins.md",
         "guides/writing-deep-linking-plugins.md",
         "guides/jwk-management.md",
         "guides/hardening.md",
@@ -173,6 +174,7 @@ defmodule Ltix.MixProject do
         Plugins: [
           "guides/writing-plugins.md",
           "guides/writing-claim-and-launch-plugins.md",
+          "guides/writing-advantage-service-plugins.md",
           "guides/writing-deep-linking-plugins.md"
         ],
         Operations: [
@@ -274,10 +276,10 @@ defmodule Ltix.MixProject do
           Ltix.DeepLinking.ContentItem.Image
         ],
         "Advantage Services": [
-          Ltix.AdvantageService,
           Ltix.OAuth,
           Ltix.OAuth.Client,
           Ltix.OAuth.AccessToken,
+          Ltix.ClientAssertion,
           Ltix.Pagination
         ],
         "Memberships Service": [

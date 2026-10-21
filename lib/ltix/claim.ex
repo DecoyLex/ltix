@@ -77,14 +77,32 @@ defmodule Ltix.Claim do
 
   ## Endpoint claims
 
-  A claim that has a service's endpoint sets `:service` to the service. Its
-  value is also the launch's endpoint for the service, which
-  `Ltix.Launch.get_endpoint/2` returns.
+  A claim that has a service's endpoint sets `:service` to the service,
+  declares `:fields`, and implements `c:new/1`. Its value is also the
+  launch's endpoint for the service, which `Ltix.Launch.get_endpoint/2`
+  returns.
 
-      use Ltix.Claim,
-        claim: "https://lms.example.com/claim/attendance",
-        name: :attendance_endpoint,
-        service: MyLibrary.AttendanceService
+      defmodule MyLibrary.AttendanceEndpoint do
+        use Ltix.Claim,
+          claim: "https://lms.example.com/claim/attendance",
+          name: :attendance_endpoint,
+          service: MyLibrary.AttendanceService,
+          fields: [url: Zoi.string()]
+
+        @impl Ltix.Claim
+        def new(attributes), do: Ltix.Type.new(__MODULE__, attributes)
+      end
+
+  ## Conflicts
+
+  Resolution fails with `Ltix.Errors.Unknown.InvalidPluginSet` when
+
+    * two plugins declare the same claim URI, the same short name, or the
+      endpoint of the same service
+    * an endpoint claim lacks `:fields` or `c:new/1`
+
+  A claim module added several times with the same options, or the same
+  anonymous claim added several times, doesn't conflict.
   """
   use Ltix.Provider, hook: [Ltix.Property, Ltix.Claim.Declaration]
 
@@ -127,6 +145,18 @@ defmodule Ltix.Claim do
                 ],
                 unrecognized_keys: :error
               )
+
+  @doc """
+  Builds an endpoint from its fields, given as a keyword list or a map, and
+  checks it.
+
+  Returns `{:error, exception}` for an endpoint the service can't call. Ltix
+  also calls it with the fields of stored endpoints that an application passes
+  to `Ltix.OAuth.Client`.
+  """
+  @callback new(attributes :: keyword() | map()) :: {:ok, struct()} | {:error, Exception.t()}
+
+  @optional_callbacks new: 1
 
   @doc """
   Adds an anonymous claim to a plugin.

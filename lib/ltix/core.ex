@@ -57,11 +57,13 @@ defmodule Ltix.Core do
     * `Ltix.Login` to add login steps
     * `Ltix.Launch` to add launch steps
     * `Ltix.Claim` to declare claims
+    * `Ltix.ClientAssertion` to add client assertion steps
   """
   @behaviour Ltix.Plugin
 
   alias Ltix.Claim
   alias Ltix.Claims
+  alias Ltix.ClientAssertion
   alias Ltix.Launch
   alias Ltix.Login
   alias Ltix.Plugin
@@ -181,6 +183,7 @@ defmodule Ltix.Core do
     |> Plugin.add(Launch)
     |> Plugin.add(Claim)
     |> Plugin.add(Claims)
+    |> Plugin.add(ClientAssertion)
   end
 
   defp add_launch_steps(plugin), do: Enum.reduce(@steps, plugin, &Plugin.add(&2, &1))

@@ -257,4 +257,6 @@ def post_check_in(session, user_id) do
 end
 ```
 
+If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `authenticate/2` in these functions.
+
 See [Advantage Services](../advantage-services.md) for an overview of token management, [Syncing Grades in the Background](background-grade-sync.md) for Oban worker patterns, and [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing across courses.

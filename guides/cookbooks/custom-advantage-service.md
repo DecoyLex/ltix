@@ -1,12 +1,12 @@
 # Building a Custom Advantage Service
 
-Some platforms expose proprietary APIs alongside standard LTI services. You can use these with Ltix's OAuth flow by implementing the `Ltix.AdvantageService` behaviour, giving your custom service the same authentication and token management as built-in services like `Ltix.GradeService` and `Ltix.MembershipsService`.
+Some platforms expose proprietary APIs alongside standard LTI services. You can use these with Ltix's OAuth flow by writing a service plugin, giving your custom service the same authentication and token management as built-in services like `Ltix.GradeService` and `Ltix.MembershipsService`.
 
 This cookbook builds a client for a fictional Attendance service. The platform tracks class attendance and exposes a read-only API to query attendance records for a course.
 
 ## Endpoint claim
 
-Start with the endpoint claim the platform sends in the launch JWT. The Attendance service has one URL and one scope. Declare the claim with `Ltix.Claim`, and set `:service` to the service its endpoint belongs to.
+The platform sends the service's endpoint in a launch claim. Declare it with `Ltix.Claim`, set `:service` to the service module, and build and check the endpoint in `c:Ltix.Claim.new/1`. Add `{:zoi, "~> 0.17"}` to your dependencies for the field schemas.
 
 ```elixir
 # lib/my_app/lti/attendance_endpoint.ex
@@ -17,14 +17,51 @@ defmodule MyApp.Lti.AttendanceEndpoint do
     strict: false,
     service: MyApp.Lti.AttendanceService,
     fields: [attendance_url: Zoi.string()]
+
+  alias Ltix.Errors.Invalid.InvalidField
+
+  @impl Ltix.Claim
+  def new(attributes) do
+    case attributes[:attendance_url] do
+      "https://" <> _rest = url ->
+        {:ok, %__MODULE__{attendance_url: url}}
+
+      url ->
+        {:error,
+         InvalidField.exception(
+           struct: __MODULE__,
+           field: :attendance_url,
+           value: url,
+           reason: "must be an HTTPS URL"
+         )}
+    end
+  end
 end
 ```
 
-`use Ltix.Claim` builds the `%MyApp.Lti.AttendanceEndpoint{}` struct from the fields and parses the claim into it. `strict: false` makes a malformed claim `nil` in the launch's claims, so a platform's malformed attendance claim doesn't fail the launch. See [Writing Plugins](../writing-plugins.md) for declared claims.
+The claim is declared with [`strict: false`](../writing-claim-and-launch-plugins.md#malformed-and-missing-claims), so a malformed endpoint claim is `nil` and doesn't fail the launch. `authenticate/2` checks every endpoint with `new/1`, including endpoints you stored.
+
+## Scope
+
+A [client assertion step](../writing-advantage-service-plugins.md#add-the-service-s-scope-to-token-requests) adds the service's scope to token requests for it.
+
+```elixir
+# lib/my_app/lti/attendance_scope.ex
+defmodule MyApp.Lti.AttendanceScope do
+  use Ltix.ClientAssertion
+
+  alias MyApp.Lti.AttendanceService
+
+  @impl Ltix.Step
+  def call(%{endpoints: %{AttendanceService => _endpoint}} = assertion, _opts) do
+    {:ok, update_in(assertion.scopes, &(&1 ++ [AttendanceService.scope()]))}
+  end
+
+  def call(assertion, _opts), do: {:ok, assertion}
+end
+```
 
 ## Plugin
-
-A plugin adds the claim to every launch.
 
 ```elixir
 # lib/my_app/lti/attendance.ex
@@ -33,7 +70,9 @@ defmodule MyApp.Lti.Attendance do
 
   @impl Ltix.Plugin
   def plugin(_opts) do
-    Ltix.Plugin.add(Ltix.Plugin.new(name: "Attendance"), MyApp.Lti.AttendanceEndpoint)
+    Ltix.Plugin.new(name: "Attendance")
+    |> Ltix.Plugin.add(MyApp.Lti.AttendanceEndpoint)
+    |> Ltix.Plugin.add(MyApp.Lti.AttendanceScope)
   end
 end
 ```
@@ -50,57 +89,28 @@ Ltix.Launch.get_endpoint(launch, MyApp.Lti.AttendanceService)
 #=> %MyApp.Lti.AttendanceEndpoint{attendance_url: "https://lms.example.com/api/attendance/ctx-123"}
 ```
 
-## Service module
-
-Implement the `Ltix.AdvantageService` behaviour. `Ltix.OAuth` calls the callbacks to validate your endpoint and get the scopes to request.
-
-```elixir
-# lib/my_app/lti/attendance_service.ex
-defmodule MyApp.Lti.AttendanceService do
-  @behaviour Ltix.AdvantageService
-
-  alias Ltix.Errors.Invalid.InvalidEndpoint
-  alias MyApp.Lti.AttendanceEndpoint
-
-  @scope "https://lms.example.com/scope/attendance.readonly"
-
-  @impl true
-  def validate_endpoint(%AttendanceEndpoint{}), do: :ok
-  def validate_endpoint(_), do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
-
-  @impl true
-  def scopes(%AttendanceEndpoint{}), do: [@scope]
-end
-```
-
 ## Authenticating
 
-With the behaviour implemented, authenticate through `Ltix.OAuth`.
-
-**From a launch**
+From a launch, pass the service as `services:`. When the launch has no attendance claim, `authenticate/2` returns `Ltix.Errors.Invalid.ServiceNotAvailable`.
 
 ```elixir
 alias MyApp.Lti.AttendanceService
 
-def handle_launch(launch) do
-  {:ok, client} = Ltix.OAuth.authenticate(launch, services: [AttendanceService])
-  {:ok, records} = AttendanceService.get_records(client)
-end
+{:ok, client} = Ltix.OAuth.authenticate(launch, services: [AttendanceService])
+{:ok, records} = AttendanceService.get_records(client)
 ```
 
-`Ltix.OAuth` reads the endpoint from the launch. If the launch has no attendance claim, `authenticate/2` returns a `Ltix.Errors.Invalid.ServiceNotAvailable` error.
-
-**From a stored endpoint** (background job, no launch)
+From a URL stored during a launch, rebuild the endpoint and pass your registration and deployment records.
 
 ```elixir
-endpoint = %AttendanceEndpoint{attendance_url: stored_url}
+{:ok, endpoint} = MyApp.Lti.AttendanceEndpoint.new(attendance_url: stored_url)
 
-{:ok, client} = Ltix.OAuth.authenticate(registration,
-  endpoints: %{AttendanceService => endpoint}
-)
+{:ok, client} =
+  Ltix.OAuth.authenticate(registration,
+    endpoints: %{AttendanceService => endpoint},
+    deployment: deployment
+  )
 ```
-
-Both paths produce the same `%Ltix.OAuth.Client{}`. Its `endpoints` map has your endpoint, keyed by `AttendanceService`.
 
 ## Making authenticated requests
 
@@ -108,25 +118,31 @@ Send requests with `Ltix.OAuth.Client.request/3`. It adds the client's bearer to
 
 ```elixir
 # lib/my_app/lti/attendance_service.ex
+defmodule MyApp.Lti.AttendanceService do
+  alias Ltix.OAuth.Client
 
-alias Ltix.OAuth.Client
+  @scope "https://lms.example.com/scope/attendance.readonly"
 
-@spec get_records(Client.t()) :: {:ok, [map()]} | {:error, Exception.t()}
-def get_records(%Client{} = client) do
-  endpoint = client.endpoints[__MODULE__]
+  @spec scope() :: String.t()
+  def scope, do: @scope
 
-  with :ok <- Client.require_scope(client, @scope),
-       {:ok, %Req.Response{body: body}} <-
-         Client.request(client, __MODULE__,
-           url: endpoint.attendance_url,
-           headers: [{"accept", "application/json"}]
-         ) do
-    {:ok, body["records"]}
+  @spec get_records(Client.t()) :: {:ok, [map()]} | {:error, Exception.t()}
+  def get_records(%Client{} = client) do
+    endpoint = Client.get_endpoint(client, __MODULE__)
+
+    with :ok <- Client.require_scope(client, @scope),
+         {:ok, %Req.Response{body: body}} <-
+           Client.request(client, __MODULE__,
+             url: endpoint.attendance_url,
+             headers: [{"accept", "application/json"}]
+           ) do
+      {:ok, body["records"]}
+    end
   end
 end
 ```
 
-The options are `Req` request options. The endpoint URL comes from `client.endpoints[__MODULE__]`.
+The options are `Req` request options. The URL comes from the endpoint that `Ltix.OAuth.Client.get_endpoint/2` returns.
 
 A response with an error status returns an error. A 401 or 403 is `Ltix.Errors.Security.AccessDenied`, and any other status is `Ltix.Errors.Unknown.TransportError`.
 
@@ -137,7 +153,7 @@ If the platform splits a collection across pages with `Link` headers, use `Ltix.
 ```elixir
 @spec stream_records(Client.t()) :: {:ok, Enumerable.t()} | {:error, Exception.t()}
 def stream_records(%Client{} = client) do
-  endpoint = client.endpoints[__MODULE__]
+  endpoint = Client.get_endpoint(client, __MODULE__)
 
   with :ok <- Client.require_scope(client, @scope),
        {:ok, pages} <-
@@ -279,5 +295,4 @@ From a launch, list the services.
 
 - [Advantage Services](../advantage-services.md) for token management and multi-service patterns
 - [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing across courses
-- `Ltix.AdvantageService` for the behaviour reference
 - `Ltix.OAuth.Client` for the full token lifecycle API

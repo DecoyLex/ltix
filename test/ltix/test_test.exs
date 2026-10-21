@@ -283,13 +283,13 @@ defmodule Ltix.TestTest do
 
       assert {:ok, grade_client} = Ltix.GradeService.authenticate(launch, opts)
 
-      assert grade_client.endpoints[Ltix.GradeService].line_items ==
-               "https://lms.example.com/items"
+      assert %{line_items: "https://lms.example.com/items"} =
+               Client.get_endpoint(grade_client, Ltix.GradeService)
 
       assert {:ok, memberships_client} = Ltix.MembershipsService.authenticate(launch, opts)
 
-      assert memberships_client.endpoints[Ltix.MembershipsService].context_memberships_url ==
-               "https://lms.example.com/memberships"
+      assert %{context_memberships_url: "https://lms.example.com/memberships"} =
+               Client.get_endpoint(memberships_client, Ltix.MembershipsService)
     end
 
     test "raise for endpoints the services would reject", %{platform: platform} do

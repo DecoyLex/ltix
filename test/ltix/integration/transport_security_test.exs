@@ -12,6 +12,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
   alias Ltix.Launch
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
+  alias Ltix.OAuth
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
@@ -219,7 +220,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
     }
 
     assert {:error, error} =
-             ClientCredentials.request_token(registration, [],
+             OAuth.authenticate(registration,
+               endpoints: %{},
                req_options: [plug: {Req.Test, :ltix}]
              )
 
@@ -322,7 +324,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
     assert {:error, %RedirectNotAllowed{status: 307}} = MembershipsService.stream_members(client)
 
     assert {:error, %RedirectNotAllowed{status: 307}} =
-             ClientCredentials.request_token(registration, [],
+             OAuth.authenticate(registration,
+               endpoints: %{},
                req_options: [plug: {Req.Test, :ltix}, redirect: true]
              )
 
@@ -435,8 +438,9 @@ defmodule Ltix.Integration.TransportSecurityTest do
       })
     end)
 
-    assert {:ok, %AccessToken{access_token: "redirected-token"}} =
-             ClientCredentials.request_token(registration, [],
+    assert {:ok, %Client{token: %AccessToken{access_token: "redirected-token"}}} =
+             OAuth.authenticate(registration,
+               endpoints: %{},
                req_options: [plug: {Req.Test, :ltix}]
              )
 
@@ -792,7 +796,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
     end)
 
     assert {:error, %RedirectNotAllowed{url: url, location: location} = error} =
-             ClientCredentials.request_token(registration, [],
+             OAuth.authenticate(registration,
+               endpoints: %{},
                req_options: [plug: {Req.Test, :ltix}, redirect_trusted: true]
              )
 
@@ -958,7 +963,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
       assert Exception.message(error) =~ "certificate verification"
 
       assert {:error, %TransportError{}} =
-               ClientCredentials.request_token(registration, [], req_options: request_options)
+               OAuth.authenticate(registration, endpoints: %{}, req_options: request_options)
 
       refute_receive {:reached, _}, 0
     end

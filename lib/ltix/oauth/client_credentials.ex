@@ -1,15 +1,19 @@
 defmodule Ltix.OAuth.ClientCredentials do
   @moduledoc false
 
+  alias Ltix.ClientAssertion
   alias Ltix.Deployment
+  alias Ltix.Errors
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.HTTP
   alias Ltix.OAuth.AccessToken
   alias Ltix.Options
+  alias Ltix.PluginSet
   alias Ltix.Records
   alias Ltix.Registerable
   alias Ltix.Registration
+  alias Ltix.Step
   alias Ltix.StorageAdapter
 
   @grant_type "client_credentials"
@@ -17,37 +21,36 @@ defmodule Ltix.OAuth.ClientCredentials do
   @deployment_claim "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
 
   @doc """
-  Request an OAuth 2.0 access token via the client credentials grant.
+  Runs the client assertion's steps with the endpoints.
 
-  Takes any record implementing `Ltix.Registerable`. Builds a JWT assertion
-  signed by the storage adapter and POSTs it to the platform's token
-  endpoint. Returns a parsed `AccessToken` on success.
-
-  ## Options
-
-    * `:storage_adapter` - module implementing `Ltix.StorageAdapter` with the
-      signing callbacks (defaults to application config)
-    * `:storage_adapter_options` - options passed to the signing callbacks
-      (defaults to `[]`)
-    * `:deployment` - the deployment the token is for, as a struct
-      implementing `Ltix.Deployable` or a deployment ID
-    * `:req_options` - options passed through to `Req.request/2` (defaults to `[]`)
-    * `:local_network_access` - see `Ltix.HTTP.local_network_access_option/0`
+  Returns the client assertion with each scope once, or the errors steps
+  recorded, combined.
   """
-  @spec request_token(Registerable.t(), [String.t()], keyword()) ::
-          {:ok, AccessToken.t()} | {:error, Exception.t()}
-  def request_token(registerable, scopes, opts \\ []) do
+  @spec client_assertion(%{module() => term()}, PluginSet.t()) ::
+          {:ok, ClientAssertion.t()} | {:error, Exception.t()}
+  def client_assertion(endpoints, %PluginSet{} = plugins) do
+    assertion = Step.run(%ClientAssertion{endpoints: endpoints, plugins: plugins})
+
+    with :ok <- Errors.collect(assertion.errors),
+         do: {:ok, %{assertion | scopes: Enum.uniq(assertion.scopes)}}
+  end
+
+  # Requests an access token with the client credentials grant. Adds the
+  # claims every client assertion requires to the steps' claims, signs them
+  # with the storage adapter, and posts the signed assertion and the scopes to
+  # the platform's token endpoint.
+  defp request_token(registerable, %ClientAssertion{} = assertion, opts) do
     with {:ok, registration} <- Records.convert!(registerable, :registration),
          :ok <- require_token_endpoint(registration),
          {:ok, deployment} <- resolve_deployment(Keyword.get(opts, :deployment)),
-         {:ok, assertion} <-
+         {:ok, signed} <-
            StorageAdapter.sign_jwt(
              Options.fetch_configured!(opts, :storage_adapter),
              registerable,
-             assertion_claims(registration, deployment),
+             Map.merge(assertion.claims, required_claims(registration, deployment)),
              Keyword.get(opts, :storage_adapter_options, [])
            ) do
-      send_token_request(registration, scopes, opts, assertion)
+      send_token_request(registration, assertion.scopes, opts, signed)
     end
   end
 
@@ -99,13 +102,13 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   # Requests a token inside a `[:ltix, :oauth, action]` telemetry span.
   @doc false
-  @spec request_token_span(atom(), Registerable.t(), [String.t()], keyword()) ::
+  @spec request_token_span(atom(), Registerable.t(), ClientAssertion.t(), keyword()) ::
           {:ok, AccessToken.t()} | {:error, Exception.t()}
-  def request_token_span(action, registerable, scopes, opts) do
-    metadata = %{scopes_requested: scopes}
+  def request_token_span(action, registerable, %ClientAssertion{} = assertion, opts) do
+    metadata = %{scopes_requested: assertion.scopes}
 
     :telemetry.span([:ltix, :oauth, action], metadata, fn ->
-      result = request_token(registerable, scopes, opts)
+      result = request_token(registerable, assertion, opts)
       {result, Map.merge(metadata, stop_metadata(result))}
     end)
   end
@@ -141,7 +144,7 @@ defmodule Ltix.OAuth.ClientCredentials do
 
   # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)
   # The MUST claims of the JWT client assertion.
-  defp assertion_claims(%Registration{} = registration, nil) do
+  defp required_claims(%Registration{} = registration, nil) do
     now = System.system_time(:second)
 
     %{
@@ -155,8 +158,8 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   # [Core §6.2.1](https://www.imsglobal.org/spec/lti/v1p3/#deployment-id)
-  defp assertion_claims(%Registration{} = registration, %Deployment{deployment_id: deployment_id}) do
-    Map.put(assertion_claims(registration, nil), @deployment_claim, deployment_id)
+  defp required_claims(%Registration{} = registration, %Deployment{deployment_id: deployment_id}) do
+    Map.put(required_claims(registration, nil), @deployment_claim, deployment_id)
   end
 
   defp req_options(opts) do

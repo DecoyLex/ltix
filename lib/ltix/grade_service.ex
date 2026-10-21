@@ -25,20 +25,20 @@ defmodule Ltix.GradeService do
   `Ltix.GradeService` is also the default plugin for AGS 2.0. It declares the
   `Ltix.GradeService.Endpoint` claim, so
   `Ltix.Launch.get_endpoint(launch, Ltix.GradeService)` returns a launch's
+  endpoint. It also adds the endpoint's scopes to token requests for the
   endpoint.
   """
 
-  @behaviour Ltix.AdvantageService
   @behaviour Ltix.Plugin
 
-  alias Ltix.AdvantageService.Operation
   alias Ltix.AppConfig
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
-  alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Extensions
+  alias Ltix.GradeService.AddScopes
   alias Ltix.GradeService.Endpoint
   alias Ltix.GradeService.LineItem
   alias Ltix.GradeService.Result
@@ -90,25 +90,10 @@ defmodule Ltix.GradeService do
 
   @impl Ltix.Plugin
   def plugin(_opts) do
-    Plugin.add(
-      Plugin.new(name: "LTI Assignment and Grade Services 2.0", version: @version),
-      Endpoint
-    )
+    Plugin.new(name: "LTI Assignment and Grade Services 2.0", version: @version)
+    |> Plugin.add(Endpoint)
+    |> Plugin.add(AddScopes)
   end
-
-  @impl Ltix.AdvantageService
-  def validate_endpoint(%Endpoint{} = endpoint) do
-    with {:ok, _endpoint} <-
-           Endpoint.new(Map.take(endpoint, Keyword.keys(Ltix.Type.fields(Endpoint)))),
-         do: :ok
-  end
-
-  def validate_endpoint(_),
-    do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
-
-  @impl Ltix.AdvantageService
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  def scopes(%Endpoint{scopes: scopes}), do: List.wrap(scopes)
 
   @auth_fields Client.option_fields()
 
@@ -216,7 +201,7 @@ defmodule Ltix.GradeService do
     {max, opts} = Keyword.pop(opts, :max_line_items)
 
     with_line_items(:list_line_items, client, opts, fn items ->
-      Operation.collect(items, max,
+      collect(items, max,
         service: __MODULE__,
         option: :max_line_items
       )
@@ -251,7 +236,7 @@ defmodule Ltix.GradeService do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_line_items(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_line_items_schema)
-    with_line_items(:stream_line_items, client, opts, &{:ok, Operation.stream(&1)})
+    with_line_items(:stream_line_items, client, opts, &{:ok, raise_errors(&1)})
   end
 
   @doc """
@@ -547,7 +532,7 @@ defmodule Ltix.GradeService do
     {max, opts} = Keyword.pop(opts, :max_results)
 
     with_results(:list_results, client, opts, fn results ->
-      Operation.collect(results, max,
+      collect(results, max,
         service: __MODULE__,
         option: :max_results
       )
@@ -582,7 +567,7 @@ defmodule Ltix.GradeService do
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_results(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @stream_results_schema)
-    with_results(:stream_results, client, opts, &{:ok, Operation.stream(&1)})
+    with_results(:stream_results, client, opts, &{:ok, raise_errors(&1)})
   end
 
   @doc """
@@ -608,11 +593,59 @@ defmodule Ltix.GradeService do
     end)
   end
 
-  defp run(operation, client, scopes, url, request),
-    do: Operation.run([:ltix, :grade_service, operation], client, scopes, url, request)
+  # Runs `request` with the URL inside a `[:ltix, :grade_service, operation]`
+  # telemetry span, whose `endpoint` metadata is the URL, or `nil` when `url`
+  # is an error. Returns `AccessTokenExpired` when the client's token has
+  # expired, and `ScopeMismatch` when it was granted none of `scopes`.
+  defp run(operation, client, scopes, url, request) do
+    metadata = %{endpoint: requested_url(url)}
 
-  defp endpoint(%Client{endpoints: endpoints}, opts) do
-    Keyword.get_lazy(opts, :endpoint, fn -> Map.get(endpoints, __MODULE__) end)
+    :telemetry.span([:ltix, :grade_service, operation], metadata, fn ->
+      result =
+        with :ok <- Client.require_unexpired(client),
+             :ok <- Client.require_any_scope(client, scopes),
+             {:ok, url} <- url do
+          request.(url)
+        end
+
+      {result, metadata}
+    end)
+  end
+
+  defp requested_url({:ok, url}), do: url
+  defp requested_url({:error, _error}), do: nil
+
+  # Collects the items of `{:ok, item}` and `{:error, error}` results. Returns
+  # the first error, or `CollectionTooLarge` when there are more than `max`.
+  defp collect(results, max, limit_error) do
+    collected =
+      Enum.reduce_while(results, {:ok, [], 0}, fn
+        {:ok, item}, {:ok, items, total} ->
+          total = total + 1
+
+          if max != :infinity && total > max do
+            {:halt,
+             {:error, CollectionTooLarge.exception([count: total, max: max] ++ limit_error)}}
+          else
+            {:cont, {:ok, [item | items], total}}
+          end
+
+        {:error, _error} = error, _collected ->
+          {:halt, error}
+      end)
+
+    with {:ok, items, _total} <- collected, do: {:ok, Enum.reverse(items)}
+  end
+
+  defp raise_errors(results) do
+    Stream.map(results, fn
+      {:ok, item} -> item
+      {:error, error} -> raise error
+    end)
+  end
+
+  defp endpoint(%Client{} = client, opts) do
+    Keyword.get_lazy(opts, :endpoint, fn -> Client.get_endpoint(client, __MODULE__) end)
   end
 
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)

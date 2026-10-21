@@ -86,7 +86,10 @@ The token's granted scopes do not change. If it lacks a scope a new endpoint nee
 
 ## Caching tokens across workers
 
-When many Oban workers call the same platform concurrently (say, one job per course), each authenticates independently by default. To share tokens, cache them in ETS. A token has only the scopes it was requested for, and a platform may limit it to the deployment it was requested for, so key the cache by the registration, the deployment, and the scopes the service requests. Workers calling the same service share one token, and a service that needs other scopes gets a separate token.
+When many Oban workers call the same platform concurrently (say, one job per course), each authenticates independently by default. To share tokens, cache them in ETS.
+
+- Key the cache on the registration, the deployment ID, and the service. Some platforms limit a token to one deployment, and a token has only the scopes its service asked for.
+- Build each cached client with `require_all_scopes: true`. `Client.from_access_token/2` then returns `ScopeMismatch` for a cached token without a scope the endpoint needs, and the cache requests a new token.
 
 ```elixir
 defmodule MyApp.LTI.TokenCache do
@@ -100,23 +103,20 @@ defmodule MyApp.LTI.TokenCache do
   end
 
   def get_or_authenticate(registration, deployment, service, endpoint) do
-    key =
-      {registration.issuer, registration.client_id, deployment.deployment_id,
-       Enum.sort(service.scopes(endpoint))}
+    key = {registration.issuer, registration.client_id, deployment.deployment_id, service}
 
-    case :ets.lookup(@table, key) do
-      [{^key, token}] ->
-        if AccessToken.expired?(token) do
-          authenticate_and_cache(key, registration, deployment, service, endpoint)
-        else
-          Client.from_access_token(token,
-            registration: registration,
-            deployment: deployment,
-            endpoints: %{service => endpoint}
-          )
-        end
-
-      [] ->
+    with [{^key, token}] <- :ets.lookup(@table, key),
+         false <- AccessToken.expired?(token),
+         {:ok, client} <-
+           Client.from_access_token(token,
+             registration: registration,
+             deployment: deployment,
+             endpoints: %{service => endpoint},
+             require_all_scopes: true
+           ) do
+      {:ok, client}
+    else
+      _missing_expired_or_lacking_a_scope ->
         authenticate_and_cache(key, registration, deployment, service, endpoint)
     end
   end

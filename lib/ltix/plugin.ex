@@ -90,7 +90,7 @@ defmodule Ltix.Plugin do
   function, such as `Ltix.Login.add_step/2` or `Ltix.Claim.add/2`.
 
   Two claims with the same URI or short name make the plugin set fail to
-  resolve. See [Conflicts](`m:Ltix.Claims#module-conflicts`).
+  resolve. See [Conflicts](`m:Ltix.Claim#module-conflicts`).
 
   Raises `ArgumentError` for a module that extends nothing and isn't a
   provider, for options on a module that is only a provider, and for an option

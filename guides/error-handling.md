@@ -195,12 +195,12 @@ These errors apply to LTI Advantage service calls (memberships, AGS, etc.) and O
 
 | Error | Fields | When |
 |---|---|---|
-| `ServiceNotAvailable` | `service`, `reason` | The launch has no claim for the service, an endpoint or URL the operation needs is missing, the endpoint does not support the service version, or the registration has no token endpoint |
+| `ServiceNotAvailable` | `service`, `reason` | The launch has no claim for the service, no plugin declares the service's endpoint claim, an endpoint or URL the operation needs is missing, the endpoint does not support the service version, or the registration has no token endpoint |
 | `TokenRequestFailed` | `error`, `error_description`, `status`, `body` | OAuth token request failed |
 | `MalformedResponse` | `service`, `reason` | Platform returned an unparseable response |
 | `CollectionTooLarge` | `service`, `option`, `count`, `max` | An eager fetch such as `list_results/2` exceeded its limit option, such as `max_results` |
 | `ScopeMismatch` | `scopes`, `granted_scopes` | Client lacks every scope in `scopes` that would authorize the request |
-| `InvalidEndpoint` | `service` | Wrong endpoint struct passed to a service |
+| `InvalidEndpoint` | `service` | An endpoint isn't the struct of its service's endpoint claim |
 | `MissingLineItemId` | `line_item` | A grade operation received a line item without an `id` |
 
 ### Security

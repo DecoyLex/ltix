@@ -31,7 +31,7 @@ def launch(conn, params) do
 end
 ```
 
-Each service provides an `authenticate/2` shorthand that reads the endpoint from the launch and acquires a token in one step. See [Memberships Service](memberships-service.md) for the full roster API.
+Each service provides an `authenticate/2` shorthand that extracts the endpoint from the launch and acquires a token in one step. See [Memberships Service](memberships-service.md) for the full roster API.
 
 Each token request is signed by your storage adapter's `key_id/2` and `sign/4` callbacks. See [Storage Adapters](storage-adapters.md#signing).
 
@@ -72,6 +72,8 @@ def perform(%{args: %{"course_id" => course_id}}) do
   MyApp.Courses.sync_roster(course_id, roster)
 end
 ```
+
+The client uses your configured plugins. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `authenticate/2`.
 
 The grade service endpoint also includes the scopes the platform allows, and authenticating requires them. Store them alongside the URLs and rebuild the endpoint with `Ltix.GradeService.Endpoint.new!/1`.
 
@@ -152,9 +154,9 @@ From a launch, list the services, and Ltix reads each endpoint from the launch.
 >
 > Platforms may grant fewer scopes than requested. Authentication still succeeds, and each service function returns a `ScopeMismatch` error if its scope was not granted. Pass `require_all_scopes: true` to `Ltix.OAuth.authenticate/2`, `Ltix.GradeService.authenticate/2`, `Ltix.MembershipsService.authenticate/2`, `Ltix.OAuth.Client.with_endpoints/3`, or `Ltix.OAuth.Client.from_access_token/2` to get that error from that call.
 
-## Custom platform APIs
+## Calling a platform's own API
 
-If your platform exposes proprietary APIs (e.g., proctoring, analytics), you can use the same authentication flow for them by implementing the `Ltix.AdvantageService` behaviour. See [Building a Custom Advantage Service](cookbooks/custom-advantage-service.md) for a complete walkthrough.
+A platform can offer an API of its own, such as for proctoring. With a plugin, your tool authenticates to it the same way. See [Building a Custom Advantage Service](cookbooks/custom-advantage-service.md).
 
 ## Next steps
 

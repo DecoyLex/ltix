@@ -9,8 +9,9 @@ defmodule Ltix.Step do
     * `{:error, exception}` records the error and runs the next step.
     * `{:halt, exception}` records the error and runs no further steps.
 
-  `Ltix.handle_login/3` and `Ltix.handle_callback/3` return an error when the
-  login or launch has errors after its steps run.
+  `Ltix.handle_login/3`, `Ltix.handle_callback/3`, and
+  `Ltix.OAuth.authenticate/2` return an error when the login, launch, or
+  client assertion has errors after its steps run.
 
       defmodule MyApp.LoginTenant do
         use Ltix.Login

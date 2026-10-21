@@ -157,3 +157,9 @@ MyApp.Courses.store_memberships_url(course_id, url)
 endpoint = Ltix.MembershipsService.Endpoint.new!(stored_url)
 {:ok, client} = Ltix.MembershipsService.authenticate(registration, endpoint: endpoint)
 ```
+
+If the application passes `plugins:` to `Ltix.handle_callback/3`, pass the same `plugins:` when authenticating from a registration.
+
+## Custom Services
+
+A custom service is a plugin with an endpoint claim and an `Ltix.ClientAssertion` step that adds its scope. Follow the [Building a Custom Advantage Service](https://ltix.hexdocs.pm/custom-advantage-service.md) cookbook, then authenticate with `Ltix.OAuth.authenticate(launch, services: [MyService])` and send requests with `Ltix.OAuth.Client.request(client, MyService, url: url)`.

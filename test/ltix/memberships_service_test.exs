@@ -180,7 +180,7 @@ defmodule Ltix.MembershipsServiceTest do
                )
 
       assert MapSet.member?(client.token.granted_scopes, @nrps_scope)
-      assert %MembershipsServiceEndpoint{} = client.endpoints[MembershipsService]
+      assert %MembershipsServiceEndpoint{} = Client.get_endpoint(client, MembershipsService)
     end
 
     test "errors when no NRPS claim in launch", ctx do
@@ -207,6 +207,40 @@ defmodule Ltix.MembershipsServiceTest do
                MembershipsService.authenticate(launch)
 
       assert Exception.message(error) =~ "The endpoint does not support NRPS version 2.0"
+    end
+  end
+
+  describe "authenticate/2 endpoint checks" do
+    test "rejects an endpoint without a URL, from a launch or a registration", ctx do
+      launch =
+        Ltix.Test.build_launch(ctx.platform,
+          claims: %{
+            "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" => %{
+              "service_versions" => ["2.0"]
+            }
+          }
+        )
+
+      missing = %MembershipsServiceEndpoint{service_versions: ["2.0"]}
+
+      for result <- [
+            MembershipsService.authenticate(launch),
+            MembershipsService.authenticate(ctx.platform.registration, endpoint: missing)
+          ] do
+        assert {:error, %ServiceNotAvailable{service: MembershipsService} = error} = result
+
+        assert Exception.message(error) =~ "The endpoint has no context memberships URL"
+      end
+    end
+
+    test "rejects an endpoint whose URL isn't HTTPS", ctx do
+      insecure = %MembershipsServiceEndpoint{
+        context_memberships_url: "http://platform.example.com/memberships"
+      }
+
+      assert {:error,
+              %InvalidField{struct: MembershipsServiceEndpoint, field: :context_memberships_url}} =
+               MembershipsService.authenticate(ctx.platform.registration, endpoint: insecure)
     end
   end
 
@@ -574,33 +608,6 @@ defmodule Ltix.MembershipsServiceTest do
 
       assert {:error, %TransportError{status: 500, url: @memberships_url}} =
                MembershipsService.stream_members(client)
-    end
-  end
-
-  # --- AdvantageService callbacks ---
-
-  describe "AdvantageService callbacks" do
-    test "validate_endpoint rejects an endpoint without a valid URL" do
-      missing = %MembershipsServiceEndpoint{
-        context_memberships_url: nil,
-        service_versions: ["2.0"]
-      }
-
-      insecure = %{missing | context_memberships_url: "http://platform.example.com/memberships"}
-
-      assert {:error, %ServiceNotAvailable{} = error} =
-               MembershipsService.validate_endpoint(missing)
-
-      assert Exception.message(error) =~ "The endpoint has no context memberships URL"
-
-      assert {:error,
-              %InvalidField{struct: MembershipsServiceEndpoint, field: :context_memberships_url}} =
-               MembershipsService.validate_endpoint(insecure)
-    end
-
-    test "validate_endpoint rejects other values" do
-      assert {:error, %Ltix.Errors.Invalid.InvalidEndpoint{}} =
-               MembershipsService.validate_endpoint(:not_an_endpoint)
     end
   end
 end

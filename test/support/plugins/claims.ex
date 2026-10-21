@@ -31,7 +31,11 @@ defmodule TestPlugins.Grades do
   use Ltix.Claim,
     claim: "https://tool.example.com/claim/grades",
     name: :grades,
-    service: Ltix.GradeService
+    service: Ltix.GradeService,
+    fields: [url: Zoi.string()]
+
+  @impl Ltix.Claim
+  def new(attributes), do: {:ok, struct!(__MODULE__, attributes)}
 end
 
 defmodule TestPlugins.Failing do

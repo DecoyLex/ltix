@@ -3,7 +3,6 @@ defmodule Ltix.GradeServiceTest do
 
   alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
-  alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
@@ -147,25 +146,17 @@ defmodule Ltix.GradeServiceTest do
     end
   end
 
-  # --- AdvantageService callbacks ---
-
-  describe "AdvantageService callbacks" do
-    test "validate_endpoint rejects other values" do
-      assert {:error, %InvalidEndpoint{}} =
-               GradeService.validate_endpoint(:not_an_endpoint)
-    end
-
-    test "scopes returns empty list when scope is nil" do
-      endpoint = %GradeServiceEndpoint{scopes: nil}
-      assert [] == GradeService.scopes(endpoint)
-    end
-  end
-
   # --- authenticate/2 ---
 
   describe "authenticate/2 from Launch" do
-    test "acquires token with AGS scopes from claim", ctx do
-      stub_token_response()
+    test "requests the scopes of the claim's scope array", ctx do
+      owner = self()
+
+      Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(owner, {:scope, URI.decode_query(body)["scope"]})
+        Req.Test.json(conn, %{"access_token" => "test-ags-token", "token_type" => "Bearer"})
+      end)
 
       launch =
         Ltix.Test.build_launch(ctx.platform,
@@ -181,7 +172,9 @@ defmodule Ltix.GradeServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert %GradeServiceEndpoint{} = client.endpoints[GradeService]
+      assert %GradeServiceEndpoint{} = Client.get_endpoint(client, GradeService)
+      assert_received {:scope, scope}
+      assert String.split(scope) == @all_scopes
     end
 
     test "rejects a launch claim without scopes", ctx do
@@ -224,7 +217,7 @@ defmodule Ltix.GradeServiceTest do
                  req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
                )
 
-      assert %GradeServiceEndpoint{} = client.endpoints[GradeService]
+      assert %GradeServiceEndpoint{} = Client.get_endpoint(client, GradeService)
     end
 
     test "rejects an endpoint without scopes", ctx do

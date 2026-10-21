@@ -62,6 +62,7 @@ The manifest is readable without running any document. Ltix reads it to collect 
 - `config :ltix, plugins: [...]` sets the plugins for every call.
 - `plugins:` at a call replaces the configured list.
 - When a call is given a `%Ltix.Launch{}`, `plugins:` defaults to the launch's `plugins` field. Passing `plugins:` replaces it.
+- An `%Ltix.OAuth.Client{}` keeps the plugin set it was authenticated with in its `plugins` field. Its refreshes run with it, and calls given the client, such as `Ltix.MembershipsService.list_members/2`, default `plugins:` to it.
 - A call without a launch, such as a background job using stored endpoints, uses its `plugins:` option, or the configured list when the option is absent.
 - A listing that includes a module that isn't a plugin raises `Ltix.Errors.Invalid.InvalidOption` for `:plugins`.
 
@@ -140,6 +141,26 @@ The Core plugin provides `Ltix.Launch` and extends it with its default steps and
 8. A step looks up the deployment.
 
 A security check that fails halts the launch, so no claim is parsed from a message Ltix hasn't verified. Claim parsing records the errors of malformed claims and the launch continues, so they are reported with the claims the message type is missing. A malformed claim that isn't lenient counts as present when the required claims are checked, so it is reported once. `Ltix.Test.build_launch/2` runs every launch step except the security checks before `Ltix.Launch.Verified` and the deployment lookup, with `Ltix.Step.run/2`.
+
+### `%Ltix.ClientAssertion{}`
+
+`Ltix.OAuth.authenticate/2` and `Ltix.OAuth.Client.refresh/1` run the client assertion's steps with `Ltix.Step.run/2` before Ltix signs the client assertion. `Ltix.Core` provides it. Its hook is `[Ltix.Step, Ltix.Ordered]`.
+
+| Field | Contents |
+|---|---|
+| `endpoints` | The endpoints of the services the token is for, keyed by service module |
+| `scopes` | The scopes to request |
+| `claims` | The claims steps add to the client assertion |
+| `errors` | Errors collected by steps |
+
+Steps only add scopes and claims.
+
+- **Endpoints.** `authenticate/2` takes `services:` with a launch and reads their endpoints from `launch.endpoints`, or takes stored endpoints as `endpoints:` in the registration form. It reports services missing from the launch with `ServiceNotAvailable` before running the document, so nothing is signed. Each endpoint is checked with the `c:Ltix.Claim.new/1` of the claim that declares its service's endpoint, and an endpoint for a service no claim declares is `ServiceNotAvailable`.
+- **Order.** The document starts with only the requested endpoints, so every step sees them and none needs `after?/1`. When services resolved endpoints in their own steps, an unordered vendor step lost its scope on the first access token but not on refreshes.
+- **Signing.** After the steps run, Ltix adds the claims the client assertion requires, which replace a step's claims of the same name, signs the claims through the storage adapter, and requests the deduplicated scopes. A document with errors is not signed, and the call returns the errors combined.
+- **OAuth clients.** The client keeps the plugin set and the endpoints. `force_refresh/1` rebuilds the document with them, so the first access token, a refresh, and the registration form request the same scopes and send the same claims. `require_all_scopes` checks the document's scopes against the granted ones.
+
+The NRPS plugin's `Ltix.MembershipsService.AddScope` adds the NRPS scope when its endpoint is present, and the AGS plugin's `Ltix.GradeService.AddScopes` adds the endpoint claim's `scope` array.
 
 ## Providers
 
@@ -274,7 +295,7 @@ end
 - **Object claims.** `fields:` builds the claim's struct with `Ltix.Type` and defines `parse/2` with `Ltix.Type.from_json/3`, overridable.
 - **Scalar claims.** A claim without `fields:` implements `parse/2`.
 - **Lenient claims.** With `lenient: true`, a malformed claim is `nil` in `claims` and stays in `raw`. Without it, a malformed claim fails the call. A malformed optional field inside an object claim is `nil` either way.
-- **Endpoint claims.** A claim that implements the optional `service/0` callback has its parsed value in `endpoints[service]` too.
+- **Endpoint claims.** A claim that implements the optional `service/0` callback has its parsed value in `endpoints[service]` too. An endpoint claim declares `fields:` and implements `new/1`, optional for other claims, which builds an endpoint from its fields and checks it. `Ltix.OAuth.authenticate/2` checks endpoints with it, so stored endpoints get the same checks as a launch's. `Ltix.Claims.resolve/1` reports an endpoint claim without `fields:` or `new/1` as a conflict with one party.
 
 `Ltix.Claims` is a provider without a hook. Its `resolve/1` reads the declared claims and reports two extenders declaring one claim URI, one short name, or one `service/0`. A module that several plugins list counts once. Its data maps each claim URI to the declaring module, the options of its first extender entry, and the claim's short name, the name its errors give, service, and leniency, so `Ltix.Claims.parse/2` parses raw claims without reading the modules again.
 
@@ -329,13 +350,13 @@ end
 |---|---|
 | `Ltix.LaunchClaims.Parser`, `:claim_parsers` | A declared claim, an extender of `Ltix.Claim` |
 | `Ltix.LaunchClaims.Role.Parser`, `:role_parsers` | Removed. Roles are the URIs the platform sent, checked with `Ltix.Role` |
-| `Ltix.AdvantageService` | A service provider module in a plugin |
+| `Ltix.AdvantageService` | A plugin with an endpoint claim, which implements `service/0` and `new/1`, and an `Ltix.ClientAssertion` step that adds the service's scopes |
 | `Ltix.DeepLinking.ContentItem` protocol | A content item type provided by a plugin, and extenders of existing types |
 | `extensions:` on scores, line items, and content items | Extenders of the provider modules for those types |
 
 ## Not Yet Decided
 
-- **The contract of each of Ltix's providers.** This covers notice, tool message, service resources, and the client assertion.
+- **The contract of each of Ltix's providers.** This covers notice, tool message, and service resources.
 
 ## Spike for Hooks
 

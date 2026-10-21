@@ -6,8 +6,8 @@ defmodule Ltix.Ordered do
   this behaviour. A step orders itself against other steps with
   `c:before?/1` and `c:after?/1`, which default to `false`. Order login and
   launch steps against the phases that `Ltix.Login` and `Ltix.Launch` list,
-  such as `Ltix.Login.RegistrationFound`. A plugin can also order the steps it
-  adds, including anonymous steps, as
+  such as `Ltix.Login.RegistrationFound`. Client assertions have no phases. A
+  plugin can also order the steps it adds, including anonymous steps, as
   [Order the steps a plugin adds](#module-order-the-steps-a-plugin-adds) shows.
 
       defmodule MyApp.LoginTenant do

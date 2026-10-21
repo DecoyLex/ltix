@@ -1,12 +1,12 @@
 defmodule Ltix.OAuth do
+  alias Ltix.Claims
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Launch
   alias Ltix.OAuth.Client
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
+  alias Ltix.PluginSet
   alias Ltix.Registerable
-
-  @shared_fields Client.option_fields()
 
   @registration_schema Zoi.keyword(
                          [
@@ -28,9 +28,17 @@ defmodule Ltix.OAuth do
                        )
                        |> Zoi.min(1)
                        |> Zoi.required()
-                   ] ++ @shared_fields,
+                   ] ++ Client.option_fields(),
                    unrecognized_keys: :error
                  )
+
+  @token_options [
+    :storage_adapter,
+    :storage_adapter_options,
+    :deployment,
+    :req_options,
+    :local_network_access
+  ]
 
   @moduledoc """
   OAuth 2.0 client credentials authentication for LTI Advantage services.
@@ -61,6 +69,42 @@ defmodule Ltix.OAuth do
       )
 
   The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2`.
+  """
+
+  @doc """
+  Requests an access token for the services' endpoints and returns a
+  client for their calls.
+
+  From an `Ltix.Launch`, list the services in `:services`. From an
+  `Ltix.Registration`, or your own struct that implements
+  `Ltix.Registerable`, pass saved endpoints in `:endpoints`.
+
+  ## Errors
+
+    * `Ltix.Errors.Invalid.ServiceNotAvailable` - the launch has no
+      endpoint for a service, no plugin in use provides a module in
+      `:services` or `:endpoints`, or the registration has no token endpoint
+    * `Ltix.Errors.Invalid.InvalidField` - a saved endpoint or the
+      `:deployment` ID is invalid
+    * `Ltix.Errors.Unknown.InvalidPluginSet` - two plugins in use conflict,
+      such as two that declare the same claim
+    * `Ltix.Errors.Unknown.StorageError` - the storage adapter doesn't
+      implement `c:Ltix.StorageAdapter.key_id/2` or
+      `c:Ltix.StorageAdapter.sign/4`, or one of them fails
+    * `Ltix.Errors.Invalid.TokenRequestFailed` - the platform refused the
+      token request. Its `error` and `error_description` fields have the
+      platform's reason
+    * `Ltix.Errors.Invalid.MalformedResponse` - the token response isn't a
+      valid bearer token
+    * `Ltix.Errors.Invalid.ScopeMismatch` - with `require_all_scopes: true`,
+      the platform didn't grant a scope
+    * an error a plugin's `Ltix.ClientAssertion` step returns
+
+  A registration that doesn't implement `Ltix.Registerable` raises
+  `ArgumentError`, and a `:deployment` that doesn't implement
+  `Ltix.Deployable` raises `Ltix.Errors.Invalid.InvalidOption`.
+  [Error Handling](error-handling.md) lists the errors any platform request
+  can return.
 
   ## Options (launch)
 
@@ -70,16 +114,6 @@ defmodule Ltix.OAuth do
 
   #{Zoi.describe(@registration_schema)}
   """
-
-  @doc """
-  Authenticate with a platform's token endpoint.
-
-  Accepts an `Ltix.Launch` or any struct implementing `Ltix.Registerable`,
-  including `Ltix.Registration` itself. With a launch, list the services in
-  the `:services` option, and Ltix reads each endpoint from the launch. With
-  a registration, pass the endpoints in the `:endpoints` option.
-  A service missing from the launch returns a `ServiceNotAvailable` error.
-  """
   # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
   @spec authenticate(Launch.t() | Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
@@ -88,16 +122,14 @@ defmodule Ltix.OAuth do
   def authenticate(%Launch{} = launch, opts) do
     {services, opts} = Keyword.pop!(Options.parse!(opts, @launch_schema), :services)
 
-    case launch_endpoints(launch, services) do
-      {:ok, endpoints} ->
-        request_client(
-          launch.source_registration,
-          endpoints,
-          Keyword.put(opts, :deployment, launch.source_deployment)
-        )
-
-      {:error, _} = error ->
-        error
+    with {:ok, endpoints} <- launch_endpoints(launch, services) do
+      request_client(
+        launch.source_registration,
+        endpoints,
+        opts
+        |> Keyword.put_new(:plugins, launch.plugins)
+        |> Keyword.put(:deployment, launch.source_deployment)
+      )
     end
   end
 
@@ -118,21 +150,28 @@ defmodule Ltix.OAuth do
   end
 
   defp request_client(registerable, endpoints, opts) do
-    with :ok <- Client.validate_endpoints(endpoints),
+    token_options = Keyword.take(opts, @token_options)
+
+    with {:ok, plugins} <- PluginSet.resolve(opts[:plugins]),
+         :ok <- Claims.validate_endpoints(endpoints, plugins),
+         {:ok, assertion} <- ClientCredentials.client_assertion(endpoints, plugins),
          {:ok, token} <-
            ClientCredentials.request_token_span(
              :authenticate,
              registerable,
-             Client.collect_scopes(endpoints),
-             Keyword.take(opts, [
-               :storage_adapter,
-               :storage_adapter_options,
-               :deployment,
-               :req_options,
-               :local_network_access
-             ])
+             assertion,
+             token_options
            ) do
-      Client.from_access_token(token, [registration: registerable, endpoints: endpoints] ++ opts)
+      client =
+        struct!(
+          Client,
+          [token: token, registration: registerable, endpoints: endpoints, plugins: plugins] ++
+            token_options
+        )
+
+      if Keyword.fetch!(opts, :require_all_scopes),
+        do: Client.require_all_scopes(client, assertion.scopes),
+        else: {:ok, client}
     end
   end
 

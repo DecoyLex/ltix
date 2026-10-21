@@ -38,22 +38,23 @@ defmodule Ltix.MembershipsService do
   `Ltix.MembershipsService` is also the default plugin for NRPS 2.0. It
   declares the `Ltix.MembershipsService.Endpoint` claim, so
   `Ltix.Launch.get_endpoint(launch, Ltix.MembershipsService)` returns a
-  launch's endpoint.
+  launch's endpoint. It also adds the memberships scope to token requests for
+  the endpoint.
 
   ## Member messages
 
   A member's `message` has the claims of the messages the platform sent
-  about the member, parsed with the claims the plugin set declares. Pass
-  `plugins:` to parse them with plugins other than the configured ones.
+  about the member, parsed with the claims the client's plugin set declares.
+  Pass `plugins:` to parse them with other plugins.
   """
 
-  @behaviour Ltix.AdvantageService
   @behaviour Ltix.Plugin
 
-  alias Ltix.AdvantageService.Operation
-  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Claims
+  alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Launch
+  alias Ltix.MembershipsService.AddScope
   alias Ltix.MembershipsService.Endpoint
   alias Ltix.MembershipsService.MembershipContainer
   alias Ltix.OAuth
@@ -65,32 +66,14 @@ defmodule Ltix.MembershipsService do
 
   @version Mix.Project.config()[:version]
 
-  @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
   @media_type "application/vnd.ims.lti-nrps.v2.membershipcontainer+json"
 
   @impl Ltix.Plugin
   def plugin(_opts) do
-    Plugin.add(
-      Plugin.new(name: "LTI Names and Role Provisioning Services 2.0", version: @version),
-      Endpoint
-    )
+    Plugin.new(name: "LTI Names and Role Provisioning Services 2.0", version: @version)
+    |> Plugin.add(Endpoint)
+    |> Plugin.add(AddScope)
   end
-
-  @impl Ltix.AdvantageService
-  def validate_endpoint(%Endpoint{context_memberships_url: url}) when url in [nil, ""],
-    do: not_available("The endpoint has no context memberships URL")
-
-  def validate_endpoint(%Endpoint{} = endpoint) do
-    with :ok <- Endpoint.validate_url(endpoint),
-         do: validate_service_version(endpoint)
-  end
-
-  def validate_endpoint(_),
-    do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
-
-  @impl Ltix.AdvantageService
-  # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
-  def scopes(%Endpoint{}), do: [@nrps_scope]
 
   @auth_fields Client.option_fields()
 
@@ -169,7 +152,7 @@ defmodule Ltix.MembershipsService do
       Zoi.list(Zoi.any(),
         description:
           "The plugins to parse each member's `message` with, each as `MyPlugin` or " <>
-            "`{MyPlugin, opts}`. Defaults to the `:plugins` configuration."
+            "`{MyPlugin, opts}`. Defaults to the client's plugin set."
       ),
     role: Zoi.string(description: "Filter by role URI, such as `Ltix.Role.context_learner/0`."),
     resource_link_id: Zoi.string(description: "Query resource link membership."),
@@ -219,7 +202,7 @@ defmodule Ltix.MembershipsService do
       limit_error = [service: __MODULE__, option: :max_members]
 
       with {:ok, [first | _] = containers} <-
-             Operation.collect(containers(pages, plugins), max, limit_error, &length(&1.members)) do
+             collect(containers(pages, plugins), max, limit_error) do
         {:ok, %{first | members: Enum.flat_map(containers, & &1.members)}}
       end
     end)
@@ -258,7 +241,7 @@ defmodule Ltix.MembershipsService do
     opts = Options.parse!(opts, @stream_members_schema)
 
     with_pages(:stream_members, client, opts, fn pages, plugins ->
-      {:ok, Stream.flat_map(Operation.stream(containers(pages, plugins)), & &1.members)}
+      {:ok, Stream.flat_map(raise_errors(containers(pages, plugins)), & &1.members)}
     end)
   end
 
@@ -278,8 +261,8 @@ defmodule Ltix.MembershipsService do
       with {:ok, endpoint} <- resolve_endpoint(client, opts),
            do: {:ok, endpoint.context_memberships_url}
 
-    Operation.run([:ltix, :memberships_service, operation], client, [@nrps_scope], url, fn url ->
-      with {:ok, plugins} <- PluginSet.resolve(opts[:plugins]),
+    run(operation, client, url, fn url ->
+      with {:ok, plugins} <- PluginSet.resolve(opts[:plugins] || client.plugins),
            {:ok, pages} <-
              Client.request_pages(client, __MODULE__,
                url: url,
@@ -288,6 +271,60 @@ defmodule Ltix.MembershipsService do
              ) do
         consume.(pages, plugins)
       end
+    end)
+  end
+
+  # Runs `request` with the URL inside a `[:ltix, :memberships_service,
+  # operation]` telemetry span, whose `endpoint` metadata is the URL, or `nil`
+  # when `url` is an error. Returns `AccessTokenExpired` when the client's
+  # token has expired, and `ScopeMismatch` when it wasn't granted the
+  # memberships scope.
+  # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
+  defp run(operation, client, url, request) do
+    metadata = %{endpoint: requested_url(url)}
+
+    :telemetry.span([:ltix, :memberships_service, operation], metadata, fn ->
+      result =
+        with :ok <- Client.require_unexpired(client),
+             :ok <- Client.require_any_scope(client, [AddScope.scope()]),
+             {:ok, url} <- url do
+          request.(url)
+        end
+
+      {result, metadata}
+    end)
+  end
+
+  defp requested_url({:ok, url}), do: url
+  defp requested_url({:error, _error}), do: nil
+
+  # Collects the containers of `{:ok, container}` and `{:error, error}`
+  # results. Returns the first error, or `CollectionTooLarge` when the
+  # containers have more than `max` members.
+  defp collect(containers, max, limit_error) do
+    collected =
+      Enum.reduce_while(containers, {:ok, [], 0}, fn
+        {:ok, container}, {:ok, collected, total} ->
+          total = total + length(container.members)
+
+          if max != :infinity && total > max do
+            {:halt,
+             {:error, CollectionTooLarge.exception([count: total, max: max] ++ limit_error)}}
+          else
+            {:cont, {:ok, [container | collected], total}}
+          end
+
+        {:error, _error} = error, _collected ->
+          {:halt, error}
+      end)
+
+    with {:ok, collected, _total} <- collected, do: {:ok, Enum.reverse(collected)}
+  end
+
+  defp raise_errors(results) do
+    Stream.map(results, fn
+      {:ok, container} -> container
+      {:error, error} -> raise error
     end)
   end
 
@@ -303,21 +340,27 @@ defmodule Ltix.MembershipsService do
   # The `:endpoint` option overrides the client's endpoint and is validated like it.
   defp resolve_endpoint(%Client{} = client, opts) do
     case Keyword.fetch(opts, :endpoint) do
-      {:ok, endpoint} -> validated(endpoint)
+      {:ok, %Endpoint{} = endpoint} -> validated(endpoint, opts[:plugins] || client.plugins)
       :error -> client_endpoint(client)
     end
   end
 
-  defp validated(endpoint) do
-    with :ok <- validate_endpoint(endpoint), do: {:ok, endpoint}
+  defp validated(endpoint, plugins) do
+    with {:ok, plugins} <- PluginSet.resolve(plugins),
+         :ok <- Claims.validate_endpoints(%{__MODULE__ => endpoint}, plugins),
+         do: {:ok, endpoint}
   end
 
   defp client_endpoint(%Client{endpoints: %{__MODULE__ => endpoint}}), do: {:ok, endpoint}
 
+  # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
   defp client_endpoint(_client) do
-    not_available(
-      "The client has no memberships service endpoint. Authenticate with one or pass the endpoint option"
-    )
+    {:error,
+     ServiceNotAvailable.exception(
+       service: __MODULE__,
+       reason:
+         "The client has no memberships service endpoint. Authenticate with one or pass the endpoint option"
+     )}
   end
 
   # [NRPS §2.4.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#role-query-parameter)
@@ -327,21 +370,6 @@ defmodule Ltix.MembershipsService do
         value = Keyword.get(opts, option),
         into: %{},
         do: {param, to_string(value)}
-  end
-
-  # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
-  defp validate_service_version(%Endpoint{service_versions: nil}), do: :ok
-
-  defp validate_service_version(%Endpoint{service_versions: versions}) do
-    if "2.0" in versions do
-      :ok
-    else
-      not_available("The endpoint does not support NRPS version 2.0")
-    end
-  end
-
-  defp not_available(reason) do
-    {:error, ServiceNotAvailable.exception(service: __MODULE__, reason: reason)}
   end
 
   @doc false

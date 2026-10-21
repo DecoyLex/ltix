@@ -110,6 +110,70 @@ In 0.2, a malformed `resource_link` failed only resource link launches, and malf
 
 A member's `message` is a list of claim maps keyed by short name, where 0.2 had `%Ltix.LaunchClaims{}` structs. Read a claim with `message.custom`. Claims no plugin declares are left out, and a message that fails a claim check fails `list_members/2` and `stream_members/2`.
 
+## Services
+
+### `Ltix.AdvantageService` is removed
+
+A custom service is a plugin. Move `validate_endpoint/1` to your endpoint claim's `new/1`, and `scopes/1` to a client assertion step. Until an enabled plugin declares the endpoint claim, `Ltix.OAuth.authenticate/2` returns `Ltix.Errors.Invalid.ServiceNotAvailable` for the service.
+
+```elixir
+# 0.2
+defmodule MyApp.AttendanceService do
+  @behaviour Ltix.AdvantageService
+
+  @impl true
+  def validate_endpoint(%MyApp.AttendanceEndpoint{}), do: :ok
+  def validate_endpoint(_), do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
+
+  @impl true
+  def scopes(%MyApp.AttendanceEndpoint{}), do: ["https://lms.example.com/scope/attendance"]
+end
+
+# 0.3
+defmodule MyApp.AttendanceEndpoint do
+  use Ltix.Claim,
+    claim: "https://lms.example.com/claim/attendance",
+    name: :attendance_endpoint,
+    strict: false,
+    service: MyApp.AttendanceService,
+    fields: [attendance_url: Zoi.string()]
+
+  @impl Ltix.Claim
+  def new(attributes), do: {:ok, struct!(__MODULE__, attributes)}
+end
+
+defmodule MyApp.AttendanceScope do
+  use Ltix.ClientAssertion
+
+  @impl Ltix.Step
+  def call(%{endpoints: %{MyApp.AttendanceService => _endpoint}} = assertion, _opts) do
+    {:ok, update_in(assertion.scopes, &(&1 ++ ["https://lms.example.com/scope/attendance"]))}
+  end
+
+  def call(assertion, _opts), do: {:ok, assertion}
+end
+
+defmodule MyApp.LtiPlugin do
+  @behaviour Ltix.Plugin
+
+  @impl Ltix.Plugin
+  def plugin(_opts) do
+    Ltix.Plugin.new(name: "My App")
+    |> Ltix.Plugin.add(MyApp.AttendanceEndpoint)
+    |> Ltix.Plugin.add(MyApp.AttendanceScope)
+  end
+end
+
+# config/config.exs
+config :ltix, plugins: [MyApp.LtiPlugin]
+```
+
+Your service module keeps its functions, and `Ltix.OAuth.Client.request/3` still sends its requests. If you keyed a token cache on `scopes(endpoint)`, key it on the service module, and authenticate with `require_all_scopes: true`. See [Building a Custom Advantage Service](cookbooks/custom-advantage-service.md) and [Token Caching and Reuse](cookbooks/token-caching-and-reuse.md).
+
+### Ltix's services drop their `AdvantageService` callbacks
+
+`Ltix.GradeService` and `Ltix.MembershipsService` no longer have `endpoint_from_claims/1`, `validate_endpoint/1`, or `scopes/1`. Read a launch's endpoint with `Ltix.Launch.get_endpoint/2`, and a grade service endpoint's scopes from its `scopes` field. Check a stored endpoint with its module's `new/1`, such as `Ltix.GradeService.Endpoint.new/1`.
+
 ## Roles
 
 ### Roles are URIs
@@ -285,4 +349,5 @@ An error's message doesn't end with the section of the specification its check c
 ## New in 0.3
 
 - [Plugins](writing-plugins.md) extend Ltix. A tool that enables none works as before. When enabled plugins conflict, a call returns `Ltix.Errors.Unknown.InvalidPluginSet`.
+- An OAuth client uses the plugins it was authenticated with. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `authenticate/2` in background jobs.
 - `Ltix.Errors.Invalid.ContentItemsExceedLimit` has the `index` of the first content item over the limit.

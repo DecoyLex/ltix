@@ -2,13 +2,21 @@ defmodule Ltix.OAuth.Client do
   @moduledoc """
   Authenticated OAuth session for LTI Advantage service calls.
 
-  Holds an `Ltix.OAuth.AccessToken` with the scopes it was granted, the
-  registration and deployment it was requested for, and the service
-  endpoints it calls, and provides explicit refresh. Pass this struct to
-  service functions like `Ltix.MembershipsService.list_members/2`.
+  Pass this struct to service functions like
+  `Ltix.MembershipsService.list_members/2`.
 
-  `registration` is the struct you authenticated with, which can be your own
-  struct implementing `Ltix.Registerable`.
+  ## Fields
+
+    * `:token` - the `Ltix.OAuth.AccessToken`, with the scopes the platform
+      granted
+    * `:registration` - the struct you authenticated with, which can be your
+      own struct implementing `Ltix.Registerable`
+    * `:deployment` - the deployment the token was requested for, as a struct
+      implementing `Ltix.Deployable` or a deployment ID. It's `nil` when the
+      request had no deployment.
+    * `:endpoints` - the endpoints of the services the client calls, keyed by
+      service, such as `Ltix.MembershipsService`. Read one with
+      `get_endpoint/2`.
 
   ## Refreshing
 
@@ -33,6 +41,7 @@ defmodule Ltix.OAuth.Client do
       )
   """
 
+  alias Ltix.Claims
   alias Ltix.Deployable
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Security.AccessTokenExpired
@@ -41,6 +50,7 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
   alias Ltix.Pagination
+  alias Ltix.PluginSet
   alias Ltix.Records
   alias Ltix.Registerable
 
@@ -51,6 +61,7 @@ defmodule Ltix.OAuth.Client do
     :storage_adapter,
     :req_options,
     :local_network_access,
+    :plugins,
     storage_adapter_options: [],
     endpoints: %{}
   ]
@@ -63,7 +74,8 @@ defmodule Ltix.OAuth.Client do
           storage_adapter_options: keyword(),
           req_options: keyword(),
           local_network_access: :none | :local | :loopback | nil,
-          endpoints: %{module() => term()}
+          endpoints: %{module() => term()},
+          plugins: PluginSet.t() | nil
         }
 
   @option_fields [
@@ -86,7 +98,12 @@ defmodule Ltix.OAuth.Client do
         description:
           "Return a `ScopeMismatch` error unless every scope the endpoints need was granted."
       )
-      |> Zoi.default(false)
+      |> Zoi.default(false),
+    plugins:
+      Zoi.list(Zoi.any(),
+        description:
+          "Plugins for the client's token requests and calls, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to the launch's plugins."
+      )
   ]
 
   @registration_option_fields [
@@ -95,7 +112,15 @@ defmodule Ltix.OAuth.Client do
                                     description:
                                       "The deployment the token is for, as a struct implementing `Ltix.Deployable` or a deployment ID. Token requests include it."
                                   )
-                              ] ++ @option_fields
+                              ] ++
+                                Keyword.replace!(
+                                  @option_fields,
+                                  :plugins,
+                                  Zoi.list(Zoi.any(),
+                                    description:
+                                      "Plugins for the client's token requests and calls, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to `config :ltix, :plugins`."
+                                  )
+                                )
 
   @with_endpoints_schema Zoi.keyword(Keyword.take(@option_fields, [:require_all_scopes]),
                            unrecognized_keys: :error
@@ -205,9 +230,29 @@ defmodule Ltix.OAuth.Client do
   end
 
   @doc """
+  Returns the endpoint of `service` that the client has, or `nil` when the
+  client has none.
+
+      iex> endpoint = %Ltix.GradeService.Endpoint{
+      ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+      ...>   line_item: "https://lms.example.com/line_items/1"
+      ...> }
+      iex> client = %Ltix.OAuth.Client{endpoints: %{Ltix.GradeService => endpoint}}
+      iex> Ltix.OAuth.Client.get_endpoint(client, Ltix.GradeService)
+      %Ltix.GradeService.Endpoint{
+        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+        line_item: "https://lms.example.com/line_items/1"
+      }
+      iex> Ltix.OAuth.Client.get_endpoint(client, Ltix.MembershipsService)
+      nil
+  """
+  @spec get_endpoint(t(), module()) :: term() | nil
+  def get_endpoint(%__MODULE__{endpoints: endpoints}, service), do: Map.get(endpoints, service)
+
+  @doc """
   Send an authenticated request to a platform service.
 
-  Use this to call a platform from your own `Ltix.AdvantageService`. `opts`
+  Use this to call a platform from your own Advantage service. `opts`
   are `Req` request options such as `:url`, `:method`, `:headers`, `:params`,
   and `:json`. The request has the client's access token as its bearer token,
   and it gets the same checks as every request Ltix sends, including HTTPS and
@@ -275,8 +320,8 @@ defmodule Ltix.OAuth.Client do
   If expired, re-acquire the token using the stored registration and endpoints.
   Otherwise, return the client unchanged.
 
-  Re-derives requested scopes from endpoints via each service's `scopes/1`
-  callback, so a transient partial grant does not become permanent.
+  Re-derives requested scopes from endpoints, so a transient partial grant
+  does not become permanent.
   """
   # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
   @spec refresh(t()) :: {:ok, t()} | {:error, Exception.t()}
@@ -305,23 +350,16 @@ defmodule Ltix.OAuth.Client do
   """
   @spec force_refresh(t()) :: {:ok, t()} | {:error, Exception.t()}
   def force_refresh(%__MODULE__{} = client) do
-    scopes = collect_scopes(client.endpoints)
-
-    case ClientCredentials.request_token_span(
-           :refresh,
-           client.registration,
-           scopes,
-           storage_adapter: client.storage_adapter,
-           storage_adapter_options: client.storage_adapter_options,
-           deployment: client.deployment,
-           req_options: client.req_options,
-           local_network_access: client.local_network_access
-         ) do
-      {:ok, token} ->
-        {:ok, %{client | token: token}}
-
-      {:error, _} = error ->
-        error
+    with {:ok, assertion} <- client_assertion(client),
+         {:ok, token} <-
+           ClientCredentials.request_token_span(:refresh, client.registration, assertion,
+             storage_adapter: client.storage_adapter,
+             storage_adapter_options: client.storage_adapter_options,
+             deployment: client.deployment,
+             req_options: client.req_options,
+             local_network_access: client.local_network_access
+           ) do
+      {:ok, %{client | token: token}}
     end
   end
 
@@ -350,12 +388,12 @@ defmodule Ltix.OAuth.Client do
     opts = Options.parse!(opts, @from_access_token_schema)
     registerable = Keyword.fetch!(opts, :registration)
     endpoints = Keyword.fetch!(opts, :endpoints)
-    req_options = Keyword.fetch!(opts, :req_options)
 
     with {:ok, _registration} <- Records.convert!(registerable, :registration, :registration),
          {:ok, _deployment} <-
            ClientCredentials.resolve_deployment(Keyword.get(opts, :deployment)),
-         :ok <- validate_endpoints(endpoints) do
+         {:ok, plugins} <- PluginSet.resolve(Keyword.get(opts, :plugins)),
+         :ok <- Claims.validate_endpoints(endpoints, plugins) do
       check_granted_scopes(
         %__MODULE__{
           token: token,
@@ -363,9 +401,10 @@ defmodule Ltix.OAuth.Client do
           deployment: Keyword.get(opts, :deployment),
           storage_adapter: Keyword.get(opts, :storage_adapter),
           storage_adapter_options: Keyword.fetch!(opts, :storage_adapter_options),
-          req_options: req_options,
+          req_options: Keyword.fetch!(opts, :req_options),
           local_network_access: Keyword.get(opts, :local_network_access),
-          endpoints: endpoints
+          endpoints: endpoints,
+          plugins: plugins
         },
         Keyword.fetch!(opts, :require_all_scopes)
       )
@@ -397,15 +436,12 @@ defmodule Ltix.OAuth.Client do
   def with_endpoints(%__MODULE__{} = client, endpoints, opts \\ []) do
     opts = Options.parse!(opts, @with_endpoints_schema)
 
-    case validate_endpoints(endpoints) do
-      :ok ->
-        check_granted_scopes(
-          %{client | endpoints: endpoints},
-          Keyword.fetch!(opts, :require_all_scopes)
-        )
-
-      {:error, _} = error ->
-        error
+    with {:ok, plugins} <- PluginSet.resolve(client.plugins),
+         :ok <- Claims.validate_endpoints(endpoints, plugins) do
+      check_granted_scopes(
+        %{client | endpoints: endpoints},
+        Keyword.fetch!(opts, :require_all_scopes)
+      )
     end
   end
 
@@ -420,31 +456,27 @@ defmodule Ltix.OAuth.Client do
     end
   end
 
-  @doc false
-  @spec validate_endpoints(%{module() => term()}) :: :ok | {:error, Exception.t()}
-  def validate_endpoints(endpoints) do
-    Enum.reduce_while(endpoints, :ok, fn {module, endpoint}, :ok ->
-      case module.validate_endpoint(endpoint) do
-        :ok -> {:cont, :ok}
-        {:error, _} = error -> {:halt, error}
-      end
-    end)
+  # The client assertion of a token request for the client's endpoints.
+  defp client_assertion(%__MODULE__{} = client) do
+    with {:ok, plugins} <- PluginSet.resolve(client.plugins),
+         do: ClientCredentials.client_assertion(client.endpoints, plugins)
   end
 
-  @doc false
-  @spec collect_scopes(%{module() => term()}) :: [String.t()]
-  def collect_scopes(endpoints) do
-    endpoints
-    |> Enum.flat_map(fn {module, endpoint} -> module.scopes(endpoint) end)
-    |> Enum.uniq()
-  end
-
-  # With `require_all_scopes`, every scope the endpoints need must be granted.
-  # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
+  # With `require_all_scopes`, every scope the token request asks for must be granted.
   defp check_granted_scopes(%__MODULE__{} = client, false), do: {:ok, client}
 
   defp check_granted_scopes(%__MODULE__{} = client, true) do
-    case Enum.reject(collect_scopes(client.endpoints), &has_scope?(client, &1)) do
+    with {:ok, assertion} <- client_assertion(client),
+         do: require_all_scopes(client, assertion.scopes)
+  end
+
+  # Returns the client when the token was granted every one of `scopes`, or a
+  # `ScopeMismatch` for each missing scope, combined.
+  # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
+  @doc false
+  @spec require_all_scopes(t(), [String.t()]) :: {:ok, t()} | {:error, Exception.t()}
+  def require_all_scopes(%__MODULE__{} = client, scopes) do
+    case Enum.reject(scopes, &has_scope?(client, &1)) do
       [] -> {:ok, client}
       missing -> {:error, Ltix.Errors.combine(Enum.map(missing, &scope_mismatch(client, [&1])))}
     end

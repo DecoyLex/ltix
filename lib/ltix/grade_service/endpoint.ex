@@ -74,6 +74,7 @@ defmodule Ltix.GradeService.Endpoint do
       iex> Exception.message(error)
       "Ltix.GradeService.Endpoint field :scopes is required"
   """
+  @impl Ltix.Claim
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)

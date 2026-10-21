@@ -26,14 +26,18 @@ defmodule Ltix.Claims do
 
   Resolution fails with `Ltix.Errors.Unknown.InvalidPluginSet` when two
   entries declare one claim URI, one short name, or the endpoint of one
-  service. A claim module added several times with the same options, or the
-  same anonymous claim added several times, doesn't conflict.
+  service. It also fails when an endpoint claim isn't declared with `:fields`,
+  or doesn't implement `c:Ltix.Claim.new/1`. A claim module added several times
+  with the same options, or the same anonymous claim added several times,
+  doesn't conflict.
   """
   use Ltix.Provider
 
   alias Ltix.Claim.Declaration
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidClaim
+  alias Ltix.Errors.Invalid.InvalidEndpoint
+  alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.PluginSet
   alias Ltix.PluginSet.Conflict
   alias Ltix.PluginSet.Entry
@@ -63,7 +67,14 @@ defmodule Ltix.Claims do
           endpoints,
           & &1.opts[:service],
           &"both declare the endpoint of #{inspect(&1)}"
-        )
+        ) ++
+        for endpoint <- endpoints, !checkable?(endpoint.module) do
+          %Conflict{
+            parties: [endpoint],
+            reason:
+              "declares the endpoint of #{inspect(endpoint.opts[:service])}, which needs the fields option and new/1"
+          }
+        end
 
     case conflicts do
       [] -> {:ok, Map.new(entries, &{&1.opts[:claim], declaration(&1)})}
@@ -91,6 +102,46 @@ defmodule Ltix.Claims do
   # when it has one, and otherwise by its short name. A registered JWT name
   # isn't a URI.
   defp label(uri, name), do: if(String.contains?(uri, "/"), do: Atom.to_string(name), else: uri)
+
+  # Ltix checks an endpoint by building it again from its fields with `new/1`.
+  defp checkable?(endpoint),
+    do: function_exported?(endpoint, :__ltix_type__, 1) && function_exported?(endpoint, :new, 1)
+
+  # Checks each endpoint with the `new/1` of the claim that declares its
+  # service's endpoint. Returns the first error.
+  @doc false
+  @spec validate_endpoints(%{module() => term()}, PluginSet.t()) :: :ok | {:error, Exception.t()}
+  def validate_endpoints(endpoints, %PluginSet{} = plugins) do
+    declared =
+      for %{service: service} = declaration <- Map.values(PluginSet.data(plugins, __MODULE__)),
+          service != nil,
+          into: %{},
+          do: {service, declaration}
+
+    Enum.reduce_while(endpoints, :ok, fn {service, endpoint}, :ok ->
+      case validate_endpoint(Map.get(declared, service), service, endpoint) do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  # [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
+  defp validate_endpoint(nil, service, _endpoint) do
+    {:error,
+     ServiceNotAvailable.exception(
+       service: service,
+       reason: "No plugin declares the endpoint claim of this service"
+     )}
+  end
+
+  defp validate_endpoint(%{claim: claim}, _service, %claim{} = endpoint) do
+    with {:ok, _endpoint} <- claim.new(Map.take(endpoint, Keyword.keys(Ltix.Type.fields(claim)))),
+         do: :ok
+  end
+
+  defp validate_endpoint(_declaration, service, _endpoint),
+    do: {:error, InvalidEndpoint.exception(service: service)}
 
   @doc """
   Parses raw claims with the claims a plugin set declares.

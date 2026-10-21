@@ -6,43 +6,30 @@ defmodule Ltix.OAuth.ClientTest do
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
+  alias Ltix.PluginSet
+  alias TestPlugins.Calendar
+  alias TestPlugins.Records
 
   doctest Client
 
-  @test_scope "https://example.com/scope/test.readonly"
-  @other_scope "https://example.com/scope/other.write"
+  @records_scope "https://example.com/scope/records.readonly"
+  @calendar_scope "https://example.com/scope/calendar.write"
 
-  defmodule TestService do
-    @behaviour Ltix.AdvantageService
+  @plugins [Records, Calendar]
 
-    @impl Ltix.AdvantageService
-    def validate_endpoint(endpoint) when endpoint in [:valid_endpoint, :other_valid_endpoint],
-      do: :ok
-
-    def validate_endpoint(_),
-      do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
-
-    @impl Ltix.AdvantageService
-    def scopes(endpoint) when endpoint in [:valid_endpoint, :other_valid_endpoint],
-      do: ["https://example.com/scope/test.readonly"]
-  end
-
-  defmodule OtherService do
-    @behaviour Ltix.AdvantageService
-
-    @impl Ltix.AdvantageService
-    def validate_endpoint(:other_endpoint), do: :ok
-
-    @impl Ltix.AdvantageService
-    def scopes(:other_endpoint), do: ["https://example.com/scope/other.write"]
-  end
+  defp records_endpoint, do: %Records.Endpoint{url: "https://platform.example.com/records"}
+  defp other_records_endpoint, do: %Records.Endpoint{url: "https://platform.example.com/other"}
+  defp calendar_endpoint, do: %Calendar.Endpoint{url: "https://platform.example.com/calendar"}
 
   defp build_client(overrides \\ %{}) do
+    {:ok, plugins} = PluginSet.resolve(@plugins)
+
     defaults = %{
       token: build_token(DateTime.add(DateTime.utc_now(), 3600)),
       registration: nil,
       req_options: [],
-      endpoints: %{TestService => :valid_endpoint}
+      endpoints: %{Records => records_endpoint()},
+      plugins: plugins
     }
 
     struct!(Client, Map.merge(defaults, overrides))
@@ -52,12 +39,12 @@ defmodule Ltix.OAuth.ClientTest do
     %AccessToken{
       access_token: "test-token",
       token_type: "bearer",
-      granted_scopes: MapSet.new([@test_scope]),
+      granted_scopes: MapSet.new([@records_scope]),
       expires_at: expires_at
     }
   end
 
-  defp both_endpoints, do: %{TestService => :valid_endpoint, OtherService => :other_endpoint}
+  defp both_endpoints, do: %{Records => records_endpoint(), Calendar => calendar_endpoint()}
 
   defp cached_token(scope) do
     {:ok, token} =
@@ -89,7 +76,7 @@ defmodule Ltix.OAuth.ClientTest do
         "access_token" => "refreshed-token",
         "token_type" => "Bearer",
         "expires_in" => 3600,
-        "scope" => @test_scope
+        "scope" => @records_scope
       })
     end)
   end
@@ -107,7 +94,7 @@ defmodule Ltix.OAuth.ClientTest do
   describe "require_scope/2" do
     test "returns :ok for granted scope" do
       client = build_client()
-      assert :ok = Client.require_scope(client, @test_scope)
+      assert :ok = Client.require_scope(client, @records_scope)
     end
 
     test "returns error for ungranted scope" do
@@ -121,7 +108,7 @@ defmodule Ltix.OAuth.ClientTest do
   describe "require_any_scope/2" do
     test "returns :ok when at least one scope matches" do
       client = build_client()
-      assert :ok = Client.require_any_scope(client, ["other", @test_scope])
+      assert :ok = Client.require_any_scope(client, ["other", @records_scope])
     end
 
     test "returns error when no scopes match" do
@@ -140,7 +127,7 @@ defmodule Ltix.OAuth.ClientTest do
       assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :registration is invalid/, fn ->
         Client.from_access_token(token,
           registration: %BareRegistration{registration: build_registration()},
-          endpoints: %{TestService => :valid_endpoint}
+          endpoints: %{Records => records_endpoint()}
         )
       end
     end
@@ -154,13 +141,13 @@ defmodule Ltix.OAuth.ClientTest do
       registration = build_registration()
 
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :registration is required", fn ->
-        Client.from_access_token(token, endpoints: %{TestService => :valid_endpoint})
+        Client.from_access_token(token, endpoints: %{Records => records_endpoint()})
       end
 
       assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :scopes is unknown", fn ->
         Client.from_access_token(token,
           registration: registration,
-          endpoints: %{TestService => :valid_endpoint},
+          endpoints: %{Records => records_endpoint()},
           scopes: []
         )
       end
@@ -168,7 +155,7 @@ defmodule Ltix.OAuth.ClientTest do
       assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :req_options is invalid/, fn ->
         Client.from_access_token(token,
           registration: registration,
-          endpoints: %{TestService => :valid_endpoint},
+          endpoints: %{Records => records_endpoint()},
           req_options: %{}
         )
       end
@@ -182,26 +169,29 @@ defmodule Ltix.OAuth.ClientTest do
           "access_token" => "cached-token",
           "token_type" => "Bearer",
           "expires_in" => 3600,
-          "scope" => @test_scope
+          "scope" => @records_scope
         })
 
       assert {:ok, %Client{} = client} =
                Client.from_access_token(token,
                  registration: registration,
-                 endpoints: %{TestService => :valid_endpoint}
+                 plugins: @plugins,
+                 endpoints: %{Records => records_endpoint()}
                )
 
       assert client.token.access_token == "cached-token"
-      assert MapSet.member?(client.token.granted_scopes, @test_scope)
-      assert client.endpoints == %{TestService => :valid_endpoint}
+      assert MapSet.member?(client.token.granted_scopes, @records_scope)
+      assert client.endpoints == %{Records => records_endpoint()}
+      assert PluginSet.resolve(@plugins) == {:ok, client.plugins}
     end
 
     test "require_all_scopes returns ScopeMismatch for each scope the token lacks" do
       registration = build_registration()
 
-      assert {:error, %ScopeMismatch{scopes: [@other_scope]}} =
-               Client.from_access_token(cached_token(@test_scope),
+      assert {:error, %ScopeMismatch{scopes: [@calendar_scope]}} =
+               Client.from_access_token(cached_token(@records_scope),
                  registration: registration,
+                 plugins: @plugins,
                  endpoints: both_endpoints(),
                  require_all_scopes: true
                )
@@ -209,19 +199,21 @@ defmodule Ltix.OAuth.ClientTest do
       assert {:error,
               %Invalid{
                 errors: [
-                  %ScopeMismatch{scopes: [@test_scope]},
-                  %ScopeMismatch{scopes: [@other_scope]}
+                  %ScopeMismatch{scopes: [@records_scope]},
+                  %ScopeMismatch{scopes: [@calendar_scope]}
                 ]
               }} =
                Client.from_access_token(cached_token("unrelated:scope"),
                  registration: registration,
+                 plugins: @plugins,
                  endpoints: both_endpoints(),
                  require_all_scopes: true
                )
 
       assert {:ok, %Client{}} =
-               Client.from_access_token(cached_token("#{@test_scope} #{@other_scope}"),
+               Client.from_access_token(cached_token("#{@records_scope} #{@calendar_scope}"),
                  registration: registration,
+                 plugins: @plugins,
                  endpoints: both_endpoints(),
                  require_all_scopes: true
                )
@@ -234,13 +226,14 @@ defmodule Ltix.OAuth.ClientTest do
         AccessToken.from_response(%{
           "access_token" => "tok",
           "token_type" => "Bearer",
-          "scope" => @test_scope
+          "scope" => @records_scope
         })
 
       assert {:error, %InvalidEndpoint{}} =
                Client.from_access_token(token,
                  registration: registration,
-                 endpoints: %{TestService => :wrong_endpoint}
+                 plugins: @plugins,
+                 endpoints: %{Records => calendar_endpoint()}
                )
     end
   end
@@ -250,9 +243,9 @@ defmodule Ltix.OAuth.ClientTest do
       client = build_client()
 
       assert {:ok, %Client{} = new_client} =
-               Client.with_endpoints(client, %{TestService => :other_valid_endpoint})
+               Client.with_endpoints(client, %{Records => other_records_endpoint()})
 
-      assert new_client.endpoints == %{TestService => :other_valid_endpoint}
+      assert new_client.endpoints == %{Records => other_records_endpoint()}
       assert new_client.token.access_token == client.token.access_token
       assert new_client.token.granted_scopes == client.token.granted_scopes
     end
@@ -261,17 +254,17 @@ defmodule Ltix.OAuth.ClientTest do
       client = build_client()
 
       assert {:error, %InvalidEndpoint{}} =
-               Client.with_endpoints(client, %{TestService => :wrong_endpoint})
+               Client.with_endpoints(client, %{Records => calendar_endpoint()})
     end
 
     test "require_all_scopes returns ScopeMismatch when the token lacks an endpoint's scope" do
       client = build_client()
 
-      assert {:error, %ScopeMismatch{scopes: [@other_scope]}} =
+      assert {:error, %ScopeMismatch{scopes: [@calendar_scope]}} =
                Client.with_endpoints(client, both_endpoints(), require_all_scopes: true)
 
       assert {:ok, %Client{}} =
-               Client.with_endpoints(client, %{TestService => :other_valid_endpoint},
+               Client.with_endpoints(client, %{Records => other_records_endpoint()},
                  require_all_scopes: true
                )
     end
@@ -343,12 +336,12 @@ defmodule Ltix.OAuth.ClientTest do
 
     defp assert_refresh_span do
       assert_received {[:ltix, :oauth, :refresh, :start], _, _,
-                       %{scopes_requested: [@test_scope]}}
+                       %{scopes_requested: [@records_scope]}}
 
       assert_received {[:ltix, :oauth, :refresh, :stop], _, %{duration: _},
                        %{
-                         scopes_requested: [@test_scope],
-                         scopes_granted: [@test_scope],
+                         scopes_requested: [@records_scope],
+                         scopes_granted: [@records_scope],
                          expires_in: expires_in
                        }}
 
@@ -400,7 +393,7 @@ defmodule Ltix.OAuth.ClientTest do
     test "sends the request with the client's token to the service's stub", %{client: client} do
       owner = self()
 
-      Req.Test.stub(TestService, fn conn ->
+      Req.Test.stub(Records, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
 
         send(
@@ -414,7 +407,7 @@ defmodule Ltix.OAuth.ClientTest do
       end)
 
       assert {:ok, %Req.Response{status: 200, body: %{"records" => [%{"id" => 1}]}}} =
-               Client.request(client, TestService,
+               Client.request(client, Records,
                  method: :post,
                  url: "https://platform.example.com/records",
                  params: [page: 2],
@@ -433,23 +426,23 @@ defmodule Ltix.OAuth.ClientTest do
             {403, Ltix.Errors.Security.AccessDenied},
             {404, Ltix.Errors.Unknown.TransportError}
           ] do
-        Req.Test.stub(TestService, &Plug.Conn.send_resp(&1, status, "no"))
+        Req.Test.stub(Records, &Plug.Conn.send_resp(&1, status, "no"))
 
         assert {:error, %^error{status: ^status, url: ^url, body: "no"}} =
-                 Client.request(client, TestService, url: url)
+                 Client.request(client, Records, url: url)
       end
     end
 
     test "applies the checks Ltix makes on platform requests", %{client: client} do
-      Req.Test.stub(TestService, fn _conn -> flunk("the request was sent") end)
+      Req.Test.stub(Records, fn _conn -> flunk("the request was sent") end)
 
       assert {:error, %Ltix.Errors.Unknown.TransportError{} = error} =
-               Client.request(client, TestService, url: "http://platform.example.com/records")
+               Client.request(client, Records, url: "http://platform.example.com/records")
 
       assert Exception.message(error) =~ "HTTPS"
 
       assert {:error, %Ltix.Errors.Security.LocalNetworkAccessDenied{address_space: :loopback}} =
-               Client.request(client, TestService,
+               Client.request(client, Records,
                  url: "https://127.0.0.1/records",
                  local_network_access: :loopback
                )
@@ -458,11 +451,11 @@ defmodule Ltix.OAuth.ClientTest do
     test "sends the request to a local address when the client was granted access", %{
       client: client
     } do
-      Req.Test.stub(TestService, &Req.Test.json(&1, %{}))
+      Req.Test.stub(Records, &Req.Test.json(&1, %{}))
       client = %{client | local_network_access: :local}
 
       assert {:ok, %Req.Response{status: 200}} =
-               Client.request(client, TestService, url: "https://10.0.0.5/records")
+               Client.request(client, Records, url: "https://10.0.0.5/records")
     end
   end
 
@@ -474,7 +467,7 @@ defmodule Ltix.OAuth.ClientTest do
     test "follows next links with the client's token", %{client: client} do
       owner = self()
 
-      Req.Test.stub(TestService, fn conn ->
+      Req.Test.stub(Records, fn conn ->
         send(
           owner,
           {:request, conn.request_path, conn.query_string,
@@ -497,7 +490,7 @@ defmodule Ltix.OAuth.ClientTest do
       end)
 
       assert {:ok, pages} =
-               Client.request_pages(client, TestService,
+               Client.request_pages(client, Records,
                  url: "https://platform.example.com/records",
                  params: [limit: 1],
                  headers: [{"accept", "application/json"}]
@@ -512,16 +505,14 @@ defmodule Ltix.OAuth.ClientTest do
     end
 
     test "returns the first page's error", %{client: client} do
-      Req.Test.stub(TestService, &Plug.Conn.send_resp(&1, 403, "no"))
+      Req.Test.stub(Records, &Plug.Conn.send_resp(&1, 403, "no"))
 
       assert {:error, %Ltix.Errors.Security.AccessDenied{status: 403}} =
-               Client.request_pages(client, TestService,
-                 url: "https://platform.example.com/records"
-               )
+               Client.request_pages(client, Records, url: "https://platform.example.com/records")
     end
 
     test "ends the stream with a later page's error", %{client: client} do
-      Req.Test.stub(TestService, fn conn ->
+      Req.Test.stub(Records, fn conn ->
         case conn.request_path do
           "/records" ->
             conn
@@ -534,16 +525,14 @@ defmodule Ltix.OAuth.ClientTest do
       end)
 
       assert {:ok, pages} =
-               Client.request_pages(client, TestService,
-                 url: "https://platform.example.com/records"
-               )
+               Client.request_pages(client, Records, url: "https://platform.example.com/records")
 
       assert [{:ok, %{"page" => 1}}, {:error, %Ltix.Errors.Unknown.TransportError{status: 500}}] =
                Enum.to_list(pages)
     end
 
     test "applies the client's local network access to later pages", %{client: client} do
-      Req.Test.stub(TestService, fn conn ->
+      Req.Test.stub(Records, fn conn ->
         case conn.request_path do
           "/records" ->
             conn
@@ -556,7 +545,7 @@ defmodule Ltix.OAuth.ClientTest do
       end)
 
       assert {:ok, pages} =
-               Client.request_pages(%{client | local_network_access: :local}, TestService,
+               Client.request_pages(%{client | local_network_access: :local}, Records,
                  url: "https://10.0.0.5/records"
                )
 
@@ -572,7 +561,8 @@ defmodule Ltix.OAuth.ClientTest do
       {:ok, client} =
         Client.from_access_token(token,
           registration: build_registration(),
-          endpoints: %{TestService => :valid_endpoint}
+          plugins: @plugins,
+          endpoints: %{Records => records_endpoint()}
         )
 
       for value <- [token, client] do

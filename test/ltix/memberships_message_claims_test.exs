@@ -51,6 +51,31 @@ defmodule Ltix.MembershipsMessageClaimsTest do
     end
   end
 
+  test "claims are parsed with the client's plugins, and plugins: replaces them", %{
+    client: client
+  } do
+    message = %{"https://tool.example.com/claim/traced" => "traced"}
+
+    {:ok, plugins} =
+      Ltix.PluginSet.resolve([{TestPlugins.Modules, add: [TestPlugins.Traced]}])
+
+    client = %{client | plugins: plugins}
+
+    assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
+            {:ok, [%Member{message: [streamed]}]}} = list_and_stream(client, message)
+
+    assert present(listed) == %{traced: "traced", roles: []}
+    assert present(streamed) == present(listed)
+
+    assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
+            {:ok, [%Member{message: [streamed]}]}} =
+             list_and_stream(client, message, plugins: [])
+
+    assert present(listed) == %{roles: []}
+    assert present(streamed) == %{roles: []}
+    refute Map.has_key?(listed, :traced)
+  end
+
   test "claims are parsed with the call's plugins", %{client: client} do
     message = %{
       "exp" => 123.5,

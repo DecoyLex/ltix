@@ -1,12 +1,13 @@
 # Writing Plugins
 
-A plugin can add a login or launch step, or a claim. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
+A plugin can add a login or launch step, a claim, or an Advantage service. Ltix supports Core, Deep Linking, AGS, and NRPS with default plugins.
 
 | Goal | See |
 |---|---|
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
-| Run code during login or launches | [Add a step](#add-a-step) |
+| Run code during login, launches, or token requests | [Add a step](#add-a-step) |
 | Read a claim | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
+| Add an Advantage service | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
 | Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
 | Build on another plugin, or enable several together | [Depend on another plugin](#depend-on-another-plugin), [Enable several plugins together](#enable-several-plugins-together) |
 | Let other plugins extend yours | [Provide something for other plugins to extend](#provide-something-for-other-plugins-to-extend) |
@@ -81,7 +82,7 @@ Ltix.handle_login(params, launch_url, plugins: [Blocklist])
 
 A call runs with the [default plugins](`Ltix.DefaultPlugins`) first, then the enabled plugins, each after its [dependencies](#depend-on-another-plugin). This is plugin order.
 
-A launch's `plugins` field has the plugin set the launch ran with. `Ltix.DeepLinking.build_response/3` and other calls that take the launch use that set.
+A launch's `plugins` field has the plugins the launch ran with. `Ltix.DeepLinking.build_response/3` and other calls that take the launch use those plugins. An `Ltix.OAuth.Client` uses the plugins it was authenticated with.
 
 ## Add a step
 
@@ -91,6 +92,7 @@ A step receives a login, launch, client assertion, or Deep Linking response, and
 |---|---|
 | `Ltix.Login` | `Ltix.handle_login/3` |
 | `Ltix.Launch` | `Ltix.handle_callback/3` |
+| `Ltix.ClientAssertion` | Access token requests. See [Add the service's scope to token requests](writing-advantage-service-plugins.md#add-the-service-s-scope-to-token-requests) |
 
 `c:Ltix.Step.call/2` returns one of three results.
 
@@ -132,7 +134,7 @@ No step's `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1` receives an an
 
 ### Order steps
 
-Order a step against a phase, such as `Ltix.Login.RegistrationFound`, with `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1`. `Ltix.Login` and `Ltix.Launch` list their phases and what's true at each. Implement only the callback you need. Both default to `false`.
+Order a step against a phase, such as `Ltix.Login.RegistrationFound`, with `c:Ltix.Ordered.before?/1` or `c:Ltix.Ordered.after?/1`. `Ltix.Login` and `Ltix.Launch` list their phases and what's true at each. Client assertions have none. Implement only the callback you need. Both default to `false`.
 
 This login step rejects logins for a suspended tenant. It runs after `Ltix.Login.RegistrationFound`, so `login.source_registration` is your application's registration record.
 
@@ -289,6 +291,7 @@ Exception.message(error)
 | Plugins that depend on each other in a cycle | Remove one of the dependencies |
 | Two plugins that declare the same claim URI, short name, service, or content item type | Enable only one of the plugins, or have both depend on a plugin that declares it |
 | The same claim module added with different options, by two plugins or by one plugin that appears twice in `plugins:` | Add it with the same options each time, or enable only one of the plugins that add it. To run one plugin's steps with several configurations, see [Enable plugins](#enable-plugins). |
+| An [endpoint claim](writing-advantage-service-plugins.md#declare-the-endpoint-claim) missing `fields:` or `new/1` | Add the missing one |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
 
 Enabling a module that isn't a plugin raises `Ltix.Errors.Invalid.InvalidOption`.
@@ -316,5 +319,5 @@ Tests for [claims and launch steps](writing-claim-and-launch-plugins.md#test-cla
 
 ## Next steps
 
-- `Ltix.Plugin` and `Ltix.PluginSet` for plugins and plugin sets
-- `Ltix.Login` and `Ltix.Launch` for each document's fields and phases
+- `Ltix.Plugin` and `Ltix.PluginSet` for declaring plugins and reading the plugins a call runs with
+- `Ltix.Login`, `Ltix.Launch`, and `Ltix.ClientAssertion` for each struct's fields, and for the login and launch phases
