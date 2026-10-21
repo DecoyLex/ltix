@@ -61,14 +61,14 @@ the token changes. To request a new token regardless of expiry, use
 
 ## Syncing multiple courses
 
-A token is scoped to a registration (platform + client\_id). If you sync
+A token is scoped to a registration, identified by issuer and client\_id. If you sync
 several courses on the same platform in one job, authenticate once and
 swap endpoints with `with_endpoints!/3`.
 
 ```elixir
-def perform(%{args: %{"platform_id" => platform_id}}) do
-  registration = MyApp.Platforms.get_registration(platform_id)
-  courses = MyApp.Courses.for_platform(platform_id)
+def perform(%{args: %{"registration_id" => registration_id}}) do
+  registration = MyApp.Lti.get_registration(registration_id)
+  courses = MyApp.Courses.for_registration(registration_id)
 
   # Bootstrap with any course's endpoint to acquire the token
   first_endpoint = MyApp.Courses.get_memberships_endpoint(hd(courses).id)

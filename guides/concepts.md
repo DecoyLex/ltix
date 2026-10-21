@@ -58,9 +58,7 @@ the same browser session that initiated the login.
 
 ## Registrations
 
-A **registration** is the information your tool has about a platform.
-It's created out-of-band when a platform administrator sets up your tool,
-typically through a configuration UI on both sides.
+A **registration** is the security contract between your tool and a platform, set up out of band when a platform administrator adds your tool, usually through a configuration screen on both sides.
 
 A registration contains the following fields.
 
@@ -79,10 +77,7 @@ initiation and again during launch validation.
 
 ## Deployments
 
-A **deployment** is a specific installation of your tool on a platform.
-One registration (platform + client_id) can have many deployments,
-for example a tool installed in three different departments of the
-same university.
+A **deployment** is the set of contexts on a platform where your tool is available, such as one course or a whole institution. One registration, identified by issuer and client_id, can have many deployments, for example a tool installed in three different departments of the same university.
 
 A deployment has a single `deployment_id` assigned by the platform.
 It's immutable, case-sensitive, and guaranteed unique within the

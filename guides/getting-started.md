@@ -353,7 +353,7 @@ end
 Where you draw tenant boundaries depends on your application. Two
 approaches are common.
 
-- **Tenant per registration** - each platform + `client_id` pair is a
+- **Tenant per registration** - each issuer and `client_id` pair is a
   tenant. This works well for cloud-hosted platforms like Canvas Cloud
   or Schoology, where many institutions share a common issuer URL but
   each institution gets its own `client_id`. The registration is your

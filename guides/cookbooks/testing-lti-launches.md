@@ -17,12 +17,9 @@ config :ltix,
 
 The `:ltix` atom is a sentinel. Each internal module rewrites it to its
 own stub name so that HTTP calls are isolated per service.
-`setup_platform!/1` automatically stubs JWKS fetches.
+`setup_platform!/1` automatically stubs key set fetches.
 
-Then create a test platform in your setup block. Pass a `:registration`
-function to create matching records in your own persistence layer. The
-function receives an `Ltix.Registration` with the platform details
-(issuer, client_id, endpoints) and returns your app's struct.
+Then create a test platform in your setup block. Pass a `:registration` function to create matching records in your own persistence layer. The function receives an `Ltix.Registration` with the registration details (issuer, client_id, endpoints) and returns your application's struct.
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do

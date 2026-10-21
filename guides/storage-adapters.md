@@ -10,7 +10,7 @@ common mistakes.
 
 | Callback | When it's called | What it does |
 |---|---|---|
-| `get_registration/3` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
+| `get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client_id |
 | `get_deployment/3` | Launch validation | Look up a deployment by registration and deployment_id |
 | `validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
 | `key_id/2` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |

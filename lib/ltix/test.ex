@@ -26,8 +26,8 @@ defmodule Ltix.Test do
 
   Pass a `:registration` function to create records in your own persistence
   layer. The function receives a valid `Ltix.Registration` with the
-  platform details and returns your app's struct (which must implement
-  `Ltix.Registerable`).
+  registration details and returns your application's struct (which must
+  implement `Ltix.Registerable`).
 
       setup do
         jwk = MyApp.Lti.generate_jwk!()
@@ -429,10 +429,11 @@ defmodule Ltix.Test do
     * `:deployment_id` - deployment identifier (defaults to `"deployment-001"`)
     * `:registration` - either an app struct implementing `Ltix.Registerable`
       (mutually exclusive with `:issuer` and `:client_id`), or a 1-arity
-      function that receives an `Ltix.Registration` and returns your app's
-      struct. The function form lets you create a matching record in your
-      own persistence layer using the platform details (issuer, client_id,
-      endpoints). Works with `:issuer` and `:client_id` overrides.
+      function that receives an `Ltix.Registration` and returns your
+      application's struct. The function form lets you create a matching record in your
+      own persistence layer using the registration details (issuer,
+      client_id, endpoints). Works with `:issuer` and `:client_id`
+      overrides.
     * `:deployment` - either an app struct implementing `Ltix.Deployable`
       (mutually exclusive with `:deployment_id`), or a 2-arity function
       `(Ltix.Deployment, registration)` where `registration` is whatever

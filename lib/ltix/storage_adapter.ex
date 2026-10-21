@@ -40,7 +40,7 @@ defmodule Ltix.StorageAdapter do
 
   | Callback | Called during | Purpose |
   |---|---|---|
-  | `c:get_registration/3` | Login initiation and launch validation | Look up a platform by issuer and optional client_id |
+  | `c:get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client_id |
   | `c:get_deployment/3` | Launch validation | Look up a deployment by registration and deployment_id |
   | `c:validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
   | `c:key_id/2` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
@@ -89,16 +89,16 @@ defmodule Ltix.StorageAdapter do
   alias Ltix.Registration
 
   @doc """
-  Look up a platform registration by issuer and client_id.
+  Look up a registration by issuer and client_id.
 
   Called during login initiation with the login request's issuer and
-  client_id, and again during launch validation with the ID Token's issuer
+  client_id, and again during launch validation with the ID token's issuer
   and audience. The `client_id` may be `nil` when the platform doesn't
   include it in the login request. Your adapter must handle both cases.
 
   When the platform sends a deployment ID, `opts[:deployment_id]` has
   it. It comes from the login request's `lti_deployment_id` during login
-  initiation and from the ID Token during launch validation. Ltix has not
+  initiation and from the ID token during launch validation. Ltix has not
   verified it at either point, and it replaces a `:deployment_id` you pass
   in `:storage_adapter_options`.
 
