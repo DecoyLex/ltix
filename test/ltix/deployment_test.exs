@@ -15,9 +15,11 @@ defmodule Ltix.DeploymentTest do
     test "new!/1 returns the deployment or raises the error" do
       assert %Deployment{deployment_id: "deploy-123"} = Deployment.new!("deploy-123")
 
-      assert_raise InvalidField, ~r/Ltix.Deployment field :deployment_id is invalid/, fn ->
-        Deployment.new!("")
-      end
+      assert_raise InvalidField,
+                   "Ltix.Deployment field :deployment_id must be a non-empty string (got \"\")",
+                   fn ->
+                     Deployment.new!("")
+                   end
     end
 
     # [Core §5.3.3] deployment_id MUST NOT exceed 255 ASCII characters

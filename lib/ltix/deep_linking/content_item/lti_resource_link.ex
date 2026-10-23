@@ -42,7 +42,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   # Custom property names are given as strings or atoms, kept as strings, and
   # sent as written.
   @custom_key_schema [Zoi.string(), Zoi.atom()]
-                     |> Zoi.union(error: "invalid key: expected a string or atom")
+                     |> Zoi.union(error: "must be keyed by a string or atom")
                      |> Zoi.transform({__MODULE__, :key_to_string, []})
 
   @time_window %{
@@ -64,7 +64,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
       custom:
         Zoi.map(@custom_key_schema, Zoi.string(),
           description: "Custom property keys and values.",
-          error: "invalid type: expected a map or keyword list"
+          error: "must be a map or keyword list"
         )
         |> Zoi.optional(),
       line_item:

@@ -166,19 +166,28 @@ defmodule Ltix.GradeService.ScoreTest do
     test "returns error with score_given but no score_maximum" do
       attrs = @valid_attrs ++ [score_given: 85]
 
-      assert {:error, %InvalidField{field: :score_maximum, value: nil}} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :score_maximum, value: nil} = error} = Score.new(attrs)
+
+      assert Exception.message(error) ==
+               "Ltix.GradeService.Score field :score_maximum is required"
     end
 
     test "returns error with score_given < 0" do
       attrs = @valid_attrs ++ [score_given: -1, score_maximum: 100]
 
-      assert {:error, %InvalidField{field: :score_given, value: -1}} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :score_given, value: -1} = error} = Score.new(attrs)
+
+      assert Exception.message(error) ==
+               "Ltix.GradeService.Score field :score_given must be at least 0 (got -1)"
     end
 
     test "returns error with score_maximum <= 0" do
       attrs = @valid_attrs ++ [score_given: 50, score_maximum: 0]
 
-      assert {:error, %InvalidField{field: :score_maximum, value: 0}} = Score.new(attrs)
+      assert {:error, %InvalidField{field: :score_maximum, value: 0} = error} = Score.new(attrs)
+
+      assert Exception.message(error) ==
+               "Ltix.GradeService.Score field :score_maximum must be greater than 0 (got 0)"
     end
 
     test "succeeds with score_given > score_maximum (extra credit)" do
@@ -196,8 +205,12 @@ defmodule Ltix.GradeService.ScoreTest do
     test "returns error with unknown activity_progress" do
       attrs = Keyword.put(@valid_attrs, :activity_progress, :unknown_value)
 
-      assert {:error, %InvalidField{field: :activity_progress, value: :unknown_value}} =
+      assert {:error, %InvalidField{field: :activity_progress, value: :unknown_value} = error} =
                Score.new(attrs)
+
+      assert Exception.message(error) ==
+               "Ltix.GradeService.Score field :activity_progress must be one of initialized, " <>
+                 "started, in_progress, submitted, completed (got :unknown_value)"
     end
 
     test "returns error with unknown grading_progress" do

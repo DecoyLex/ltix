@@ -51,10 +51,14 @@ defmodule Ltix.Options do
   end
 
   defp invalid_option(%{path: [key | _]} = error, opts) do
-    InvalidOption.exception(key: key, value: Keyword.get(opts, key), reason: error.message)
+    InvalidOption.exception(
+      key: key,
+      value: Keyword.get(opts, key),
+      reason: Errors.zoi_message(error)
+    )
   end
 
   defp invalid_option(error, opts) do
-    InvalidOption.exception(value: opts, reason: error.message)
+    InvalidOption.exception(value: opts, reason: Errors.zoi_message(error))
   end
 end

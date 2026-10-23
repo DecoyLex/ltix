@@ -29,8 +29,18 @@ defmodule Ltix.GradeService.EndpointTest do
       assert {:error, %InvalidField{field: :scopes, reason: :required}} =
                Endpoint.new(scopes: nil, line_item: @line_item)
 
-      assert {:error, %InvalidField{field: :scopes, value: []}} =
+      assert {:error, %InvalidField{field: :scopes, value: []} = error} =
                Endpoint.new(scopes: [], line_item: @line_item)
+
+      assert Exception.message(error) ==
+               "Ltix.GradeService.Endpoint field :scopes must have at least 1 item (got [])"
+    end
+
+    test "reports an invalid scope with its value" do
+      assert {:error, %InvalidField{field: [:scopes, 1], value: 1} = error} =
+               Endpoint.new(scopes: ["https://lms.example.com/scope", 1], line_item: @line_item)
+
+      assert Exception.message(error) =~ "(got 1)"
     end
 
     test "requires absolute HTTPS URLs" do

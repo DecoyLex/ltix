@@ -37,6 +37,57 @@ defmodule Ltix.Errors do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.MissingClaim
 
+  # What a value of each Zoi type is called in a message. Other types are
+  # called by their names, as in "a string".
+  @zoi_type_names %{
+    nil => "nil",
+    array: "a list",
+    atom: "an atom",
+    date: "a Date",
+    datetime: "a DateTime",
+    integer: "an integer",
+    iso_date: "an ISO 8601 date",
+    iso_datetime: "an ISO 8601 date and time",
+    iso_naive_datetime: "an ISO 8601 date and time without an offset",
+    iso_time: "an ISO 8601 time",
+    keyword: "a keyword list",
+    map_set: "a MapSet",
+    naive_datetime: "a NaiveDateTime",
+    string_boolean: "a boolean string",
+    time: "a Time"
+  }
+
+  # The comparison for each Zoi bound, as in "must be at least 0".
+  @zoi_bounds %{
+    greater_than: "greater than",
+    greater_than_or_equal_to: "at least",
+    less_than: "less than",
+    less_than_or_equal_to: "at most",
+    invalid_length: "exactly"
+  }
+
+  # Splode documents the functions it generates with its own template text,
+  # which doesn't describe Ltix. These overrides keep the functions public and
+  # leave them out of the docs.
+  defoverridable unwrap!: 1, unwrap!: 2, traverse_errors: 2, splode_error?: 1, splode_error?: 2
+
+  @doc false
+  def unwrap!(result), do: super(result)
+
+  @doc false
+  def unwrap!(result, opts), do: super(result, opts)
+
+  @doc false
+  @impl Splode
+  def traverse_errors(error_or_errors, fun), do: super(error_or_errors, fun)
+
+  @doc false
+  @impl Splode
+  def splode_error?(error), do: super(error)
+
+  @doc false
+  def splode_error?(error, splode), do: super(error, splode)
+
   defmacro __using__(opts) do
     {status_code, opts} = Keyword.pop(opts, :status_code)
     {kind, opts} = Keyword.pop(opts, :type, :error)
@@ -148,7 +199,7 @@ defmodule Ltix.Errors do
     InvalidClaim.exception(
       claim: claim_path(prefix, error.path),
       value: lookup_value(input, error.path),
-      message: error.message
+      message: zoi_message(error)
     )
   end
 
@@ -170,6 +221,45 @@ defmodule Ltix.Errors do
         nil
     end)
   end
+
+  # Zoi's message for a failed check, worded to follow the name of what was
+  # checked, as in "must be a string". A message a schema gives with `error:`
+  # is kept as written.
+  @doc false
+  @spec zoi_message(Zoi.Error.t()) :: String.t()
+  def zoi_message(%Zoi.Error{code: :invalid_type, issue: {_message, vars}}),
+    do: "must be #{Map.get(@zoi_type_names, vars[:type], "a #{vars[:type]}")}"
+
+  def zoi_message(%Zoi.Error{code: code, issue: {_message, vars}})
+      when code in [:invalid_enum_value, :not_in_values],
+      do: "must be one of #{Enum.join(vars[:values], ", ")}"
+
+  def zoi_message(%Zoi.Error{code: :invalid_literal, issue: {_message, vars}}),
+    do: "must be #{inspect(vars[:expected])}"
+
+  def zoi_message(%Zoi.Error{code: :invalid_tuple, issue: {_message, vars}}),
+    do: "must have #{quantity(vars[:expected_length], "element")}"
+
+  def zoi_message(%Zoi.Error{code: code, issue: {_message, vars}})
+      when is_map_key(@zoi_bounds, code) do
+    case vars[:type] do
+      :string -> "must have #{@zoi_bounds[code]} #{quantity(vars[:count], "character")}"
+      :array -> "must have #{@zoi_bounds[code]} #{quantity(vars[:count], "item")}"
+      _number_or_date -> "must be #{@zoi_bounds[code]} #{vars[:count]}"
+    end
+  end
+
+  def zoi_message(%Zoi.Error{code: :invalid_format, message: "invalid format: " <> rest}),
+    do: rest
+
+  # Such as "invalid email format" and "invalid IPv4 address".
+  def zoi_message(%Zoi.Error{code: :invalid_format, message: "invalid " <> format}),
+    do: "must be a valid #{String.trim_trailing(format, " format")}"
+
+  def zoi_message(%Zoi.Error{message: message}), do: message
+
+  defp quantity(1, noun), do: "1 #{noun}"
+  defp quantity(count, noun), do: "#{count} #{noun}s"
 
   defp default_status(:invalid), do: 400
   defp default_status(:security), do: 401

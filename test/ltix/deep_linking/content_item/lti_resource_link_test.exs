@@ -34,17 +34,22 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLinkTest do
       assert {:error, %InvalidField{field: :custom} = error} =
                LTIResourceLink.new(custom: "chapter=12")
 
-      assert Exception.message(error) =~ "expected a map or keyword list"
+      assert Exception.message(error) ==
+               ~s(Ltix.DeepLinking.ContentItem.LTIResourceLink field :custom must be a map or keyword list \(got "chapter=12"\))
 
       assert {:error, %InvalidField{field: [:custom, 12]} = error} =
                LTIResourceLink.new(custom: %{12 => "chapter"})
 
-      assert Exception.message(error) =~ "invalid key: expected a string or atom"
+      assert Exception.message(error) ==
+               ~s(Ltix.DeepLinking.ContentItem.LTIResourceLink field [:custom, 12] must be keyed by a string or atom \(got "chapter"\))
     end
 
     test "returns error when custom contains non-string values" do
-      assert {:error, %InvalidField{field: [:custom, "key"], value: 123}} =
+      assert {:error, %InvalidField{field: [:custom, "key"], value: 123} = error} =
                LTIResourceLink.new(custom: %{"key" => 123})
+
+      assert Exception.message(error) ==
+               ~s(Ltix.DeepLinking.ContentItem.LTIResourceLink field [:custom, "key"] must be a string \(got 123\))
     end
 
     test "returns every invalid field together" do

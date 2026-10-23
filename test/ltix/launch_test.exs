@@ -528,10 +528,10 @@ defmodule Ltix.LaunchTest do
              ] =
                Enum.sort_by(error.errors, & &1.claim)
 
-      message = Exception.message(error)
-      assert message =~ "Invalid LTI claim message_type"
-      assert message =~ "Invalid LTI claim sub"
-      refute message =~ ~r/\.exs?:\d+/
+      assert Enum.sort(String.split(Exception.message(error), "\n")) == [
+               "* Invalid LTI claim message_type: must be a string (got 1)",
+               "* Invalid LTI claim sub: must be a string (got 2)"
+             ]
     end
 
     test "report a declared claim's parse error", %{platform: platform} do

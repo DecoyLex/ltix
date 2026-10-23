@@ -448,6 +448,8 @@ Update code that matches on error messages. Your tests show the new text.
 
 - The messages of `Ltix.Errors.Security.AuthenticationFailed`, `Ltix.Errors.Security.KidNotFound`, `Ltix.Errors.Unknown.KeySetNotStarted`, and `Ltix.Errors.Invalid.CoupledLineItem` changed.
 - An error about a claim a plugin declares refers to the claim by its short name, such as `session`, where a 0.2 claim parser's error used its URI.
+- `Ltix.Errors.Invalid.InvalidField` reads as a sentence, such as `Ltix.Deployment field :deployment_id must be a non-empty string (got "")`. Its `reason` is the text after the field name.
+- Failed type and range checks in `InvalidField`, `Ltix.Errors.Invalid.InvalidClaim`, and `Ltix.Errors.Invalid.InvalidOption` read as sentences, such as `must be at least 2048`.
 
 ### Errors don't include a spec reference
 

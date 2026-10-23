@@ -85,6 +85,7 @@ defmodule Ltix.JWK do
     private_jwk: {:jwk, :private}
   ]
   @key_fields Keyword.keys(@key_formats)
+  @missing_key_reason "or one of #{Enum.map_join(@key_fields -- [:public_key_pem], ", ", &inspect/1)} is required"
   @der_types [:SubjectPublicKeyInfo, :RSAPublicKey, :PrivateKeyInfo, :RSAPrivateKey]
 
   @derive {Inspect, except: [:private_key_pem]}
@@ -287,8 +288,7 @@ defmodule Ltix.JWK do
   defp parse_key(attrs) do
     case for field <- @key_fields, attrs[field] != nil, do: field do
       [] ->
-        reason = "one of #{Enum.join(@key_fields, ", ")} is required"
-        {:error, invalid(:public_key_pem, nil, reason)}
+        {:error, invalid(:public_key_pem, nil, @missing_key_reason)}
 
       [field] ->
         {format, kind} = @key_formats[field]
@@ -298,11 +298,11 @@ defmodule Ltix.JWK do
           {:ok, pems}
         else
           {:error, reason} -> {:error, invalid_key(field, reason)}
-          :error -> {:error, invalid_key(field, "expected an RSA #{kind} key")}
+          :error -> {:error, invalid_key(field, "must be an RSA #{kind} key")}
         end
 
       [_first, field | _rest] ->
-        {:error, invalid_key(field, "only one key can be given")}
+        {:error, invalid_key(field, "can't be given with another key")}
     end
   end
 

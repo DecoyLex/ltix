@@ -32,7 +32,8 @@ defmodule Ltix.DeepLinking.ContentItem.LinkTest do
       assert {:error, %InvalidField{field: :icon} = error} =
                Link.new(url: "https://example.com", icon: "https://example.com/icon.png")
 
-      assert Exception.message(error) =~ "expected a map or keyword list"
+      assert Exception.message(error) ==
+               ~s(Ltix.DeepLinking.ContentItem.Link field :icon must be a map or keyword list \(got "https://example.com/icon.png"\))
     end
 
     test "validates keyword list sub-structures (missing required field)" do

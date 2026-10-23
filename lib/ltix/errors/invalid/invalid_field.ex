@@ -15,6 +15,11 @@ defmodule Ltix.Errors.Invalid.InvalidField do
     "#{inspect(struct)} field #{inspect(field)} #{description(error)}"
   end
 
+  defp description(%{reason: :unknown}), do: "is unknown"
+  defp description(%{reason: :required}), do: "is required"
+  defp description(%{reason: reason, value: nil}), do: reason
+  defp description(%{reason: reason, value: value}), do: "#{reason} (got #{inspect(value)})"
+
   # Errors for every field of `attrs` not in `fields`.
   @doc false
   @spec unknown_fields(module(), map(), [atom()]) :: [Exception.t()]
@@ -28,8 +33,10 @@ defmodule Ltix.Errors.Invalid.InvalidField do
   @spec required(module(), atom() | list()) :: Exception.t()
   def required(struct, field), do: exception(struct: struct, field: field, reason: :required)
 
+  # `reason` follows the field's name in the message, as in "must be a
+  # non-empty string".
   @doc false
-  @spec invalid(module(), atom() | list(), term(), String.t()) :: Exception.t()
+  @spec invalid(module(), atom() | list(), term(), :unknown | String.t()) :: Exception.t()
   def invalid(struct, field, value, reason) do
     exception(struct: struct, field: field, value: value, reason: reason)
   end
@@ -70,7 +77,7 @@ defmodule Ltix.Errors.Invalid.InvalidField do
     do: {path ++ [Keyword.fetch!(vars, :key)], :unknown}
 
   defp zoi_reason(%Zoi.Error{code: :required, path: path}), do: {path, :required}
-  defp zoi_reason(%Zoi.Error{path: path, message: message}), do: {path, message}
+  defp zoi_reason(%Zoi.Error{path: path} = error), do: {path, Errors.zoi_message(error)}
 
   # Returns the path with the keys the caller gave and the value at it. Zoi
   # reports unrecognized keys as strings, so keys are matched by name.
@@ -88,11 +95,6 @@ defmodule Ltix.Errors.Invalid.InvalidField do
   defp input_key(key, _value), do: key
 
   defp child(value, key) when is_map(value), do: Map.get(value, key)
+  defp child(value, index) when is_list(value) and is_integer(index), do: Enum.at(value, index)
   defp child(_value, _key), do: nil
-
-  defp description(%{reason: :unknown}), do: "is unknown"
-  defp description(%{reason: :required}), do: "is required"
-
-  defp description(%{reason: reason, value: value}),
-    do: "is invalid, #{reason} (got #{inspect(value)})"
 end

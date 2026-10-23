@@ -201,7 +201,7 @@ defmodule Ltix.GradeService.Score do
   # [AGS §3.4.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoregiven-and-scoremaximum)
   defp validate_score_pair(%__MODULE__{score_given: given, score_maximum: nil})
        when not is_nil(given) do
-    {:error, invalid(:score_maximum, nil, "must be present when score_given is present")}
+    {:error, InvalidField.required(__MODULE__, :score_maximum)}
   end
 
   defp validate_score_pair(%__MODULE__{}), do: :ok

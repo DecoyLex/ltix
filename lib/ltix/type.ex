@@ -267,7 +267,7 @@ defmodule Ltix.Type do
       fields,
       Keyword.merge(
         opts,
-        @schema_options ++ [error: "invalid type: expected a map or keyword list"]
+        @schema_options ++ [error: "must be a map or keyword list"]
       )
     )
   end

@@ -28,7 +28,7 @@ defmodule Ltix.JWKTest do
 
     test "rejects key size below 2048" do
       assert_raise Ltix.Errors.Invalid.InvalidOption,
-                   ~r/Option :key_size is invalid.*at least 2048/,
+                   "Option :key_size is invalid, must be at least 2048",
                    fn -> JWK.generate(key_size: 1024) end
     end
 
@@ -73,7 +73,9 @@ defmodule Ltix.JWKTest do
       assert {:error, %InvalidField{struct: JWK, field: :public_key_pem} = error} =
                JWK.new(%{kid: ctx.kid})
 
-      assert Exception.message(error) =~ "one of public_key_pem, public_key_der, public_jwk"
+      assert Exception.message(error) ==
+               "Ltix.JWK field :public_key_pem or one of :public_key_der, :public_jwk, " <>
+                 ":private_key_pem, :private_key_der, :private_jwk is required"
     end
 
     test "rejects two keys without revealing key material", ctx do
@@ -82,7 +84,8 @@ defmodule Ltix.JWKTest do
       assert {:error, %InvalidField{struct: JWK, value: "[redacted]"} = error} =
                JWK.new(private_key_pem: ctx.pem, public_key_pem: public_pem, kid: ctx.kid)
 
-      assert Exception.message(error) =~ "only one key can be given"
+      assert Exception.message(error) ==
+               ~s(Ltix.JWK field :private_key_pem can't be given with another key \(got "[redacted]"\))
     end
 
     test "rejects an unknown field given nil", ctx do
@@ -113,10 +116,10 @@ defmodule Ltix.JWKTest do
 
       for {pem, reason} <- [
             {"not-a-pem", "must be a PEM"},
-            {ec_pem, "expected an RSA private key"},
-            {public_pem, "expected an RSA private key"},
+            {ec_pem, "must be an RSA private key"},
+            {public_pem, "must be an RSA private key"},
             {encrypted_pem, "must not be encrypted"},
-            {garbage_pem, "expected an RSA private key"}
+            {garbage_pem, "must be an RSA private key"}
           ] do
         assert {:error, %InvalidField{field: :private_key_pem, value: "[redacted]"} = error} =
                  JWK.new(private_key_pem: pem, kid: ctx.kid)
