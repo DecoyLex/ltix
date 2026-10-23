@@ -120,13 +120,15 @@ defmodule Ltix.OAuth.AccessToken do
   """
   @spec to_map(t()) :: %{String.t() => String.t()}
   def to_map(%__MODULE__{} = token) do
-    %{
-      "access_token" => token.access_token,
-      "scope" => Enum.join(Enum.sort(token.granted_scopes), " "),
-      "issued_at" => token.issued_at && DateTime.to_iso8601(token.issued_at),
-      "expires_at" => DateTime.to_iso8601(token.expires_at)
-    }
-    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    Map.reject(
+      %{
+        "access_token" => token.access_token,
+        "scope" => Enum.join(Enum.sort(token.granted_scopes), " "),
+        "issued_at" => token.issued_at && DateTime.to_iso8601(token.issued_at),
+        "expires_at" => DateTime.to_iso8601(token.expires_at)
+      },
+      fn {_key, value} -> is_nil(value) end
+    )
   end
 
   @doc """
