@@ -1,15 +1,19 @@
 defmodule Ltix.Test.ServiceStub do
   @moduledoc false
 
-  # Routes the requests a service sends to its `Req.Test` stub by operation.
-  # Each stubbing process has separate routes. The registered stub function
-  # captures them, so they apply in every process allowed with
-  # `Req.Test.allow/3`.
+  # Routes the requests Ltix sends to each `Req.Test` stub name by operation.
+  # Key set fetches, token requests, and `Ltix.Test.StorageAdapter`'s lookup of
+  # its process are services with one operation each.
+  # Each stubbing process has its own routes. The stub function captures them,
+  # and they apply in every process allowed with `allow/1`.
 
   alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.GradeService
   alias Ltix.HTTP
+  alias Ltix.JWT.KeySet
   alias Ltix.MembershipsService
+  alias Ltix.OAuth.ClientCredentials
+  alias Ltix.Test.StorageAdapter
 
   @compile {:no_warn_undefined,
             [
@@ -28,17 +32,66 @@ defmodule Ltix.Test.ServiceStub do
   @line_item_suffixes %{post_score: "/scores", list_results: "/results"}
 
   @doc """
-  Respond to `operation` requests of `service` with `plug`. A line item URL
-  limits the route to requests for that line item, and replaces only the
+  Responds to `operation` requests of `service` with `plug`. A URL, such as a
+  line item's, limits the route to requests for it, and replaces only the
   route for it.
   """
   @spec put(module(), atom(), String.t() | nil, (Plug.Conn.t() -> Plug.Conn.t())) :: :ok
-  def put(service, operation, line_item_url, plug) do
-    key = {operation, target(line_item_url, Map.get(@line_item_suffixes, operation, ""))}
-    routes = Map.put(Process.get({__MODULE__, service}, %{}), key, plug)
-    Process.put({__MODULE__, service}, routes)
+  def put(service, operation, url, plug) do
+    require_plug!()
+    key = {operation, target(url, Map.get(@line_item_suffixes, operation, ""))}
+    Process.put({__MODULE__, service}, Map.put(routes(service), key, plug))
+    stub(service)
+  end
+
+  @doc """
+  Lets `pid` use every service's stub of this process, including routes put
+  afterward. Raises the `Req.Test.allow/3` error of a service `pid` can't use.
+  """
+  @spec allow(pid() | (-> pid())) :: :ok
+  def allow(pid) do
+    require_plug!()
+
+    Enum.each(
+      [KeySet, ClientCredentials, GradeService, MembershipsService, StorageAdapter],
+      &allow!(&1, pid)
+    )
+  end
+
+  defp allow!(service, pid) do
+    case Req.Test.allow(service, self(), pid) do
+      :ok ->
+        :ok
+
+      # This process has no stub of the service. Owning one lets the routes
+      # it puts later apply to `pid`.
+      {:error, %Req.Test.OwnershipError{reason: :not_allowed}} ->
+        stub(service)
+        allow!(service, pid)
+
+      {:error, error} ->
+        raise error
+    end
+  end
+
+  @doc """
+  Raises unless Plug is loaded.
+  """
+  @spec require_plug!() :: :ok
+  def require_plug! do
+    unless Code.ensure_loaded?(Plug.Conn) do
+      raise "Ltix.Test helpers require Plug. Add the optional :plug dependency to your test environment."
+    end
+
+    :ok
+  end
+
+  defp stub(service) do
+    routes = routes(service)
     Req.Test.stub(service, &dispatch(&1, service, routes))
   end
+
+  defp routes(service), do: Process.get({__MODULE__, service}, %{})
 
   @doc """
   Send `entries` as JSON, one page at a time when the request sets a
@@ -109,6 +162,18 @@ defmodule Ltix.Test.ServiceStub do
       do: :list_members
   end
 
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
+  defp operation(KeySet, conn) do
+    if conn.method == "GET", do: :key_set
+  end
+
+  defp operation(StorageAdapter, _conn), do: :storage_adapter
+
+  # [RFC 6749 §4.4.2](https://www.rfc-editor.org/rfc/rfc6749#section-4.4.2)
+  defp operation(ClientCredentials, conn) do
+    if conn.method == "POST", do: :token_response
+  end
+
   defp path_operation(conn, suffix, operation) do
     if String.ends_with?(trim_path(conn.request_path), suffix), do: operation
   end
@@ -138,10 +203,13 @@ defmodule Ltix.Test.ServiceStub do
     request = "#{conn.method} #{Plug.Conn.request_url(conn)}"
 
     if operation do
-      "No Ltix.Test stub matches #{request}. Stub it with Ltix.Test.stub_#{operation}."
+      "No Ltix.Test stub matches #{request}. #{advice(operation)}"
     else
       "No Ltix.Test stub matches #{request}, which #{inspect(service)} does not send. " <>
         "Stub it with Req.Test.stub/2."
     end
   end
+
+  defp advice(:key_set), do: "Set up its platform with Ltix.Test.setup_platform!/1."
+  defp advice(operation), do: "Stub it with Ltix.Test.stub_#{operation}."
 end

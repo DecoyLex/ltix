@@ -9,19 +9,36 @@ Add to `config/test.exs`.
 ```elixir
 config :ltix,
   storage_adapter: MyApp.LtiStorageAdapter,
-  req_options: [plug: {Req.Test, :ltix}]
+  req_options: [plug: {Req.Test, :ltix}, retry: false]
 ```
 
-Configure your own storage adapter. The `req_options` plug routes all outbound HTTP through `Req.Test`. Each internal module rewrites the plug name to its own well-known stub name, so you can stub each independently.
+- Replace `MyApp.LtiStorageAdapter` with your storage adapter, or use `Ltix.Test.StorageAdapter`. Platform Setup has an example.
+- The `plug` option sends Ltix's requests to the `Ltix.Test` stubs. Stub platform responses with `Ltix.Test` functions. A `Req.Test.stub(:ltix, ...)` stub has no effect.
+- Keep `retry: false` so a stubbed failure returns at once.
 
-| Stub name                       | HTTP call                         |
-|---------------------------------|-----------------------------------|
-| `Ltix.JWT.KeySet`               | Key set fetches                   |
-| `Ltix.OAuth.ClientCredentials`  | OAuth token requests              |
-| `Ltix.GradeService`            | Grade service (AGS) requests       |
-| `Ltix.MembershipsService`      | Memberships (NRPS) requests        |
+## Platform Failures
 
-`setup_platform!/1` automatically stubs `Ltix.JWT.KeySet`.
+To test how your application handles a failing platform, call `Ltix.Test.stub_token_response/1` or `Ltix.Test.stub_key_set/2` with one of these options.
+
+- `:status` and `:body`, for the response the platform sends. A string body is sent as text, and anything else as JSON. An error status without `:body` has an empty body.
+- `:transport_error`, a `Req.TransportError` reason such as `:econnrefused` or `:timeout`, for a platform that doesn't respond. It can't be combined with other options.
+
+| Failure | Stub | Error Ltix returns |
+|---|---|---|
+| Token request rejected | `Ltix.Test.stub_token_response(status: 400, body: %{"error" => "invalid_client"})` | `Ltix.Errors.Invalid.TokenRequestFailed` from `authenticate/2` |
+| Token endpoint down | `Ltix.Test.stub_token_response(status: 503, body: "Service Unavailable")` | `Ltix.Errors.Invalid.TokenRequestFailed` from `authenticate/2` |
+| Token response without a token | `Ltix.Test.stub_token_response(body: "<html>Maintenance</html>")` | `Ltix.Errors.Invalid.MalformedResponse` from `authenticate/2` |
+| Token endpoint unreachable | `Ltix.Test.stub_token_response(transport_error: :econnrefused)` | `Ltix.Errors.Unknown.TransportError` from `authenticate/2` |
+| Key set down | `Ltix.Test.stub_key_set(platform, status: 503)` | `Ltix.Errors.Unknown.TransportError` from `Ltix.handle_callback/3` |
+| Key set refused | `Ltix.Test.stub_key_set(platform, status: 403)` | `Ltix.Errors.Security.AccessDenied` from `Ltix.handle_callback/3` |
+| Key set unreachable | `Ltix.Test.stub_key_set(platform, transport_error: :timeout)` | `Ltix.Errors.Unknown.TransportError` from `Ltix.handle_callback/3` |
+| Key set not JSON | `Ltix.Test.stub_key_set(platform, body: "<html>Maintenance</html>")` | `Ltix.Errors.Invalid.MalformedResponse` from `Ltix.handle_callback/3` |
+| Key set without the signing key | `Ltix.Test.stub_key_set(platform, body: %{"keys" => []})` | `Ltix.Errors.Security.KidNotFound` from `Ltix.handle_callback/3` |
+
+- `Ltix.Test.stub_key_set(platform)` without options serves the platform's keys again.
+- Test key set failures through the full OIDC flow. `build_launch/2` doesn't fetch the key set.
+- When you pass `setup_platform!/1` a `:registration` struct, give each test's registration its own `jwks_uri`. Async tests that share a key set URL can receive each other's responses.
+- For a grade or memberships service error, see the custom response rule in Testing Advantage Services.
 
 ## Platform Setup
 
@@ -187,14 +204,30 @@ test "posts a score after launch", %{platform: platform} do
 end
 ```
 
-Per-operation stubs are available for each service call.
+Each service call has a stub.
 
 - `stub_list_line_items/2`, `stub_get_line_item/2`, `stub_create_line_item/2`, `stub_update_line_item/2`, `stub_delete_line_item/1`
 - `stub_post_score/1`, `stub_list_results/2`
 - `stub_list_members/2`
+- `stub_token_response/1`, which accepts `:scopes`, `:access_token`, and `:expires_in`, and the failure options in Platform Failures
 
-Each stub handles one operation, and stubs for different operations work together, so stub every operation the code under test calls. Stubbing an operation again replaces its stub. A request without a matching stub fails the test with its method and URL. Per-line-item stubs take `line_item:` (URL or `%LineItem{}`) to handle only that line item. List stubs also handle `stream_*` calls and page through results when the call passes `:per_page`.
+Rules for the stubs.
 
-Each accepts the struct(s) the platform would return. Line item, result, and member stubs send each struct's unrecognized properties and every property it has a value for, using the plugins in `config :ltix, plugins:` or the stub's `plugins:` option. The member stub also sends the claims of each member's `message`, and takes a `%MembershipContainer{}` in place of the members to send the container's own properties. For custom response logic, use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.
+- Stub every operation the code under test calls. Stubs for different operations can be set in the same test.
+- Stubbing an operation again replaces its stub.
+- A request without a matching stub fails the test. The failure message includes the request's method and URL.
+- To match one line item only, pass `line_item:` with its URL or a `%Ltix.GradeService.LineItem{}` to `stub_get_line_item/2`, `stub_update_line_item/2`, `stub_delete_line_item/1`, `stub_post_score/1`, or `stub_list_results/2`.
+- List stubs also handle `stream_*` calls, and split results into pages when the call passes `:per_page`.
+- Build stub data from the structs the service call returns.
+- To include a plugin's properties in a stubbed response, configure the plugin in `config :ltix, plugins:` or pass it as the stub's `plugins:` option.
+- To set the membership container's properties, pass `stub_list_members/2` a `%Ltix.MembershipsService.MembershipContainer{}`.
 
-`stub_token_response/1` accepts `:scopes`, `:access_token`, and `:expires_in`.
+```elixir
+Ltix.Test.stub_list_line_items([
+  %Ltix.GradeService.LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100}
+])
+```
+
+For an error or other custom response, call `Req.Test.stub/2` with the service module, such as `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)`. It replaces every `Ltix.Test` stub of that service.
+
+Stubs apply to the test process and the processes it starts, such as tasks, LiveViews, and `start_supervised/2` children. For any other process, such as a GenServer your application supervises, call `Ltix.Test.allow_stubs(pid)`. The process can then use every `Ltix.Test` stub and the test's `Ltix.Test.StorageAdapter`, including those set after the call.

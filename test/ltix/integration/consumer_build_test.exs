@@ -187,11 +187,14 @@ defmodule Ltix.Integration.ConsumerBuildTest do
                    Ltix.JWT.Token.verify("eyJhbGciOiJIUzI1NiJ9.e30.c2ln", registration)
           assert {:ok, %{"sub" => "last", "custom" => [%{"id" => 2}]}} =
                    Ltix.JWT.Token.peek_claims(#{inspect(duplicate_claims_token)})
-          assert_raise RuntimeError, ~r/HTTP test helpers require Plug/, fn ->
+          assert_raise RuntimeError, ~r/Ltix.Test helpers require Plug/, fn ->
             Ltix.Test.setup_platform!()
           end
-          assert_raise RuntimeError, ~r/HTTP test helpers require Plug/, fn ->
+          assert_raise RuntimeError, ~r/Ltix.Test helpers require Plug/, fn ->
             Ltix.Test.stub_post_score()
+          end
+          assert_raise RuntimeError, ~r/Ltix.Test helpers require Plug/, fn ->
+            Ltix.Test.StorageAdapter.set_pid(self())
           end
           start_supervised!(ConsumerStorage)
           assert :ok = Ltix.Test.assert_storage_adapter!(ConsumerStorage,

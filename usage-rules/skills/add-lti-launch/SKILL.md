@@ -248,7 +248,7 @@ These are the key points about the controller.
 # config/test.exs
 config :ltix,
   storage_adapter: Ltix.Test.StorageAdapter,
-  req_options: [plug: {Req.Test, :ltix}]
+  req_options: [plug: {Req.Test, :ltix}, retry: false]
 ```
 
 Example controller test. Adapt route paths and assertions to match the app.

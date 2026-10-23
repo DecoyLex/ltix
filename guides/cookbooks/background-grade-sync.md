@@ -63,6 +63,35 @@ A client authenticated from a registration uses your configured plugins. If your
 )
 ```
 
-The client keeps that plugin set, so every grade service call through it sends and parses the plugin's properties. See [Writing a Canvas Grade Plugin](canvas-grade-plugin.md) for the plugin.
+See [Writing a Canvas Grade Plugin](canvas-grade-plugin.md) for the plugin.
 
-See [Persisting Service Endpoints](persisting-service-endpoints.md) for schema examples, [Advantage Services](../advantage-services.md) for an overview of token management, and [Token Caching and Reuse](token-caching-and-reuse.md) for batch refreshing, multi-course tokens, and ETS caching patterns.
+## Testing the worker
+
+With a test platform from [Testing LTI Launches](testing-lti-launches.md), store an endpoint for the worker to read, stub the token and score requests, and run the job.
+
+```elixir
+use Oban.Testing, repo: MyApp.Repo
+
+test "posts the student's grade", %{platform: platform} do
+  course = MyApp.Courses.create_course!(registration: platform.registration)
+
+  MyApp.Courses.store_ags_endpoint(course.id, %{
+    line_items_url: "https://platform.example.com/lineitems",
+    line_item_url: "https://platform.example.com/lineitems/1",
+    scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+  })
+
+  Ltix.Test.stub_token_response()
+  Ltix.Test.stub_post_score()
+
+  args = %{"course_id" => course.id, "user_id" => "student-42"}
+
+  assert :ok = perform_job(MyApp.GradeSyncWorker, args)
+end
+```
+
+If your grade sync runs in a process your application supervises, such as a GenServer that batches scores, pass that process to `Ltix.Test.allow_stubs/1`.
+
+```elixir
+Ltix.Test.allow_stubs(Process.whereis(MyApp.GradeBatcher))
+```

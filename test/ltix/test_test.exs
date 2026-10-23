@@ -6,10 +6,14 @@ defmodule Ltix.TestTest do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingClaim
+  alias Ltix.Errors.Invalid.TokenRequestFailed
+  alias Ltix.Errors.Security.AccessDenied
   alias Ltix.Errors.Security.KidMissing
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.SignatureInvalid
+  alias Ltix.Errors.Unknown.TransportError
   alias Ltix.GradeService
   alias Ltix.GradeService.Endpoint, as: GradeServiceEndpoint
   alias Ltix.GradeService.LineItem
@@ -26,6 +30,9 @@ defmodule Ltix.TestTest do
   alias TestPlugins.Modules
 
   @launch_url "https://tool.example.com/launch"
+  @ags_scope "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+  @grade_endpoint %{line_item: "https://lms.example.com/lineitems/1", scopes: [@ags_scope]}
+  @configured [req_options: [plug: {Req.Test, :ltix}, retry: false]]
 
   setup do
     platform = Ltix.Test.setup_platform!()
@@ -109,7 +116,6 @@ defmodule Ltix.TestTest do
   describe "launch options shared by launch_params/2 and build_launch/2" do
     @custom_role "http://example.com/roles#Grader"
     @course_type "http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"
-    @ags_scope "https://purl.imsglobal.org/spec/lti-ags/scope/score"
 
     test "both helpers build the same claims", %{platform: platform} do
       for opts <- [
@@ -382,6 +388,19 @@ defmodule Ltix.TestTest do
     end
   end
 
+  describe "key set stub" do
+    test "a request for a key set no platform has fails with its URL", %{platform: platform} do
+      other = "https://platform.example.com/.well-known/jwks-other.json"
+      registration = %{platform.registration | jwks_uri: other}
+      use_storage_adapter(platforms: [%{platform | registration: registration}])
+
+      assert_raise RuntimeError,
+                   "No Ltix.Test stub matches GET #{other}. " <>
+                     "Set up its platform with Ltix.Test.setup_platform!/1.",
+                   fn -> LaunchFlow.launch(platform) end
+    end
+  end
+
   describe "setup_platform!/1 validation" do
     test "raises the validation errors for an invalid issuer or deployment_id" do
       assert_raise Ltix.Errors.Invalid, ~r/issuer/, fn ->
@@ -411,6 +430,16 @@ defmodule Ltix.TestTest do
   end
 
   describe "Ltix.Test.StorageAdapter" do
+    test "a process without an adapter fails with how to register one", %{platform: platform} do
+      pid = start_outside_process()
+
+      assert_raise RuntimeError,
+                   "No Ltix.Test.StorageAdapter is registered for #{inspect(pid)}. " <>
+                     "In the test process, register one with Ltix.Test.StorageAdapter.set_pid/1. " <>
+                     "For another process, call Ltix.Test.allow_stubs/1 with its pid.",
+                   fn -> run_outside(pid, fn -> LaunchFlow.launch(platform) end) end
+    end
+
     test "finds deployments only under the registration they belong to" do
       first = Ltix.Test.setup_platform!(client_id: "first-tool", deployment_id: "first-dep")
       second = Ltix.Test.setup_platform!(client_id: "second-tool", deployment_id: "second-dep")
@@ -713,24 +742,6 @@ defmodule Ltix.TestTest do
                    end
     end
 
-    test "stubs respond to processes allowed to use them", %{platform: platform} do
-      Ltix.Test.stub_list_line_items([@quiz])
-      client = build_grade_client(platform)
-      test = self()
-
-      pid =
-        spawn(fn ->
-          receive do
-            :go -> send(test, {:listed, GradeService.list_line_items(client)})
-          end
-        end)
-
-      Req.Test.allow(GradeService, self(), pid)
-      send(pid, :go)
-
-      assert_receive {:listed, {:ok, [%LineItem{label: "Quiz"}]}}
-    end
-
     test "each process has its own stubs", %{platform: platform} do
       Ltix.Test.stub_list_line_items([@quiz])
       client = build_grade_client(platform)
@@ -841,6 +852,204 @@ defmodule Ltix.TestTest do
 
       assert length(page.body["members"]) == 2
       assert [_next] = Req.Response.get_header(page, "link")
+    end
+  end
+
+  describe "allow_stubs/1" do
+    test "a process the test didn't start authenticates and calls services with its stubs", %{
+      platform: platform
+    } do
+      Ltix.Test.stub_token_response()
+      Ltix.Test.stub_post_score()
+
+      Ltix.Test.stub_list_members([
+        %Member{user_id: "student-1", roles: [Role.context_learner()]}
+      ])
+
+      launch =
+        Ltix.Test.build_launch(platform,
+          ags_endpoint: @grade_endpoint,
+          memberships_endpoint: "https://lms.example.com/memberships"
+        )
+
+      pid = start_outside_process()
+      assert :ok = Ltix.Test.allow_stubs(pid)
+
+      assert {:posted, ["student-1"]} =
+               run_outside(pid, fn ->
+                 {:ok, grades} = GradeService.authenticate(launch, @configured)
+                 :ok = GradeService.post_score(grades, score())
+                 {:ok, memberships} = Ltix.MembershipsService.authenticate(launch, @configured)
+                 {:ok, roster} = Ltix.MembershipsService.list_members(memberships)
+                 {:posted, Enum.map(roster.members, & &1.user_id)}
+               end)
+    end
+
+    test "stubs set after allowing apply to the allowed process", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, ags_endpoint: @grade_endpoint)
+
+      pid = start_outside_process()
+      Ltix.Test.allow_stubs(pid)
+
+      assert_raise RuntimeError,
+                   "No Ltix.Test stub matches POST https://platform.example.com/token. " <>
+                     "Stub it with Ltix.Test.stub_token_response.",
+                   fn ->
+                     run_outside(pid, fn -> GradeService.authenticate(launch, @configured) end)
+                   end
+
+      Ltix.Test.stub_token_response()
+      Ltix.Test.stub_post_score()
+
+      assert :ok =
+               run_outside(pid, fn ->
+                 {:ok, client} = GradeService.authenticate(launch, @configured)
+                 GradeService.post_score(client, score())
+               end)
+    end
+
+    test "a stub set with Req.Test applies to the allowed process", %{platform: platform} do
+      Req.Test.stub(GradeService, &Plug.Conn.send_resp(&1, 401, ""))
+      client = build_grade_client(platform)
+      pid = start_outside_process()
+      Ltix.Test.allow_stubs(pid)
+
+      assert {:error, %Ltix.Errors.Security.AccessDenied{}} =
+               run_outside(pid, fn -> GradeService.post_score(client, score()) end)
+    end
+
+    test "a process the test didn't start launches from the test platform", %{
+      platform: platform
+    } do
+      pid = start_outside_process()
+      Ltix.Test.allow_stubs(pid)
+
+      assert {:ok, %Launch{}} = run_outside(pid, fn -> LaunchFlow.launch(platform) end)
+    end
+  end
+
+  describe "stub_token_response/1 failures" do
+    setup %{platform: platform} do
+      %{launch: Ltix.Test.build_launch(platform, ags_endpoint: @grade_endpoint)}
+    end
+
+    test "an error response fails authentication with the platform's error", %{launch: launch} do
+      Ltix.Test.stub_token_response(
+        status: 400,
+        body: %{"error" => "invalid_scope", "error_description" => "Scope not allowed"}
+      )
+
+      assert {:error,
+              %TokenRequestFailed{
+                status: 400,
+                error: "invalid_scope",
+                error_description: "Scope not allowed"
+              }} = GradeService.authenticate(launch, @configured)
+    end
+
+    test "a server error fails authentication with its status and body", %{launch: launch} do
+      Ltix.Test.stub_token_response(status: 503, body: "Service Unavailable")
+
+      assert {:error, %TokenRequestFailed{status: 503, body: "Service Unavailable"}} =
+               GradeService.authenticate(launch, @configured)
+    end
+
+    test "an unreachable token endpoint fails authentication", %{launch: launch} do
+      Ltix.Test.stub_token_response(transport_error: :econnrefused)
+
+      assert {:error, %TransportError{body: body, url: "https://platform.example.com/token"}} =
+               GradeService.authenticate(launch, @configured)
+
+      assert body =~ "connection refused"
+    end
+
+    test "an error status without a body sends an empty body", %{launch: launch} do
+      Ltix.Test.stub_token_response(status: 401)
+
+      assert {:error, %TokenRequestFailed{status: 401, body: ""}} =
+               GradeService.authenticate(launch, @configured)
+    end
+
+    test "a successful response without a token fails authentication", %{launch: launch} do
+      Ltix.Test.stub_token_response(body: "<html>Maintenance</html>")
+
+      assert {:error, %MalformedResponse{}} = GradeService.authenticate(launch, @configured)
+    end
+
+    test "rejects options that can't be combined, a redirect status, and an unknown transport error" do
+      for opts <- [
+            [body: %{}, scopes: [@ags_scope]],
+            [status: 400, access_token: "token"],
+            [transport_error: :timeout, status: 500],
+            [status: 302],
+            [status: 101],
+            [transport_error: :not_a_reason]
+          ] do
+        assert_raise InvalidOption, fn -> Ltix.Test.stub_token_response(opts) end
+      end
+    end
+  end
+
+  describe "stub_key_set/2" do
+    test "an error status fails the launch, even after the keys were fetched", %{
+      platform: platform
+    } do
+      assert {:ok, %Launch{}} = LaunchFlow.launch(platform, [], @configured)
+
+      Ltix.Test.stub_key_set(platform, status: 500)
+
+      assert {:error, %TransportError{status: 500, url: url}} =
+               LaunchFlow.launch(platform, [], @configured)
+
+      assert url == platform.registration.jwks_uri
+    end
+
+    test "a 401 or 403 fails the launch with AccessDenied", %{platform: platform} do
+      for status <- [401, 403] do
+        Ltix.Test.stub_key_set(platform, status: status)
+
+        assert {:error, %AccessDenied{status: ^status, body: ""}} =
+                 LaunchFlow.launch(platform, [], @configured)
+      end
+    end
+
+    test "an unreachable key set fails the launch", %{platform: platform} do
+      Ltix.Test.stub_key_set(platform, transport_error: :timeout)
+
+      assert {:error, %TransportError{body: body}} = LaunchFlow.launch(platform, [], @configured)
+      assert body =~ "timeout"
+    end
+
+    test "a body that isn't a key set fails the launch", %{platform: platform} do
+      Ltix.Test.stub_key_set(platform, body: "<html>Maintenance</html>")
+
+      assert {:error, %MalformedResponse{}} = LaunchFlow.launch(platform, [], @configured)
+    end
+
+    test "a key set without the platform's key fails the launch", %{platform: platform} do
+      Ltix.Test.stub_key_set(platform, body: %{"keys" => []})
+
+      assert {:error, %KidNotFound{kid: kid}} = LaunchFlow.launch(platform, [], @configured)
+      assert kid == platform.jwk.kid
+    end
+
+    test "with no options serves the platform's keys again", %{platform: platform} do
+      Ltix.Test.stub_key_set(platform, status: 500)
+      assert {:error, %TransportError{}} = LaunchFlow.launch(platform, [], @configured)
+      Ltix.Test.stub_key_set(platform)
+
+      assert {:ok, %Launch{}} = LaunchFlow.launch(platform, [], @configured)
+    end
+
+    test "rejects a transport error combined with a response", %{platform: platform} do
+      for opts <- [
+            [transport_error: :timeout, status: 500],
+            [transport_error: :timeout, body: ""]
+          ] do
+        assert_raise InvalidOption, ~r/cannot be combined/, fn ->
+          Ltix.Test.stub_key_set(platform, opts)
+        end
+      end
     end
   end
 
@@ -1039,6 +1248,36 @@ defmodule Ltix.TestTest do
   end
 
   # -- Helpers --
+
+  # Starts a process outside the test's process tree, as an application's
+  # supervisor would, that runs each function `run_outside/2` sends it.
+  defp start_outside_process, do: spawn_link(&run_functions/0)
+
+  defp run_functions do
+    receive do
+      {:run, function, caller} ->
+        result =
+          try do
+            {:ok, function.()}
+          rescue
+            error -> {:raised, error, __STACKTRACE__}
+          end
+
+        send(caller, {:ran, result})
+        run_functions()
+    end
+  end
+
+  # Runs `function` in `pid`, returning its result or raising its error.
+  defp run_outside(pid, function) do
+    send(pid, {:run, function, self()})
+    assert_receive {:ran, result}
+
+    case result do
+      {:ok, value} -> value
+      {:raised, error, stacktrace} -> reraise error, stacktrace
+    end
+  end
 
   # Requests the first page of two items the way a service does.
   defp first_page(url, service, media_type) do

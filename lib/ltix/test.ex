@@ -405,14 +405,62 @@ defmodule Ltix.Test do
                          unrecognized_keys: :error
                        )
 
+  @stub_status_option Zoi.integer(
+                        description:
+                          "The response's HTTP status. Without `:body`, an error status " <>
+                            "has an empty body."
+                      )
+                      |> Zoi.min(200)
+                      |> Zoi.max(599)
+                      |> Zoi.default(200)
+
+  @stub_transport_error_option Zoi.atom(
+                                 description:
+                                   "A `Req.TransportError` reason, such as `:econnrefused` or " <>
+                                     "`:timeout`, that fails the request without a response. " <>
+                                     "It can't be combined with other options."
+                               )
+
   @stub_token_response_schema Zoi.keyword(
                                 [
-                                  scopes: Zoi.list(Zoi.string()) |> Zoi.default([]),
-                                  access_token: Zoi.string() |> Zoi.default("test-token"),
-                                  expires_in: Zoi.integer() |> Zoi.default(3600)
+                                  scopes:
+                                    Zoi.list(Zoi.string(),
+                                      description:
+                                        "The granted scope URIs. An empty list grants every " <>
+                                          "scope the client requests."
+                                    )
+                                    |> Zoi.default([]),
+                                  access_token:
+                                    Zoi.string(description: "The token string.")
+                                    |> Zoi.default("test-token"),
+                                  expires_in:
+                                    Zoi.integer(description: "The token lifetime in seconds.")
+                                    |> Zoi.default(3600),
+                                  status: @stub_status_option,
+                                  body:
+                                    Zoi.any(
+                                      description:
+                                        "The body the token endpoint responds with. A string is " <>
+                                          "sent as text, and anything else as JSON."
+                                    ),
+                                  transport_error: @stub_transport_error_option
                                 ],
                                 unrecognized_keys: :error
                               )
+
+  @stub_key_set_schema Zoi.keyword(
+                         [
+                           status: @stub_status_option,
+                           body:
+                             Zoi.any(
+                               description:
+                                 "The body the key set URL responds with. A string is " <>
+                                   "sent as text, and anything else as JSON."
+                             ),
+                           transport_error: @stub_transport_error_option
+                         ],
+                         unrecognized_keys: :error
+                       )
 
   @stub_plugins_option Zoi.list(Zoi.any(),
                          description:
@@ -500,13 +548,10 @@ defmodule Ltix.Test do
   """
   @spec setup_platform!(keyword()) :: Platform.t()
   def setup_platform!(opts \\ []) do
-    require_plug!()
-
     opts = Options.parse!(opts, @setup_platform_schema)
     validate_setup_opts!(opts)
 
     jwk = Ltix.JWK.generate(key_size: 2048)
-    jwks = Ltix.JWK.to_jwks(jwk)
 
     registration = build_or_use_registration(opts)
     deployment = build_or_use_deployment(opts, registration)
@@ -518,36 +563,122 @@ defmodule Ltix.Test do
       tool_jwk: Keyword.get_lazy(opts, :tool_jwk, &StorageAdapter.tool_jwk/0)
     }
 
-    # Eagerly validate protocol implementations
-    %Registration{jwks_uri: jwks_uri} = resolved_registration(platform)
+    # Eagerly validate protocol implementations. `stub_key_set/2` resolves the
+    # registration.
     resolved_deployment(platform)
-
-    stub_jwks(jwks_uri, jwks)
-    KeySet.expire_keys(jwks_uri)
+    stub_key_set(platform)
 
     platform
   end
 
-  # Serves each platform set up in this test process its own keys at its own
-  # key set URL.
-  defp stub_jwks(jwks_uri, jwks) do
-    %URI{host: host, path: path} = URI.parse(jwks_uri)
-    key_sets = Map.put(Process.get({__MODULE__, :key_sets}, %{}), {host, path}, jwks)
-    Process.put({__MODULE__, :key_sets}, key_sets)
+  @doc group: "Platform"
+  @doc """
+  Stubs the response to the test platform's key set URL.
 
-    Req.Test.stub(KeySet, fn conn ->
-      case Map.fetch(key_sets, {conn.host, conn.request_path}) do
-        {:ok, jwks} ->
-          conn
-          |> Plug.Conn.put_resp_header("cache-control", "max-age=300")
-          |> Req.Test.json(jwks)
+  Without options, it serves the platform's keys, which `setup_platform!/1`
+  already stubs. Pass options to test how your application handles a failing
+  key set. `Ltix.handle_callback/3` then returns the error in the table below.
 
-        :error ->
-          Plug.Conn.send_resp(conn, 404, "")
-      end
+      Ltix.Test.stub_key_set(platform, status: 503)
+
+      {:error, %Ltix.Errors.Unknown.TransportError{status: 503}} =
+        Ltix.handle_callback(params, state)
+
+  | Options | Launch error |
+  |---|---|
+  | `status: 401` or `status: 403` | `Ltix.Errors.Security.AccessDenied` |
+  | any other error `:status` | `Ltix.Errors.Unknown.TransportError` |
+  | `transport_error: :timeout` | `Ltix.Errors.Unknown.TransportError` |
+  | `body: "<html>Maintenance</html>"` | `Ltix.Errors.Invalid.MalformedResponse` |
+  | `body: %{"keys" => []}` | `Ltix.Errors.Security.KidNotFound` |
+
+  Tests that run at the same time with the same key set URL can receive each
+  other's key set responses. If you pass `setup_platform!/1` a `:registration`
+  struct, give each test's registration its own `jwks_uri`.
+
+  ## Options
+
+  #{Zoi.describe(@stub_key_set_schema)}
+  """
+  @spec stub_key_set(Platform.t(), keyword()) :: :ok
+  def stub_key_set(%Platform{} = platform, opts \\ []) do
+    parsed = Options.parse!(opts, @stub_key_set_schema)
+    reject_combined_options!(opts, :transport_error, [:status, :body])
+    %Registration{jwks_uri: key_set_url} = resolved_registration(platform)
+    response = stub_response(parsed, Ltix.JWK.to_jwks(platform.jwk))
+
+    ServiceStub.put(KeySet, :key_set, key_set_url, fn conn ->
+      response.(Plug.Conn.put_resp_header(conn, "cache-control", "max-age=300"))
     end)
+
+    KeySet.expire_keys(key_set_url)
   end
 
+  # The platform's response for the `:status`, `:body`, and `:transport_error`
+  # of `opts`. A success status without `:body` sends `success_body`.
+  defp stub_response(opts, success_body) do
+    ServiceStub.require_plug!()
+
+    case Keyword.fetch(opts, :transport_error) do
+      {:ok, reason} ->
+        validate_transport_error!(reason)
+        &Req.Test.transport_error(&1, reason)
+
+      :error ->
+        status = Keyword.fetch!(opts, :status)
+
+        if status in 300..399 do
+          raise InvalidOption,
+            key: :status,
+            value: status,
+            reason: "it must be a success or error status"
+        end
+
+        default = if status in 200..299, do: success_body, else: ""
+        body = Keyword.get(opts, :body, default)
+        &send_stub_body(Plug.Conn.put_status(&1, status), body)
+    end
+  end
+
+  # `Req.Test.transport_error/2` checks its reason only when a request fails
+  # with it, so the stub checks it up front.
+  defp validate_transport_error!(reason) do
+    Req.Test.transport_error(struct(Plug.Conn), reason)
+  rescue
+    ArgumentError ->
+      reraise InvalidOption,
+              [
+                key: :transport_error,
+                value: reason,
+                reason: "it isn't a Req.TransportError reason"
+              ],
+              __STACKTRACE__
+  end
+
+  defp send_stub_body(conn, body) when is_binary(body), do: Req.Test.text(conn, body)
+  defp send_stub_body(conn, body), do: Req.Test.json(conn, body)
+
+  @doc group: "Platform"
+  @doc """
+  Lets `pid` use the test process's stubs and its `Ltix.Test.StorageAdapter`,
+  including those the test sets afterward.
+
+  Processes the test starts, such as tasks, LiveViews, and
+  `start_supervised/2` children, already use them. Call `allow_stubs/1` for
+  any other process, such as one your application supervises, before it
+  handles a launch or sends requests to the test platform.
+
+      Ltix.Test.stub_token_response()
+      Ltix.Test.stub_post_score()
+      Ltix.Test.allow_stubs(Process.whereis(MyApp.GradeSync))
+
+  `pid` can be a function that returns the process. Allow the stubs of your own
+  services with `Req.Test.allow/3`.
+  """
+  @spec allow_stubs(pid() | (-> pid())) :: :ok
+  def allow_stubs(pid), do: ServiceStub.allow(pid)
+
+  @doc group: "Storage adapter"
   @doc """
   Assert that a storage adapter satisfies `Ltix.StorageAdapter`.
 
@@ -764,43 +895,53 @@ defmodule Ltix.Test do
   # --- Service Test Helpers ---
 
   @doc """
-  Stub the OAuth token endpoint for advantage service tests.
-
-  Stubs the OAuth token endpoint so advantage service tests don't make
-  real HTTP calls. Call this in your test setup before authenticating a
-  service client.
+  Stubs the platform's OAuth token endpoint for Advantage service tests. Call
+  it before a service's `authenticate/2`, such as
+  `Ltix.GradeService.authenticate/2`.
 
       Ltix.Test.stub_token_response(scopes: [
         "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
         "https://purl.imsglobal.org/spec/lti-ags/scope/score"
       ])
 
+  To test a failed authentication, stub the response the platform would send.
+  `authenticate/2` then returns the error in the table below.
+
+      Ltix.Test.stub_token_response(status: 400, body: %{"error" => "invalid_scope"})
+
+      {:error, %Ltix.Errors.Invalid.TokenRequestFailed{error: "invalid_scope"}} =
+        Ltix.GradeService.authenticate(launch)
+
+  | Options | Authentication error |
+  |---|---|
+  | an error `:status`, with any `:body` | `Ltix.Errors.Invalid.TokenRequestFailed` |
+  | `transport_error: :econnrefused` | `Ltix.Errors.Unknown.TransportError` |
+  | `body: "<html>Maintenance</html>"` | `Ltix.Errors.Invalid.MalformedResponse` |
+
   ## Options
 
-    * `:scopes` - list of granted scope URIs (defaults to `[]`). An empty list
-      grants the requested scopes.
-    * `:access_token` - token string (defaults to `"test-token"`)
-    * `:expires_in` - token lifetime in seconds (defaults to `3600`)
+  #{Zoi.describe(@stub_token_response_schema)}
   """
   @spec stub_token_response(keyword()) :: :ok
   def stub_token_response(opts \\ []) do
-    require_plug!()
+    parsed = Options.parse!(opts, @stub_token_response_schema)
+    token_options = [:scopes, :access_token, :expires_in]
+    reject_combined_options!(opts, :transport_error, [:status, :body | token_options])
+    reject_combined_options!(opts, :body, token_options)
 
-    opts = Options.parse!(opts, @stub_token_response_schema)
-    scopes = Keyword.fetch!(opts, :scopes)
+    if parsed[:status] not in 200..299,
+      do: reject_combined_options!(opts, :status, token_options)
 
-    response = %{
-      "access_token" => Keyword.fetch!(opts, :access_token),
+    scopes = Keyword.fetch!(parsed, :scopes)
+
+    token = %{
+      "access_token" => Keyword.fetch!(parsed, :access_token),
       "token_type" => "Bearer",
-      "expires_in" => Keyword.fetch!(opts, :expires_in)
+      "expires_in" => Keyword.fetch!(parsed, :expires_in)
     }
 
-    response =
-      if scopes == [], do: response, else: Map.put(response, "scope", Enum.join(scopes, " "))
-
-    Req.Test.stub(ClientCredentials, fn conn ->
-      Req.Test.json(conn, response)
-    end)
+    token = if scopes == [], do: token, else: Map.put(token, "scope", Enum.join(scopes, " "))
+    ServiceStub.put(ClientCredentials, :token_response, nil, stub_response(parsed, token))
   end
 
   # --- Grade Service Stubs ---
@@ -825,7 +966,6 @@ defmodule Ltix.Test do
   """
   @spec stub_list_line_items([LineItem.t()], keyword()) :: :ok
   def stub_list_line_items(line_items, opts \\ []) when is_list(line_items) do
-    require_plug!()
     opts = Options.parse!(opts, @stub_plugins_schema)
     json = Enum.map(line_items, &stub_json(&1, opts[:plugins]))
     ServiceStub.put(GradeService, :list_line_items, nil, &ServiceStub.json_pages(&1, json))
@@ -868,7 +1008,6 @@ defmodule Ltix.Test do
   """
   @spec stub_create_line_item(LineItem.t(), keyword()) :: :ok
   def stub_create_line_item(%LineItem{} = item, opts \\ []) do
-    require_plug!()
     opts = Options.parse!(opts, @stub_plugins_schema)
     json = stub_json(item, opts[:plugins])
 
@@ -898,7 +1037,6 @@ defmodule Ltix.Test do
     do: stub_line_item(:update_line_item, item, opts)
 
   defp stub_line_item(operation, item, opts) do
-    require_plug!()
     opts = Options.parse!(opts, @stub_line_item_and_plugins_schema)
     json = stub_json(item, opts[:plugins])
     url = stub_line_item_url(opts)
@@ -918,7 +1056,6 @@ defmodule Ltix.Test do
   """
   @spec stub_delete_line_item(keyword()) :: :ok
   def stub_delete_line_item(opts \\ []) do
-    require_plug!()
     url = stub_line_item_url(Options.parse!(opts, @stub_line_item_schema))
     ServiceStub.put(GradeService, :delete_line_item, url, &Plug.Conn.send_resp(&1, 204, ""))
   end
@@ -934,7 +1071,6 @@ defmodule Ltix.Test do
   """
   @spec stub_post_score(keyword()) :: :ok
   def stub_post_score(opts \\ []) do
-    require_plug!()
     url = stub_line_item_url(Options.parse!(opts, @stub_line_item_schema))
     ServiceStub.put(GradeService, :post_score, url, &Plug.Conn.send_resp(&1, 200, ""))
   end
@@ -958,7 +1094,6 @@ defmodule Ltix.Test do
   """
   @spec stub_list_results([Result.t()], keyword()) :: :ok
   def stub_list_results(results, opts \\ []) when is_list(results) do
-    require_plug!()
     opts = Options.parse!(opts, @stub_line_item_and_plugins_schema)
     json = Enum.map(results, &stub_json(&1, opts[:plugins]))
     url = stub_line_item_url(opts)
@@ -1307,12 +1442,6 @@ defmodule Ltix.Test do
 
   # --- Setup Helpers ---
 
-  defp require_plug! do
-    unless Code.ensure_loaded?(Plug.Conn) do
-      raise "Ltix HTTP test helpers require Plug. Add the optional :plug dependency to your test environment."
-    end
-  end
-
   defp validate_setup_opts!(opts) do
     registration = Keyword.get(opts, :registration)
     deployment = Keyword.get(opts, :deployment)
@@ -1327,6 +1456,12 @@ defmodule Ltix.Test do
 
     if not is_nil(deployment) and not is_function(deployment) do
       reject_combined_option!(opts, :deployment_id, "a :deployment struct")
+    end
+  end
+
+  defp reject_combined_options!(opts, key, keys) do
+    if Keyword.has_key?(opts, key) do
+      Enum.each(keys, &reject_combined_option!(opts, &1, inspect(key)))
     end
   end
 

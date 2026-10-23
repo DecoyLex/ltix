@@ -119,6 +119,10 @@ Ltix.Test.build_launch(platform,
 
 `build_launch/2` also runs claim checks and requires the message type's claims. It raises when a check fails or a required claim is missing. Pass `allow_anonymous: true` where you build a resource link launch with `subject: nil`.
 
+### `Ltix.Test.StorageAdapter` needs Plug
+
+Add `:plug` to your test dependencies if you use `Ltix.Test.StorageAdapter` without the other `Ltix.Test` helpers.
+
 ### Member messages are claim maps
 
 A member's `message` is a list of claim maps keyed by short name, where 0.2 had `%Ltix.LaunchClaims{}` structs. Read a claim with `message.custom`. Claims no plugin declares are left out, and a message that fails a claim check fails `list_members/2` and `stream_members/2`.
@@ -468,3 +472,5 @@ An error's message doesn't end with the section of the specification its check c
 - An OAuth client uses the plugins it was authenticated with. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `authenticate/2` in background jobs.
 - Plugins can add claims to Deep Linking responses. `%Ltix.DeepLinking.Response{}` has new fields beside `jwt` and `return_url`.
 - `Ltix.Errors.Invalid.ContentItemsExceedLimit` has the `index` of the first content item over the limit.
+- To use `Ltix.Test` stubs in a process your application supervises, call `Ltix.Test.allow_stubs/1`. It applies to every `Ltix.Test` stub, the test platform's key set, and the test's `Ltix.Test.StorageAdapter`. Your `Req.Test.allow/3` calls on `Ltix.GradeService` and `Ltix.MembershipsService` still work, and one `allow_stubs/1` call can replace them.
+- `Ltix.Test.stub_token_response/1` and the new `Ltix.Test.stub_key_set/2` take `:status`, `:body`, and `:transport_error` to stub a failing platform. Add `retry: false` to your test `req_options` so a stubbed failure returns at once.

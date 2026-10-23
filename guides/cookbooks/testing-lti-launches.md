@@ -10,10 +10,10 @@ Add your storage adapter and the Req test plug to `config/test.exs`.
 # config/test.exs
 config :ltix,
   storage_adapter: MyApp.LtiStorageAdapter,
-  req_options: [plug: {Req.Test, :ltix}]
+  req_options: [plug: {Req.Test, :ltix}, retry: false]
 ```
 
-The `:ltix` atom is a sentinel. Each internal module rewrites it to its own stub name so that HTTP calls are isolated per service. `setup_platform!/1` automatically stubs key set fetches.
+With this plug, Ltix sends its requests to the stubs `Ltix.Test` sets up. With `retry: false`, a stubbed failure returns at once.
 
 Then create a test platform in your setup block. Pass a `:registration` function to create matching records in your own persistence layer. The function receives an `Ltix.Registration` with the registration details (issuer, client_id, endpoints) and returns your application's struct.
 
@@ -273,7 +273,7 @@ params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" 
 
 ## Testing advantage services
 
-When your application uses `Ltix.GradeService` or `Ltix.MembershipsService`, you need to stub both the OAuth token request and the service's HTTP calls.
+Stub the OAuth token request and each service call your code makes. To use the stubs in a process your application supervises, pass that process to `Ltix.Test.allow_stubs/1`.
 
 ### Grade service
 
@@ -383,8 +383,42 @@ Ltix.Test.stub_list_results(quiz_results, line_item: quiz)
 Ltix.Test.stub_list_results(exam_results, line_item: exam)
 ```
 
-The list stubs handle `list_*` and `stream_*` calls, one page at a time when the call passes `:per_page`.
+The list stubs handle `list_*` and `stream_*` calls. When the call passes `:per_page`, they return pages of that size.
 
-Stubs apply to the test process and to any process you allow with `Req.Test.allow(Ltix.GradeService, self(), pid)`, so they work in async tests and in processes your code starts.
+### Custom responses
 
-Per-operation stubs accept the struct(s) the platform would return. Line item, result, and member stubs send each struct's unrecognized properties and every property it has a value for, using the plugins in `config :ltix, plugins:` or the stub's `plugins:` option. For custom response logic (inspecting headers, returning errors, etc.), use `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)` directly. It replaces every `Ltix.Test` stub of that service.
+To return an error or other custom response, stub the service module with `Req.Test.stub/2`. This replaces every `Ltix.Test` stub of that service.
+
+```elixir
+Req.Test.stub(Ltix.GradeService, fn conn ->
+  Plug.Conn.send_resp(conn, 500, "")
+end)
+```
+
+## Testing platform failures
+
+To test how your application handles a failing platform, make `Ltix.Test.stub_token_response/1` or `Ltix.Test.stub_key_set/2` respond as that platform would. Pass `:status` and `:body`, or a `:transport_error` for a platform that doesn't respond.
+
+```elixir
+test "returns an error when the platform rejects the token request", %{platform: platform} do
+  Ltix.Test.stub_token_response(status: 400, body: %{"error" => "invalid_client"})
+
+  launch = Ltix.Test.build_launch(platform,
+    ags_endpoint: %{
+      line_item: "https://platform.example.com/lineitems/1",
+      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+    }
+  )
+
+  assert {:error, %Ltix.Errors.Invalid.TokenRequestFailed{error: "invalid_client"}} =
+           MyApp.Grades.post_grade(launch, "student-42", 85)
+end
+```
+
+A key set failure fails the launch. Stub it before the test posts the launch to your callback route.
+
+```elixir
+Ltix.Test.stub_key_set(platform, status: 503)
+```
+
+The docs for `Ltix.Test.stub_token_response/1` and `Ltix.Test.stub_key_set/2` list the error Ltix returns for each failure.

@@ -193,7 +193,7 @@ See [Token Caching and Reuse](token-caching-and-reuse.md) for patterns around ba
 
 ## Testing
 
-Test your service the same way Ltix tests its built-in services. Stub the token endpoint and your service's HTTP calls with `Req.Test`.
+Build a client with a test token, and stub your service's HTTP calls with `Req.Test`.
 
 ```elixir
 # test/my_app/lti/attendance_service_test.exs

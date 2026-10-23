@@ -317,7 +317,7 @@ config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
 # config/test.exs, use the in-memory adapter and Req.Test stubs for tests
 config :ltix,
   storage_adapter: Ltix.Test.StorageAdapter,
-  req_options: [plug: {Req.Test, :ltix}]
+  req_options: [plug: {Req.Test, :ltix}, retry: false]
 ```
 
 Start the in-memory adapter with your test platforms in each test that launches.

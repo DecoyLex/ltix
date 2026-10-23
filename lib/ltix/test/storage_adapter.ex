@@ -21,8 +21,9 @@ defmodule Ltix.Test.StorageAdapter do
   alias Ltix.Options
   alias Ltix.Records
   alias Ltix.Test.Platform
+  alias Ltix.Test.ServiceStub
 
-  @pid_key :ltix_test_storage_adapter_pid
+  @compile {:no_warn_undefined, [{Plug.Conn, :send_resp, 3}]}
 
   @start_link_schema Zoi.keyword(
                        [
@@ -67,21 +68,35 @@ defmodule Ltix.Test.StorageAdapter do
   @doc """
   Register the adapter PID in the calling process.
 
-  Processes the caller starts, such as tasks and LiveViews, use the same
-  adapter.
+  Processes the caller starts, such as tasks, LiveViews, and
+  `start_supervised/2` children, use the same adapter.
+  `Ltix.Test.allow_stubs/1` lets any other process use it.
   """
-  def set_pid(pid), do: Process.put(@pid_key, pid)
+  @spec set_pid(pid()) :: :ok
+  def set_pid(pid) do
+    ServiceStub.put(__MODULE__, :storage_adapter, nil, fn conn ->
+      Plug.Conn.send_resp(conn, 200, :erlang.term_to_binary(pid))
+    end)
+  end
 
-  # Finds the adapter registered in this process or the process that started it.
+  # Registering the adapter as a `Req.Test` stub lets each process find it as
+  # it finds Ltix's other stubs, through the processes that started it and
+  # the allowances of `Ltix.Test.allow_stubs/1`.
   defp pid do
-    Process.get(@pid_key) ||
-      Enum.find_value(Process.get(:"$callers", []), fn process ->
-        case Process.info(process, :dictionary) do
-          {:dictionary, dictionary} -> Keyword.get(dictionary, @pid_key)
-          nil -> nil
-        end
-      end) ||
-      raise "No Ltix.Test.StorageAdapter registered. Call set_pid/1 in the test process."
+    response =
+      Req.get!("https://storage-adapter.invalid/",
+        plug: {Req.Test, __MODULE__},
+        retry: false,
+        decode_body: false
+      )
+
+    :erlang.binary_to_term(response.body)
+  rescue
+    RuntimeError ->
+      reraise "No Ltix.Test.StorageAdapter is registered for #{inspect(self())}. In the test " <>
+                "process, register one with Ltix.Test.StorageAdapter.set_pid/1. For another " <>
+                "process, call Ltix.Test.allow_stubs/1 with its pid.",
+              __STACKTRACE__
   end
 
   @impl Ltix.StorageAdapter
