@@ -92,20 +92,20 @@ defmodule Ltix.OIDC.Callback do
      AuthenticationFailed.exception(
        error: error,
        error_description: params["error_description"],
-       error_uri: params["error_uri"],
-       spec_ref: "Sec §5.1.1.5"
+       error_uri: params["error_uri"]
      )}
   end
 
   defp check_error_response(_params), do: :ok
 
+  # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)
   defp extract_id_token(%{"id_token" => id_token})
        when is_binary(id_token) and byte_size(id_token) > 0 do
     {:ok, id_token}
   end
 
   defp extract_id_token(_params) do
-    {:error, MissingParameter.exception(parameter: "id_token", spec_ref: "Sec §5.1.1.3")}
+    {:error, MissingParameter.exception(parameter: "id_token")}
   end
 
   # [Sec §7.3.1](https://www.imsglobal.org/spec/security/v1p0/#prohibiting-the-login-csrf-vulnerability)
@@ -113,7 +113,7 @@ defmodule Ltix.OIDC.Callback do
     if State.matches?(params["state"], expected_state) do
       :ok
     else
-      {:error, StateMismatch.exception(spec_ref: "Sec §7.3.1")}
+      {:error, StateMismatch.exception()}
     end
   end
 
@@ -137,16 +137,10 @@ defmodule Ltix.OIDC.Callback do
   defp issuer(%{"iss" => issuer}) when is_binary(issuer), do: {:ok, issuer}
 
   defp issuer(%{"iss" => issuer}) when not is_nil(issuer) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "iss",
-       value: issuer,
-       message: "must be a string",
-       spec_ref: "Sec §5.1.2"
-     )}
+    {:error, InvalidClaim.exception(claim: "iss", value: issuer, message: "must be a string")}
   end
 
-  defp issuer(_claims), do: {:error, MissingClaim.exception(claim: "iss", spec_ref: "Sec §5.1.2")}
+  defp issuer(_claims), do: {:error, MissingClaim.exception(claim: "iss")}
 
   defp audience(client_id) when is_binary(client_id), do: client_id
   defp audience([client_id | _]) when is_binary(client_id), do: client_id
@@ -160,7 +154,7 @@ defmodule Ltix.OIDC.Callback do
     if State.nonce_matches?(claims["nonce"], expected_state, registration) do
       :ok
     else
-      {:error, NonceNotFound.exception(spec_ref: "OIDC §3.2.2.11")}
+      {:error, NonceNotFound.exception()}
     end
   end
 
@@ -174,9 +168,9 @@ defmodule Ltix.OIDC.Callback do
       validate_message_type(message_type),
       validate_version(claims[@lti <> "version"]),
       # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
-      validate_string(claims, @lti <> "deployment_id", "deployment_id", "Core §5.3.3"),
+      validate_string(claims, @lti <> "deployment_id", "deployment_id"),
       # [Core §5.3.4](https://www.imsglobal.org/spec/lti/v1p3/#target-link-uri)
-      validate_string(claims, @lti <> "target_link_uri", "target_link_uri", "Core §5.3.4")
+      validate_string(claims, @lti <> "target_link_uri", "target_link_uri")
       | validate_message_specific_claims(message_type, claims, opts)
     ])
   end
@@ -203,15 +197,14 @@ defmodule Ltix.OIDC.Callback do
        do: nil
 
   defp validate_message_type(nil) do
-    MissingClaim.exception(claim: "message_type", spec_ref: "Core §5.3.1")
+    MissingClaim.exception(claim: "message_type")
   end
 
   defp validate_message_type(message_type) do
     InvalidClaim.exception(
       claim: "message_type",
       message: "unrecognized message_type",
-      value: message_type,
-      spec_ref: "Core §5.3.1"
+      value: message_type
     )
   end
 
@@ -219,61 +212,46 @@ defmodule Ltix.OIDC.Callback do
   defp validate_version("1.3.0"), do: nil
 
   defp validate_version(nil),
-    do: MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")
+    do: MissingClaim.exception(claim: "version")
 
   defp validate_version(version) do
-    InvalidClaim.exception(
-      claim: "version",
-      message: "unrecognized LTI version",
-      value: version,
-      spec_ref: "Core §5.3.2"
-    )
+    InvalidClaim.exception(claim: "version", message: "unrecognized LTI version", value: version)
   end
 
-  defp validate_string(claims, key, claim, spec_ref) do
+  defp validate_string(claims, key, claim) do
     case claims[key] do
       value when is_binary(value) and byte_size(value) > 0 ->
         nil
 
       nil ->
-        MissingClaim.exception(claim: claim, spec_ref: spec_ref)
+        MissingClaim.exception(claim: claim)
 
       value ->
-        InvalidClaim.exception(
-          claim: claim,
-          value: value,
-          message: "must be a non-empty string",
-          spec_ref: spec_ref
-        )
+        InvalidClaim.exception(claim: claim, value: value, message: "must be a non-empty string")
     end
   end
 
   # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
   defp validate_resource_link(resource_link) when is_map(resource_link) do
-    validate_string(resource_link, "id", "resource_link.id", "Core §5.3.5")
+    validate_string(resource_link, "id", "resource_link.id")
   end
 
   defp validate_resource_link(nil) do
-    MissingClaim.exception(claim: "resource_link", spec_ref: "Core §5.3.5")
+    MissingClaim.exception(claim: "resource_link")
   end
 
   defp validate_resource_link(resource_link) do
-    invalid_object("resource_link", resource_link, "Core §5.3.5")
+    invalid_object("resource_link", resource_link)
   end
 
   # [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim)
-  defp validate_roles(nil), do: MissingClaim.exception(claim: "roles", spec_ref: "Core §5.3.7")
+  defp validate_roles(nil), do: MissingClaim.exception(claim: "roles")
 
   defp validate_roles(roles) do
     if is_list(roles) and Enum.all?(roles, &is_binary/1) do
       nil
     else
-      InvalidClaim.exception(
-        claim: "roles",
-        value: roles,
-        message: "must be an array of strings",
-        spec_ref: "Core §5.3.7"
-      )
+      InvalidClaim.exception(claim: "roles", value: roles, message: "must be an array of strings")
     end
   end
 
@@ -283,7 +261,7 @@ defmodule Ltix.OIDC.Callback do
     if Keyword.get(opts, :allow_anonymous, false) and not Map.has_key?(claims, "sub") do
       nil
     else
-      validate_string(claims, "sub", "sub", "Core §5.3.6")
+      validate_string(claims, "sub", "sub")
     end
   end
 
@@ -291,19 +269,14 @@ defmodule Ltix.OIDC.Callback do
   defp validate_deep_linking_settings(settings) when is_map(settings), do: nil
 
   defp validate_deep_linking_settings(nil) do
-    MissingClaim.exception(claim: "deep_linking_settings", spec_ref: "DL §4.4.1")
+    MissingClaim.exception(claim: "deep_linking_settings")
   end
 
   defp validate_deep_linking_settings(settings) do
-    invalid_object("deep_linking_settings", settings, "DL §4.4.1")
+    invalid_object("deep_linking_settings", settings)
   end
 
-  defp invalid_object(claim, value, spec_ref) do
-    InvalidClaim.exception(
-      claim: claim,
-      value: value,
-      message: "must be an object",
-      spec_ref: spec_ref
-    )
+  defp invalid_object(claim, value) do
+    InvalidClaim.exception(claim: claim, value: value, message: "must be an object")
   end
 end

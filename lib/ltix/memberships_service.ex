@@ -72,7 +72,7 @@ defmodule Ltix.MembershipsService do
   end
 
   def validate_endpoint(_),
-    do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "NRPS §3.6.1")}
+    do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
 
   @impl Ltix.AdvantageService
   # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
@@ -201,7 +201,7 @@ defmodule Ltix.MembershipsService do
     {max, opts} = Keyword.pop!(opts, :max_members)
 
     with_pages(:list_members, client, opts, fn pages ->
-      limit_error = [service: __MODULE__, option: :max_members, spec_ref: "NRPS §2.4.2"]
+      limit_error = [service: __MODULE__, option: :max_members]
 
       with {:ok, [first | _] = containers} <-
              Operation.collect(containers(pages), max, limit_error, &length(&1.members)) do
@@ -350,8 +350,7 @@ defmodule Ltix.MembershipsService do
   end
 
   defp not_available(reason) do
-    {:error,
-     ServiceNotAvailable.exception(service: __MODULE__, reason: reason, spec_ref: "NRPS §3.6.1")}
+    {:error, ServiceNotAvailable.exception(service: __MODULE__, reason: reason)}
   end
 
   @doc false

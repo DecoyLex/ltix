@@ -138,7 +138,7 @@ defmodule Ltix.MembershipsService.Member do
   # [NRPS §2.2][sharing-of-personal-data]
   def from_json(%{"user_id" => user_id, "roles" => roles} = json, role_parsers) do
     with :ok <- validate_user_id(user_id),
-         {:ok, profile} <- ClaimHelpers.from_json(@profile_schema, json, "member", "NRPS §2.2"),
+         {:ok, profile} <- ClaimHelpers.from_json(@profile_schema, json, "member"),
          {:ok, {parsed_roles, unrecognized}} <- parse_roles(roles, role_parsers),
          {:ok, status} <- parse_status(json["status"]),
          {:ok, message} <- parse_message(json["message"]) do
@@ -156,16 +156,15 @@ defmodule Ltix.MembershipsService.Member do
   end
 
   def from_json(%{"user_id" => _}, _role_parsers) do
-    {:error, MissingClaim.exception(claim: "member.roles", spec_ref: "NRPS §2.2")}
+    {:error, MissingClaim.exception(claim: "member.roles")}
   end
 
   def from_json(%{"roles" => _}, _role_parsers) do
-    {:error, MissingClaim.exception(claim: "member.user_id", spec_ref: "NRPS §2.2")}
+    {:error, MissingClaim.exception(claim: "member.user_id")}
   end
 
   def from_json(_json, _role_parsers) do
-    {:error,
-     MissingClaim.exception(claim: "member.user_id and member.roles", spec_ref: "NRPS §2.2")}
+    {:error, MissingClaim.exception(claim: "member.user_id and member.roles")}
   end
 
   @doc """
@@ -213,13 +212,13 @@ defmodule Ltix.MembershipsService.Member do
   defp validate_user_id(user_id) when is_binary(user_id), do: :ok
 
   defp validate_user_id(user_id),
-    do: invalid_field("user_id", user_id, "must be a string", "NRPS §2.2")
+    do: invalid_field("user_id", user_id, "must be a string")
 
   defp parse_roles(roles, role_parsers) do
     if string_list?(roles) do
       {:ok, Role.parse_all_with(roles, role_parsers)}
     else
-      invalid_field("roles", roles, "must be an array of strings", "NRPS §2.2")
+      invalid_field("roles", roles, "must be an array of strings")
     end
   end
 
@@ -246,14 +245,13 @@ defmodule Ltix.MembershipsService.Member do
          InvalidClaim.exception(
            claim: "member.status",
            value: status,
-           message: "must be Active, Inactive, or Deleted",
-           spec_ref: "NRPS §2.3"
+           message: "must be Active, Inactive, or Deleted"
          )}
     end
   end
 
   defp parse_status(status),
-    do: invalid_field("status", status, "must be a string", "NRPS §2.3")
+    do: invalid_field("status", status, "must be a string")
 
   # [NRPS §3.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#message-section)
   defp parse_message(nil), do: {:ok, nil}
@@ -273,22 +271,16 @@ defmodule Ltix.MembershipsService.Member do
   end
 
   defp parse_message(message),
-    do: invalid_field("message", message, "must be an array of objects", "NRPS §3.2")
+    do: invalid_field("message", message, "must be an array of objects")
 
   defp parse_message_entry(message) when is_map(message) do
     LaunchClaims.from_json(message)
   end
 
   defp parse_message_entry(message),
-    do: invalid_field("message", message, "must contain JSON objects", "NRPS §3.2")
+    do: invalid_field("message", message, "must contain JSON objects")
 
-  defp invalid_field(field, value, message, spec_ref) do
-    {:error,
-     InvalidClaim.exception(
-       claim: "member.#{field}",
-       value: value,
-       message: message,
-       spec_ref: spec_ref
-     )}
+  defp invalid_field(field, value, message) do
+    {:error, InvalidClaim.exception(claim: "member.#{field}", value: value, message: message)}
   end
 end

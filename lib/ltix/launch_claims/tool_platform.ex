@@ -44,6 +44,6 @@ defmodule Ltix.LaunchClaims.ToolPlatform do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "tool_platform", "Core §5.4.2")
+    ClaimHelpers.from_json(@schema, json, "tool_platform")
   end
 end

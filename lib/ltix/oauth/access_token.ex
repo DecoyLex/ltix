@@ -238,10 +238,10 @@ defmodule Ltix.OAuth.AccessToken do
   defp validate_token(access_token, token_type) do
     cond do
       not bearer_credential?(access_token) ->
-        malformed_response("access_token must be a nonempty bearer credential", "RFC 6750 §2.1")
+        malformed_response("access_token must be a nonempty bearer credential")
 
       not Regex.match?(~r/\Abearer\z/i, token_type) ->
-        malformed_response("unsupported token_type", "RFC 6749 §7.1")
+        malformed_response("unsupported token_type")
 
       true ->
         :ok
@@ -284,7 +284,7 @@ defmodule Ltix.OAuth.AccessToken do
   defp scope_tokens?(scope),
     do: Regex.match?(~r/\A[\x21\x23-\x5B\x5D-\x7E]+(?: [\x21\x23-\x5B\x5D-\x7E]+)*\z/, scope)
 
-  defp malformed_response(reason, spec_ref \\ "RFC 6749 §5.1") do
-    {:error, MalformedResponse.exception(service: :oauth, reason: reason, spec_ref: spec_ref)}
+  defp malformed_response(reason) do
+    {:error, MalformedResponse.exception(service: :oauth, reason: reason)}
   end
 end

@@ -71,8 +71,7 @@ defmodule Ltix.MembershipsService.MembershipContainer do
      InvalidClaim.exception(
        claim: "membership.id",
        value: id,
-       message: "must be a string",
-       spec_ref: "NRPS §2.1"
+       message: "must be a string"
      )}
   end
 
@@ -93,12 +92,7 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   end
 
   defp malformed(reason) do
-    {:error,
-     MalformedResponse.exception(
-       service: MembershipsService,
-       reason: reason,
-       spec_ref: "NRPS §2.1"
-     )}
+    {:error, MalformedResponse.exception(service: MembershipsService, reason: reason)}
   end
 end
 

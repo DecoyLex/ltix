@@ -143,7 +143,7 @@ defmodule Ltix.RegistrationTest do
       assert {:error, error} = Registration.new(%{@valid_attrs | client_id: ""})
 
       assert Exception.message(error) ==
-               ~s(Ltix.Registration field :client_id is invalid, must be a non-empty string \(got ""\) [Sec §5.1.1.2])
+               ~s(Ltix.Registration field :client_id is invalid, must be a non-empty string \(got ""\))
 
       assert {:error, error} = Registration.new(Map.delete(@valid_attrs, :issuer))
       assert Exception.message(error) == "Ltix.Registration field :issuer is required"

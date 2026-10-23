@@ -269,19 +269,19 @@ defmodule Ltix.LaunchClaims do
                   )
 
   @nested_claims %{
-    context: {ClaimHelpers.optional(Context.schema()), "context", "Core §5.4.1"},
-    resource_link: {ResourceLink.schema(), "resource_link", "Core §5.3.5"},
+    context: {ClaimHelpers.optional(Context.schema()), "context"},
+    resource_link: {ResourceLink.schema(), "resource_link"},
     launch_presentation:
-      {ClaimHelpers.optional(LaunchPresentation.schema()), "launch_presentation", "Core §5.4.4"},
-    tool_platform: {ClaimHelpers.optional(ToolPlatform.schema()), "tool_platform", "Core §5.4.2"},
-    lis: {ClaimHelpers.optional(LIS.schema()), "lis", "Core §5.4.5"},
+      {ClaimHelpers.optional(LaunchPresentation.schema()), "launch_presentation"},
+    tool_platform: {ClaimHelpers.optional(ToolPlatform.schema()), "tool_platform"},
+    lis: {ClaimHelpers.optional(LIS.schema()), "lis"},
     ags_endpoint:
       {ClaimHelpers.optional(AGSEndpoint.schema()),
-       "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint", "AGS §3.1"},
+       "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"},
     memberships_endpoint:
       {ClaimHelpers.optional(MembershipsEndpoint.schema()),
-       "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice", "NRPS §3.6.1.1"},
-    deep_linking_settings: {DeepLinkingSettings.schema(), "deep_linking_settings", "DL §4.4.1"}
+       "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice"},
+    deep_linking_settings: {DeepLinkingSettings.schema(), "deep_linking_settings"}
   }
 
   # --- Public API ---
@@ -375,7 +375,7 @@ defmodule Ltix.LaunchClaims do
         {claim, Map.fetch!(fields, field)}
       end
 
-    case ClaimHelpers.from_json(@scalar_schema, scalars, nil, "Core §5.3") do
+    case ClaimHelpers.from_json(@scalar_schema, scalars, nil) do
       {:ok, parsed} ->
         {:ok,
          Map.merge(
@@ -389,13 +389,12 @@ defmodule Ltix.LaunchClaims do
   end
 
   defp parse_nested_claims(fields, message_type) do
-    Enum.reduce_while(@nested_claims, {:ok, fields}, fn {field, {schema, prefix, spec_ref}},
-                                                        {:ok, acc} ->
+    Enum.reduce_while(@nested_claims, {:ok, fields}, fn {field, {schema, prefix}}, {:ok, acc} ->
       schema = nested_schema(field, schema, message_type)
 
       acc
       |> Map.get(field)
-      |> parse_nested_field(field, {schema, prefix, spec_ref}, acc)
+      |> parse_nested_field(field, {schema, prefix}, acc)
     end)
   end
 
@@ -410,8 +409,8 @@ defmodule Ltix.LaunchClaims do
   defp parse_nested_field(value, field, _schema, acc) when value in [nil, :null],
     do: {:cont, {:ok, Map.put(acc, field, nil)}}
 
-  defp parse_nested_field(raw_value, field, {schema, prefix, spec_ref}, acc) do
-    case ClaimHelpers.from_json(schema, raw_value, prefix, spec_ref) do
+  defp parse_nested_field(raw_value, field, {schema, prefix}, acc) do
+    case ClaimHelpers.from_json(schema, raw_value, prefix) do
       {:ok, parsed} -> {:cont, {:ok, Map.put(acc, field, parsed)}}
       {:error, _} = error -> {:halt, error}
     end
@@ -445,8 +444,7 @@ defmodule Ltix.LaunchClaims do
      InvalidClaim.exception(
        claim: "roles",
        value: role_uris,
-       message: "must be an array of strings",
-       spec_ref: "Core §5.3.7"
+       message: "must be an array of strings"
      )}
   end
 

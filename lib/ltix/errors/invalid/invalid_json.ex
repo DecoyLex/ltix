@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Invalid.InvalidJSON do
-  @moduledoc "Malformed JSON or JWT structure [Cert §6.1.1]."
-  use Ltix.Errors, fields: [:spec_ref], class: :invalid
+  @moduledoc "Malformed JSON or JWT structure."
+  use Ltix.Errors, fields: [], class: :invalid
 
-  def message(%{spec_ref: ref}) do
-    "Invalid LTI message: malformed JSON/JWT structure [#{ref}]"
+  def message(_error) do
+    "Invalid LTI message: malformed JSON/JWT structure"
   end
 end

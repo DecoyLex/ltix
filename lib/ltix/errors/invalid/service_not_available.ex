@@ -6,13 +6,13 @@ defmodule Ltix.Errors.Invalid.ServiceNotAvailable do
 
     * `:reason` (`t:String.t/0` or `nil`) - what is missing
   """
-  use Ltix.Errors, fields: [:service, :reason, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:service, :reason], class: :invalid
 
-  def message(%{service: service, reason: nil, spec_ref: ref}) do
-    "Service not available: #{inspect(service)} [#{ref}]"
+  def message(%{service: service, reason: nil}) do
+    "Service not available: #{inspect(service)}"
   end
 
-  def message(%{service: service, reason: reason, spec_ref: ref}) do
-    "Service not available: #{inspect(service)}. #{reason} [#{ref}]"
+  def message(%{service: service, reason: reason}) do
+    "Service not available: #{inspect(service)}. #{reason}"
   end
 end

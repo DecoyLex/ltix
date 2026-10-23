@@ -23,23 +23,22 @@ defmodule Ltix.LaunchClaims.ClaimHelpersTest do
     def schema, do: @schema
   end
 
-  describe "from_json/4" do
+  describe "from_json/3" do
     test "invalid type produces InvalidClaim with the bad value" do
       json = %{"id" => "ok", "type" => "not_a_list"}
 
       assert {:error, %InvalidClaim{} = err} =
-               ClaimHelpers.from_json(TestClaim.schema(), json, "test", "Spec §1")
+               ClaimHelpers.from_json(TestClaim.schema(), json, "test")
 
       assert err.claim == "test.type"
       assert err.value == "not_a_list"
-      assert err.spec_ref == "Spec §1"
     end
 
     test "accumulates multiple errors" do
       json = %{"type" => "not_a_list"}
 
       assert {:error, %Invalid{errors: errors}} =
-               ClaimHelpers.from_json(TestClaim.schema(), json, "test", "Spec §1")
+               ClaimHelpers.from_json(TestClaim.schema(), json, "test")
 
       assert length(errors) == 2
 

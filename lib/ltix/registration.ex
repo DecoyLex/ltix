@@ -137,8 +137,7 @@ defmodule Ltix.Registration do
     invalid(
       :issuer,
       issuer,
-      "must not include a query component",
-      "Sec §5.1.2 (no query component)"
+      "must not include a query component"
     )
   end
 
@@ -146,8 +145,7 @@ defmodule Ltix.Registration do
     invalid(
       :issuer,
       issuer,
-      "must not include a fragment component",
-      "Sec §5.1.2 (no fragment component)"
+      "must not include a fragment component"
     )
   end
 
@@ -158,7 +156,7 @@ defmodule Ltix.Registration do
   defp validate_client_id(client_id) when is_binary(client_id) and client_id != "", do: nil
 
   defp validate_client_id(client_id) do
-    invalid(:client_id, client_id, "must be a non-empty string", "Sec §5.1.1.2")
+    invalid(:client_id, client_id, "must be a non-empty string")
   end
 
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
@@ -172,7 +170,7 @@ defmodule Ltix.Registration do
   end
 
   defp not_https_url(field, url),
-    do: invalid(field, url, "must be an absolute HTTPS URL", "Sec §3")
+    do: invalid(field, url, "must be an absolute HTTPS URL")
 
   defp validate_optional_https_url(_field, nil), do: nil
   defp validate_optional_https_url(field, url), do: validate_https_url(field, url)
@@ -185,18 +183,17 @@ defmodule Ltix.Registration do
   defp validate_audience(audience) when is_binary(audience) and audience != "" do
     if String.contains?(audience, ":") and
          not match?({:ok, %URI{scheme: scheme}} when scheme != nil, URI.new(audience)) do
-      invalid(:audience, audience, "must be a URI when it includes a colon", "RFC 7519 §2")
+      invalid(:audience, audience, "must be a URI when it includes a colon")
     end
   end
 
   defp validate_audience(audience) do
-    invalid(:audience, audience, "must be a non-empty string", "Sec §4.1.1")
+    invalid(:audience, audience, "must be a non-empty string")
   end
 
   defp required(field), do: InvalidField.required(__MODULE__, field)
 
-  defp invalid(field, value, reason, spec_ref),
-    do: InvalidField.invalid(__MODULE__, field, value, reason, spec_ref)
+  defp invalid(field, value, reason), do: InvalidField.invalid(__MODULE__, field, value, reason)
 end
 
 defimpl Ltix.Registerable, for: Ltix.Registration do

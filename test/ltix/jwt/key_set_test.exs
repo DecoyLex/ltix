@@ -102,7 +102,7 @@ defmodule Ltix.JWT.KeySetTest do
       count_fetches(status(404))
       jwks_uri = ctx.registration.jwks_uri
 
-      assert {:error, %TransportError{status: 404, url: ^jwks_uri, spec_ref: "Sec §6.3"}} =
+      assert {:error, %TransportError{status: 404, url: ^jwks_uri}} =
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
                  req_options: req_options(retry: false)
                )
@@ -115,8 +115,7 @@ defmodule Ltix.JWT.KeySetTest do
       assert {:error,
               %Ltix.Errors.Security.AccessDenied{
                 status: 401,
-                url: ^jwks_uri,
-                spec_ref: "Sec §6.3"
+                url: ^jwks_uri
               }} =
                KeySet.get_key(ctx.registration, ctx.platform_jwk.kid,
                  req_options: req_options(retry: false)

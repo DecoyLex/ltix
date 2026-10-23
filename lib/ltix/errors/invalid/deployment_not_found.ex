@@ -1,5 +1,5 @@
 defmodule Ltix.Errors.Invalid.DeploymentNotFound do
-  @moduledoc "Unknown deployment_id [Core §3.1.3; Core §5.3.3]."
+  @moduledoc "Unknown deployment_id."
   use Ltix.Errors, fields: [:deployment_id], class: :invalid
 
   def message(%{deployment_id: deployment_id}) do

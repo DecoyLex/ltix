@@ -147,13 +147,13 @@ defmodule Ltix.MembershipsMemberPayloadTest do
 
     stub_pages(1, Map.put(container(1), "context", %{"id" => nil}))
 
-    assert {:error, %InvalidClaim{claim: "context.id", value: nil, spec_ref: "Core §5.4.1"}} =
+    assert {:error, %InvalidClaim{claim: "context.id", value: nil}} =
              MembershipsService.list_members(client)
 
     assert {:ok, stream} = MembershipsService.stream_members(client)
     error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-    assert %InvalidClaim{claim: "context.id", value: nil, spec_ref: "Core §5.4.1"} = error
+    assert %InvalidClaim{claim: "context.id", value: nil} = error
   end
 
   for page <- [1, 2] do
@@ -162,13 +162,13 @@ defmodule Ltix.MembershipsMemberPayloadTest do
 
       stub_pages(page, Map.put(container(page), "context", 123))
 
-      assert {:error, %InvalidClaim{claim: "context", value: 123, spec_ref: "Core §5.4.1"}} =
+      assert {:error, %InvalidClaim{claim: "context", value: 123}} =
                MembershipsService.list_members(client)
 
       assert {:ok, stream} = MembershipsService.stream_members(client)
       error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-      assert %InvalidClaim{claim: "context", value: 123, spec_ref: "Core §5.4.1"} = error
+      assert %InvalidClaim{claim: "context", value: 123} = error
     end
   end
 
@@ -191,13 +191,13 @@ defmodule Ltix.MembershipsMemberPayloadTest do
   test "context identifiers remain validated", %{client: client} do
     stub_pages(1, Map.put(container(1), "context", %{"id" => 123}))
 
-    assert {:error, %InvalidClaim{claim: "context.id", value: 123, spec_ref: "Core §5.4.1"}} =
+    assert {:error, %InvalidClaim{claim: "context.id", value: 123}} =
              MembershipsService.list_members(client)
 
     assert {:ok, stream} = MembershipsService.stream_members(client)
     error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-    assert %InvalidClaim{claim: "context.id", value: 123, spec_ref: "Core §5.4.1"} = error
+    assert %InvalidClaim{claim: "context.id", value: 123} = error
   end
 
   test "container identifier types remain classified", %{client: client} do
@@ -258,7 +258,7 @@ defmodule Ltix.MembershipsMemberPayloadTest do
       Map.put(container(1), "members", [Map.put(member("invalid"), "status", "Unknown")])
     )
 
-    assert {:error, %InvalidClaim{claim: "member.status", spec_ref: "NRPS §2.3"}} =
+    assert {:error, %InvalidClaim{claim: "member.status"}} =
              MembershipsService.list_members(client)
   end
 end

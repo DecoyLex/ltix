@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Invalid.MissingClaim do
   @moduledoc "Missing required LTI claim."
-  use Ltix.Errors, fields: [:claim, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:claim], class: :invalid
 
-  def message(%{claim: claim, spec_ref: ref}) do
-    "Missing required LTI claim: #{claim} [#{ref}]"
+  def message(%{claim: claim}) do
+    "Missing required LTI claim: #{claim}"
   end
 end

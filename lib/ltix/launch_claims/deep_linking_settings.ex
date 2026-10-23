@@ -74,6 +74,6 @@ defmodule Ltix.LaunchClaims.DeepLinkingSettings do
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "deep_linking_settings", "DL §4.4.1")
+    ClaimHelpers.from_json(@schema, json, "deep_linking_settings")
   end
 end

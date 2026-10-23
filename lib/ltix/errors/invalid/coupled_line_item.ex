@@ -1,9 +1,9 @@
 defmodule Ltix.Errors.Invalid.CoupledLineItem do
   @moduledoc "Attempted to delete the platform-coupled line item without `force: true`."
-  use Ltix.Errors, fields: [:line_item_url, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:line_item_url], class: :invalid
 
-  def message(%{line_item_url: url, spec_ref: ref}) do
+  def message(%{line_item_url: url}) do
     "Cannot delete coupled line item #{url}. This is the platform-created line item " <>
-      "from the launch claim. Pass force: true to override [#{ref}]"
+      "from the launch claim. Pass force: true to override"
   end
 end

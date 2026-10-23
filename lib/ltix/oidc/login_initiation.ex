@@ -61,11 +61,7 @@ defmodule Ltix.OIDC.LoginInitiation do
           nil
 
         _ ->
-          {:error,
-           MissingParameter.exception(
-             parameter: parameter,
-             spec_ref: "Sec §5.1.1.1"
-           )}
+          {:error, MissingParameter.exception(parameter: parameter)}
       end
     end)
   end

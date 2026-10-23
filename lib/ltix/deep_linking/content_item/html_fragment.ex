@@ -52,10 +52,10 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
 
       iex> {:error, error} = Ltix.DeepLinking.ContentItem.HTMLFragment.new([])
       iex> Exception.message(error)
-      "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required [DL §3.4]"
+      "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required"
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.4")
+  def new(opts), do: ContentItemHelpers.new(@schema, opts)
 
   @doc """
   Same as `new/1` but raises on error.

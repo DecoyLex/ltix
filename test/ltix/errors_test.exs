@@ -11,7 +11,6 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidEndpoint
-  alias Ltix.Errors.Invalid.InvalidJSON
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
   alias Ltix.Errors.Invalid.MalformedResponse
@@ -29,7 +28,6 @@ defmodule Ltix.ErrorsTest do
   alias Ltix.Errors.Security.IssuerMismatch
   alias Ltix.Errors.Security.KidNotFound
   alias Ltix.Errors.Security.SignatureInvalid
-  alias Ltix.Errors.Security.TokenExpired
   alias Ltix.Errors.Security.TokenNotYetValid
   alias Ltix.Errors.Unknown.TransportError
   alias Ltix.Errors.Unknown.Unknown
@@ -39,7 +37,7 @@ defmodule Ltix.ErrorsTest do
 
   describe "status_code/1" do
     test "security errors return 401" do
-      error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3")
+      error = SignatureInvalid.exception()
       assert Errors.status_code(error) == 401
     end
 
@@ -62,43 +60,34 @@ defmodule Ltix.ErrorsTest do
   if Code.ensure_loaded?(Plug) do
     describe "Plug.Exception" do
       test "invalid errors return 400" do
-        error = MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
+        error = MissingClaim.exception(claim: "sub")
         assert Plug.Exception.status(error) == 400
       end
     end
   end
 
   describe "Invalid error modules" do
-    test "MissingClaim includes claim name and spec ref in message" do
-      error = MissingClaim.exception(claim: "version", spec_ref: "Core §5.3.2")
+    test "MissingClaim includes claim name in message" do
+      error = MissingClaim.exception(claim: "version")
       assert Exception.message(error) =~ "version"
-      assert Exception.message(error) =~ "Core §5.3.2"
     end
 
-    test "InvalidClaim includes claim name, value, and spec ref in message" do
+    test "InvalidClaim includes claim name and value in message" do
       error =
         InvalidClaim.exception(
           claim: "message_type",
-          value: "wrong",
-          spec_ref: "Core §5.3.1"
+          value: "wrong"
         )
 
       assert Exception.message(error) =~ "message_type"
       assert Exception.message(error) =~ "wrong"
-      assert Exception.message(error) =~ "Core §5.3.1"
     end
 
-    test "InvalidJSON includes spec ref in message" do
-      error = InvalidJSON.exception(spec_ref: "Cert §6.1.1")
-      assert Exception.message(error) =~ "Cert §6.1.1"
-    end
-
-    test "MissingParameter includes parameter name and spec ref" do
+    test "MissingParameter includes parameter name" do
       error =
-        MissingParameter.exception(parameter: "iss", spec_ref: "Sec §5.1.1.1")
+        MissingParameter.exception(parameter: "iss")
 
       assert Exception.message(error) =~ "iss"
-      assert Exception.message(error) =~ "Sec §5.1.1.1"
     end
 
     test "RegistrationNotFound includes issuer and client_id" do
@@ -117,49 +106,42 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "deploy-456"
     end
 
-    test "ServiceNotAvailable includes service name and spec ref" do
+    test "ServiceNotAvailable includes service name" do
       error =
-        ServiceNotAvailable.exception(
-          service: Ltix.MembershipsService,
-          spec_ref: "NRPS §3.6.1.1"
-        )
+        ServiceNotAvailable.exception(service: Ltix.MembershipsService)
 
       assert Exception.message(error) =~ "MembershipsService"
-      assert Exception.message(error) =~ "NRPS §3.6.1.1"
     end
 
-    test "TokenRequestFailed with OAuth error includes error code [Sec §4.1]" do
+    test "TokenRequestFailed with OAuth error includes error code" do
       error =
         TokenRequestFailed.exception(
           error: "invalid_grant",
-          error_description: "bad grant",
-          spec_ref: "Sec §4.1"
+          error_description: "bad grant"
         )
 
       assert Exception.message(error) ==
-               "OAuth token request failed: invalid_grant. bad grant [Sec §4.1]"
+               "OAuth token request failed: invalid_grant. bad grant"
 
       assert Exception.message(%{error | error_description: nil}) ==
-               "OAuth token request failed: invalid_grant [Sec §4.1]"
+               "OAuth token request failed: invalid_grant"
     end
 
-    test "TokenRequestFailed with HTTP status includes status code [Sec §4.1]" do
+    test "TokenRequestFailed with HTTP status includes status code" do
       error =
         TokenRequestFailed.exception(
           status: 500,
-          body: "server error",
-          spec_ref: "Sec §4.1"
+          body: "server error"
         )
 
-      assert Exception.message(error) == "OAuth token request failed (HTTP 500) [Sec §4.1]"
+      assert Exception.message(error) == "OAuth token request failed (HTTP 500)"
     end
 
     test "MalformedResponse includes service and reason" do
       error =
         MalformedResponse.exception(
           service: Ltix.MembershipsService,
-          reason: "invalid JSON",
-          spec_ref: "NRPS §2.1"
+          reason: "invalid JSON"
         )
 
       assert Exception.message(error) =~ "MembershipsService"
@@ -172,8 +154,7 @@ defmodule Ltix.ErrorsTest do
           service: Ltix.MembershipsService,
           option: :max_members,
           count: 15_000,
-          max: 10_000,
-          spec_ref: ""
+          max: 10_000
         )
 
       assert Exception.message(error) =~ "MembershipsService"
@@ -183,12 +164,11 @@ defmodule Ltix.ErrorsTest do
       assert Exception.message(error) =~ "higher limit"
     end
 
-    test "ScopeMismatch includes scopes [Sec §4.1]" do
+    test "ScopeMismatch includes scopes" do
       error =
         ScopeMismatch.exception(
           scopes: ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"],
-          granted_scopes: [],
-          spec_ref: "Sec §4.1"
+          granted_scopes: []
         )
 
       assert Exception.message(error) =~ "contextmembership.readonly"
@@ -196,38 +176,23 @@ defmodule Ltix.ErrorsTest do
 
     test "InvalidEndpoint includes service name" do
       error =
-        InvalidEndpoint.exception(
-          service: Ltix.MembershipsService,
-          spec_ref: "Core §6.1"
-        )
+        InvalidEndpoint.exception(service: Ltix.MembershipsService)
 
       assert Exception.message(error) =~ "MembershipsService"
     end
   end
 
   describe "Security error modules" do
-    test "SignatureInvalid includes spec ref" do
-      error = SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")
-      assert Exception.message(error) =~ "Sec §5.1.3 step 1"
-    end
-
-    test "TokenExpired includes spec ref" do
-      error = TokenExpired.exception(spec_ref: "Sec §5.1.3 step 7")
-      assert Exception.message(error) =~ "Sec §5.1.3 step 7"
-    end
-
-    test "TokenNotYetValid includes the claim and spec ref" do
-      error = TokenNotYetValid.exception(claim: "nbf", spec_ref: "RFC 7519 §4.1.5")
+    test "TokenNotYetValid includes the claim" do
+      error = TokenNotYetValid.exception(claim: "nbf")
       assert Exception.message(error) =~ "nbf"
-      assert Exception.message(error) =~ "RFC 7519 §4.1.5"
     end
 
     test "IssuerMismatch includes expected and actual values" do
       error =
         IssuerMismatch.exception(
           expected: "https://platform.example.com",
-          actual: "https://evil.example.com",
-          spec_ref: "Sec §5.1.3 step 2"
+          actual: "https://evil.example.com"
         )
 
       assert Exception.message(error) =~ "https://platform.example.com"
@@ -239,53 +204,45 @@ defmodule Ltix.ErrorsTest do
         AudienceMismatch.exception(
           claim: "aud",
           expected: "my-client-id",
-          actual: ["other-client"],
-          spec_ref: "Sec §5.1.3 step 3"
+          actual: ["other-client"]
         )
 
       assert Exception.message(error) ==
-               ~s(Audience mismatch: expected my-client-id in aud ["other-client"] [Sec §5.1.3 step 3])
+               ~s(Audience mismatch: expected my-client-id in aud ["other-client"])
     end
 
     test "AlgorithmNotAllowed includes algorithm" do
       error =
-        AlgorithmNotAllowed.exception(
-          algorithm: "HS256",
-          spec_ref: "Sec §5.1.3 step 6"
-        )
+        AlgorithmNotAllowed.exception(algorithm: "HS256")
 
       assert Exception.message(error) =~ "HS256"
     end
 
     test "KidNotFound includes kid value" do
       error =
-        KidNotFound.exception(kid: "unknown-key-id", spec_ref: "Cert §6.1.1")
+        KidNotFound.exception(kid: "unknown-key-id")
 
       assert Exception.message(error) ==
-               "Key not found in the platform's key set for kid: unknown-key-id [Cert §6.1.1]"
+               "Key not found in the platform's key set for kid: unknown-key-id"
     end
 
-    test "AccessDenied includes URL and status [RFC 6750 §3.1]" do
+    test "AccessDenied includes URL and status" do
       error =
         AccessDenied.exception(
           url: "https://lms.example.com/memberships",
           status: 403,
-          body: "Forbidden",
-          spec_ref: "RFC 6750 §3.1"
+          body: "Forbidden"
         )
 
       assert Exception.message(error) =~ "https://lms.example.com/memberships"
       assert Exception.message(error) =~ "403"
     end
 
-    test "AccessTokenExpired includes expiry time [Sec §7.1]" do
+    test "AccessTokenExpired includes expiry time" do
       expires_at = ~U[2026-03-08 12:00:00Z]
 
       error =
-        AccessTokenExpired.exception(
-          expires_at: expires_at,
-          spec_ref: "Sec §7.1"
-        )
+        AccessTokenExpired.exception(expires_at: expires_at)
 
       assert Exception.message(error) =~ "2026-03-08"
       assert Exception.message(error) =~ "Client.refresh/1"
@@ -298,21 +255,16 @@ defmodule Ltix.ErrorsTest do
         ContentItemTypeNotAccepted.exception(
           index: 0,
           type: "link",
-          accept_types: ["ltiResourceLink"],
-          spec_ref: "DL §4.4.1"
+          accept_types: ["ltiResourceLink"]
         )
 
       assert Exception.message(error) =~ ~s(type "link" at index 0)
       assert Exception.message(error) =~ ~s(["ltiResourceLink"])
-      assert Exception.message(error) =~ "DL §4.4.1"
     end
 
     test "CoupledLineItem includes line_item_url" do
       error =
-        CoupledLineItem.exception(
-          line_item_url: "https://lms.example.com/lineitems/1",
-          spec_ref: "AGS §4.3"
-        )
+        CoupledLineItem.exception(line_item_url: "https://lms.example.com/lineitems/1")
 
       assert Exception.message(error) =~ "https://lms.example.com/lineitems/1"
       assert Exception.message(error) =~ "coupled"
@@ -320,31 +272,22 @@ defmodule Ltix.ErrorsTest do
 
     test "InvalidMessageType includes message_type" do
       error =
-        InvalidMessageType.exception(
-          message_type: "LtiResourceLinkRequest",
-          spec_ref: "DL §4.5"
-        )
+        InvalidMessageType.exception(message_type: "LtiResourceLinkRequest")
 
       assert Exception.message(error) =~ "LtiResourceLinkRequest"
-      assert Exception.message(error) =~ "DL §4.5"
     end
 
     test "ContentItemsExceedLimit includes count" do
       error =
-        ContentItemsExceedLimit.exception(
-          count: 3,
-          spec_ref: "DL §4.4.1"
-        )
+        ContentItemsExceedLimit.exception(count: 3)
 
       assert Exception.message(error) =~ "3"
-      assert Exception.message(error) =~ "DL §4.4.1"
     end
 
     test "LineItemNotAccepted includes the item index" do
-      error = LineItemNotAccepted.exception(index: 2, spec_ref: "DL §4.4.1")
+      error = LineItemNotAccepted.exception(index: 2)
 
       assert Exception.message(error) =~ "index 2"
-      assert Exception.message(error) =~ "DL §4.4.1"
     end
 
     test "InvalidContentItem includes the item index and value" do
@@ -352,12 +295,11 @@ defmodule Ltix.ErrorsTest do
         InvalidContentItem.exception(
           index: 2,
           value: "https://example.com",
-          reason: "is not a content item",
-          spec_ref: "DL §4.5.6"
+          reason: "is not a content item"
         )
 
       assert Exception.message(error) ==
-               ~s(Content item at index 2 is not a content item, got "https://example.com" [DL §4.5.6])
+               ~s(Content item at index 2 is not a content item, got "https://example.com")
     end
   end
 
@@ -367,12 +309,11 @@ defmodule Ltix.ErrorsTest do
         AuthenticationFailed.exception(
           error: "access_denied",
           error_description: "User cancelled",
-          error_uri: nil,
-          spec_ref: "Sec §5.1.1.5"
+          error_uri: nil
         )
 
       assert Exception.message(error) ==
-               "Platform authentication failed: access_denied. User cancelled [Sec §5.1.1.5]"
+               "Platform authentication failed: access_denied. User cancelled"
     end
 
     test "AuthenticationFailed without description" do
@@ -380,17 +321,16 @@ defmodule Ltix.ErrorsTest do
         AuthenticationFailed.exception(
           error: "access_denied",
           error_description: nil,
-          error_uri: nil,
-          spec_ref: "Sec §5.1.1.5"
+          error_uri: nil
         )
 
       assert Exception.message(error) ==
-               "Platform authentication failed: access_denied [Sec §5.1.1.5]"
+               "Platform authentication failed: access_denied"
 
       blank = %{error | error_description: ""}
 
       assert Exception.message(blank) ==
-               "Platform authentication failed: access_denied [Sec §5.1.1.5]"
+               "Platform authentication failed: access_denied"
     end
   end
 
@@ -410,15 +350,14 @@ defmodule Ltix.ErrorsTest do
         TransportError.exception(
           status: 502,
           body: nil,
-          url: "https://platform.example.com/jwks",
-          spec_ref: "Sec §6.3"
+          url: "https://platform.example.com/jwks"
         )
 
       assert Exception.message(error) =~ "502"
       assert Exception.message(error) =~ "https://platform.example.com/jwks"
     end
 
-    test "TransportError includes the URL and leaves out a missing spec reference" do
+    test "TransportError includes the URL when there is one" do
       assert Exception.message(
                TransportError.exception(body: "timeout", url: "https://lms.example.com/jwks")
              ) ==
@@ -432,8 +371,7 @@ defmodule Ltix.ErrorsTest do
         TransportError.exception(
           status: nil,
           body: %{"error" => "timeout"},
-          url: nil,
-          spec_ref: "Sec §6.3"
+          url: nil
         )
 
       assert Exception.message(error) =~ "timeout"
@@ -441,16 +379,9 @@ defmodule Ltix.ErrorsTest do
   end
 
   describe "MalformedResponse additional branches" do
-    test "MalformedResponse without service but with spec_ref" do
-      error =
-        MalformedResponse.exception(
-          service: nil,
-          reason: "invalid JSON",
-          spec_ref: "NRPS §2.1"
-        )
-
-      assert Exception.message(error) =~ "invalid JSON"
-      assert Exception.message(error) =~ "NRPS §2.1"
+    test "MalformedResponse without service" do
+      error = MalformedResponse.exception(service: nil, reason: "invalid JSON")
+      assert Exception.message(error) == "Malformed response: invalid JSON"
     end
   end
 end

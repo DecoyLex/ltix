@@ -194,8 +194,6 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Error class**. The kind of an Ltix error. Invalid errors come from bad input or a bad call, security errors from a failed security check, and unknown errors from failures outside the caller's control, such as storage or the network.
 
-**Spec reference**. The section of a specification that an Ltix error's check comes from, such as `Sec §5.1.3 step 7`.
-
 ## Service clients
 
 **OAuth client**. A tool's authenticated session for calling one platform's services, with an access token and the endpoints it applies to. _Avoid_ authenticated client.

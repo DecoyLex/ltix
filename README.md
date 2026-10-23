@@ -34,8 +34,7 @@ context.registration          #=> your struct from StorageAdapter.get_registrati
   web framework
 - **Structured claims** - roles, context, resource links, and service
   endpoints parsed into typed structs
-- **Spec-referenced errors** - classified as `:invalid`, `:security`, or
-  `:unknown`, and most have a `spec_ref` referencing the relevant spec section
+- **Structured errors** - classified as `:invalid`, `:security`, or `:unknown`
 - **Testing utilities** - `Ltix.Test` provides a simulated platform for
   integration tests without a real platform
 

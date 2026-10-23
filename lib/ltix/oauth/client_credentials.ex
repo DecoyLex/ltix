@@ -55,8 +55,7 @@ defmodule Ltix.OAuth.ClientCredentials do
     {:error,
      ServiceNotAvailable.exception(
        service: :oauth,
-       reason: "The registration has no token endpoint",
-       spec_ref: "Sec §4.1"
+       reason: "The registration has no token endpoint"
      )}
   end
 
@@ -91,7 +90,7 @@ defmodule Ltix.OAuth.ClientCredentials do
       |> Keyword.put(:body, body)
       |> Keyword.put(:retry, false)
       |> Keyword.put(:local_network_access, Keyword.get(opts, :local_network_access))
-      |> Keyword.merge(method: :post, service: :oauth, spec_ref: "RFC 6749 §5.1")
+      |> Keyword.merge(method: :post, service: :oauth)
 
     with {:ok, response} <- HTTP.request(req_opts) do
       parse_response(response, scopes)
@@ -132,18 +131,12 @@ defmodule Ltix.OAuth.ClientCredentials do
        error: body["error"],
        error_description: body["error_description"],
        status: status,
-       body: body,
-       spec_ref: "Sec §4.1"
+       body: body
      )}
   end
 
   defp parse_response(%Req.Response{status: status, body: body}, _scopes) do
-    {:error,
-     TokenRequestFailed.exception(
-       status: status,
-       body: body,
-       spec_ref: "Sec §4.1"
-     )}
+    {:error, TokenRequestFailed.exception(status: status, body: body)}
   end
 
   # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)

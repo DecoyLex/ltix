@@ -23,7 +23,7 @@ defmodule Ltix.OAuth.ClientTest do
       do: :ok
 
     def validate_endpoint(_),
-      do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "test")}
+      do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
 
     @impl Ltix.AdvantageService
     def scopes(endpoint) when endpoint in [:valid_endpoint, :other_valid_endpoint],

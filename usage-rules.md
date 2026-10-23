@@ -103,10 +103,7 @@ Errors use the Splode framework with three classes.
 - `:security` - bad signature, expired token, nonce replay (HTTP 401)
 - `:unknown` - network errors, unexpected failures (HTTP 500)
 
-Most errors have a `.spec_ref` field that references the violated spec passage. Use
-`Ltix.Errors.status_code/1` to get the HTTP status for any error (invalid=400,
-security=401, unknown=500). When Plug is a dependency, all errors also implement
-`Plug.Exception`, so Phoenix error views use the correct status automatically.
+Use `Ltix.Errors.status_code/1` to get the HTTP status for any error (invalid=400, security=401, unknown=500). When Plug is a dependency, all errors also implement `Plug.Exception`, so Phoenix error views use the correct status automatically.
 
 A single failure is returned directly. Several simultaneous failures are grouped in their class, such as `%Ltix.Errors.Invalid{errors: [...]}`.
 

@@ -9,20 +9,17 @@ defmodule Ltix.Errors.Unknown.TransportError do
     * `:headers` (`t:map/0` or `nil`) - the response headers, such as `"retry-after"`
     * `:url` (`t:String.t/0` or `nil`) - the requested URL
   """
-  use Ltix.Errors, fields: [:status, :body, :headers, :url, :spec_ref], class: :unknown
+  use Ltix.Errors, fields: [:status, :body, :headers, :url], class: :unknown
 
   def message(%{status: status} = error) when not is_nil(status) do
-    "HTTP #{status}#{location(error, "from")}#{spec_ref(error)}"
+    "HTTP #{status}#{location(error, "from")}"
   end
 
   def message(%{body: body} = error) do
     body = if is_binary(body), do: body, else: inspect(body)
-    "Transport error#{location(error, "for")}: #{body}#{spec_ref(error)}"
+    "Transport error#{location(error, "for")}: #{body}"
   end
 
   defp location(%{url: nil}, _preposition), do: ""
   defp location(%{url: url}, preposition), do: " #{preposition} #{url}"
-
-  defp spec_ref(%{spec_ref: nil}), do: ""
-  defp spec_ref(%{spec_ref: ref}), do: " [#{ref}]"
 end

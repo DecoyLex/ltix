@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Security.AlgorithmNotAllowed do
-  @moduledoc "JWT alg is not RS256 [Sec §5.1.3 step 6; Sec §6.1]."
-  use Ltix.Errors, fields: [:algorithm, :spec_ref], class: :security
+  @moduledoc "JWT alg is not RS256."
+  use Ltix.Errors, fields: [:algorithm], class: :security
 
-  def message(%{algorithm: algorithm, spec_ref: ref}) do
-    "Algorithm not allowed: #{algorithm} (only RS256 is permitted) [#{ref}]"
+  def message(%{algorithm: algorithm}) do
+    "Algorithm not allowed: #{algorithm} (only RS256 is permitted)"
   end
 end

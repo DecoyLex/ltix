@@ -47,20 +47,6 @@ defmodule Ltix.GradeService.Score do
   ]
 
   # [AGS §3.4.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#score-service-media-type-and-schema)
-  @spec_refs %{
-    user_id: "AGS §3.4.5",
-    scoring_user_id: "AGS §3.4.6",
-    activity_progress: "AGS §3.4.7",
-    grading_progress: "AGS §3.4.8",
-    timestamp: "AGS §3.4.9",
-    score_given: "AGS §3.4.4",
-    score_maximum: "AGS §3.4.4",
-    submission: "AGS §3.4.10",
-    started_at: "AGS §3.4.10.1",
-    submitted_at: "AGS §3.4.10.2",
-    comment: "AGS §3.4.11"
-  }
-
   @schema Zoi.struct(
             __MODULE__,
             %{
@@ -190,15 +176,10 @@ defmodule Ltix.GradeService.Score do
 
     # [AGS §3.1.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#extensions)
     conflicts =
-      Extensions.conflicts(
-        __MODULE__,
-        attributes[:extensions],
-        Map.values(@json_keys),
-        "AGS §3.1.2"
-      )
+      Extensions.conflicts(__MODULE__, attributes[:extensions], Map.values(@json_keys))
 
     with {:ok, score} <-
-           InvalidField.parse(__MODULE__, @schema, attributes, &spec_ref/1, conflicts),
+           InvalidField.parse(__MODULE__, @schema, attributes, conflicts),
          :ok <- validate_timestamp(score),
          :ok <- validate_score_pair(score),
          :ok <- validate_submission_order(score.submission) do
@@ -262,7 +243,7 @@ defmodule Ltix.GradeService.Score do
 
   # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
   defp validate_timestamp(%__MODULE__{timestamp: nil}),
-    do: {:error, InvalidField.required(__MODULE__, :timestamp, spec_ref(:timestamp))}
+    do: {:error, InvalidField.required(__MODULE__, :timestamp)}
 
   defp validate_timestamp(%__MODULE__{}), do: :ok
 
@@ -286,11 +267,7 @@ defmodule Ltix.GradeService.Score do
 
   defp validate_submission_order(_submission), do: :ok
 
-  defp invalid(field, value, reason),
-    do: InvalidField.invalid(__MODULE__, field, value, reason, spec_ref(field))
-
-  defp spec_ref([_ | _] = path), do: spec_ref(List.last(path))
-  defp spec_ref(field), do: Map.get(@spec_refs, field, "AGS §3.4")
+  defp invalid(field, value, reason), do: InvalidField.invalid(__MODULE__, field, value, reason)
 
   # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
   # [AGS §3.4.10](https://www.imsglobal.org/spec/lti-ags/v2p0/#submission-optional)

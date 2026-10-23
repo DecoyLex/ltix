@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Security.KidMissing do
-  @moduledoc "No kid in JWT header [Cert §6.1.1]."
-  use Ltix.Errors, fields: [:spec_ref], class: :security
+  @moduledoc "No kid in JWT header."
+  use Ltix.Errors, fields: [], class: :security
 
-  def message(%{spec_ref: ref}) do
-    "JWT header missing required kid field [#{ref}]"
+  def message(_error) do
+    "JWT header missing required kid field"
   end
 end

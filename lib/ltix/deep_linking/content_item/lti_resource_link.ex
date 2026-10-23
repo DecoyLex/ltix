@@ -130,7 +130,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
         option -> option
       end)
 
-    ContentItemHelpers.new(@schema, opts, "DL §3.2")
+    ContentItemHelpers.new(@schema, opts)
   end
 
   @doc """

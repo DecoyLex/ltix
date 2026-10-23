@@ -88,7 +88,7 @@ defmodule Ltix.GradeService.Result do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    with {:ok, result} <- ClaimHelpers.from_json(@json_schema, json, nil, "AGS §3.3.4") do
+    with {:ok, result} <- ClaimHelpers.from_json(@json_schema, json, nil) do
       {:ok, %{result | extensions: Map.drop(json, Map.keys(@known_keys))}}
     end
   end

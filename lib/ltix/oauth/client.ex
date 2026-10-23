@@ -171,7 +171,7 @@ defmodule Ltix.OAuth.Client do
   @spec require_unexpired(t()) :: :ok | {:error, Exception.t()}
   def require_unexpired(%__MODULE__{token: token} = client) do
     if expired?(client) do
-      {:error, AccessTokenExpired.exception(expires_at: token.expires_at, spec_ref: "Sec §7.1")}
+      {:error, AccessTokenExpired.exception(expires_at: token.expires_at)}
     else
       :ok
     end
@@ -453,8 +453,7 @@ defmodule Ltix.OAuth.Client do
   defp scope_mismatch(client, scopes) do
     ScopeMismatch.exception(
       scopes: scopes,
-      granted_scopes: MapSet.to_list(client.token.granted_scopes),
-      spec_ref: "Sec §4.1"
+      granted_scopes: MapSet.to_list(client.token.granted_scopes)
     )
   end
 end

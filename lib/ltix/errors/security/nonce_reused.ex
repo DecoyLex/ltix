@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Security.NonceReused do
-  @moduledoc "Nonce previously seen, a replay attack [Sec §5.1.3 step 9]."
-  use Ltix.Errors, fields: [:spec_ref], class: :security
+  @moduledoc "Nonce previously seen, a replay attack."
+  use Ltix.Errors, fields: [], class: :security
 
-  def message(%{spec_ref: ref}) do
-    "JWT nonce has already been used [#{ref}]"
+  def message(_error) do
+    "JWT nonce has already been used"
   end
 end

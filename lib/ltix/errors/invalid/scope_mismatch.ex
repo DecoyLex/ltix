@@ -6,14 +6,10 @@ defmodule Ltix.Errors.Invalid.ScopeMismatch do
 
     * `:scopes` (list of `t:String.t/0`) - the scopes that would authorize the request, none of which the client was granted
   """
-  use Ltix.Errors, fields: [:scopes, :granted_scopes, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:scopes, :granted_scopes], class: :invalid
 
-  def message(%{scopes: [scope], spec_ref: ref}) do
-    "Client is not authorized for scope #{scope}; authenticate with the correct endpoint [#{ref}]"
-  end
-
-  def message(%{scopes: scopes, spec_ref: ref}) do
+  def message(%{scopes: scopes}) do
     "Client is not authorized for scope #{Enum.join(scopes, " or ")}; " <>
-      "authenticate with the correct endpoint [#{ref}]"
+      "authenticate with the correct endpoint"
   end
 end

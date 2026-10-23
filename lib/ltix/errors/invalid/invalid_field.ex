@@ -7,13 +7,12 @@ defmodule Ltix.Errors.Invalid.InvalidField do
     * `:field` (`t:atom/0` or `t:list/0`) - the field's name, or a list of keys for a field nested inside another, such as `[:icon, :url]`
     * `:reason` (`t:atom/0` or `t:String.t/0`) - `:unknown`, `:required`, or a description of the invalid value
   """
-  use Ltix.Errors, fields: [:struct, :field, :value, :reason, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:struct, :field, :value, :reason], class: :invalid
 
   alias Ltix.Errors
 
-  def message(%{struct: struct, field: field, spec_ref: ref} = error) do
-    "#{inspect(struct)} field #{inspect(field)} #{description(error)}" <>
-      if(ref, do: " [#{ref}]", else: "")
+  def message(%{struct: struct, field: field} = error) do
+    "#{inspect(struct)} field #{inspect(field)} #{description(error)}"
   end
 
   # Errors for every field of `attrs` not in `fields`.
@@ -26,25 +25,23 @@ defmodule Ltix.Errors.Invalid.InvalidField do
   end
 
   @doc false
-  @spec required(module(), atom() | list(), String.t() | nil) :: Exception.t()
-  def required(struct, field, spec_ref \\ nil),
-    do: exception(struct: struct, field: field, reason: :required, spec_ref: spec_ref)
+  @spec required(module(), atom() | list()) :: Exception.t()
+  def required(struct, field), do: exception(struct: struct, field: field, reason: :required)
 
   @doc false
-  @spec invalid(module(), atom() | list(), term(), String.t(), String.t() | nil) :: Exception.t()
-  def invalid(struct, field, value, reason, spec_ref \\ nil) do
-    exception(struct: struct, field: field, value: value, reason: reason, spec_ref: spec_ref)
+  @spec invalid(module(), atom() | list(), term(), String.t()) :: Exception.t()
+  def invalid(struct, field, value, reason) do
+    exception(struct: struct, field: field, value: value, reason: reason)
   end
 
   # Parses `input` with `schema`, returning the errors for `struct` combined
-  # with `other_errors`. `spec_ref` gives the spec reference for a field. A
-  # schema with `empty_values: [nil]` treats a field given `nil` as omitted, so
-  # a required one is reported missing, and a field with a default is `nil`
-  # when given `nil`.
+  # with `other_errors`. A schema with `empty_values: [nil]` treats a field
+  # given `nil` as omitted, so a required one is reported missing, and a field
+  # with a default is `nil` when given `nil`.
   @doc false
-  @spec parse(module(), Zoi.schema(), map(), (atom() | list() -> String.t()), [Exception.t()]) ::
+  @spec parse(module(), Zoi.schema(), map(), [Exception.t()]) ::
           {:ok, term()} | {:error, Exception.t()}
-  def parse(struct, schema, input, spec_ref, other_errors \\ []) do
+  def parse(struct, schema, input, other_errors \\ []) do
     case {Zoi.parse(schema, input), other_errors} do
       {{:ok, parsed}, []} ->
         nils = for {key, nil} <- input, Map.has_key?(parsed, key), into: %{}, do: {key, nil}
@@ -54,28 +51,18 @@ defmodule Ltix.Errors.Invalid.InvalidField do
         {:error, Errors.combine(other_errors)}
 
       {{:error, errors}, other_errors} ->
-        {:error, Errors.combine(from_zoi(struct, errors, input, spec_ref) ++ other_errors)}
+        {:error, Errors.combine(from_zoi(struct, errors, input) ++ other_errors)}
     end
   end
 
   # Converts the Zoi errors from parsing `input` into errors for `struct`.
-  # `spec_ref` gives the spec reference for a field.
   @doc false
-  @spec from_zoi(module(), [Zoi.Error.t()], map(), (atom() | list() -> String.t())) ::
-          [Exception.t()]
-  def from_zoi(struct, errors, input, spec_ref) do
+  @spec from_zoi(module(), [Zoi.Error.t()], map()) :: [Exception.t()]
+  def from_zoi(struct, errors, input) do
     for error <- errors do
       {path, reason} = zoi_reason(error)
       {path, value} = resolve(path, input)
-      field = field_name(path)
-
-      exception(
-        struct: struct,
-        field: field,
-        value: value,
-        reason: reason,
-        spec_ref: spec_ref.(field)
-      )
+      exception(struct: struct, field: field_name(path), value: value, reason: reason)
     end
   end
 

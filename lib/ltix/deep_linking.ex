@@ -170,7 +170,7 @@ defmodule Ltix.DeepLinking do
   end
 
   defp build(%LaunchContext{claims: %{message_type: mt}}, _serialized, _storage_adapter, _opts) do
-    {:error, InvalidMessageType.exception(message_type: mt, spec_ref: "DL §4.5")}
+    {:error, InvalidMessageType.exception(message_type: mt)}
   end
 
   # --- Serialization ---
@@ -204,12 +204,7 @@ defmodule Ltix.DeepLinking do
     do: {:error, invalid_item(index, item, ~s(has no "type"))}
 
   defp invalid_item(index, value, reason) do
-    InvalidContentItem.exception(
-      index: index,
-      value: value,
-      reason: reason,
-      spec_ref: "DL §4.5.6"
-    )
+    InvalidContentItem.exception(index: index, value: value, reason: reason)
   end
 
   defp collect_items(serialized) do
@@ -244,18 +239,13 @@ defmodule Ltix.DeepLinking do
       []
     else
       [
-        ContentItemTypeNotAccepted.exception(
-          index: index,
-          type: type,
-          accept_types: accept_types,
-          spec_ref: "DL §4.4.1"
-        )
+        ContentItemTypeNotAccepted.exception(index: index, type: type, accept_types: accept_types)
       ]
     end
   end
 
   defp exceeds_limit(items, false = _accept_multiple) when length(items) > 1 do
-    [ContentItemsExceedLimit.exception(count: length(items), spec_ref: "DL §4.4.1")]
+    [ContentItemsExceedLimit.exception(count: length(items))]
   end
 
   defp exceeds_limit(_items, _accept_multiple), do: []
@@ -264,7 +254,7 @@ defmodule Ltix.DeepLinking do
          {%{"type" => "ltiResourceLink", "lineItem" => _}, index},
          false = _accept_line_item
        ) do
-    [LineItemNotAccepted.exception(index: index, spec_ref: "DL §4.4.1")]
+    [LineItemNotAccepted.exception(index: index)]
   end
 
   defp line_item_not_accepted(_indexed_item, _accept_line_item), do: []
@@ -279,8 +269,7 @@ defmodule Ltix.DeepLinking do
       PresentationTargetNotAccepted.exception(
         index: index,
         target: target,
-        accept_presentation_document_targets: accepted_targets,
-        spec_ref: "DL §4.4.1"
+        accept_presentation_document_targets: accepted_targets
       )
     end
   end
@@ -299,8 +288,7 @@ defmodule Ltix.DeepLinking do
         MediaTypeNotAccepted.exception(
           index: index,
           media_type: media_type,
-          accept_media_types: accept_media_types,
-          spec_ref: "DL §4.4.1"
+          accept_media_types: accept_media_types
         )
       ]
     end

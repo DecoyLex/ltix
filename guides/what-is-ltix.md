@@ -97,19 +97,13 @@ recording used nonces. Use Ecto, Mnesia, Redis, or anything else.
 Elixir web framework. It takes maps in and returns structs out, with no
 Plug dependencies in the core path.
 
-**Spec-referenced errors.** When something goes wrong, Ltix returns
-structured errors organized into three classes, `:invalid` (bad input),
-`:security` (failed security checks), and `:unknown` (unexpected
-failures). Most errors have a `spec_ref` field referencing the exact
-spec section that was violated, so you can look up why a validation
-failed.
+**Structured errors.** When something goes wrong, Ltix returns structured errors organized into three classes, `:invalid` (bad input), `:security` (failed security checks), and `:unknown` (unexpected failures).
 
 ```elixir
 {:error, %Ltix.Errors.Security.AudienceMismatch{
   claim: "aud",
   expected: "my-client-id",
-  actual: ["wrong-client-id"],
-  spec_ref: "Sec §5.1.3 step 3"
+  actual: ["wrong-client-id"]
 }}
 ```
 

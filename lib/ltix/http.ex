@@ -56,12 +56,11 @@ defmodule Ltix.HTTP do
   A request that cannot connect to the platform returns `Ltix.Errors.Unknown.TransportError`.
   A JSON body is decoded unless `decode_body: false` is given. Invalid JSON in a
   successful response returns `Ltix.Errors.Invalid.MalformedResponse`, labeled
-  with the `:service` and `:spec_ref` options, and in an error response is left
-  as the raw body.
+  with the `:service` option, and in an error response is left as the raw body.
   """
   @spec request(keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
   def request(opts) do
-    {labels, opts} = Keyword.split(opts, [:service, :spec_ref])
+    {labels, opts} = Keyword.split(opts, [:service])
     {decode?, opts} = Keyword.pop(opts, :decode_body, true)
     {access, opts} = Keyword.pop(opts, :local_network_access)
     url = Keyword.get(opts, :url)
@@ -151,28 +150,14 @@ defmodule Ltix.HTTP do
   defp to_ltix_error(result, _url), do: result
 
   @doc false
-  @spec status_error(Req.Response.t(), String.t(), String.t() | nil) :: Exception.t()
-  def status_error(response, url, spec_ref \\ nil)
-
+  @spec status_error(Req.Response.t(), String.t()) :: Exception.t()
   # [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1)
-  def status_error(%Req.Response{status: status, body: body}, url, spec_ref)
-      when status in [401, 403] do
-    AccessDenied.exception(
-      status: status,
-      body: body,
-      url: url,
-      spec_ref: spec_ref || "RFC 6750 §3.1"
-    )
+  def status_error(%Req.Response{status: status, body: body}, url) when status in [401, 403] do
+    AccessDenied.exception(status: status, body: body, url: url)
   end
 
-  def status_error(%Req.Response{status: status, body: body, headers: headers}, url, spec_ref) do
-    TransportError.exception(
-      status: status,
-      body: body,
-      headers: headers,
-      url: url,
-      spec_ref: spec_ref
-    )
+  def status_error(%Req.Response{status: status, body: body, headers: headers}, url) do
+    TransportError.exception(status: status, body: body, headers: headers, url: url)
   end
 
   @doc false
@@ -281,10 +266,7 @@ defmodule Ltix.HTTP do
     if get_in(opts, [:connect_options, :transport_opts, :verify]) == :verify_none or
          get_in(finch_options, [:conn_opts, :transport_opts, :verify]) == :verify_none do
       {:error,
-       TransportError.exception(
-         body: "Platform requests require TLS certificate verification",
-         spec_ref: "RFC 6750 §5.3"
-       )}
+       TransportError.exception(body: "Platform requests require TLS certificate verification")}
     else
       :ok
     end
@@ -339,8 +321,7 @@ defmodule Ltix.HTTP do
       RedirectNotAllowed.exception(
         status: response.status,
         url: URI.to_string(%{request.url | userinfo: nil, query: nil, fragment: nil}),
-        location: redirect_location(response),
-        spec_ref: "Sec §3, RFC 6750 §5.3"
+        location: redirect_location(response)
       )
 
     Req.Request.halt(request, error)
@@ -368,8 +349,7 @@ defmodule Ltix.HTTP do
      TransportError.exception(
        body:
          "Endpoint must be an absolute HTTPS URL, or an HTTP URL for a loopback or local host, " <>
-           "without a userinfo component (RFC 3986 §3.2.1)",
-       spec_ref: "Sec §3, RFC 6750 §5.3"
+           "without a userinfo component (RFC 3986 §3.2.1)"
      )}
   end
 

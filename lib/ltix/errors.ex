@@ -17,7 +17,7 @@ defmodule Ltix.Errors do
 
   Use `status_code/1` to get the HTTP status for any Ltix error.
 
-      error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
+      error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub")
       Ltix.Errors.status_code(error)
       #=> 400
 
@@ -109,23 +109,22 @@ defmodule Ltix.Errors do
   # Converts Zoi validation errors for `input` into claim errors whose claim is
   # `prefix` (when given) followed by the path.
   @doc false
-  @spec from_zoi([Zoi.Error.t(), ...], term(), String.t() | nil, String.t()) :: Exception.t()
-  def from_zoi(errors, input, prefix, spec_ref) do
+  @spec from_zoi([Zoi.Error.t(), ...], term(), String.t() | nil) :: Exception.t()
+  def from_zoi(errors, input, prefix) do
     errors
-    |> Enum.map(&from_zoi_error(&1, input, prefix, spec_ref))
+    |> Enum.map(&from_zoi_error(&1, input, prefix))
     |> combine()
   end
 
-  defp from_zoi_error(%{code: :required} = error, _input, prefix, spec_ref) do
-    MissingClaim.exception(claim: claim_path(prefix, error.path), spec_ref: spec_ref)
+  defp from_zoi_error(%{code: :required} = error, _input, prefix) do
+    MissingClaim.exception(claim: claim_path(prefix, error.path))
   end
 
-  defp from_zoi_error(error, input, prefix, spec_ref) do
+  defp from_zoi_error(error, input, prefix) do
     InvalidClaim.exception(
       claim: claim_path(prefix, error.path),
       value: lookup_value(input, error.path),
-      message: error.message,
-      spec_ref: spec_ref
+      message: error.message
     )
   end
 
@@ -168,7 +167,7 @@ defmodule Ltix.Errors do
 
   ## Examples
 
-      iex> error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub", spec_ref: "Core §5.3")
+      iex> error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub")
       iex> Ltix.Errors.status_code(error)
       400
   """

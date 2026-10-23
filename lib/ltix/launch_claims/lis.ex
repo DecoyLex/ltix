@@ -46,6 +46,6 @@ defmodule Ltix.LaunchClaims.LIS do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "lis", "Core §5.4.5")
+    ClaimHelpers.from_json(@schema, json, "lis")
   end
 end

@@ -91,10 +91,10 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
 
       iex> {:error, error} = Ltix.DeepLinking.ContentItem.Link.new([])
       iex> Exception.message(error)
-      "Ltix.DeepLinking.ContentItem.Link field :url is required [DL §3.1]"
+      "Ltix.DeepLinking.ContentItem.Link field :url is required"
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
-  def new(opts), do: ContentItemHelpers.new(@schema, opts, "DL §3.1")
+  def new(opts), do: ContentItemHelpers.new(@schema, opts)
 
   @doc """
   Same as `new/1` but raises on error.

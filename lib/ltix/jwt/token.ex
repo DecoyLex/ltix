@@ -136,8 +136,9 @@ defmodule Ltix.JWT.Token do
   defp header_with_algorithm(%{"alg" => algorithm} = header) when is_binary(algorithm),
     do: {:ok, Map.put_new(header, "kid", nil)}
 
+  # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   defp header_with_algorithm(_header),
-    do: {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.2")}
+    do: {:error, SignatureInvalid.exception()}
 
   # Returns the base64url-decoded header (index 0) or payload (index 1) of a
   # compact JWT.
@@ -157,38 +158,34 @@ defmodule Ltix.JWT.Token do
   defp validate_algorithm(%{"alg" => "RS256"}), do: :ok
 
   defp validate_algorithm(%{"alg" => alg}) do
-    {:error,
-     AlgorithmNotAllowed.exception(
-       algorithm: alg,
-       spec_ref: "Sec §5.1.3 step 6"
-     )}
+    {:error, AlgorithmNotAllowed.exception(algorithm: alg)}
   end
 
   # [RFC 7515 §4.1.11](https://www.rfc-editor.org/rfc/rfc7515#section-4.1.11)
   # [RFC 7515 §5.2 step 5](https://www.rfc-editor.org/rfc/rfc7515#section-5.2)
   defp validate_critical_headers(%{"crit" => _critical}) do
-    {:error, SignatureInvalid.exception(spec_ref: "RFC 7515 §4.1.11")}
+    {:error, SignatureInvalid.exception()}
   end
 
   defp validate_critical_headers(_header), do: :ok
 
   # [Sec §6.3] The kid MUST be present in the JWT header.
   defp extract_kid(%{"kid" => nil}) do
-    {:error, KidMissing.exception(spec_ref: "Sec §6.3")}
+    {:error, KidMissing.exception()}
   end
 
   defp extract_kid(%{"kid" => kid}) when is_binary(kid), do: {:ok, kid}
 
   # [RFC 7515 §4.1.4](https://www.rfc-editor.org/rfc/rfc7515#section-4.1.4)
   defp extract_kid(_header) do
-    {:error, SignatureInvalid.exception(spec_ref: "RFC 7515 §4.1.4")}
+    {:error, SignatureInvalid.exception()}
   end
 
   # [Sec §5.1.3 step 1] Verify the signature using the platform's public key.
   defp verify_signature(token_string, jwk) do
     case JOSE.JWS.verify_strict(JWK.to_jose(jwk), ["RS256"], token_string) do
       {true, payload, _jws} -> decode_object(payload)
-      _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.1.3 step 1")}
+      _invalid -> {:error, SignatureInvalid.exception()}
     end
   end
 
@@ -231,7 +228,7 @@ defmodule Ltix.JWT.Token do
       defp decode_json(json), do: AppConfig.json_library!().decode(json)
   end
 
-  defp invalid_json, do: InvalidJSON.exception(spec_ref: "RFC 7519 §7.2")
+  defp invalid_json, do: InvalidJSON.exception()
 
   # Validate claims per [Sec §5.1.3] steps 2-5, 7-9.
   defp validate_claims(claims, registration, opts) do
@@ -252,17 +249,12 @@ defmodule Ltix.JWT.Token do
     do: :ok
 
   defp validate_issuer(%{"iss" => iss}, %Registration{issuer: expected}) do
-    {:error,
-     IssuerMismatch.exception(
-       expected: expected,
-       actual: iss,
-       spec_ref: "Sec §5.1.3 step 2"
-     )}
+    {:error, IssuerMismatch.exception(expected: expected, actual: iss)}
   end
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   defp validate_issuer(_claims, _registration) do
-    {:error, MissingClaim.exception(claim: "iss", spec_ref: "Sec §5.1.2")}
+    {:error, MissingClaim.exception(claim: "iss")}
   end
 
   # [Sec §5.1.3 step 3] aud MUST contain client_id. The tool MUST reject
@@ -282,13 +274,7 @@ defmodule Ltix.JWT.Token do
         validate_azp(azp, client_id)
 
       true ->
-        {:error,
-         AudienceMismatch.exception(
-           claim: "aud",
-           expected: client_id,
-           actual: aud,
-           spec_ref: "Sec §5.1.3 step 3"
-         )}
+        {:error, AudienceMismatch.exception(claim: "aud", expected: client_id, actual: aud)}
     end
   end
 
@@ -297,13 +283,7 @@ defmodule Ltix.JWT.Token do
   defp validate_azp(azp, client_id) when azp == client_id, do: :ok
 
   defp validate_azp(azp, client_id) do
-    {:error,
-     AudienceMismatch.exception(
-       claim: "azp",
-       expected: client_id,
-       actual: azp,
-       spec_ref: "Sec §5.1.3 step 5"
-     )}
+    {:error, AudienceMismatch.exception(claim: "azp", expected: client_id, actual: azp)}
   end
 
   # [Sec §5.1.3 step 7] exp MUST be in the future (with clock skew tolerance).
@@ -312,17 +292,17 @@ defmodule Ltix.JWT.Token do
     if now < deadline(claims, opts) do
       :ok
     else
-      {:error, TokenExpired.exception(spec_ref: "Sec §5.1.3 steps 7-8")}
+      {:error, TokenExpired.exception()}
     end
   end
 
   # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
   defp validate_expiration(%{"exp" => exp}, _now, _opts) do
-    {:error, InvalidClaim.exception(claim: "exp", value: exp, spec_ref: "Sec §5.1.2")}
+    {:error, InvalidClaim.exception(claim: "exp", value: exp)}
   end
 
   defp validate_expiration(_claims, _now, _opts) do
-    {:error, MissingClaim.exception(claim: "exp", spec_ref: "Sec §5.1.2")}
+    {:error, MissingClaim.exception(claim: "exp")}
   end
 
   defp deadline(%{"exp" => exp, "iat" => issued_at}, opts) do
@@ -339,31 +319,31 @@ defmodule Ltix.JWT.Token do
   # [RFC 7519 §4.1.6](https://www.rfc-editor.org/rfc/rfc7519#section-4.1.6)
   # [Sec §5.1.3 step 8](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_issued_at(%{"iat" => issued_at}, latest_start) when is_number(issued_at),
-    do: validate_not_future("iat", issued_at, "Sec §5.1.3 step 8", latest_start)
+    do: validate_not_future("iat", issued_at, latest_start)
 
   defp validate_issued_at(%{"iat" => issued_at}, _latest_start) do
-    {:error, InvalidClaim.exception(claim: "iat", value: issued_at, spec_ref: "Sec §5.1.2")}
+    {:error, InvalidClaim.exception(claim: "iat", value: issued_at)}
   end
 
   defp validate_issued_at(_claims, _latest_start) do
-    {:error, MissingClaim.exception(claim: "iat", spec_ref: "Sec §5.1.2")}
+    {:error, MissingClaim.exception(claim: "iat")}
   end
 
   # [RFC 7519 §4.1.5](https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5)
   defp validate_not_before(%{"nbf" => not_before}, latest_start) when is_number(not_before),
-    do: validate_not_future("nbf", not_before, "RFC 7519 §4.1.5", latest_start)
+    do: validate_not_future("nbf", not_before, latest_start)
 
   defp validate_not_before(%{"nbf" => not_before}, _latest_start) do
-    {:error, InvalidClaim.exception(claim: "nbf", value: not_before, spec_ref: "RFC 7519 §4.1.5")}
+    {:error, InvalidClaim.exception(claim: "nbf", value: not_before)}
   end
 
   defp validate_not_before(_claims, _latest_start), do: :ok
 
-  defp validate_not_future(_claim, time, _spec_ref, latest_start) when time <= latest_start,
+  defp validate_not_future(_claim, time, latest_start) when time <= latest_start,
     do: :ok
 
-  defp validate_not_future(claim, _time, spec_ref, _latest_start) do
-    {:error, TokenNotYetValid.exception(claim: claim, spec_ref: spec_ref)}
+  defp validate_not_future(claim, _time, _latest_start) do
+    {:error, TokenNotYetValid.exception(claim: claim)}
   end
 
   # [Sec §5.1.3 step 9] nonce MUST be present.
@@ -371,6 +351,6 @@ defmodule Ltix.JWT.Token do
     do: :ok
 
   defp validate_nonce(_claims) do
-    {:error, NonceMissing.exception(spec_ref: "Sec §5.1.3 step 9")}
+    {:error, NonceMissing.exception()}
   end
 end

@@ -41,7 +41,7 @@ defmodule Ltix.LaunchClaims.Context do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "context", "Core §5.4.1")
+    ClaimHelpers.from_json(@schema, json, "context")
   end
 
   @doc """

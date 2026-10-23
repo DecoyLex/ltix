@@ -287,7 +287,7 @@ defmodule Ltix.StorageAdapter do
         :ok
 
       {:error, :nonce_already_used} ->
-        {:error, NonceReused.exception(spec_ref: "Sec §5.1.3 step 9")}
+        {:error, NonceReused.exception()}
 
       result ->
         {:error, storage_error(:validate_nonce, result)}

@@ -71,11 +71,13 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
 
       iex> {:error, error} = Ltix.LaunchClaims.AGSEndpoint.new(line_item: "https://lms.example.com/lineitems/1")
       iex> Exception.message(error)
-      "Ltix.LaunchClaims.AGSEndpoint field :scopes is required [AGS §3.1]"
+      "Ltix.LaunchClaims.AGSEndpoint field :scopes is required"
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
+  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   def new(attributes) when is_list(attributes) or is_map(attributes) do
-    InvalidField.parse(__MODULE__, @new_schema, Map.new(attributes), &spec_ref/1)
+    InvalidField.parse(__MODULE__, @new_schema, Map.new(attributes))
   end
 
   @doc """
@@ -88,11 +90,6 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
       {:error, error} -> raise error
     end
   end
-
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
-  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  defp spec_ref(field) when field in [:line_items, :line_item], do: "Sec §3"
-  defp spec_ref(_field), do: "AGS §3.1"
 
   @doc false
   @spec validate_url(term(), keyword()) :: :ok | {:error, String.t()}
@@ -116,8 +113,7 @@ defmodule Ltix.LaunchClaims.AGSEndpoint do
     ClaimHelpers.from_json(
       @schema,
       json,
-      "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint",
-      "AGS §3.1"
+      "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"
     )
   end
 end

@@ -46,14 +46,14 @@ defmodule Ltix.LaunchClaims.ClaimHelpers do
 
   def parse_renamed(json, schema, _renames, _field_names, _opts), do: Zoi.parse(schema, json)
 
-  @spec from_json(Zoi.schema(), term(), String.t() | nil, String.t()) ::
+  @spec from_json(Zoi.schema(), term(), String.t() | nil) ::
           {:ok, term()} | {:error, Exception.t()}
-  def from_json(schema, json, claim_prefix, spec_ref) do
+  def from_json(schema, json, claim_prefix) do
     json = normalize_nulls(json)
 
     case Zoi.parse(schema, json) do
       {:ok, _} = ok -> ok
-      {:error, errors} -> {:error, Ltix.Errors.from_zoi(errors, json, claim_prefix, spec_ref)}
+      {:error, errors} -> {:error, Ltix.Errors.from_zoi(errors, json, claim_prefix)}
     end
   end
 

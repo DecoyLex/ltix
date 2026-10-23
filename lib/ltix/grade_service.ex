@@ -91,7 +91,7 @@ defmodule Ltix.GradeService do
   end
 
   def validate_endpoint(_),
-    do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
+    do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
 
   @impl Ltix.AdvantageService
   # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
@@ -205,8 +205,7 @@ defmodule Ltix.GradeService do
     with_line_items(:list_line_items, client, opts, fn items ->
       Operation.collect(items, max,
         service: __MODULE__,
-        option: :max_line_items,
-        spec_ref: "AGS §3.2.4"
+        option: :max_line_items
       )
     end)
   end
@@ -537,8 +536,7 @@ defmodule Ltix.GradeService do
     with_results(:list_results, client, opts, fn results ->
       Operation.collect(results, max,
         service: __MODULE__,
-        option: :max_results,
-        spec_ref: "AGS §3.3.6"
+        option: :max_results
       )
     end)
   end
@@ -625,15 +623,14 @@ defmodule Ltix.GradeService do
 
   # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
   defp line_item_url(%LineItem{id: nil} = item, _endpoint) do
-    {:error, MissingLineItemId.exception(line_item: item, spec_ref: "AGS §3.2.3")}
+    {:error, MissingLineItemId.exception(line_item: item)}
   end
 
   defp line_item_url(%LineItem{id: id}, _endpoint), do: {:ok, id}
   defp line_item_url(url, _endpoint) when is_binary(url), do: {:ok, url}
 
   defp not_available(reason) do
-    {:error,
-     ServiceNotAvailable.exception(service: __MODULE__, reason: reason, spec_ref: "AGS §3.1")}
+    {:error, ServiceNotAvailable.exception(service: __MODULE__, reason: reason)}
   end
 
   # [AGS §3.3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service-endpoint)
@@ -649,7 +646,7 @@ defmodule Ltix.GradeService do
 
   # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
   defp check_coupled_guard(%AGSEndpoint{line_item: url}, url, false) do
-    {:error, CoupledLineItem.exception(line_item_url: url, spec_ref: "AGS §3.2")}
+    {:error, CoupledLineItem.exception(line_item_url: url)}
   end
 
   defp check_coupled_guard(_endpoint, _url, _force), do: :ok
@@ -700,20 +697,20 @@ defmodule Ltix.GradeService do
   #
   # [AGS §3.2.1][line-item-service-media-types-and-schemas]
   defp parse_pages(pages, :line_items),
-    do: parse_pages(pages, &LineItem.from_json/1, "AGS §3.2.1")
+    do: parse_items(pages, &LineItem.from_json/1)
 
   # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema)
-  defp parse_pages(pages, :results), do: parse_pages(pages, &Result.from_json/1, "AGS §3.3.4")
+  defp parse_pages(pages, :results), do: parse_items(pages, &Result.from_json/1)
 
   # Emits `{:ok, item}` or `{:error, error}` for each entry, so consumers stop
   # at the first failure without fetching later pages.
-  defp parse_pages(pages, parser, spec_ref) do
+  defp parse_items(pages, parser) do
     Stream.flat_map(pages, fn
       {:ok, body} when is_list(body) ->
-        Stream.map(body, &parse_collection_item(&1, parser, spec_ref))
+        Stream.map(body, &parse_collection_item(&1, parser))
 
       {:ok, _body} ->
-        [{:error, malformed_response("expected JSON array", spec_ref)}]
+        [{:error, malformed_response("expected JSON array")}]
 
       {:error, _error} = error ->
         [error]
@@ -724,17 +721,17 @@ defmodule Ltix.GradeService do
   defp parse_line_item(body) when is_map(body), do: LineItem.from_json(body)
 
   defp parse_line_item(_body) do
-    {:error, malformed_response("expected JSON object", "AGS §3.2.1")}
+    {:error, malformed_response("expected JSON object")}
   end
 
-  defp parse_collection_item(json, parser, _spec_ref) when is_map(json), do: parser.(json)
+  defp parse_collection_item(json, parser) when is_map(json), do: parser.(json)
 
-  defp parse_collection_item(_json, _parser, spec_ref) do
-    {:error, malformed_response("expected JSON object in collection", spec_ref)}
+  defp parse_collection_item(_json, _parser) do
+    {:error, malformed_response("expected JSON object in collection")}
   end
 
-  defp malformed_response(reason, spec_ref) do
-    MalformedResponse.exception(service: __MODULE__, reason: reason, spec_ref: spec_ref)
+  defp malformed_response(reason) do
+    MalformedResponse.exception(service: __MODULE__, reason: reason)
   end
 
   @doc false

@@ -29,7 +29,7 @@ defmodule Ltix.OAuthTest do
     def validate_endpoint(:valid_endpoint), do: :ok
 
     def validate_endpoint(_),
-      do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "test")}
+      do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
 
     @impl Ltix.AdvantageService
     def scopes(:valid_endpoint),
@@ -47,7 +47,7 @@ defmodule Ltix.OAuthTest do
     def validate_endpoint(:other_endpoint), do: :ok
 
     def validate_endpoint(_),
-      do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "test")}
+      do: {:error, InvalidEndpoint.exception(service: __MODULE__)}
 
     @impl Ltix.AdvantageService
     def scopes(:other_endpoint),

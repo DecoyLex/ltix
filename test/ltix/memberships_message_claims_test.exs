@@ -21,29 +21,27 @@ defmodule Ltix.MembershipsMessageClaimsTest do
 
   test "standard message claim shapes stay classified", %{client: client} do
     messages = [
-      {%{"https://purl.imsglobal.org/spec/lti/claim/message_type" => 123}, "message_type", 123,
-       "Core §5.3"},
-      {%{"aud" => [123]}, "aud.0", 123, "Core §5.3"},
-      {%{"exp" => "invalid"}, "exp", "invalid", "Core §5.3"},
-      {%{"https://purl.imsglobal.org/spec/lti/claim/resource_link" => []}, "resource_link", [],
-       "Core §5.3.5"},
+      {%{"https://purl.imsglobal.org/spec/lti/claim/message_type" => 123}, "message_type", 123},
+      {%{"aud" => [123]}, "aud.0", 123},
+      {%{"exp" => "invalid"}, "exp", "invalid"},
+      {%{"https://purl.imsglobal.org/spec/lti/claim/resource_link" => []}, "resource_link", []},
       {%{"https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings" => 123},
-       "deep_linking_settings", 123, "DL §4.4.1"}
+       "deep_linking_settings", 123}
     ]
 
-    for {message, claim, value, spec_ref} <- messages do
+    for {message, claim, value} <- messages do
       body =
         Map.put(container(1), "members", [Map.put(member("invalid"), "message", [message])])
 
       stub_pages(1, body)
 
-      assert {:error, %InvalidClaim{claim: ^claim, value: ^value, spec_ref: ^spec_ref}} =
+      assert {:error, %InvalidClaim{claim: ^claim, value: ^value}} =
                MembershipsService.list_members(client)
 
       assert {:ok, stream} = MembershipsService.stream_members(client)
       error = assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
 
-      assert %InvalidClaim{claim: ^claim, value: ^value, spec_ref: ^spec_ref} = error
+      assert %InvalidClaim{claim: ^claim, value: ^value} = error
     end
   end
 

@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Invalid.InvalidEndpoint do
   @moduledoc "Wrong endpoint struct passed to an Advantage service."
-  use Ltix.Errors, fields: [:service, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:service], class: :invalid
 
-  def message(%{service: service, spec_ref: ref}) do
-    "Invalid endpoint for #{inspect(service)} [#{ref}]"
+  def message(%{service: service}) do
+    "Invalid endpoint for #{inspect(service)}"
   end
 end

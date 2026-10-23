@@ -6,16 +6,11 @@ defmodule Ltix.Errors.Invalid.MediaTypeNotAccepted do
 
     * `:index` (`t:non_neg_integer/0`) - the item's position in the list passed to `Ltix.DeepLinking.build_response/3`
   """
-  use Ltix.Errors, fields: [:index, :media_type, :accept_media_types, :spec_ref], class: :invalid
+  use Ltix.Errors, fields: [:index, :media_type, :accept_media_types], class: :invalid
 
   # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
-  def message(%{
-        index: index,
-        media_type: media_type,
-        accept_media_types: accepted,
-        spec_ref: ref
-      }) do
+  def message(%{index: index, media_type: media_type, accept_media_types: accepted}) do
     "Content item at index #{index} has media type #{inspect(media_type)}, " <>
-      "which the platform does not accept. Accepted media types are #{inspect(accepted)} [#{ref}]"
+      "which the platform does not accept. Accepted media types are #{inspect(accepted)}"
   end
 end

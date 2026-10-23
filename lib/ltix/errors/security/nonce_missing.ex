@@ -1,8 +1,8 @@
 defmodule Ltix.Errors.Security.NonceMissing do
-  @moduledoc "No nonce claim in JWT [Sec §5.1.3 step 9]."
-  use Ltix.Errors, fields: [:spec_ref], class: :security
+  @moduledoc "No nonce claim in JWT."
+  use Ltix.Errors, fields: [], class: :security
 
-  def message(%{spec_ref: ref}) do
-    "JWT missing required nonce claim [#{ref}]"
+  def message(_error) do
+    "JWT missing required nonce claim"
   end
 end

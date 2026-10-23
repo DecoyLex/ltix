@@ -906,7 +906,7 @@ defmodule Ltix.Test do
     # [Sec §5.2.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation-0)
     case verify_signature(public_key, jwt) do
       {true, %JOSE.JWT{fields: claims}, _jws} when is_map(claims) -> {:ok, claims}
-      _invalid -> {:error, SignatureInvalid.exception(spec_ref: "Sec §5.2.3")}
+      _invalid -> {:error, SignatureInvalid.exception()}
     end
   end
 

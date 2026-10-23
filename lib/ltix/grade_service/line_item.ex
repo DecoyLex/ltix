@@ -64,21 +64,14 @@ defmodule Ltix.GradeService.LineItem do
   # [AGS §3.2.13](https://www.imsglobal.org/spec/lti-ags/v2p0/#enddatetime)
   @date_time_schema Zoi.string() |> Zoi.transform({__MODULE__, :parse_date_time, []})
 
-  @validation_schema Zoi.map(%{
-                       label: @label_schema,
-                       score_maximum: @score_maximum_schema,
-                       start_date_time: Zoi.optional(Zoi.datetime()),
-                       end_date_time: Zoi.optional(Zoi.datetime())
-                     })
-
-  @spec_refs %{
-    label: "AGS §3.2.7",
-    score_maximum: "AGS §3.2.8",
-    start_date_time: "AGS §3.2.12",
-    end_date_time: "AGS §3.2.13"
+  @validation_fields %{
+    label: @label_schema,
+    score_maximum: @score_maximum_schema,
+    start_date_time: Zoi.optional(Zoi.datetime()),
+    end_date_time: Zoi.optional(Zoi.datetime())
   }
 
-  @validated_fields Map.keys(@spec_refs)
+  @validation_schema Zoi.map(@validation_fields)
 
   # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
   @known_keys %{
@@ -128,7 +121,7 @@ defmodule Ltix.GradeService.LineItem do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) when is_map(json) do
-    with {:ok, item} <- ClaimHelpers.from_json(@json_schema, json, nil, "AGS §3.2") do
+    with {:ok, item} <- ClaimHelpers.from_json(@json_schema, json, nil) do
       {:ok, %{item | extensions: Map.drop(json, Map.keys(@known_keys))}}
     end
   end
@@ -148,27 +141,21 @@ defmodule Ltix.GradeService.LineItem do
       iex> item = %Ltix.GradeService.LineItem{label: nil, score_maximum: 100}
       iex> {:error, error} = Ltix.GradeService.LineItem.validate(item)
       iex> Exception.message(error)
-      "Ltix.GradeService.LineItem field :label is required [AGS §3.2.7]"
+      "Ltix.GradeService.LineItem field :label is required"
   """
   @spec validate(t()) :: :ok | {:error, Exception.t()}
   def validate(%__MODULE__{} = item) do
     fields =
       item
-      |> Map.take(@validated_fields)
+      |> Map.take(Map.keys(@validation_fields))
       |> Map.reject(fn {_field, value} -> is_nil(value) end)
 
     # [AGS §3.1.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#extensions)
     conflicts =
-      Extensions.conflicts(__MODULE__, item.extensions, Map.keys(@known_keys), "AGS §3.1.2")
+      Extensions.conflicts(__MODULE__, item.extensions, Map.keys(@known_keys))
 
     with {:ok, _fields} <-
-           InvalidField.parse(
-             __MODULE__,
-             @validation_schema,
-             fields,
-             &Map.fetch!(@spec_refs, &1),
-             conflicts
-           ),
+           InvalidField.parse(__MODULE__, @validation_schema, fields, conflicts),
          do: :ok
   end
 

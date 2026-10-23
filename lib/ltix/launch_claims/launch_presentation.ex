@@ -46,6 +46,6 @@ defmodule Ltix.LaunchClaims.LaunchPresentation do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "launch_presentation", "Core §5.4.4")
+    ClaimHelpers.from_json(@schema, json, "launch_presentation")
   end
 end

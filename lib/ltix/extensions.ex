@@ -43,20 +43,14 @@ defmodule Ltix.Extensions do
   Errors for each of `extensions` that would replace one of `standard_keys`, the
   JSON keys of the fields of `module`.
   """
-  @spec conflicts(module(), term(), Enumerable.t(String.t()), String.t()) :: [Exception.t()]
-  def conflicts(module, extensions, standard_keys, spec_ref) when is_map(extensions) do
+  @spec conflicts(module(), term(), Enumerable.t(String.t())) :: [Exception.t()]
+  def conflicts(module, extensions, standard_keys) when is_map(extensions) do
     for {key, value} <- extensions, to_string(key) in standard_keys do
-      InvalidField.invalid(
-        module,
-        [:extensions, key],
-        value,
-        "would replace a standard field",
-        spec_ref
-      )
+      InvalidField.invalid(module, [:extensions, key], value, "would replace a standard field")
     end
   end
 
-  def conflicts(_module, _extensions, _standard_keys, _spec_ref), do: []
+  def conflicts(_module, _extensions, _standard_keys), do: []
 
   @doc """
   Adds `extensions` to a serialized JSON map. Standard fields take precedence over

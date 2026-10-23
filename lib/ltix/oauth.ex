@@ -149,8 +149,7 @@ defmodule Ltix.OAuth do
           for service <- missing do
             ServiceNotAvailable.exception(
               service: service,
-              reason: "The launch has no endpoint claim for this service",
-              spec_ref: "Core §6.1"
+              reason: "The launch has no endpoint claim for this service"
             )
           end
 

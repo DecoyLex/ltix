@@ -46,7 +46,7 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
   @spec new(String.t() | nil) :: {:ok, t()} | {:error, Exception.t()}
   # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#claim-for-inclusion-in-lti-messages)
   def new(url) when url in [nil, ""] do
-    {:error, InvalidField.required(__MODULE__, :context_memberships_url, "NRPS §3.6.1.1")}
+    {:error, InvalidField.required(__MODULE__, :context_memberships_url)}
   end
 
   def new(url) do
@@ -84,8 +84,7 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
            __MODULE__,
            :context_memberships_url,
            url,
-           "must be an absolute HTTPS URL",
-           "Sec §3"
+           "must be an absolute HTTPS URL"
          )}
     end
   end
@@ -103,8 +102,7 @@ defmodule Ltix.LaunchClaims.MembershipsEndpoint do
     ClaimHelpers.from_json(
       @schema,
       json,
-      "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice",
-      "NRPS §3.6.1.1"
+      "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice"
     )
   end
 end

@@ -260,7 +260,7 @@ defmodule Ltix.JWK do
     case for field <- @key_fields, attrs[field] != nil, do: field do
       [] ->
         reason = "one of #{Enum.join(@key_fields, ", ")} is required"
-        {:error, invalid(:public_key_pem, nil, reason, "Sec §6.1 (RSA key)")}
+        {:error, invalid(:public_key_pem, nil, reason)}
 
       [field] ->
         {format, kind} = @key_formats[field]
@@ -327,18 +327,17 @@ defmodule Ltix.JWK do
     do: nil
 
   defp validate_kid(kid, jwk_kid) when is_binary(kid) and kid != "" and is_binary(jwk_kid) do
-    invalid(:kid, kid, "must match the JWK's kid", "Sec §6.3 (key identifier)")
+    invalid(:kid, kid, "must match the JWK's kid")
   end
 
   defp validate_kid(kid, _jwk_kid) do
-    invalid(:kid, kid, "must be a non-empty string", "Sec §6.3 (key identifier)")
+    invalid(:kid, kid, "must be a non-empty string")
   end
 
   defp invalid_key(field, reason),
-    do: invalid(field, "[redacted]", reason, "Sec §6.1 (RSA key)")
+    do: invalid(field, "[redacted]", reason)
 
   defp required(field), do: InvalidField.required(__MODULE__, field)
 
-  defp invalid(field, value, reason, spec_ref),
-    do: InvalidField.invalid(__MODULE__, field, value, reason, spec_ref)
+  defp invalid(field, value, reason), do: InvalidField.invalid(__MODULE__, field, value, reason)
 end

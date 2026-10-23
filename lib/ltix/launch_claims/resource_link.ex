@@ -40,6 +40,6 @@ defmodule Ltix.LaunchClaims.ResourceLink do
   """
   @spec from_json(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_json(json) do
-    ClaimHelpers.from_json(@schema, json, "resource_link", "Core §5.3.5")
+    ClaimHelpers.from_json(@schema, json, "resource_link")
   end
 end

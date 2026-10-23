@@ -65,22 +65,21 @@ defmodule Ltix.DeepLinking.ContentItemHelpers do
   `nil` as empty. Nested options may be keyword lists. A single invalid field
   returns its error, and several are grouped in `Ltix.Errors.Invalid`.
   """
-  @spec new(Zoi.schema(), keyword() | map(), String.t()) ::
+  @spec new(Zoi.schema(), keyword() | map()) ::
           {:ok, struct()} | {:error, Exception.t()}
   def new(
         %Zoi.Types.Struct{module: module, unrecognized_keys: :error, empty_values: [nil]} =
           schema,
-        fields,
-        spec_ref
+        fields
       )
       when is_list(fields) or is_map(fields) do
     fields = Map.new(fields, fn {key, value} -> {key, Options.keyword_to_map(value)} end)
 
     # [DL §3.6](https://www.imsglobal.org/spec/lti-dl/v2p0/#extending-a-type)
     conflicts =
-      Extensions.conflicts(module, fields[:extensions], standard_keys(module), spec_ref)
+      Extensions.conflicts(module, fields[:extensions], standard_keys(module))
 
-    InvalidField.parse(module, schema, fields, fn _field -> spec_ref end, conflicts)
+    InvalidField.parse(module, schema, fields, conflicts)
   end
 
   @doc """

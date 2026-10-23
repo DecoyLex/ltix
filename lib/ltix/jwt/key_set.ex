@@ -129,7 +129,7 @@ defmodule Ltix.JWT.KeySet do
 
       :not_found ->
         :telemetry.execute([:ltix, :jwks, :cache_miss], %{}, %{jwks_uri: jwks_uri, kid: kid})
-        {:error, KidNotFound.exception(kid: kid, spec_ref: "Sec §6.3")}
+        {:error, KidNotFound.exception(kid: kid)}
 
       {:error, _error} = error ->
         error
@@ -307,6 +307,7 @@ defmodule Ltix.JWT.KeySet do
     Map.merge(cached, %{refetch_at: now + state.interval, error: error})
   end
 
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   defp fetch_jwks(jwks_uri, opts) do
     req_opts = Keyword.put(req_options(opts), :url, jwks_uri)
 
@@ -326,7 +327,7 @@ defmodule Ltix.JWT.KeySet do
         end
 
       {:ok, %Req.Response{} = response} ->
-        {:error, HTTP.status_error(response, jwks_uri, "Sec §6.3")}
+        {:error, HTTP.status_error(response, jwks_uri)}
 
       {:error, _error} = error ->
         error
@@ -344,8 +345,7 @@ defmodule Ltix.JWT.KeySet do
         {:error,
          MalformedResponse.exception(
            service: __MODULE__,
-           reason: "key set is not a JSON object",
-           spec_ref: "Sec §6.3"
+           reason: "key set is not a JSON object"
          )}
     end
   end

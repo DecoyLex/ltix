@@ -120,23 +120,16 @@ Ltix.JWK.generate(key_sise: 4096)
 ** (Ltix.Errors.Invalid.InvalidOption) Option :key_sise is unknown
 ```
 
-## Error messages and spec references
+## Error messages
 
-Every error produces a human-readable message via `Exception.message/1`
-and most have a `spec_ref` field with the violated spec section.
+Every error has a human-readable message from `Exception.message/1`.
 
 ```elixir
-error = %Ltix.Errors.Security.TokenExpired{spec_ref: "Sec §5.1.3 step 7"}
+error = %Ltix.Errors.Security.TokenExpired{}
 
 Exception.message(error)
-#=> "JWT token has expired [Sec §5.1.3 step 7]"
-
-error.spec_ref
-#=> "Sec §5.1.3 step 7"
+#=> "JWT token has expired"
 ```
-
-The spec reference is useful for debugging because it identifies exactly
-which validation step failed.
 
 ## Invalid errors
 
@@ -144,12 +137,12 @@ These indicate problems with the incoming data or the calling code.
 
 | Error | Fields | When |
 |---|---|---|
-| `MissingParameter` | `parameter`, `spec_ref` | OIDC login request missing a required param |
-| `MissingClaim` | `claim`, `spec_ref` | A JWT or platform response, such as a memberships page, is missing a required claim, such as `sub` or `resource_link.id` |
-| `InvalidClaim` | `claim`, `value`, `message`, `spec_ref` | A claim in a JWT or platform response has an invalid value, or a custom claim parser returned an error |
-| `InvalidField` | `struct`, `field`, `value`, `reason`, `spec_ref` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
+| `MissingParameter` | `parameter` | OIDC login request missing a required param |
+| `MissingClaim` | `claim` | A JWT or platform response, such as a memberships page, is missing a required claim, such as `sub` or `resource_link.id` |
+| `InvalidClaim` | `claim`, `value`, `message` | A claim in a JWT or platform response has an invalid value, or a custom claim parser returned an error |
+| `InvalidField` | `struct`, `field`, `value`, `reason` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
 | `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
-| `InvalidJSON` | `spec_ref` | The ID token is not a JWT whose header and payload are JSON objects |
+| `InvalidJSON` | — | The ID token is not a JWT whose header and payload are JSON objects |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |
 | `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment_id |
 
@@ -159,20 +152,20 @@ These indicate the launch failed a security check.
 
 | Error | Fields | When |
 |---|---|---|
-| `SignatureInvalid` | `spec_ref` | JWT signature doesn't verify against the platform's public key |
-| `TokenExpired` | `spec_ref` | JWT `exp` claim is in the past, or its `iat` claim is older than `:max_token_age` |
-| `TokenNotYetValid` | `claim`, `spec_ref` | JWT `iat` or `nbf` claim is in the future |
-| `IssuerMismatch` | `expected`, `actual`, `spec_ref` | JWT `iss` doesn't match the registration |
-| `AudienceMismatch` | `claim`, `expected`, `actual`, `spec_ref` | JWT `aud` is not the registration's client_id or a list containing only it, or `azp` is not the client_id |
-| `AlgorithmNotAllowed` | `algorithm`, `spec_ref` | JWT uses something other than RS256 |
-| `StateMismatch` | `spec_ref` | OIDC state from callback doesn't match the session |
-| `NonceMissing` | `spec_ref` | JWT has no `nonce` claim |
-| `NonceNotFound` | `spec_ref` | Nonce wasn't issued by this tool |
-| `NonceReused` | `spec_ref` | Nonce was already consumed (replay attempt) |
-| `KidMissing` | `spec_ref` | JWT header has no `kid` field |
-| `KidNotFound` | `kid`, `spec_ref` | `kid` not found in the platform's key set |
+| `SignatureInvalid` | — | JWT signature doesn't verify against the platform's public key |
+| `TokenExpired` | — | JWT `exp` claim is in the past, or its `iat` claim is older than `:max_token_age` |
+| `TokenNotYetValid` | `claim` | JWT `iat` or `nbf` claim is in the future |
+| `IssuerMismatch` | `expected`, `actual` | JWT `iss` doesn't match the registration |
+| `AudienceMismatch` | `claim`, `expected`, `actual` | JWT `aud` is not the registration's client_id or a list containing only it, or `azp` is not the client_id |
+| `AlgorithmNotAllowed` | `algorithm` | JWT uses something other than RS256 |
+| `StateMismatch` | — | OIDC state from callback doesn't match the session |
+| `NonceMissing` | — | JWT has no `nonce` claim |
+| `NonceNotFound` | — | Nonce wasn't issued by this tool |
+| `NonceReused` | — | Nonce was already consumed (replay attempt) |
+| `KidMissing` | — | JWT header has no `kid` field |
+| `KidNotFound` | `kid` | `kid` not found in the platform's key set |
 | `LocalNetworkAccessDenied` | `url`, `address_space` | The platform's key set is on a local or loopback address that `:local_network_access` doesn't allow |
-| `AuthenticationFailed` | `error`, `error_description`, `error_uri`, `spec_ref` | Platform returned an error response |
+| `AuthenticationFailed` | `error`, `error_description`, `error_uri` | Platform returned an error response |
 
 ## Unknown errors
 
@@ -181,8 +174,8 @@ These indicate an unexpected failure outside the incoming request.
 | Error | Fields | When |
 |---|---|---|
 | `StorageError` | `callback`, `result`, `reason` | A storage adapter callback returned `{:error, reason}`, an unexpected value, or a deployment for a different `deployment_id` |
-| `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | An HTTP request to the platform failed |
-| `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | A platform endpoint returned an unsafe redirect |
+| `TransportError` | `status`, `body`, `headers`, `url` | An HTTP request to the platform failed |
+| `RedirectNotAllowed` | `status`, `url`, `location` | A platform endpoint returned an unsafe redirect |
 | `KeySetNotStarted` | `key_set` | Raised when a launch needs a key set cache that is not started in the supervision tree |
 | `Unknown` | `error` | Any other unexpected failure |
 
@@ -192,13 +185,13 @@ These errors come from `Ltix.DeepLinking.build_response/3`. Content item constru
 
 | Error | Fields | When |
 |---|---|---|
-| `InvalidContentItem` | `index`, `value`, `reason`, `spec_ref` | A response item is not a content item or has no valid type, or the items are not a list |
-| `InvalidMessageType` | `message_type`, `spec_ref` | The launch is not a deep linking request |
-| `ContentItemTypeNotAccepted` | `index`, `type`, `accept_types`, `spec_ref` | An item's type is not in `accept_types` |
-| `ContentItemsExceedLimit` | `count`, `spec_ref` | Several items when `accept_multiple` is `false` |
-| `LineItemNotAccepted` | `index`, `spec_ref` | A resource link has a line item when `accept_line_item` is `false` |
-| `PresentationTargetNotAccepted` | `index`, `target`, `accept_presentation_document_targets`, `spec_ref` | An item's `iframe`, `window`, or `embed` is not in `accept_presentation_document_targets` |
-| `MediaTypeNotAccepted` | `index`, `media_type`, `accept_media_types`, `spec_ref` | A file's media type does not match `accept_media_types` |
+| `InvalidContentItem` | `index`, `value`, `reason` | A response item is not a content item or has no valid type, or the items are not a list |
+| `InvalidMessageType` | `message_type` | The launch is not a deep linking request |
+| `ContentItemTypeNotAccepted` | `index`, `type`, `accept_types` | An item's type is not in `accept_types` |
+| `ContentItemsExceedLimit` | `count` | Several items when `accept_multiple` is `false` |
+| `LineItemNotAccepted` | `index` | A resource link has a line item when `accept_line_item` is `false` |
+| `PresentationTargetNotAccepted` | `index`, `target`, `accept_presentation_document_targets` | An item's `iframe`, `window`, or `embed` is not in `accept_presentation_document_targets` |
+| `MediaTypeNotAccepted` | `index`, `media_type`, `accept_media_types` | A file's media type does not match `accept_media_types` |
 
 ## Advantage service errors
 
@@ -209,28 +202,28 @@ etc.) and OAuth authentication.
 
 | Error | Fields | When |
 |---|---|---|
-| `ServiceNotAvailable` | `service`, `reason`, `spec_ref` | The launch has no claim for the service, an endpoint or URL the operation needs is missing, the endpoint does not support the service version, or the registration has no token endpoint |
-| `TokenRequestFailed` | `error`, `error_description`, `status`, `body`, `spec_ref` | OAuth token request failed |
-| `MalformedResponse` | `service`, `reason`, `spec_ref` | Platform returned an unparseable response |
-| `CollectionTooLarge` | `service`, `option`, `count`, `max`, `spec_ref` | An eager fetch such as `list_results/2` exceeded its limit option, such as `max_results` |
-| `ScopeMismatch` | `scopes`, `granted_scopes`, `spec_ref` | Client lacks every scope in `scopes` that would authorize the request |
-| `InvalidEndpoint` | `service`, `spec_ref` | Wrong endpoint struct passed to a service |
-| `MissingLineItemId` | `line_item`, `spec_ref` | A grade operation received a line item without an `id` |
+| `ServiceNotAvailable` | `service`, `reason` | The launch has no claim for the service, an endpoint or URL the operation needs is missing, the endpoint does not support the service version, or the registration has no token endpoint |
+| `TokenRequestFailed` | `error`, `error_description`, `status`, `body` | OAuth token request failed |
+| `MalformedResponse` | `service`, `reason` | Platform returned an unparseable response |
+| `CollectionTooLarge` | `service`, `option`, `count`, `max` | An eager fetch such as `list_results/2` exceeded its limit option, such as `max_results` |
+| `ScopeMismatch` | `scopes`, `granted_scopes` | Client lacks every scope in `scopes` that would authorize the request |
+| `InvalidEndpoint` | `service` | Wrong endpoint struct passed to a service |
+| `MissingLineItemId` | `line_item` | A grade operation received a line item without an `id` |
 
 ### Security
 
 | Error | Fields | When |
 |---|---|---|
-| `AccessDenied` | `status`, `body`, `url`, `spec_ref` | Platform responded to a service request or key set fetch with HTTP 401 or 403 |
+| `AccessDenied` | `status`, `body`, `url` | Platform responded to a service request or key set fetch with HTTP 401 or 403 |
 | `LocalNetworkAccessDenied` | `url`, `address_space` | A platform request would connect to a local or loopback address that `:local_network_access` doesn't allow |
-| `AccessTokenExpired` | `expires_at`, `spec_ref` | OAuth access token has expired |
+| `AccessTokenExpired` | `expires_at` | OAuth access token has expired |
 
 ### Unknown
 
 | Error | Fields | When |
 |---|---|---|
-| `TransportError` | `status`, `body`, `headers`, `url`, `spec_ref` | Ltix could not connect to the platform, or the endpoint URL is neither an absolute HTTPS URL nor an HTTP URL for a loopback or local host |
-| `RedirectNotAllowed` | `status`, `url`, `location`, `spec_ref` | The platform redirected to a different origin or an invalid location |
+| `TransportError` | `status`, `body`, `headers`, `url` | Ltix could not connect to the platform, or the endpoint URL is neither an absolute HTTPS URL nor an HTTP URL for a loopback or local host |
+| `RedirectNotAllowed` | `status`, `url`, `location` | The platform redirected to a different origin or an invalid location |
 
 ## Logging recommendations
 
