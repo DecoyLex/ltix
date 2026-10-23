@@ -16,6 +16,16 @@ defmodule Ltix.JWKTest do
       assert jwk.kid == Base.url_encode64(:crypto.hash(:sha256, members), padding: false)
     end
 
+    test "writes the public key as an SPKI PEM and the private key as a PKCS #8 PEM" do
+      jwk = JWK.generate(key_size: 2048)
+
+      assert [{:SubjectPublicKeyInfo, _der, :not_encrypted}] =
+               :public_key.pem_decode(jwk.public_key_pem)
+
+      assert [{:PrivateKeyInfo, _der, :not_encrypted}] =
+               :public_key.pem_decode(jwk.private_key_pem)
+    end
+
     test "rejects key size below 2048" do
       assert_raise Ltix.Errors.Invalid.InvalidOption,
                    ~r/Option :key_size is invalid.*at least 2048/,
@@ -145,6 +155,9 @@ defmodule Ltix.JWKTest do
       [private_entry] = :public_key.pem_decode(jwk.private_key_pem)
       [public_map] = JWK.to_jwks(jwk)["keys"]
 
+      pkcs1_entry =
+        :public_key.pem_entry_encode(:RSAPublicKey, :public_key.pem_entry_decode(public_entry))
+
       {_type, private_map} = JOSE.JWK.to_map(JOSE.JWK.from_pem(jwk.private_key_pem))
 
       %{
@@ -152,6 +165,8 @@ defmodule Ltix.JWKTest do
         public_pem: public_pem,
         public_der: elem(public_entry, 1),
         public_map: public_map,
+        pkcs1_public_pem: :public_key.pem_encode([pkcs1_entry]),
+        pkcs1_public_der: elem(pkcs1_entry, 1),
         private_der: elem(private_entry, 1),
         private_map: private_map
       }
@@ -161,6 +176,8 @@ defmodule Ltix.JWKTest do
       for attrs <- [
             [public_key_pem: ctx.public_pem],
             [public_key_der: ctx.public_der],
+            [public_key_pem: ctx.pkcs1_public_pem],
+            [public_key_der: ctx.pkcs1_public_der],
             [public_jwk: ctx.public_map],
             [public_jwk: Map.delete(ctx.public_map, "kid")]
           ] do
@@ -178,6 +195,7 @@ defmodule Ltix.JWKTest do
             [private_jwk: ctx.private_map]
           ] do
         assert {:ok, %JWK{} = jwk} = JWK.new([kid: ctx.jwk.kid] ++ attrs)
+        assert jwk.private_key_pem == ctx.jwk.private_key_pem
         assert JWK.to_public_key(jwk) == ctx.public_pem
         assert {:ok, signature} = JWK.sign(jwk, "message")
         assert {:ok, ^signature} = JWK.sign(ctx.jwk, "message")

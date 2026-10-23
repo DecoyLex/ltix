@@ -47,6 +47,21 @@ defmodule Ltix.JWK do
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Options
 
+  require Record
+
+  @key_records "public_key/include/public_key.hrl"
+  Record.defrecordp(
+    :rsa_public_key,
+    :RSAPublicKey,
+    Record.extract(:RSAPublicKey, from_lib: @key_records)
+  )
+
+  Record.defrecordp(
+    :rsa_private_key,
+    :RSAPrivateKey,
+    Record.extract(:RSAPrivateKey, from_lib: @key_records)
+  )
+
   @generate_schema Zoi.keyword(
                      [
                        key_size:
@@ -70,6 +85,7 @@ defmodule Ltix.JWK do
     private_jwk: {:jwk, :private}
   ]
   @key_fields Keyword.keys(@key_formats)
+  @der_types [:SubjectPublicKeyInfo, :RSAPublicKey, :PrivateKeyInfo, :RSAPrivateKey]
 
   @derive {Inspect, except: [:private_key_pem]}
   @enforce_keys [:kid, :public_key_pem]
@@ -106,11 +122,12 @@ defmodule Ltix.JWK do
 
     key_size = Keyword.get_lazy(opts, :key_size, &AppConfig.default_key_size/0)
     jose_jwk = JOSE.JWK.generate_key({:rsa, key_size})
+    {_kty, private_key} = JOSE.JWK.to_key(jose_jwk)
 
     %__MODULE__{
       kid: JOSE.JWK.thumbprint(jose_jwk),
-      public_key_pem: pem(JOSE.JWK.to_public(jose_jwk)),
-      private_key_pem: pem(jose_jwk)
+      public_key_pem: pem(public_key(private_key)),
+      private_key_pem: pem(private_key)
     }
   end
 
@@ -128,8 +145,10 @@ defmodule Ltix.JWK do
     * `:public_key_pem` - an RSA public key as a PEM string
     * `:public_key_der` - an RSA public key as a DER binary
     * `:public_jwk` - an RSA public key as a string-keyed JWK map
-    * `:private_key_pem` - an RSA private key as an unencrypted PEM string
-    * `:private_key_der` - an RSA private key as a DER binary
+    * `:private_key_pem` - an RSA private key as an unencrypted PKCS #8 or
+      PKCS #1 PEM string
+    * `:private_key_der` - an RSA private key as a PKCS #8 or PKCS #1 DER
+      binary
     * `:private_jwk` - an RSA private key as a string-keyed JWK map
 
   ## Examples
@@ -249,10 +268,16 @@ defmodule Ltix.JWK do
     |> JOSE.JWK.merge(%{"kid" => kid, "alg" => "RS256", "use" => "sig"})
   end
 
-  defp pem(jose_jwk) do
-    {_kty, pem} = JOSE.JWK.to_pem(jose_jwk)
-    pem
-  end
+  # Writes a public key as SPKI ("PUBLIC KEY") and a private key as PKCS #8
+  # ("PRIVATE KEY"), the PEM forms OpenSSL writes.
+  defp pem(rsa_public_key() = key), do: pem_encode(:SubjectPublicKeyInfo, key)
+  defp pem(rsa_private_key() = key), do: pem_encode(:PrivateKeyInfo, key)
+
+  defp pem_encode(type, key),
+    do: :public_key.pem_encode([:public_key.pem_entry_encode(type, key)])
+
+  defp public_key(rsa_private_key(modulus: modulus, publicExponent: exponent)),
+    do: rsa_public_key(modulus: modulus, publicExponent: exponent)
 
   # --- Validation ---
 
@@ -268,9 +293,9 @@ defmodule Ltix.JWK do
       [field] ->
         {format, kind} = @key_formats[field]
 
-        with {:ok, jose_jwk} <- decode_key(format, attrs[field]),
-             {:ok, private_key_pem} <- private_key_pem(format, kind, attrs[field], jose_jwk) do
-          {:ok, {pem(JOSE.JWK.to_public(jose_jwk)), private_key_pem}}
+        with {:ok, key} <- decode_key(format, attrs[field]),
+             {:ok, pems} <- key_pems(kind, key, format, attrs[field]) do
+          {:ok, pems}
         else
           {:error, reason} -> {:error, invalid_key(field, reason)}
           :error -> {:error, invalid_key(field, "expected an RSA #{kind} key")}
@@ -279,42 +304,55 @@ defmodule Ltix.JWK do
       [_first, field | _rest] ->
         {:error, invalid_key(field, "only one key can be given")}
     end
-  rescue
-    # JOSE raises on malformed key data.
-    _error ->
-      field = Enum.find(@key_fields, &(attrs[&1] != nil))
-      {_format, kind} = @key_formats[field]
-      {:error, invalid_key(field, "expected an RSA #{kind} key")}
   end
 
+  # Returns the key as a `:public_key` record.
   defp decode_key(:pem, pem) when is_binary(pem) do
     case :public_key.pem_decode(pem) do
       [] -> {:error, "must be a PEM"}
-      [{_type, _der, :not_encrypted} | _] -> jose_key(JOSE.JWK.from_pem(pem))
+      [{_type, _der, :not_encrypted} = entry | _] -> decode_entry(entry)
       _encrypted -> {:error, "must not be encrypted"}
     end
   end
 
-  defp decode_key(:der, der) when is_binary(der), do: jose_key(JOSE.JWK.from_der(der))
-  defp decode_key(:jwk, map) when is_map(map), do: jose_key(JOSE.JWK.from_map(map))
+  defp decode_key(:der, der) when is_binary(der) do
+    Enum.find_value(@der_types, :error, fn type ->
+      with :error <- decode_entry({type, der, :not_encrypted}), do: nil
+    end)
+  end
+
+  defp decode_key(:jwk, map) when is_map(map) do
+    {_kty, key} = JOSE.JWK.to_key(JOSE.JWK.from_map(map))
+    # A map missing one of the key's members gives a key that can't be
+    # encoded.
+    _pem = pem(key)
+    {:ok, key}
+  rescue
+    # JOSE and `:public_key` raise on malformed or non-RSA key data.
+    _error -> :error
+  end
+
   defp decode_key(:jwk, _value), do: {:error, "must be a map"}
   defp decode_key(_format, _value), do: {:error, "must be a binary"}
 
-  defp jose_key(%JOSE.JWK{} = jose_jwk), do: {:ok, jose_jwk}
-  defp jose_key(_other), do: :error
-
-  # Checks that the key is an RSA key of the kind the field is for. A PEM the
-  # caller gave is kept as given.
-  defp private_key_pem(format, kind, value, jose_jwk) do
-    {_kty, record} = JOSE.JWK.to_key(jose_jwk)
-
-    case {kind, elem(record, 0), format} do
-      {:public, :RSAPublicKey, _format} -> {:ok, nil}
-      {:private, :RSAPrivateKey, :pem} -> {:ok, value}
-      {:private, :RSAPrivateKey, _format} -> {:ok, pem(jose_jwk)}
-      _other -> :error
-    end
+  defp decode_entry(entry) do
+    {:ok, :public_key.pem_entry_decode(entry)}
+  rescue
+    # `:public_key` raises on malformed key data.
+    _error -> :error
   end
+
+  # The PEMs of an RSA key of the kind the field is for. A private key PEM
+  # the caller gave is kept as given.
+  defp key_pems(:public, rsa_public_key() = key, _format, _value), do: {:ok, {pem(key), nil}}
+
+  defp key_pems(:private, rsa_private_key() = key, :pem, pem),
+    do: {:ok, {pem(public_key(key)), pem}}
+
+  defp key_pems(:private, rsa_private_key() = key, _format, _value),
+    do: {:ok, {pem(public_key(key)), pem(key)}}
+
+  defp key_pems(_kind, _key, _format, _value), do: :error
 
   defp jwk_kid(attrs) do
     case attrs[:public_jwk] || attrs[:private_jwk] do

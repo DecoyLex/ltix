@@ -434,6 +434,12 @@ In tests, read the content items from the signed response with `Ltix.Test.verify
 
 `link.line_item` is an `%Ltix.DeepLinking.LineItem{}` where 0.2 kept a map. Read its fields with dot access, such as `link.line_item.score_maximum`. Map patterns still match.
 
+## Keys
+
+### Public keys are SPKI PEMs
+
+A JWK's `public_key_pem` and `Ltix.JWK.to_public_key/1` are SPKI PEMs (`BEGIN PUBLIC KEY`), where 0.2 gave PKCS #1 (`BEGIN RSA PUBLIC KEY`). `Ltix.JWK.new/1` accepts either form, as PEM or DER, and stored keys still load. Change only code that compares `public_key_pem` with a PEM you stored.
+
 ## Errors
 
 ### Some error messages changed
