@@ -916,21 +916,22 @@ defmodule Ltix.Integration.TransportSecurityTest do
     Req.Test.verify!(KeySet)
   end
 
-  test "a loopback score URL never opens a connection without loopback access", %{
+  test "connects to a loopback score URL only with loopback access", %{
     client: client,
     score: score
   } do
-    {:ok, listener} = :gen_tcp.listen(0, ip: {127, 0, 0, 1}, active: false)
-    on_exit(fn -> :gen_tcp.close(listener) end)
-    {:ok, port} = :inet.port(listener)
+    url = "http://127.0.0.1:#{LoopbackEndpoint.refusing_port()}/lineitems/1"
     client = %{client | req_options: [retry: false]}
 
     assert {:error, %LocalNetworkAccessDenied{}} =
-             GradeService.post_score(client, score,
-               line_item: "http://127.0.0.1:#{port}/lineitems/1"
-             )
+             GradeService.post_score(client, score, line_item: url)
 
-    assert {:error, :timeout} = :gen_tcp.accept(listener, 100)
+    client = %{client | local_network_access: :loopback}
+
+    assert {:error, %TransportError{} = error} =
+             GradeService.post_score(client, score, line_item: url)
+
+    assert Exception.message(error) =~ "connection refused"
   end
 
   test "rejects explicitly disabled certificate verification before sending credentials", %{
@@ -987,7 +988,8 @@ defmodule Ltix.Integration.TransportSecurityTest do
             ]
           ]
         ] do
-      {url, server} = start_https_endpoint(configuration)
+      {port, server} = LoopbackEndpoint.start_https(configuration)
+      url = "https://127.0.0.1:#{port}/lineitems/1"
 
       client = %{
         client
@@ -1007,47 +1009,16 @@ defmodule Ltix.Integration.TransportSecurityTest do
     client: client,
     score: score
   } do
-    {url, server} = start_https_endpoint(certificate_configuration())
+    {port, server} = LoopbackEndpoint.start_https(certificate_configuration())
+    url = "https://127.0.0.1:#{port}/lineitems/1"
     client = %{client | req_options: [retry: false], local_network_access: :loopback}
     assert {:error, %TransportError{}} = GradeService.post_score(client, score, line_item: url)
+
     assert {:error, _handshake_error} = Task.await(server)
   end
 
   defp certificate_configuration do
-    :public_key.pkix_test_data(%{
-      root: [key: {:rsa, 2048, 65_537}, digest: :sha256],
-      intermediates: [],
-      peer: [
-        key: {:rsa, 2048, 65_537},
-        digest: :sha256,
-        extensions: [{:Extension, {2, 5, 29, 17}, false, [{:iPAddress, <<127, 0, 0, 1>>}]}]
-      ]
-    })
-  end
-
-  defp start_https_endpoint(configuration) do
-    opts = Keyword.merge(configuration, ip: {127, 0, 0, 1}, active: false, mode: :binary)
-    {:ok, listener} = :ssl.listen(0, opts)
-    on_exit(fn -> :ssl.close(listener) end)
-    {:ok, {_address, port}} = :ssl.sockname(listener)
-
-    server =
-      Task.async(fn ->
-        with {:ok, socket} <- :ssl.transport_accept(listener, 5000),
-             {:ok, socket} <- :ssl.handshake(socket, 5000),
-             {:ok, request} <- :ssl.recv(socket, 0, 5000) do
-          :ok =
-            :ssl.send(
-              socket,
-              "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-            )
-
-          :ssl.close(socket)
-          {:ok, request}
-        end
-      end)
-
-    {"https://127.0.0.1:#{port}/lineitems/1", server}
+    LoopbackEndpoint.tls_configuration({:iPAddress, <<127, 0, 0, 1>>})
   end
 
   test "caller URL and base URL options cannot replace the service destination", %{

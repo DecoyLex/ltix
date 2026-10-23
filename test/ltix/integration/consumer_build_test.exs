@@ -3,13 +3,27 @@ defmodule Ltix.Integration.ConsumerBuildTest do
 
   @moduletag timeout: 120_000
 
+  # Each test builds in a random directory. ExUnit's `:tmp_dir` path is the same in every
+  # `mix test` run from a checkout and is emptied when a test starts, so concurrent runs
+  # would delete each other's consumer projects.
+  setup do
+    project =
+      Path.join(
+        System.tmp_dir!(),
+        "ltix-consumer-#{Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)}"
+      )
+
+    File.mkdir!(project)
+    on_exit(fn -> File.rm_rf!(project) end)
+    %{project: project}
+  end
+
   @providers if(Code.ensure_loaded?(JSON), do: [{:native, JSON, ""}], else: []) ++
                [{:jason, Jason, ", {:jason, \"~> 1.4\"}"}]
 
   for {provider, json_library, json_dependency} <- @providers do
-    @tag :tmp_dir
     test "consumers use #{provider} JSON and core helpers without optional HTTP dependencies", %{
-      tmp_dir: project
+      project: project
     } do
       library = File.cwd!()
 
@@ -197,10 +211,14 @@ defmodule Ltix.Integration.ConsumerBuildTest do
       end
       """)
 
+      # `REBAR_BASE_DIR` puts rebar3's build cache in the consumer project. By default
+      # rebar3 writes it into each dependency's directory under the library's `deps`,
+      # which every consumer project links to.
       environment = [
         {"MIX_ENV", "prod"},
         {"MIX_BUILD_PATH", Path.join(project, "_build")},
-        {"MIX_DEPS_PATH", Path.join(project, "deps")}
+        {"MIX_DEPS_PATH", Path.join(project, "deps")},
+        {"REBAR_BASE_DIR", Path.join(project, "_build/rebar3")}
       ]
 
       {output, status} =

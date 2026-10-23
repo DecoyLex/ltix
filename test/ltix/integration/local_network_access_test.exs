@@ -55,26 +55,21 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       end
     end
 
-    test "rejects a host name that resolves to a loopback address" do
-      {:ok, listener} = :gen_tcp.listen(0, ip: {127, 0, 0, 1}, active: false)
-      on_exit(fn -> :gen_tcp.close(listener) end)
-      {:ok, port} = :inet.port(listener)
+    test "rejects a host name that resolves to a loopback address unless loopback access is granted" do
       resolve("platform.ltix.test", {127, 0, 0, 1})
-      url = "https://platform.ltix.test:#{port}/members"
+      url = "https://platform.ltix.test:#{LoopbackEndpoint.refusing_port()}/members"
 
       for access <- [:none, :local] do
         assert {:error, %LocalNetworkAccessDenied{url: ^url, address_space: :loopback}} =
                  stream(url, access)
       end
 
-      assert {:error, :timeout} = :gen_tcp.accept(listener, 100)
-
-      assert {:error, %TransportError{}} = stream(url, :loopback)
-      assert {:ok, _socket} = :gen_tcp.accept(listener, 100)
+      assert {:error, %TransportError{} = error} = stream(url, :loopback)
+      assert Exception.message(error) =~ "connection refused"
     end
 
     test "rejects the host name localhost unless loopback access is granted" do
-      {port, server} = start_endpoint(["{}"])
+      {port, server} = LoopbackEndpoint.start_http(["{}"])
       url = "http://localhost:#{port}/members"
 
       assert {:error, %LocalNetworkAccessDenied{address_space: :loopback}} = stream(url, :none)
@@ -84,7 +79,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
     end
 
     test "connects to IPv6 loopback when loopback access is granted" do
-      {port, server} = start_endpoint(["{}"], {0, 0, 0, 0, 0, 0, 0, 1})
+      {port, server} = LoopbackEndpoint.start_http(["{}"], address: {0, 0, 0, 0, 0, 0, 0, 1})
 
       assert {:ok, pages} = stream("http://[::1]:#{port}/members", :loopback)
       assert Enum.to_list(pages) == [%{}]
@@ -92,7 +87,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
     end
 
     test "applies the configured access when a call passes none" do
-      {port, server} = start_endpoint(["{}"])
+      {port, server} = LoopbackEndpoint.start_http(["{}"])
       url = "http://127.0.0.1:#{port}/members"
 
       assert {:error, %LocalNetworkAccessDenied{}} = Pagination.stream(url, [])
@@ -148,7 +143,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
   describe "launches and services" do
     setup do
       platform_jwk = JWK.generate()
-      {port, server} = start_endpoint([Jason.encode!(JWK.to_jwks(platform_jwk))])
+      {port, server} = LoopbackEndpoint.start_http([Jason.encode!(JWK.to_jwks(platform_jwk))])
 
       registration =
         Ltix.Registration.new!(
@@ -190,7 +185,7 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
 
       token = Jason.encode!(%{access_token: "token", token_type: "Bearer", expires_in: 3600})
       roster = Jason.encode!(%{id: "roster", context: %{id: "course"}, members: []})
-      {port, server} = start_endpoint([token, roster])
+      {port, server} = LoopbackEndpoint.start_http([token, roster])
 
       registration = %{
         ctx.platform.registration
@@ -246,33 +241,5 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
       )
 
     {login.state, launch}
-  end
-
-  # Serves one JSON body per connection and returns the requests it received.
-  defp start_endpoint(bodies, address \\ {127, 0, 0, 1}) do
-    family = if tuple_size(address) == 8, do: :inet6, else: :inet
-    {:ok, listener} = :gen_tcp.listen(0, [family, :binary, ip: address, active: false])
-    on_exit(fn -> :gen_tcp.close(listener) end)
-    {:ok, port} = :inet.port(listener)
-
-    server =
-      Task.async(fn ->
-        Enum.map(bodies, fn body ->
-          {:ok, socket} = :gen_tcp.accept(listener, 5000)
-          {:ok, request} = :gen_tcp.recv(socket, 0, 5000)
-
-          :ok =
-            :gen_tcp.send(socket, [
-              "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n",
-              "content-length: #{byte_size(body)}\r\nconnection: close\r\n\r\n",
-              body
-            ])
-
-          :gen_tcp.close(socket)
-          request
-        end)
-      end)
-
-    {port, server}
   end
 end

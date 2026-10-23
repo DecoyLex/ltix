@@ -31,6 +31,12 @@ defmodule Ltix.OAuth.ClientTest do
     )
   end
 
+  # Forwards the telemetry events the test's own process emits, so events from
+  # other async tests don't reach it.
+  def forward_own_event(event, measurements, metadata, {test_pid, ref}) do
+    if self() == test_pid, do: send(test_pid, {event, ref, measurements, metadata})
+  end
+
   defp both_endpoints, do: %{Records => records_endpoint(), Calendar => calendar_endpoint()}
 
   defp cached_token(scope) do
@@ -273,7 +279,8 @@ defmodule Ltix.OAuth.ClientTest do
     setup do
       Ltix.Test.stub_token_response(scopes: [@records_scope], access_token: "refreshed-token")
       events = for suffix <- [:start, :stop], do: [:ltix, :oauth, :refresh, suffix]
-      ref = :telemetry_test.attach_event_handlers(self(), events)
+      ref = make_ref()
+      :telemetry.attach_many(ref, events, &__MODULE__.forward_own_event/4, {self(), ref})
       on_exit(fn -> :telemetry.detach(ref) end)
 
       client =
