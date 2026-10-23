@@ -151,9 +151,12 @@ defmodule Ltix.JWK do
         {:error, error} -> {error, nil, nil}
       end
 
-    errors =
-      InvalidField.unknown_fields(__MODULE__, attrs, [:kid | @key_fields]) ++
-        [key_error, validate_kid(kid, jwk_kid)]
+    # An unknown field can be a misspelled key, so its value is left out.
+    unknown =
+      for error <- InvalidField.unknown_fields(__MODULE__, attrs, [:kid | @key_fields]),
+          do: %{error | value: "[redacted]"}
+
+    errors = unknown ++ [key_error, validate_kid(kid, jwk_kid)]
 
     with :ok <- Errors.collect(errors) do
       {:ok,

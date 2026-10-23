@@ -42,8 +42,16 @@ defmodule Ltix.JWKTest do
     end
 
     test "rejects unknown fields", ctx do
-      assert {:error, %InvalidField{struct: JWK, field: :key_id, value: "x", reason: :unknown}} =
+      assert {:error, %InvalidField{struct: JWK, field: :key_id, reason: :unknown}} =
                JWK.new(private_key_pem: ctx.pem, kid: ctx.kid, key_id: "x")
+    end
+
+    test "rejects an unknown field without revealing its value", ctx do
+      assert {:error, %InvalidField{field: :private_key, value: "[redacted]"} = error} =
+               JWK.new(private_key_pem: ctx.pem, kid: ctx.kid, private_key: ctx.pem)
+
+      refute inspect(error) =~ "PRIVATE KEY"
+      assert Exception.message(error) == "Ltix.JWK field :private_key is unknown"
     end
 
     test "a missing kid is required", ctx do
