@@ -2,6 +2,8 @@ defmodule Ltix.Plugins.LoginTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Errors.Invalid.MissingParameter
+  alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Unknown.InvalidPluginSet
   alias Ltix.PluginSet.Conflict
   alias Ltix.PluginSet.Entry
@@ -168,6 +170,28 @@ defmodule Ltix.Plugins.LoginTest do
       assert %Ltix.Errors.Unknown.Unknown{error: "first"} = first
       assert %Ltix.Errors.Unknown.Unknown{error: "second"} = second
       assert traces() == [:after_error]
+    end
+
+    test "errors of several classes are combined in the class with the highest precedence",
+         %{params: params} do
+      invalid = MissingParameter.exception(parameter: "login_hint")
+      security = NonceReused.exception()
+      unknown = "storage failed"
+
+      for {errors, class, status} <- [
+            {[invalid, security], Ltix.Errors.Security, 401},
+            {[unknown, security], Ltix.Errors.Security, 401},
+            {[invalid, unknown], Ltix.Errors.Invalid, 400},
+            {[unknown, invalid, security], Ltix.Errors.Security, 401}
+          ] do
+        steps = for error <- errors, do: {Fail, result: :error, error: error}
+
+        assert {:error, %^class{errors: grouped} = error} =
+                 login(params, plugins: [{Modules, add: steps}])
+
+        assert length(grouped) == length(errors)
+        assert Ltix.Errors.status_code(error) == status
+      end
     end
 
     test "init/1 runs once each time a plugin adds the step and its result reaches every call/2",

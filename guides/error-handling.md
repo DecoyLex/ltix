@@ -87,7 +87,7 @@ end
 
 ## Single and grouped errors
 
-A single failure returns its error struct directly. When validation finds several problems at once, such as two malformed claims, they are grouped in their class struct and `errors` lists each one.
+A single failure returns its error struct directly. When validation finds several problems at once, such as two malformed claims, they are grouped in one class struct and `errors` lists each one. The group is an `Ltix.Errors.Security` if any problem is a security error, otherwise an `Ltix.Errors.Invalid` if any is invalid, otherwise an `Ltix.Errors.Unknown`.
 
 ```elixir
 case Ltix.handle_callback(params, state) do

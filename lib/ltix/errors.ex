@@ -24,10 +24,12 @@ defmodule Ltix.Errors do
   When Plug is available, all errors also implement `Plug.Exception`,
   so Phoenix error views use the correct status automatically.
   """
+  # A group of errors takes the first class in this list that one of its
+  # errors has.
   use Splode,
     error_classes: [
-      invalid: Ltix.Errors.Invalid,
       security: Ltix.Errors.Security,
+      invalid: Ltix.Errors.Invalid,
       unknown: Ltix.Errors.Unknown
     ],
     unknown_error: Ltix.Errors.Unknown.Unknown

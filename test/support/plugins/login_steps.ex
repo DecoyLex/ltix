@@ -56,16 +56,19 @@ end
 
 defmodule TestPlugins.Fail do
   @moduledoc false
-  # Returns `{:error, e}` or `{:halt, e}`, as its `:result` option says.
+  # Returns `{:error, e}` or `{:halt, e}`, the result its `:result` option gives.
+  # Its `:error` option is the exception, or a message for an unknown error.
   use Ltix.Login
 
   alias Ltix.Errors.Unknown.Unknown
 
   @impl Ltix.Step
   def call(_login, opts) do
-    error = Unknown.exception(error: Keyword.fetch!(opts, :error))
-    {Keyword.fetch!(opts, :result), error}
+    {Keyword.fetch!(opts, :result), error(Keyword.fetch!(opts, :error))}
   end
+
+  defp error(message) when is_binary(message), do: Unknown.exception(error: message)
+  defp error(exception), do: exception
 end
 
 defmodule TestPlugins.FailFirst do
