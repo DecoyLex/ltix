@@ -80,13 +80,15 @@ defmodule Ltix.OAuth.Client do
 
   @option_fields [
     req_options:
-      Zoi.keyword(Zoi.any(), description: "Options passed through to `Req.request/2`.")
+      Zoi.keyword(Zoi.any(),
+        description:
+          "Options passed through to `Req.request/2`. They're merged over the configured ones."
+      )
       |> Zoi.default([]),
     local_network_access: HTTP.local_network_access_option(),
     storage_adapter:
       Zoi.module(
-        description:
-          "Module implementing `Ltix.StorageAdapter`, which signs token requests. Defaults to the application configuration."
+        description: "Module implementing `Ltix.StorageAdapter`, which signs token requests."
       ),
     storage_adapter_options:
       Zoi.keyword(Zoi.any(),
@@ -118,7 +120,7 @@ defmodule Ltix.OAuth.Client do
                                   :plugins,
                                   Zoi.list(Zoi.any(),
                                     description:
-                                      "Plugins for the client's token requests and calls, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to `config :ltix, :plugins`."
+                                      "Plugins for the client's token requests and calls, after the [default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to `[]`."
                                   )
                                 )
 
@@ -287,7 +289,8 @@ defmodule Ltix.OAuth.Client do
   Send an authenticated GET request and follow the `rel="next"` links of the
   responses.
 
-  Takes the options of `request/3`. `:params` apply to the first page only.
+  `opts` are `Req` request options, as in `request/3`. `:params` apply to the
+  first page only.
 
   Fetches the first page before returning. Returns `{:ok, stream}` with
   `{:ok, body}` for each page, or `{:error, error}` if the first page fails.
@@ -380,6 +383,9 @@ defmodule Ltix.OAuth.Client do
   The token may lack some of the scopes the endpoints need.
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@from_access_token_schema)}
   """

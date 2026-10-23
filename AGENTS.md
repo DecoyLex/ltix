@@ -1,7 +1,6 @@
 ## Commit Messages
 
-This project enforces [Conventional Commits](https://www.conventionalcommits.org/).
-Validation is done with [cocogitto](https://docs.cocogitto.io/) (`cog`).
+This project enforces [Conventional Commits](https://www.conventionalcommits.org/), validated with [cocogitto](https://docs.cocogitto.io/) (`cog`).
 
 ### Format
 ```
@@ -13,7 +12,7 @@ Validation is done with [cocogitto](https://docs.cocogitto.io/) (`cog`).
 ```
 
 ### Co-Authors
-When multiple people contribute to a commit, include co-authors in the footer:
+When multiple people contribute to a commit, include co-authors in the footer.
 ```
 Co-authored-by: Name <email@example.com>
 ```
@@ -30,7 +29,7 @@ cog check --from-latest-tag   # check all since last tag
 
 ## Quality Checks
 
-Always run quality checks before committing. 
+Always run quality checks before committing.
 
 ```bash
 mix precommit
@@ -46,8 +45,7 @@ Use the `qc` skill for checks on test hygiene
 
 ## Doctests
 
-Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests.
-Avoid assertions in doctests — they muddy things for the end-user. Show inputs and outputs directly.
+Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests. Avoid assertions in doctests, because they muddy things for the end-user. Show inputs and outputs directly.
 
 ## Declared Claims and Types
 
@@ -61,9 +59,9 @@ Object claims (in `lib/ltix/claims/`) and other types, such as line items and me
 
 ## Spec References
 
-Always link spec annotations to the relevant section of the online spec. 
+Always link spec annotations to the relevant section of the online spec, in this format.
 
-Format: `[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
+`[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
 
 <!-- usage-rules-start -->
 <!-- usage_rules-start -->

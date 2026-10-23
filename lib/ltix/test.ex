@@ -1,170 +1,64 @@
 defmodule Ltix.Test do
   @moduledoc """
-  Helpers for testing applications that use Ltix.
+  Helpers for testing an application that uses Ltix against a simulated
+  platform.
 
-  Reduces LTI test setup to a single call. `setup_platform!/1` generates
-  RSA keys, builds key sets, and creates registrations and
-  deployments.
+  `setup_platform!/1` creates a test platform with its own signing key,
+  registration, and deployment. The other helpers build the requests that
+  platform sends, build launches directly, and stub its grade and memberships
+  services. [Testing LTI Launches](testing-lti-launches.md) shows controller,
+  business logic, and service tests.
 
       setup do
         %{platform: Ltix.Test.setup_platform!()}
       end
 
-  Your application's own storage adapter (configured in `config/test.exs`)
-  handles persistence. `setup_platform!/1` provides the platform-side
-  simulation, which is RSA keys, a key set URL stub, and
-  registration/deployment data your adapter can look up. Without an adapter of your own, start the
-  in-memory `Ltix.Test.StorageAdapter` with the platform.
-
-  Add the optional `:plug` dependency to your test environment to use
-  `setup_platform!/1` and HTTP stubs. The stubs take effect only when Ltix
-  sends its requests through `Req.Test`, so add this to `config/test.exs`.
-
-      config :ltix, req_options: [plug: {Req.Test, :ltix}]
-
-  ## Connecting to your storage adapter
-
-  Pass a `:registration` function to create records in your own persistence
-  layer. The function receives a valid `Ltix.Registration` with the
-  registration details and returns your application's struct (which must
-  implement `Ltix.Registerable`).
-
-      setup do
-        jwk = MyApp.Lti.generate_jwk!()
-
-        platform = Ltix.Test.setup_platform!(
-          registration: fn reg ->
-            MyApp.Lti.create_registration!(%{
-              issuer: reg.issuer,
-              client_id: reg.client_id,
-              auth_endpoint: reg.auth_endpoint,
-              jwks_uri: reg.jwks_uri,
-              token_endpoint: reg.token_endpoint,
-              jwk_id: jwk.id
-            })
-          end,
-          tool_jwk: Ltix.JWK.new!(private_key_pem: jwk.private_key_pem, kid: jwk.kid),
-          deployment: fn dep, my_reg ->
-            MyApp.Lti.create_deployment!(%{
-              deployment_id: dep.deployment_id,
-              registration_id: my_reg.id
-            })
-          end
-        )
-
-        %{platform: platform}
-      end
-
-  ## Controller tests (full OIDC flow)
-
-  Simulate a platform-initiated launch against your controller endpoints.
-  Your app's storage adapter resolves registrations and nonces as it would
-  in production.
-
-      test "instructor launch renders dashboard", %{conn: conn, platform: platform} do
-        conn = post(conn, ~p"/lti/login", Ltix.Test.login_params(platform))
-
-        state = get_session(conn, :lti_state)
-        nonce = Ltix.Test.extract_nonce(redirected_to(conn, 302))
-
-        conn =
-          conn
-          |> recycle()
-          |> Plug.Test.init_test_session(%{lti_state: state})
-          |> post(~p"/lti/launch",
-            Ltix.Test.launch_params(platform,
-              nonce: nonce,
-              state: state,
-              roles: [Ltix.Role.context_instructor()],
-              name: "Jane Doe"
-            )
-          )
-
-        assert html_response(conn, 200) =~ "Dashboard"
-      end
-
-  ## Unit tests (direct launch construction)
-
-  When testing business logic that receives an `Ltix.Launch`, skip the OIDC
-  flow entirely with `build_launch/2`.
-
       test "instructors can manage grades", %{platform: platform} do
-        launch = Ltix.Test.build_launch(platform,
-          roles: [Ltix.Role.context_instructor()],
-          name: "Jane Smith"
-        )
+        launch = Ltix.Test.build_launch(platform, roles: [Ltix.Role.context_instructor()])
 
         assert MyApp.Permissions.can_manage_grades?(launch)
       end
 
-  ## Hand-built tokens
+  ## Setup
 
-  To send a token `launch_params/2` doesn't build, start from
-  `valid_lti_claims/2`, change the claims, and sign them with the
-  platform's key using `sign_id_token/3`.
+    * Route Ltix's requests through `Req.Test` in your test configuration.
+      With `retry: false`, a stubbed failure returns at once.
 
-      claims = Map.delete(Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce}), "sub")
-      params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => state}
+          # config/test.exs
+          config :ltix, req_options: [plug: {Req.Test, :ltix}, retry: false]
 
-  ## Advantage service tests
+    * Start `Ltix.JWT.KeySet` in your supervision tree, as in production.
+    * For a full launch with `launch_params/2`, make your storage adapter find
+      the test platform's registration and deployment. Create them with
+      `setup_platform!/1`'s `:registration` and `:deployment` options, or use
+      `Ltix.Test.StorageAdapter`.
 
-  When testing code that calls `Ltix.GradeService` or
-  `Ltix.MembershipsService`, stub the OAuth token endpoint and each
-  operation your code calls. Each stub handles one operation, stubbing an
-  operation again replaces its stub, and a request without a matching stub
-  fails the test with its method and URL.
+  ## Service stubs
 
-      setup do
-        platform = Ltix.Test.setup_platform!()
+  Each stub responds to one `Ltix.GradeService` or `Ltix.MembershipsService`
+  operation, whatever platform the request goes to. `stub_token_response/1`
+  responds to access token requests. Stubbing an operation again replaces its
+  stub. A service request without a stub fails the test.
 
-        Ltix.Test.stub_token_response(scopes: [
-          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-        ])
+      Ltix.Test.stub_token_response()
+      Ltix.Test.stub_post_score()
 
-        Ltix.Test.stub_list_line_items([
-          %Ltix.GradeService.LineItem{
-            id: "https://platform.example.com/lineitems/1",
-            label: "Quiz",
-            score_maximum: 100
-          }
-        ])
+      launch =
+        Ltix.Test.build_launch(platform, ags_endpoint: %{line_item: line_item, scopes: scopes})
+      {:ok, client} = Ltix.GradeService.authenticate(launch)
+      assert :ok = Ltix.GradeService.post_score(client, score)
 
-        Ltix.Test.stub_post_score()
+  List stubs, such as `stub_list_members/2`, split results into pages of the
+  call's `:per_page` size.
 
-        %{platform: platform}
-      end
+  Stubs work with `async: true`. To use them in a process your application
+  supervises, see `allow_stubs/1`.
 
-      test "posts a score to every line item", %{platform: platform} do
-        launch = Ltix.Test.build_launch(platform,
-          ags_endpoint: %{
-            line_items: "https://platform.example.com/lineitems",
-            scopes: [
-              "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-              "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-            ]
-          }
-        )
-
-        {:ok, client} = Ltix.GradeService.authenticate(launch)
-
-        score =
-          Ltix.GradeService.Score.new!(
-            user_id: "student-42",
-            score_given: 85,
-            score_maximum: 100,
-            activity_progress: :completed,
-            grading_progress: :fully_graded
-          )
-
-        for item <- Ltix.GradeService.list_line_items!(client) do
-          :ok = Ltix.GradeService.post_score(client, score, line_item: item)
-        end
-      end
-
-  See the [Testing LTI Launches](testing-lti-launches.md) cookbook for
-  more examples, including role customization, raw claim overrides, and
-  memberships service testing.
+  To test a failing platform, pass `stub_token_response/1` or `stub_key_set/2`
+  the response the platform sends. For an error or other custom response from
+  a grade or memberships service, call `Req.Test.stub/2` with the service
+  module, such as `Req.Test.stub(Ltix.GradeService, fn conn -> ... end)`. It
+  replaces that service's `Ltix.Test` stubs.
   """
 
   @compile {:no_warn_undefined,
@@ -262,8 +156,7 @@ defmodule Ltix.Test do
       |> Zoi.default(:resource_link),
     roles:
       Zoi.list(Zoi.string(),
-        description:
-          "Role URIs, such as `Ltix.Role.context_learner/0`. Defaults to an instructor."
+        description: "The user's role URIs, such as `Ltix.Role.context_learner/0`."
       )
       |> Zoi.default([Role.context_instructor()]),
     subject:
@@ -272,12 +165,12 @@ defmodule Ltix.Test do
           "The user's subject identifier, or `nil` for an anonymous launch. " <>
             "Defaults to `\"user-12345\"`."
       ),
-    name: Zoi.string(description: "Full name."),
-    email: Zoi.string(description: "Email address."),
-    given_name: Zoi.string(description: "Given name."),
-    family_name: Zoi.string(description: "Family name."),
+    name: Zoi.string(description: "The user's full name."),
+    email: Zoi.string(description: "The user's email address."),
+    given_name: Zoi.string(description: "The user's given name."),
+    family_name: Zoi.string(description: "The user's family name."),
     target_link_uri:
-      Zoi.string(description: "Launch URL.")
+      Zoi.string(description: "The URL the platform launches the user to.")
       |> Zoi.default("https://tool.example.com/launch"),
     context: @context_option,
     resource_link:
@@ -359,7 +252,9 @@ defmodule Ltix.Test do
       ),
     claims:
       Zoi.map(Zoi.string(), Zoi.any(),
-        description: "Raw claims merged over the built claims, keyed by claim name."
+        description:
+          "Raw claims, keyed by claim name, such as `\"sub\"` or a claim URI. They replace " <>
+            "the built claims of the same name."
       )
   ]
 
@@ -368,7 +263,7 @@ defmodule Ltix.Test do
                             nonce:
                               Zoi.string(
                                 description:
-                                  "Nonce from the login redirect, read with `extract_nonce/1`."
+                                  "The nonce that `extract_nonce/1` returns from the login's authentication request."
                               )
                               |> Zoi.required(),
                             state:
@@ -377,8 +272,9 @@ defmodule Ltix.Test do
                             plugins:
                               Zoi.list(Zoi.any(),
                                 description:
-                                  "The plugins to build the claims with, each as " <>
-                                    "`MyPlugin` or `{MyPlugin, opts}`. Defaults to the configured plugins."
+                                  "The plugins to build the claims with, after the " <>
+                                    "[default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or " <>
+                                    "`{MyPlugin, opts}`. Defaults to `[]`."
                               )
                           ] ++ @launch_option_fields,
                           unrecognized_keys: :error
@@ -393,13 +289,14 @@ defmodule Ltix.Test do
                                Zoi.boolean(
                                  description:
                                    "When `true`, accept a resource link launch without a subject. " <>
-                                     "Defaults to the configured `:allow_anonymous`."
+                                     "Defaults to `false`."
                                ),
                              plugins:
                                Zoi.list(Zoi.any(),
                                  description:
-                                   "The plugins the launch runs with, each as `MyPlugin` or " <>
-                                     "`{MyPlugin, opts}`. Defaults to the configured plugins."
+                                   "The plugins the launch runs with, after the " <>
+                                     "[default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or " <>
+                                     "`{MyPlugin, opts}`. Defaults to `[]`."
                                )
                            ],
                          unrecognized_keys: :error
@@ -464,8 +361,9 @@ defmodule Ltix.Test do
 
   @stub_plugins_option Zoi.list(Zoi.any(),
                          description:
-                           "The plugins to serialize properties with, each as " <>
-                             "`MyPlugin` or `{MyPlugin, opts}`. Defaults to the configured plugins."
+                           "The plugins to serialize properties with, after the " <>
+                             "[default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or " <>
+                             "`{MyPlugin, opts}`. Defaults to `[]`."
                        )
 
   @stub_line_item_option Zoi.union([Zoi.string(), Zoi.struct(LineItem)],
@@ -516,6 +414,7 @@ defmodule Ltix.Test do
 
   # --- Platform Setup ---
 
+  @doc group: "Platform"
   @doc """
   Set up a simulated LTI platform in one call.
 
@@ -753,6 +652,7 @@ defmodule Ltix.Test do
 
   # --- Request Builders ---
 
+  @doc group: "Login and launch"
   @doc """
   Build POST params for `Ltix.handle_login/3`.
 
@@ -772,6 +672,7 @@ defmodule Ltix.Test do
     }
   end
 
+  @doc group: "Login and launch"
   @doc """
   Returns the parameters the test platform posts to your launch URL, for
   `Ltix.handle_callback/3` or your own post in a controller test.
@@ -788,6 +689,9 @@ defmodule Ltix.Test do
 
   ## Options
 
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
   #{Zoi.describe(@launch_params_schema)}
   """
   @spec launch_params(Platform.t(), keyword()) :: map()
@@ -803,6 +707,7 @@ defmodule Ltix.Test do
     %{"id_token" => sign_id_token(claims, platform.jwk), "state" => state}
   end
 
+  @doc group: "Login and launch"
   @doc """
   Extract the nonce from a login redirect URI.
 
@@ -820,6 +725,7 @@ defmodule Ltix.Test do
 
   # --- Direct Launch Construction ---
 
+  @doc group: "Login and launch"
   @doc """
   Returns a launch from the test platform without the login flow, for testing
   code that takes an `Ltix.Launch`.
@@ -844,6 +750,9 @@ defmodule Ltix.Test do
       )
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@build_launch_schema)}
   """
@@ -894,6 +803,7 @@ defmodule Ltix.Test do
 
   # --- Service Test Helpers ---
 
+  @doc group: "Service stubs"
   @doc """
   Stubs the platform's OAuth token endpoint for Advantage service tests. Call
   it before a service's `authenticate/2`, such as
@@ -946,21 +856,22 @@ defmodule Ltix.Test do
 
   # --- Grade Service Stubs ---
 
+  @doc group: "Service stubs"
   @doc """
-  Stub `list_line_items/2` and `stream_line_items/2` to return the given
-  line items.
+  Stubs `Ltix.GradeService.list_line_items/2` and
+  `Ltix.GradeService.stream_line_items/2` to return the given line items.
+
+      alias Ltix.GradeService.LineItem
 
       Ltix.Test.stub_list_line_items([
         %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
         %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
       ])
 
-  Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does. Each line item includes its
-  unrecognized properties and every property it has a value for, using the
-  plugin set of the `:plugins` option.
-
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stub_plugins_schema)}
   """
@@ -971,17 +882,20 @@ defmodule Ltix.Test do
     ServiceStub.put(GradeService, :list_line_items, nil, &ServiceStub.json_pages(&1, json))
   end
 
+  @doc group: "Service stubs"
   @doc """
-  Stub `get_line_item/2` to return the given line item.
+  Stubs `Ltix.GradeService.get_line_item/2` to return the given line item.
 
-      Ltix.Test.stub_get_line_item(
-        %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100}
-      )
-
-  The line item includes its unrecognized properties and every property it
-  has a value for, using the plugin set of the `:plugins` option.
+      Ltix.Test.stub_get_line_item(%Ltix.GradeService.LineItem{
+        id: "https://lms.example.com/lineitems/1",
+        label: "Quiz 1",
+        score_maximum: 100
+      })
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stub_line_item_and_plugins_schema)}
   """
@@ -989,20 +903,23 @@ defmodule Ltix.Test do
   def stub_get_line_item(%LineItem{} = item, opts \\ []),
     do: stub_line_item(:get_line_item, item, opts)
 
+  @doc group: "Service stubs"
   @doc """
-  Stub `create_line_item/3` to return the given line item.
+  Stubs `Ltix.GradeService.create_line_item/3` to return the given line item.
 
-  Pass the line item you want the platform to "return" (typically the
-  same fields the caller sent, plus an `:id` assigned by the platform).
+  Pass the line item the platform would return. That's usually the fields your
+  code sends, plus the `:id` the platform assigns.
 
-      Ltix.Test.stub_create_line_item(
-        %LineItem{id: "https://lms.example.com/lineitems/new", label: "Quiz 1", score_maximum: 100}
-      )
-
-  The line item includes its unrecognized properties and every property it
-  has a value for, using the plugin set of the `:plugins` option.
+      Ltix.Test.stub_create_line_item(%Ltix.GradeService.LineItem{
+        id: "https://lms.example.com/lineitems/new",
+        label: "Quiz 1",
+        score_maximum: 100
+      })
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stub_plugins_schema)}
   """
@@ -1018,17 +935,20 @@ defmodule Ltix.Test do
     end)
   end
 
+  @doc group: "Service stubs"
   @doc """
-  Stub `update_line_item/3` to return the given line item.
+  Stubs `Ltix.GradeService.update_line_item/3` to return the given line item.
 
-      Ltix.Test.stub_update_line_item(
-        %LineItem{id: "https://lms.example.com/lineitems/1", label: "Updated Quiz", score_maximum: 100}
-      )
-
-  The line item includes its unrecognized properties and every property it
-  has a value for, using the plugin set of the `:plugins` option.
+      Ltix.Test.stub_update_line_item(%Ltix.GradeService.LineItem{
+        id: "https://lms.example.com/lineitems/1",
+        label: "Updated Quiz",
+        score_maximum: 100
+      })
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stub_line_item_and_plugins_schema)}
   """
@@ -1045,6 +965,7 @@ defmodule Ltix.Test do
 
   defp stub_json(value, enabled), do: platform_json(value, ok!(PluginSet.resolve(enabled)))
 
+  @doc group: "Service stubs"
   @doc """
   Stub `delete_line_item/2` to succeed.
 
@@ -1060,6 +981,7 @@ defmodule Ltix.Test do
     ServiceStub.put(GradeService, :delete_line_item, url, &Plug.Conn.send_resp(&1, 204, ""))
   end
 
+  @doc group: "Service stubs"
   @doc """
   Stub `post_score/3` to succeed.
 
@@ -1075,20 +997,22 @@ defmodule Ltix.Test do
     ServiceStub.put(GradeService, :post_score, url, &Plug.Conn.send_resp(&1, 200, ""))
   end
 
+  @doc group: "Service stubs"
   @doc """
-  Stub `list_results/2` and `stream_results/2` to return the given results.
+  Stubs `Ltix.GradeService.list_results/2` and
+  `Ltix.GradeService.stream_results/2` to return the given results.
+
+      alias Ltix.GradeService.Result
 
       Ltix.Test.stub_list_results([
         %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
         %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
       ])
 
-  Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does. Each result includes its
-  unrecognized properties and every property it has a value for, using the
-  plugin set of the `:plugins` option.
-
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stub_line_item_and_plugins_schema)}
   """
@@ -1118,31 +1042,41 @@ defmodule Ltix.Test do
 
   # --- Memberships Service Stubs ---
 
+  @doc group: "Service stubs"
   @doc """
-  Stub `list_members/2` and `stream_members/2` to return the given members,
-  or the given membership container.
+  Stubs `Ltix.MembershipsService.list_members/2` and
+  `Ltix.MembershipsService.stream_members/2` to return the given members or
+  membership container.
 
-      Ltix.Test.stub_list_members([
+      alias Ltix.MembershipsService.Member
+
+      members = [
         %Member{user_id: "student-1", roles: [Ltix.Role.context_learner()], name: "Alice"},
-        %Member{user_id: "student-2", roles: [Ltix.Role.context_instructor()], name: "Bob"}
-      ])
+        %Member{user_id: "teacher-1", roles: [Ltix.Role.context_instructor()], name: "Bob"}
+      ]
 
-  Pass an `Ltix.MembershipsService.MembershipContainer` to send its `id`,
-  `context`, and properties too. With a container, the `:context` and `:id`
-  options raise `Ltix.Errors.Invalid.InvalidOption`.
+      Ltix.Test.stub_list_members(members)
 
-      roster = %MembershipContainer{context: %Ltix.Claims.Context{id: "course-42"}, members: members}
+  Pass an `Ltix.MembershipsService.MembershipContainer` to return its `id`,
+  `context`, and extensions too. With a container, passing `:context` or `:id`
+  raises `Ltix.Errors.Invalid.InvalidOption`.
+
+      roster = %Ltix.MembershipsService.MembershipContainer{
+        context: %Ltix.Claims.Context{id: "course-42"},
+        members: members
+      }
+
       Ltix.Test.stub_list_members(roster)
 
-  Responds to a request with a `:per_page` size one page at a time, linking
-  to the next page like a platform does. The container, its context, and
-  each member include their unrecognized properties and every property they
-  have a value for, and each member includes the claims of its messages,
-  using the plugin set of the `:plugins` option. Give each message as a map
-  of claims keyed by short name. A claim no plugin declares raises
-  `ArgumentError`.
+  A member's `:message` is a list of messages, each a map of claims keyed by
+  [short name](`m:Ltix.Core#module-claims`), such as
+  `%{custom: %{"grade_level" => "8"}}`. The stub raises `ArgumentError` for a
+  short name no plugin declares.
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stub_list_members_schema)}
   """
@@ -1220,6 +1154,7 @@ defmodule Ltix.Test do
 
   # --- Lower-Level Helpers ---
 
+  @doc group: "Tokens"
   @doc """
   Verify a Deep Linking response JWT signed by the tool.
 
@@ -1250,6 +1185,7 @@ defmodule Ltix.Test do
 
   defp verify_signature(_public_key, _jwt), do: :error
 
+  @doc group: "Tokens"
   @doc """
   Sign claims as an ID token with a platform key.
 
@@ -1278,6 +1214,7 @@ defmodule Ltix.Test do
     token
   end
 
+  @doc group: "Tokens"
   @doc """
   Return a complete, valid LTI claim set.
 

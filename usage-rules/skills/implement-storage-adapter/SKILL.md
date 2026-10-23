@@ -21,8 +21,8 @@ Two more callbacks are optional. Implement them when the tool calls Advantage se
 
 | Callback | Called During | Returns |
 |---|---|---|
-| `key_id/2` | Service authentication and deep linking responses | `{:ok, String.t()} \| {:error, term()}` |
-| `sign/4` | Service authentication and deep linking responses | `{:ok, binary()} \| {:error, term()}` |
+| `key_id/2` | Service authentication and Deep Linking responses | `{:ok, String.t()} \| {:error, term()}` |
+| `sign/4` | Service authentication and Deep Linking responses | `{:ok, binary()} \| {:error, term()}` |
 
 Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 

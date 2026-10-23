@@ -8,8 +8,6 @@ Ltix.Role.instructor?(launch.claims.roles)  #=> true
 
 ## Checking roles
 
-The most common check is "is this user an instructor or a learner?"
-
 ```elixir
 alias Ltix.Role
 

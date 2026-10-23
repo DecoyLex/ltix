@@ -3,8 +3,8 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   An LTI resource link content item for Deep Linking responses.
 
   All fields are optional. The platform can use the tool's base URL when
-  no `url` is provided. Include a `line_item` to have the platform
-  auto-create a gradebook column for the link.
+  no `url` is provided. Include a `line_item` to ask the platform to create a
+  line item for the link.
 
   See [Building Content Items](cookbooks/building-content-items.md) for
   common patterns including line items, custom properties, and

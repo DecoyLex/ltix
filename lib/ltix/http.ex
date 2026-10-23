@@ -19,9 +19,11 @@ defmodule Ltix.HTTP do
     Zoi.nullish(
       Zoi.enum([:none, :local, :loopback],
         description: """
-        Addresses platform requests may connect to besides public ones. `:local`
-        adds private network addresses, and `:loopback` adds those and this
-        machine. Defaults to `config :ltix, :local_network_access`, then `:none`.
+        The non-public addresses Ltix may connect to when it calls a platform.
+        Defaults to `:none`. `:local` allows private network addresses, and
+        `:loopback` allows those and this machine. The `:finch`, `:adapter`,
+        `:unix_socket`, and proxy options in `:req_options` require `:loopback`,
+        as do its `:tcp_module` and `:cb_info` transport options.
         """
       )
     )

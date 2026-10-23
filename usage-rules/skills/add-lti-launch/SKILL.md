@@ -3,7 +3,7 @@ name: add-lti-launch
 description: "Use this skill when adding LTI 1.3 launch support to a Phoenix application. Covers route setup, session handling, HTTPS configuration, and the full OIDC login-to-launch flow, with collaboration checkpoints for app-specific decisions."
 ---
 
-# Add LTI Launch to a Phoenix App
+# Add LTI Launch to a Phoenix Application
 
 This skill describes how to set up LTI 1.3 launch endpoints in a Phoenix application.
 
@@ -77,6 +77,7 @@ For development, HTTPS is required. If your user isn't using a reverse proxy tha
 ```elixir
 # config/dev.exs. Generate certs with mix phx.gen.cert
 config :my_app, MyAppWeb.Endpoint,
+  url: [host: "localhost", scheme: "https", port: 4001],
   https: [
     port: 4001,
     cipher_suite: :strong,
@@ -220,12 +221,8 @@ defmodule MyAppWeb.LtiController do
         raise "Deep linking UI not yet implemented"
 
       "LtiResourceLinkRequest" ->
-        user = Lti.create_user!(launch)
-        course = Lti.create_course!(launch)
-
         conn
-        |> put_session(:user_id, user.id)
-        |> put_session(:course_id, course.id)
+        |> put_session(:lti_subject, launch.claims.subject)
         |> redirect(to: ~p"/lti/dashboard")
     end
   end
@@ -251,7 +248,7 @@ config :ltix,
   req_options: [plug: {Req.Test, :ltix}, retry: false]
 ```
 
-Example controller test. Adapt route paths and assertions to match the app.
+Example controller test. Adapt route paths and assertions to match the application.
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do

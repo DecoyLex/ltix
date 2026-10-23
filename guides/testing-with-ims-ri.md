@@ -23,11 +23,16 @@ Copy the values from the RI platform page into your storage adapter. You need th
 
 | RI Platform field | Storage field |
 |---|---|
-| Issuer (shown on platform page) | `Registration` `:issuer` |
+| Issuer, `https://lti-ri.imsglobal.org/` with the trailing slash | `Registration` `:issuer` |
 | Client ID (what you entered) | `Registration` `:client_id` |
 | OIDC Auth URL | `Registration` `:auth_endpoint` |
 | well-known/jwks URL (from Platform Keys) | `Registration` `:jwks_uri` |
 | Deployment ID (from Platform Keys) | `Deployment` `:deployment_id` |
+
+## Add a course
+
+1. View your platform and click **Courses**
+2. Fill in a course name and save
 
 ## Add a resource link
 
@@ -37,16 +42,11 @@ Copy the values from the RI platform page into your storage adapter. You need th
    - **Login initiation url** - `https://localhost:4000/lti/login`
 3. Save
 
-## Add a course
-
-1. View your platform and click **Courses**
-2. Fill in a course name and save
-
 ## Launch
 
 1. View your platform and click **Resource Links**
 2. Click **Select User for Launch**, then **Launch with New User**
-3. Scroll down and click **Perform Launch**
+3. Scroll down and click **Post request**
 
 If everything is configured correctly, you'll see your launch page with the parsed launch data (user information, roles, context, and resource link).
 

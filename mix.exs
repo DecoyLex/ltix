@@ -316,6 +316,9 @@ defmodule Ltix.MixProject do
           Ltix.Errors.Security,
           Ltix.Errors.Unknown
         ],
+        "Invalid Errors": [~r/^Ltix\.Errors\.Invalid\./],
+        "Security Errors": [~r/^Ltix\.Errors\.Security\./],
+        "Unknown Errors": [~r/^Ltix\.Errors\.Unknown\./],
         Testing: [
           Ltix.Test,
           Ltix.Test.Platform,

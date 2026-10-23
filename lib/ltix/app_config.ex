@@ -13,10 +13,9 @@ defmodule Ltix.AppConfig do
 
                    true ->
                      raise """
-                     No JSON library found. Please add either `:jason` to your dependencies or upgrade to Elixir 1.18+/OTP 27+
-                     to use the built-in `JSON` module.
-
-                     If you want to use a different JSON library, set the following in your config:
+                     No JSON library found. Add `:jason` to your dependencies, or use Elixir 1.18 or later
+                     with OTP 27 or later for the built-in `JSON` module. To use another JSON library, set it
+                     in your configuration.
 
                          config :ltix, :json_library, YourJsonModule
                      """

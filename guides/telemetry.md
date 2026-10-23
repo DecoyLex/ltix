@@ -16,7 +16,7 @@ Ltix emits [`:telemetry`](https://telemetry.hexdocs.pm) events at key boundaries
 
 - `[:ltix, :deep_linking, :build_response, :start | :stop | :exception]` wraps `Ltix.DeepLinking.build_response/3`. Use `item_count` and `item_types` metadata to break down measurements.
 
-Bang variants such as `list_members!/2` emit the same events as their non-bang functions.
+Bang variants such as `list_members!/2` emit the same events as their non-bang functions. A `stream_*` span covers only the first page.
 
 ## OAuth
 
@@ -37,8 +37,13 @@ A miss is also emitted when the `kid` is not found, before the error is returned
 
 | Area | Reason |
 |---|---|
-| HTTP requests | Req emits `[:req, :request, :*]` already |
+| HTTP requests | Finch emits `[:finch, :request, :*]` already |
 | Storage adapter calls | Application code. Instrument your own adapter. |
 | JWT verification internals | Sub-steps of the callback span |
 | Claim parsing | In-memory struct building with negligible cost |
-| Pagination per-page | Service-level span covers the whole operation |
+| Pagination per-page | Service-level span covers the whole operation for `list_*` calls |
+
+## Next steps
+
+- [Error Handling](error-handling.md) - the errors logins, launches, and service calls return
+- [Advantage Services](advantage-services.md) - the service calls the OAuth and service events measure

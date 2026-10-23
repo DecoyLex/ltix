@@ -15,7 +15,7 @@ The entire OIDC launch flow is two functions.
 
 ## Required Configuration
 
-Every app must configure a storage adapter.
+Every application must configure a storage adapter.
 
 ```elixir
 config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
@@ -70,7 +70,7 @@ Errors use the Splode framework with three classes.
 
 Use `Ltix.Errors.status_code/1` to get the HTTP status for any error (invalid=400, security=401, unknown=500). When Plug is a dependency, all errors also implement `Plug.Exception`, so Phoenix error views use the correct status automatically.
 
-A single failure is returned directly. Several simultaneous failures are grouped in their class, such as `%Ltix.Errors.Invalid{errors: [...]}`.
+A single failure is returned directly. Several simultaneous failures are grouped in one class, such as `%Ltix.Errors.Invalid{errors: [...]}`. A group with a security error is `Ltix.Errors.Security`, otherwise a group with an invalid error is `Ltix.Errors.Invalid`.
 
 Match on specific error modules for targeted handling, or match on `.class` for broad categories. A plugin's step can return an exception that isn't an Ltix error and has no `class`.
 
@@ -99,7 +99,7 @@ end
 - Platform granularity varies.
   - Canvas sends sub-roles (e.g., `Instructor#TeachingAssistant`)
   - Moodle sends only `Instructor` or `Learner` (no sub-roles)
-  - Others vary by admin configuration
+  - Others vary by administrator configuration
 - **Design for the roles every platform sends.** Only reliably expect Instructor vs Learner across all platforms.
 
 ## Cross-Origin & Iframe Considerations
@@ -140,7 +140,7 @@ These are the key event prefixes.
 - `[:ltix, :login, ...]` and `[:ltix, :callback, ...]` - OIDC launch flow
 - `[:ltix, :grade_service, <action>, ...]` - grade service operations
 - `[:ltix, :memberships_service, <action>, ...]` - memberships service operations
-- `[:ltix, :deep_linking, :build_response, ...]` - deep linking response building
+- `[:ltix, :deep_linking, :build_response, ...]` - Deep Linking response building
 - `[:ltix, :oauth, :authenticate, ...]` and `[:ltix, :oauth, :refresh, ...]` - OAuth token acquisition
 - `[:ltix, :jwks, :cache_hit]` and `[:ltix, :jwks, :cache_miss]` - single events (not spans)
 

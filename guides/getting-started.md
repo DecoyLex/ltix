@@ -35,7 +35,7 @@ children = [
 
 Your tool signs with private keys that you'll store in the database. Encrypt them there, so a database dump or a read-only breach doesn't expose your keys.
 
-Use the encryption your app already has, or a key management service. If you have neither, we recommend [Cloak](https://cloak-ecto.hexdocs.pm). Follow its [install guide](https://cloak-ecto.hexdocs.pm/install.html) to set up a vault and a binary field type. This guide calls that type `MyApp.Encrypted.Binary`.
+Use the encryption your application already has, or a key management service. If you have neither, we recommend [Cloak](https://cloak-ecto.hexdocs.pm). Follow its [install guide](https://cloak-ecto.hexdocs.pm/install.html) to set up a vault and a binary field type. This guide calls that type `MyApp.Encrypted.Binary`.
 
 ## Database schema
 
@@ -383,7 +383,7 @@ end
 
 The storage adapter is a thin wrapper that delegates to your context module, where the actual queries are.
 
-`key_id/2` and `sign/4` are optional. Ltix calls them to sign requests for Advantage services and deep linking responses, so a tool that only handles launches can leave them out.
+`key_id/2` and `sign/4` are optional. Ltix calls them to sign access token requests for Advantage services and Deep Linking responses, so a tool that only handles launches can leave them out.
 
 > #### Nil client_id {: .tip}
 >
@@ -499,7 +499,7 @@ This is the simplest approach. Your entire application works in the iframe with 
 
 Three other approaches exist if rendering everything in an iframe doesn't fit your application.
 
-- **New tab launches** - set `target` to `_blank` in the platform's tool configuration. The launch opens a new browser tab, where browsers that block third-party cookies still accept yours. The platform still sends the launch as a cross-site POST, and browsers leave `SameSite=Lax` cookies off those, so the cookie that holds the login state still needs `SameSite=None`. This works well for apps with complex navigation that doesn't fit an iframe.
+- **New tab launches** - set `target` to `_blank` in the platform's tool configuration. The launch opens a new browser tab, where browsers that block third-party cookies still accept yours. The platform still sends the launch as a cross-site POST, and browsers leave `SameSite=Lax` cookies off those, so the cookie that holds the login state still needs `SameSite=None`. This works well for applications with complex navigation that doesn't fit an iframe.
 
 - **Split rendering** - serve a lightweight iframe view for the launch, then link out to the full application in a new tab for deeper interaction. This lets you keep `SameSite=Lax` on most routes while only the LTI endpoints use `SameSite=None`.
 

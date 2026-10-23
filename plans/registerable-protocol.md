@@ -291,7 +291,7 @@ protocols, for use in protocol-specific tests.
 
 ## Phase 7 — Documentation
 
-### 7.1 Protocol `@moduledoc`s
+### 7.1 Each protocol's `@moduledoc`
 
 Each protocol gets a `@moduledoc` showing:
 - What it does and why

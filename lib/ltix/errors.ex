@@ -1,28 +1,62 @@
 defmodule Ltix.Errors do
   @moduledoc """
-  Structured error types for LTI 1.3 validation.
+  Error classes and HTTP status codes for the errors Ltix returns.
 
-  Uses Splode for composable, class-based errors. There are three
-  error classes, each with a default HTTP status code.
+  Ltix returns `{:error, exception}` for an expected failure, such as a launch
+  that fails a security check. Each Ltix error has one of three classes in its
+  `:class` field.
 
-  | Class       | Status | Meaning                                                  |
-  |-------------|--------|----------------------------------------------------------|
-  | `:invalid`  | 400    | Spec-violating input (bad claims, missing params)        |
-  | `:security` | 401    | Security framework violations (signature, nonce, expiry) |
-  | `:unknown`  | 500    | Unexpected / catch-all errors                            |
+  | Class | Module | Status | Cause |
+  |---|---|---|---|
+  | `:invalid` | `Ltix.Errors.Invalid` | 400 | Bad input or a bad call, such as a missing claim or an unknown registration |
+  | `:security` | `Ltix.Errors.Security` | 401 | A failed security check, such as a bad signature or a reused nonce |
+  | `:unknown` | `Ltix.Errors.Unknown` | 500 | A failure in your storage adapter, the network, the platform's server, or your application's setup, such as conflicting plugins |
 
-  A single failure is returned directly. Several failures found
-  at once are returned together in their class, such as
-  `%Ltix.Errors.Invalid{errors: [...]}`.
+  Match on `:class` to handle a whole class, and on an error's module to handle
+  one error.
 
-  Use `status_code/1` to get the HTTP status for any Ltix error.
+      case Ltix.handle_callback(params, state) do
+        {:ok, launch} ->
+          {:ok, launch}
 
-      error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub")
-      Ltix.Errors.status_code(error)
-      #=> 400
+        {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: deployment_id}} ->
+          {:unknown_deployment, deployment_id}
 
-  When Plug is available, all errors also implement `Plug.Exception`,
-  so Phoenix error views use the correct status automatically.
+        {:error, %{class: :security} = error} ->
+          Logger.warning("LTI launch rejected: " <> Exception.message(error))
+          :rejected
+
+        {:error, error} ->
+          Logger.error("LTI launch failed: " <> Exception.message(error))
+          :failed
+      end
+
+  A plugin can return an exception that isn't an Ltix error and has no `:class`.
+  Keep a last clause for any other error. [Error Handling](error-handling.md)
+  has more ways to respond.
+
+  ## Grouped errors
+
+  When a call finds several failures at once, it returns one error with all of
+  them in `:errors`, such as `%Ltix.Errors.Invalid{errors: [...]}`. The group is
+  an `Ltix.Errors.Security` when one of them is a security error, an
+  `Ltix.Errors.Invalid` when one is invalid, and an `Ltix.Errors.Unknown`
+  otherwise. A group wraps an exception that isn't an Ltix error in an
+  `Ltix.Errors.Unknown.Unknown`.
+
+  A launch groups only claim errors, such as `Ltix.Errors.Invalid.MissingClaim`
+  and `Ltix.Errors.Invalid.InvalidClaim`, and errors from plugins. Every other
+  launch error is returned alone.
+
+  ## Messages
+
+  An error's message is for your logs. It can include values from the request,
+  such as claim values and URLs. Show users a message of your own.
+
+  ## Plug
+
+  When your application depends on Plug, every Ltix error implements
+  `Plug.Exception` with its status code.
   """
   # A group of errors takes the first class in this list that one of its
   # errors has.
@@ -97,6 +131,12 @@ defmodule Ltix.Errors do
 
     quote do
       unquote(error_definition(kind, opts))
+
+      # Splode documents `exception/1` with its own template text. This
+      # override keeps it public and leaves it out of the docs.
+      @doc false
+      @impl Exception
+      def exception(opts), do: super(opts)
 
       def __status_code__, do: unquote(status)
 
@@ -266,24 +306,22 @@ defmodule Ltix.Errors do
   defp default_status(:unknown), do: 500
 
   @doc """
-  Returns the HTTP status code for an Ltix error.
+  Returns an error's HTTP status code, from its class.
 
-  Each error has a status code derived from its class.
-
-  | Class       | Default status |
-  |-------------|----------------|
-  | `:invalid`  | 400            |
-  | `:security` | 401            |
-  | `:unknown`  | 500            |
-
-  Individual errors may override the default for their class. Exceptions
-  that are not Ltix errors return 500.
+  Returns 500 for an exception that isn't an Ltix error, such as one a plugin
+  returns.
 
   ## Examples
 
       iex> error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub")
       iex> Ltix.Errors.status_code(error)
       400
+
+      iex> Ltix.Errors.status_code(%Ltix.Errors.Security.NonceReused{})
+      401
+
+      iex> Ltix.Errors.status_code(RuntimeError.exception("boom"))
+      500
   """
   @spec status_code(Exception.t()) :: pos_integer()
   def status_code(%module{} = error) do

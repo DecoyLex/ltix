@@ -173,14 +173,14 @@ These indicate an unexpected failure outside the incoming request.
 | `InvalidPluginSet` | `conflicts`, `plugins` | The enabled plugins conflict, such as plugins that depend on each other in a cycle |
 | `Unknown` | `error` | Any other unexpected failure |
 
-## Deep linking errors
+## Deep Linking errors
 
 These errors come from `Ltix.DeepLinking.build_response/3`. Content item constructors such as `Ltix.DeepLinking.ContentItem.Link.new/1` return `InvalidField`. Errors about one item in a response include its `index` in the list you passed.
 
 | Error | Fields | When |
 |---|---|---|
 | `InvalidContentItem` | `index`, `value`, `reason` | A response item is not a content item of a type the plugins declare, such as a plain map, or the items are not a list |
-| `InvalidMessageType` | `message_type` | The launch is not a deep linking request |
+| `InvalidMessageType` | `message_type` | The launch is not a Deep Linking request |
 | `ContentItemTypeNotAccepted` | `index`, `type`, `accept_types` | An item's type is not in `accept_types` |
 | `ContentItemsExceedLimit` | `index`, `count` | Several items when `accept_multiple` is `false`. `index` is the position of the first item over the limit |
 | `LineItemNotAccepted` | `index` | A resource link has a line item when `accept_line_item` is `false` |
@@ -235,3 +235,9 @@ Invalid errors are usually the platform's fault (misconfiguration, bad requests)
       Logger.error("LTI unexpected error: #{Exception.message(error)}")
   end
 ```
+
+## Next steps
+
+- `Ltix.Errors` - the error classes and every error module
+- [Telemetry](telemetry.md) - the events Ltix emits for logins, launches, and service calls
+- [Hardening Your Tool](hardening.md) - production settings for transport and storage

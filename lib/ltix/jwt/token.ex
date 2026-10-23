@@ -32,18 +32,6 @@ defmodule Ltix.JWT.Token do
   11. Validate `nonce` is present
 
   Steps 8 to 10 allow for clock skew.
-
-  ## Options
-
-    * `:clock_skew` - seconds of tolerance for `exp`, `iat`, and `nbf`
-      validation (defaults to `5`)
-    * `:max_token_age` - seconds after `iat` that a token is still accepted,
-      or `:infinity` to accept any age (defaults to application config, then
-      `3600`)
-    * `:now` - override current time in unix seconds (useful for testing)
-    * `:req_options` - extra options passed through to `Ltix.JWT.KeySet`
-    * `:key_set` - key set cache name passed through to `Ltix.JWT.KeySet`
-    * `:local_network_access` - passed through to `Ltix.JWT.KeySet`
   """
 
   alias Ltix.AppConfig
@@ -67,12 +55,32 @@ defmodule Ltix.JWT.Token do
 
   @options_schema Zoi.keyword(
                     [
-                      clock_skew: Zoi.integer() |> Zoi.non_negative(),
+                      clock_skew:
+                        Zoi.integer(
+                          description:
+                            "Seconds of tolerance for the ID token's `exp`, `iat`, and `nbf` claims. Defaults to `5`."
+                        )
+                        |> Zoi.non_negative(),
                       max_token_age:
-                        Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)]),
-                      now: Zoi.integer(),
-                      req_options: Zoi.keyword(Zoi.any()),
-                      key_set: Zoi.atom(),
+                        Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
+                          description:
+                            "The maximum age of an ID token Ltix accepts, in seconds, or `:infinity`. Defaults to `3600`."
+                        ),
+                      now:
+                        Zoi.integer(
+                          description:
+                            "The time to check the ID token at, in Unix seconds. Defaults to the current time."
+                        ),
+                      req_options:
+                        Zoi.keyword(Zoi.any(),
+                          description:
+                            "Options for `Req.request/2` on the key set fetch. They're merged over the configured ones."
+                        ),
+                      key_set:
+                        Zoi.atom(
+                          description:
+                            "The name of the `Ltix.JWT.KeySet` cache to get the platform's keys from. Defaults to `Ltix.JWT.KeySet`."
+                        ),
                       local_network_access: Ltix.HTTP.local_network_access_option()
                     ],
                     unrecognized_keys: :error
@@ -86,6 +94,13 @@ defmodule Ltix.JWT.Token do
 
   Returns `{:ok, claims}` with the decoded claims map on success, or
   `{:error, exception}` on any validation failure.
+
+  ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  #{Zoi.describe(@options_schema)}
   """
   # [Sec §5.1.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   @spec verify(String.t(), Registration.t(), keyword()) ::
@@ -154,7 +169,9 @@ defmodule Ltix.JWT.Token do
 
   defp segment(_token, _index), do: {:error, invalid_json()}
 
-  # [Sec §5.1.3 step 6; Cert §4.2] Only RS256 is permitted.
+  # Only RS256 is permitted.
+  # [Sec §5.1.3 step 6](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+  # [Cert §4.2](https://www.imsglobal.org/spec/lti/v1p3/cert/#general-requirements-for-certification-testing-setup)
   defp validate_algorithm(%{"alg" => "RS256"}), do: :ok
 
   defp validate_algorithm(%{"alg" => alg}) do
@@ -169,7 +186,8 @@ defmodule Ltix.JWT.Token do
 
   defp validate_critical_headers(_header), do: :ok
 
-  # [Sec §6.3] The kid MUST be present in the JWT header.
+  # The kid MUST be present in the JWT header.
+  # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   defp extract_kid(%{"kid" => nil}) do
     {:error, KidMissing.exception()}
   end
@@ -181,7 +199,8 @@ defmodule Ltix.JWT.Token do
     {:error, SignatureInvalid.exception()}
   end
 
-  # [Sec §5.1.3 step 1] Verify the signature using the platform's public key.
+  # Verify the signature using the platform's public key.
+  # [Sec §5.1.3 step 1](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp verify_signature(token_string, jwk) do
     case JOSE.JWS.verify_strict(JWK.to_jose(jwk), ["RS256"], token_string) do
       {true, payload, _jws} -> decode_object(payload)
@@ -244,7 +263,8 @@ defmodule Ltix.JWT.Token do
     end
   end
 
-  # [Sec §5.1.3 step 2] iss MUST match registration issuer.
+  # iss MUST match registration issuer.
+  # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_issuer(%{"iss" => iss}, %Registration{issuer: expected}) when iss == expected,
     do: :ok
 
@@ -257,9 +277,11 @@ defmodule Ltix.JWT.Token do
     {:error, MissingClaim.exception(claim: "iss")}
   end
 
-  # [Sec §5.1.3 step 3] aud MUST contain client_id. The tool MUST reject
-  # tokens containing additional audiences not trusted by the tool.
-  # [Sec §5.1.3 step 5] If azp present, SHOULD match client_id.
+  # aud MUST contain client_id. The tool MUST reject tokens containing
+  # additional audiences not trusted by the tool. If azp present, SHOULD match
+  # client_id.
+  # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+  # [Sec §5.1.3 step 5](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_audience(claims, %Registration{client_id: client_id}) do
     aud = Map.get(claims, "aud")
     azp = Map.get(claims, "azp")
@@ -278,7 +300,8 @@ defmodule Ltix.JWT.Token do
     end
   end
 
-  # [Sec §5.1.3 step 5] If azp is present, it SHOULD match client_id.
+  # If azp is present, it SHOULD match client_id.
+  # [Sec §5.1.3 step 5](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_azp(nil, _client_id), do: :ok
   defp validate_azp(azp, client_id) when azp == client_id, do: :ok
 
@@ -286,8 +309,10 @@ defmodule Ltix.JWT.Token do
     {:error, AudienceMismatch.exception(claim: "azp", expected: client_id, actual: azp)}
   end
 
-  # [Sec §5.1.3 step 7] exp MUST be in the future (with clock skew tolerance).
-  # [Sec §5.1.3 step 8] The Tool MAY reject tokens issued too long ago.
+  # exp MUST be in the future (with clock skew tolerance), and the Tool MAY
+  # reject tokens issued too long ago.
+  # [Sec §5.1.3 step 7](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+  # [Sec §5.1.3 step 8](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_expiration(%{"exp" => exp} = claims, now, opts) when is_number(exp) do
     if now < deadline(claims, opts) do
       :ok
@@ -346,7 +371,8 @@ defmodule Ltix.JWT.Token do
     {:error, TokenNotYetValid.exception(claim: claim)}
   end
 
-  # [Sec §5.1.3 step 9] nonce MUST be present.
+  # nonce MUST be present.
+  # [Sec §5.1.3 step 9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_nonce(%{"nonce" => nonce}) when is_binary(nonce) and byte_size(nonce) > 0,
     do: :ok
 

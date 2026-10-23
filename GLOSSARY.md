@@ -52,7 +52,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **LTI link**. A platform's stored reference to a tool, with the URL and data a launch needs. _Avoid_ placement.
 
-**Resource link**. An LTI link tied to a resource, with a `resource_link_id` unique within the platform.
+**Resource link**. An LTI link tied to a resource, with a `resource_link_id` unique within the deployment.
 
 **User**. A person with a session in a platform, identified to tools by a stable ID.
 
@@ -60,7 +60,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Actual user**. The person acting in an impersonation launch, such as an administrator viewing a course as a student, described by the `actual_user` claim.
 
-**Role-scope mentor**. A user, such as a parent or auditor, who can access other users' data, listed by subject identifier in the `role_scope_mentor` claim.
+**Role-scope mentor**. A user, such as a parent or auditor, who can access other users' data. The `role_scope_mentor` claim lists those users by subject identifier.
 
 ### Roles
 
@@ -128,7 +128,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **AGS**. Assignment and Grade Services, the specification for line items, scores, and results.
 
-**Line item**. Usually a column in a platform's gradebook, holding the results for one activity in one context.
+**Line item**. A record of one score per user for one activity in a context. The platform decides where the scores appear, usually as a gradebook column.
 
 **Coupled line item**. The line item a platform creates and ties to a resource link.
 
@@ -136,7 +136,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Score**. The latest grade a tool sends for one user on one line item, with the status of the activity and of grading.
 
-**Result**. Usually a cell in a platform's gradebook, holding the current value for one user on one line item.
+**Result**. The platform's current value for one user on one line item.
 
 **NRPS**. Names and Role Provisioning Services, the specification for reading a context's memberships.
 
@@ -162,7 +162,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Content item type**. The kind of a content item, given by its `type` string. Deep Linking defines `link`, `ltiResourceLink`, `file`, `html`, and `image`.
 
-**Deep Linking line item**. The line item a tool asks a platform to create along with an `ltiResourceLink` content item. It has fewer fields than a line item.
+**Deep Linking line item**. The line item a tool asks a platform to create along with an `ltiResourceLink` content item. A platform can ignore it.
 
 **Presentation target**. Where a platform shows a content item, such as embedded, in an iframe, or in a new window. _Avoid_ presentation document, document target.
 
@@ -194,7 +194,7 @@ Ltix is an Elixir library for the tool side of LTI 1.3 and LTI Advantage. Its ow
 
 **Ltix error**. An exception Ltix returns for an expected failure.
 
-**Error class**. The kind of an Ltix error. Invalid errors come from bad input or a bad call, security errors from a failed security check, and unknown errors from failures outside the caller's control, such as storage or the network.
+**Error class**. The kind of an Ltix error. Invalid errors come from bad input or a bad call, security errors from a failed security check, and unknown errors from other failures, such as storage, the network, or the application's setup.
 
 ## Service clients
 

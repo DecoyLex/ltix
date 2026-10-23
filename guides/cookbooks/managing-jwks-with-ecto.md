@@ -123,20 +123,21 @@ get "/.well-known/jwks.json", JwksController, :index
 
 ## Key rotation
 
-Create a new key row, set it as the registration's key, and leave the old key active so platforms can still verify during the overlap period.
+Create a new key row, and leave the old key active. The key set endpoint serves both. After platforms have refreshed their cache (24-48 hours is typical), set the new key as the registration's key.
 
 ```elixir
-def rotate_key(registration_id) do
-  new_key = create_key!()
+new_key = create_key!()
 
+# 24-48 hours later
+def rotate_key(registration_id, new_key) do
   Repo.get!(PlatformRegistration, registration_id)
   |> PlatformRegistration.changeset(%{key_id: new_key.id})
   |> Repo.update!()
 end
 ```
 
-The old key stays `active: true`, so the key set endpoint continues serving it. After platforms have refreshed their cache (24-48 hours is typical), mark it inactive.
+The old key stays `active: true`, so platforms can still verify what it signed. After 5 minutes, when everything it signed has expired, mark it inactive.
 
 ```elixir
-Repo.update!(LtiKey.changeset(old_key, %{active: false}))
+Repo.update!(Ecto.Changeset.change(old_key, active: false))
 ```

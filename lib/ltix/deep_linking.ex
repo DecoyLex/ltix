@@ -101,12 +101,15 @@ defmodule Ltix.DeepLinking do
 
   ## Options
 
-    * `:message` - user-facing message to show on return
-    * `:log` - log message for the platform
-    * `:error_message` - user-facing error message
-    * `:error_log` - error log message for the platform
-    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`, which
-      signs the response (defaults to application config)
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+    * `:message` - a message the platform shows the user
+    * `:log` - a message the platform logs
+    * `:error_message` - an error message the platform shows the user, such
+      as when your tool couldn't create the content
+    * `:error_log` - an error message the platform logs
+    * `:storage_adapter` - the storage adapter that signs the response
     * `:storage_adapter_options` - options passed to the storage adapter's
       signing callbacks (defaults to `[]`)
     * `:plugins` - the plugins for this call, each as `MyPlugin` or
@@ -141,18 +144,11 @@ defmodule Ltix.DeepLinking do
 
   ## Examples
 
-      {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-        url: "https://tool.example.com/activity/123",
-        title: "Quiz 1"
-      )
+      {:ok, response} = Ltix.DeepLinking.build_response(launch, [link], message: "Added Quiz 7")
 
-      {:ok, response} = Ltix.DeepLinking.build_response(launch, [link],
-        message: "Selected 1 item"
-      )
+  When the user cancels, return no content items.
 
-      # response.jwt is the signed JWT to POST to response.return_url
-
-  See the [Deep Linking](deep-linking.md) guide for the full workflow.
+      {:ok, response} = Ltix.DeepLinking.build_response(launch, [], message: "Nothing was added")
   """
   @spec build_response(Launch.t(), list(), keyword()) ::
           {:ok, Response.t()} | {:error, Exception.t()}

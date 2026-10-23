@@ -4,7 +4,7 @@ Rules for testing applications that use Ltix.
 
 ## Test Configuration
 
-Add to `config/test.exs`.
+Add this to `config/test.exs`.
 
 ```elixir
 config :ltix,
@@ -57,6 +57,12 @@ setup do
         jwks_uri: reg.jwks_uri,
         token_endpoint: reg.token_endpoint,
         jwk_id: jwk.id
+      })
+    end,
+    deployment: fn deployment, registration ->
+      MyApp.Lti.create_deployment!(%{
+        deployment_id: deployment.deployment_id,
+        registration_id: registration.id
       })
     end,
     # The key your storage adapter signs with, for verify_deep_linking_response/2

@@ -21,11 +21,8 @@ defmodule Ltix.OIDC.State do
 
   def matches?(_returned, _expected), do: false
 
-  # [nonce-validation]:
-  # https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation
-  # [mix-up]: https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1
-  #
-  # [OIDC §3.2.2.11][nonce-validation], [RFC 9700 §2.1][mix-up]
+  # [OIDC §3.2.2.11](https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDTValidation)
+  # [RFC 9700 §2.1](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1)
   @spec nonce_matches?(term(), term(), Registration.t()) :: boolean()
   def nonce_matches?(returned_nonce, expected_state, %Registration{} = registration)
       when is_binary(expected_state) and byte_size(expected_state) > 0 do
@@ -34,10 +31,7 @@ defmodule Ltix.OIDC.State do
 
   def nonce_matches?(_returned_nonce, _expected_state, _registration), do: false
 
-  # [nonce-notes]:
-  # https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes
-  #
-  # [OIDC §15.5.2][nonce-notes]
+  # [OIDC §15.5.2](https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes)
   defp nonce(state, %Registration{issuer: issuer, client_id: client_id}) do
     digest = :crypto.hash(:sha256, ["Ltix.OIDC.nonce\0", state, 0, issuer, 0, client_id])
     Base.url_encode64(digest, padding: false)

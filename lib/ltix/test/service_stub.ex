@@ -94,7 +94,7 @@ defmodule Ltix.Test.ServiceStub do
   defp routes(service), do: Process.get({__MODULE__, service}, %{})
 
   @doc """
-  Send `entries` as JSON, one page at a time when the request sets a
+  Sends `entries` as JSON, one page at a time when the request sets a
   page size with the `limit` query parameter. `wrap` builds the body of a
   page from its entries.
   """

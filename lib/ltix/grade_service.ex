@@ -137,11 +137,16 @@ defmodule Ltix.GradeService do
           )
       )
 
-  ## Options (launch)
+  ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  ### From a launch
 
   #{Zoi.describe(@launch_auth_schema)}
 
-  ## Options (registration)
+  ### From a registration
 
   #{Zoi.describe(@registration_auth_schema)}
   """

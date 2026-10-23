@@ -66,9 +66,9 @@ When you rotate a key, serve the new public key from your key set endpoint and w
 The rotation sequence has four steps.
 
 1. Generate a new key
-2. Start using the new key for signing
-3. Serve both old and new public keys from your key set endpoint
-4. After the overlap period, stop serving the old key
+2. Serve both old and new public keys from your key set endpoint
+3. After the overlap period, start using the new key for signing
+4. Five minutes later, when the JWTs the old key signed have expired, stop serving the old key
 
 During the overlap, `to_jwks/1` accepts a list, so serving both keys is straightforward.
 

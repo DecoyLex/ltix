@@ -82,15 +82,16 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 
 ## Delivering the Response
 
-The platform requires a POST with the signed JWT. Use an auto-submit form.
+The platform requires a POST with the signed JWT. Use an auto-submit form rendered from a HEEx template. **Never** interpolate `return_url` into an HTML string.
 
-```elixir
-html(conn, """
-<form method="post" action="#{response.return_url}">
-  <input type="hidden" name="JWT" value="#{response.jwt}">
+```heex
+<form id="deep-link-response" method="post" action={@response.return_url}>
+  <input type="hidden" name="JWT" value={@response.jwt} />
+  <noscript>
+    <button type="submit">Return to platform</button>
+  </noscript>
 </form>
-<script>document.forms[0].submit();</script>
-""")
+<script>document.getElementById("deep-link-response").submit();</script>
 ```
 
 ## Errors

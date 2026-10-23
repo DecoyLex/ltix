@@ -106,11 +106,16 @@ defmodule Ltix.OAuth do
   [Error Handling](error-handling.md) lists the errors any platform request
   can return.
 
-  ## Options (launch)
+  ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  ### From a launch
 
   #{Zoi.describe(@launch_schema)}
 
-  ## Options (registration)
+  ### From a registration
 
   #{Zoi.describe(@registration_schema)}
   """

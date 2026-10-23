@@ -54,9 +54,9 @@ Between those two calls, Ltix has verified the JWT signature against the platfor
 
 Ltix handles the protocol. Your application handles everything else.
 
-| Ltix's job | Your app's job |
+| Ltix's job | Your application's job |
 |---|---|
-| Build the authorization redirect | Store the OIDC state in the session |
+| Build the authentication request | Store the OIDC state in the session |
 | Fetch and cache the platform's public keys | Look up registrations and deployments |
 | Validate the JWT signature and claims | Record used nonces |
 | Parse roles, context, resource links | Decide what to do with the launch |
@@ -85,7 +85,7 @@ This boundary is enforced through the `Ltix.StorageAdapter` behaviour, a set of 
 ## Next steps
 
 - [LTI Advantage Concepts](concepts.md) - understand the protocol (registrations, deployments, the launch flow, roles, and nonces)
-- [Getting Started](getting-started.md) - integrate Ltix into a Phoenix app step by step
-- `Ltix.StorageAdapter` - the three required callbacks your app implements
+- [Getting Started](getting-started.md) - integrate Ltix into a Phoenix application step by step
+- `Ltix.StorageAdapter` - the three required callbacks your application implements
 - `Ltix.Launch` - what a successful launch returns
 - `Ltix.Role` - role checks and constants

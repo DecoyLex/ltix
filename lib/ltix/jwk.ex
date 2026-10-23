@@ -99,15 +99,16 @@ defmodule Ltix.JWK do
         }
 
   @doc """
-  Generate an RSA signing key for LTI tool authentication.
+  Generates an RSA signing key, with its JWK thumbprint as its `kid`.
 
-  Returns a `%Ltix.JWK{}` struct. Persist `kid` and the key PEMs to build
-  the JWK again with `new/1`.
+  The public key is an SPKI PEM (`BEGIN PUBLIC KEY`) and the private key a
+  PKCS #8 PEM (`BEGIN PRIVATE KEY`). A `:key_size` under 2048 raises
+  `Ltix.Errors.Invalid.InvalidOption`.
 
   ## Examples
 
       jwk = Ltix.JWK.generate()
-      jwk = Ltix.JWK.generate(key_size: 4096)
+      jwk = Ltix.JWK.generate(key_size: 3072)
 
   ## Options
 
@@ -133,18 +134,22 @@ defmodule Ltix.JWK do
   end
 
   @doc """
-  Construct a JWK from existing key material.
+  Builds a JWK from `:kid` and one key, in a keyword list or an atom-keyed
+  map.
 
-  Takes a keyword list or an atom-keyed map with `:kid` and one key. Unknown
-  fields are rejected. A JWK made from a public key has no private key, so
-  it can't sign.
+  The public key is kept as an SPKI PEM. A private key PEM is kept as
+  given, and a private key in another form becomes a PKCS #8 PEM.
+
+  Returns `{:ok, jwk}`, or an `Ltix.Errors.Invalid.InvalidField` error for a
+  missing, unknown, or invalid field. Errors leave out key material and are
+  safe to log.
 
   ## Fields
 
-    * `:kid` - the key ID. Optional with `:public_jwk` or `:private_jwk` when
-      the map has a `"kid"`, which a `:kid` given with it has to match.
-    * `:public_key_pem` - an RSA public key as a PEM string
-    * `:public_key_der` - an RSA public key as a DER binary
+    * `:kid` - the key ID. With `:public_jwk` or `:private_jwk`, it defaults
+      to the map's `"kid"`, and must match it when both are given
+    * `:public_key_pem` - an RSA public key as an SPKI or PKCS #1 PEM string
+    * `:public_key_der` - an RSA public key as an SPKI or PKCS #1 DER binary
     * `:public_jwk` - an RSA public key as a string-keyed JWK map
     * `:private_key_pem` - an RSA private key as an unencrypted PKCS #8 or
       PKCS #1 PEM string
@@ -154,9 +159,12 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: "my-key-id")
-      {:ok, jwk} = Ltix.JWK.new(public_key_pem: public_pem, kid: "my-key-id")
+      {:ok, jwk} = Ltix.JWK.new(private_key_pem: private_key_pem, kid: "2026-10-key")
+      {:ok, jwk} = Ltix.JWK.new(public_key_pem: public_key_pem, kid: "2026-10-key")
 
+      iex> {:error, error} = Ltix.JWK.new(public_key_pem: "not a key", kid: "2026-10-key")
+      iex> Exception.message(error)
+      "Ltix.JWK field :public_key_pem must be a PEM (got \\"[redacted]\\")"
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(attrs) when is_list(attrs), do: new(Map.new(attrs))

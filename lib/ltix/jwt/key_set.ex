@@ -73,8 +73,16 @@ defmodule Ltix.JWT.KeySet do
 
   @options_schema Zoi.keyword(
                     [
-                      key_set: Zoi.atom(),
-                      req_options: Zoi.keyword(Zoi.any()),
+                      key_set:
+                        Zoi.atom(
+                          description:
+                            "The name of the `Ltix.JWT.KeySet` cache to get the platform's keys from. Defaults to `Ltix.JWT.KeySet`."
+                        ),
+                      req_options:
+                        Zoi.keyword(Zoi.any(),
+                          description:
+                            "Options for `Req.request/2` on the key set fetch. They're merged over the configured ones."
+                        ),
                       local_network_access: HTTP.local_network_access_option()
                     ],
                     unrecognized_keys: :error
@@ -107,12 +115,10 @@ defmodule Ltix.JWT.KeySet do
 
   ## Options
 
-    * `:key_set` - name of the key set cache to use (defaults to the
-      application configuration, then `Ltix.JWT.KeySet`)
-    * `:req_options` - `Req` options for requests to the key set URL
-    * `:local_network_access` - `:local` or `:loopback` to fetch a key set
-      from a private network address or this machine (defaults to
-      application config, then `:none`)
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  #{Zoi.describe(@options_schema)}
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   @spec get_key(Registration.t(), String.t(), keyword()) ::

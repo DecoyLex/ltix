@@ -22,7 +22,7 @@ defmodule Ltix.Pagination do
                      req_options:
                        Zoi.keyword(Zoi.any(),
                          description:
-                           "HTTP request options, merged over `config :ltix, req_options`."
+                           "Options for `Req.request/2` on each page request. They're merged over the configured ones."
                        )
                        |> Zoi.default([]),
                      local_network_access: Ltix.HTTP.local_network_access_option()
@@ -39,6 +39,9 @@ defmodule Ltix.Pagination do
   `{:error, reason}` immediately. Later failures raise during enumeration.
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stream_schema)}
   """
@@ -66,6 +69,9 @@ defmodule Ltix.Pagination do
   emits one `{:error, error}` and ends the stream.
 
   ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
 
   #{Zoi.describe(@stream_schema)}
   """

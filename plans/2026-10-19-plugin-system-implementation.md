@@ -67,7 +67,7 @@ These were settled during planning. Numbers are the planning agenda's.
    - **Checks.** Type-specific settings checks go in `check/2`. The presentation target check applies to any item with `window`, `iframe`, or `embed`. `accept_types` (against each item's own type) and `accept_multiple` are response-wide.
    - **Rejections.** Plain maps are rejected, and two modules declaring one type string fail at resolution.
    - `Ltix.Provider` passes an extender's `use` options to its hook blocks.
-5. **Message types.** Each message type is a module that `use`s `Ltix.Launch.MessageType` and builds a validator by piping `new/1`, `required/3`, and `optional/3` over claim short names.
+5. **Message types.** Each message type is a module that calls `use Ltix.Launch.MessageType` and builds a validator by piping `new/1`, `required/3`, and `optional/3` over claim short names.
    - **Conditions** are data: `option/1`, `includes/3`, or a condition module with `met?/3` and `describe/1`.
    - **Contributions.** Every message type is a provider. Plugins extend one type with `use Ltix.DeepLinkingRequest`, or every type with `use Ltix.Launch.EveryMessageType`, by implementing `validator/1`.
    - **Combining.** Statements only tighten, and required beats optional. `override/3` is the only way to loosen, and two overrides of one claim in one type fail at resolution. `defaults/2` fills unstated claims.

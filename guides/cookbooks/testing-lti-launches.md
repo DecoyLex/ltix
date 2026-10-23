@@ -26,7 +26,7 @@ defmodule MyAppWeb.LtiControllerTest do
 
     platform = Ltix.Test.setup_platform!(
       registration: fn reg ->
-        MyApp.Lti.create_registration!(%{
+        MyApp.Repo.insert!(%MyApp.Lti.Registration{
           issuer: reg.issuer,
           client_id: reg.client_id,
           auth_endpoint: reg.auth_endpoint,
@@ -61,7 +61,7 @@ end
 
 ## Checking your storage adapter
 
-`Ltix.Test.assert_storage_adapter!/2` checks your real adapter's registration and deployment lookups, protocol conversions, nonce replay prevention, and signatures. See [Testing your adapter](storage-adapters.md#testing-your-adapter) for factories and database sandbox setup.
+`Ltix.Test.assert_storage_adapter!/2` checks your real adapter's registration and deployment lookups, protocol conversions, nonce replay prevention, and signatures. See [Testing your adapter](../storage-adapters.md#testing-your-adapter) for factories and database sandbox setup.
 
 ## Testing your controller
 
@@ -271,7 +271,7 @@ claims =
 params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => state}
 ```
 
-## Testing advantage services
+## Testing Advantage services
 
 Stub the OAuth token request and each service call your code makes. To use the stubs in a process your application supervises, pass that process to `Ltix.Test.allow_stubs/1`.
 

@@ -1,9 +1,9 @@
 defmodule Ltix.GradeService.LineItem do
   @moduledoc """
-  A line item (gradebook column) in the platform's gradebook.
+  A line item, which has one score per user for one activity. The platform
+  decides where the scores appear, usually as a gradebook column.
 
-  Line items hold results for a specific activity and set of users.
-  Each has a label, maximum score, and optional bindings to resource
+  Each line item has a label, maximum score, and optional bindings to resource
   links or tool resources.
 
   ## Examples
@@ -61,7 +61,7 @@ defmodule Ltix.GradeService.LineItem do
     ]
 
   # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)
-  @label_schema Zoi.string(description: "Label for the gradebook column.")
+  @label_schema Zoi.string(description: "Label for the line item.")
                 |> Zoi.refine({__MODULE__, :validate_label, []})
 
   # [AGS §3.2.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoremaximum)

@@ -20,7 +20,7 @@ sequenceDiagram
 
     P->>B: User clicks LTI link
     B->>T: 1. POST /lti/login (iss, login_hint, target_link_uri)
-    T->>B: 2. Redirect to platform auth endpoint (nonce, state)
+    T->>B: 2. Redirect to platform authentication endpoint (nonce, state)
     B->>P: Follow redirect
     P->>P: Authenticate user, build signed JWT
     P->>B: 3. POST /lti/launch (id_token, state)
@@ -93,8 +93,8 @@ Platforms send roles as URI strings. A user can have multiple roles simultaneous
 
 Roles come from three [vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies).
 
-- **Context** - course-level (instructor, learner, TA, content developer)
-- **Institution** - org-level (faculty, student, staff, administrator)
+- **Context** - context-level, such as a course (instructor, learner, teaching assistant, content developer)
+- **Institution** - institution-level (faculty, student, staff, administrator)
 - **System** - platform-level (system administrator, account administrator)
 
 `launch.claims.roles` has the user's roles, and `Ltix.Role` checks them. See [Working with Roles](working-with-roles.md).
@@ -104,7 +104,7 @@ Roles come from three [vocabularies](https://standards.1edtech.org/lti/specifica
 A **nonce** is a one-time-use random string that prevents replay attacks. The flow is as follows.
 
 1. During login, Ltix generates a nonce tied to the login's state and registration
-2. The nonce is included in the authorization request to the platform
+2. The nonce is included in the authentication request to the platform
 3. The platform returns it in the signed JWT
 4. During launch validation, Ltix checks the nonce against the state and calls your adapter to record it as used
 
@@ -116,7 +116,14 @@ Ltix handles the protocol (OIDC redirects, JWT parsing, signature verification, 
 
 | Ltix's job | Your app's job |
 |---|---|
-| Build the authorization redirect | Store the OIDC state in the session |
+| Build the authentication request | Store the OIDC state in the session |
 | Validate the JWT signature and claims | Look up registrations and deployments |
 | Parse roles, context, resource links | Record used nonces |
 | Return structured launch data | Decide what to do with the launch |
+
+## Next steps
+
+- [Getting Started](getting-started.md) - adding LTI launches to a Phoenix application
+- [Storage Adapters](storage-adapters.md) - looking up registrations and deployments and recording nonces
+- [Working with Roles](working-with-roles.md) - checking a user's roles in a launch
+- [Advantage Services](advantage-services.md) - calling the grade and memberships services

@@ -16,7 +16,7 @@ defprotocol Ltix.Deployable do
       end
 
   `Ltix.Deployment` implements this protocol, so your storage adapter can
-  also return a `%Deployment{}`. Login and launch return the same error as
+  also return a `%Deployment{}`. A launch returns the same error as
   `Ltix.Deployment.new/1` for an invalid one.
   """
 

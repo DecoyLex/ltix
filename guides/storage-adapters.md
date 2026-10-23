@@ -9,8 +9,8 @@ Ltix doesn't assume your database, ORM, or persistence strategy. Your applicatio
 | `get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client_id |
 | `get_deployment/3` | Launch validation | Look up a deployment by registration and deployment_id |
 | `validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
-| `key_id/2` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
-| `sign/4` | Service authentication and deep linking responses | Sign a message with that key |
+| `key_id/2` | Service authentication and Deep Linking responses | Return the ID of the key that signs for a registration |
+| `sign/4` | Service authentication and Deep Linking responses | Sign a message with that key |
 
 `key_id/2` and `sign/4` are optional. A tool that only handles launches doesn't need them.
 
@@ -163,7 +163,7 @@ The insert is atomic. If two requests race with the same nonce, only one of them
 
 ## Signing
 
-Ltix signs two things for your tool, the token requests for Advantage services and deep linking responses. It builds each JWT and calls your adapter to get the signature, so your private key stays wherever you keep it.
+Ltix signs two things for your tool, the token requests for Advantage services and Deep Linking responses. It builds each JWT and calls your adapter to get the signature, so your private key stays wherever you keep it.
 
 Both callbacks receive the registration struct you gave Ltix, either from `get_registration/3` during a launch or as an argument to a function like `Ltix.OAuth.authenticate/2`. `key_id/2` returns the ID of the key that signs for it. Platforms use that ID to find the public key in your [key set](jwk-management.md#serving-a-key-set-endpoint). `sign/4` receives the same ID with the message to sign.
 
@@ -186,7 +186,7 @@ end
 
 For a key stored in a key management service, call the service from `sign/4` and return `{:ok, signature}` with its RS256 (RSASSA-PKCS1-v1_5 with SHA-256) signature of the message.
 
-Calling a service or building a deep linking response with an adapter that lacks these callbacks returns `Ltix.Errors.Unknown.StorageError`.
+Calling a service or building a Deep Linking response with an adapter that lacks these callbacks returns `Ltix.Errors.Unknown.StorageError`.
 
 ## Putting it together
 
@@ -298,7 +298,7 @@ When your adapter has `key_id/2` and `sign/4`, pass `:jwks` a function that retu
 
 Preserve the lookup identifiers supplied to your factories. If lookups preload associations or change metadata, pass `registration_identity: & &1.id` and `deployment_identity: & &1.id`, or projections suited to your records.
 
-Omit `:prepare_process` when your adapter needs neither database sandbox access nor process-local setup. For adapters that [auto-create deployments](auto-create-deployments.md), pass `auto_create_deployments: true` and return distinct storage identities to check deployment ownership. See `Ltix.Test.assert_storage_adapter!/2` for all options.
+Omit `:prepare_process` when your adapter needs neither database sandbox access nor process-local setup. For adapters that [auto-create deployments](cookbooks/auto-create-deployments.md), pass `auto_create_deployments: true` and return distinct storage identities to check deployment ownership. See `Ltix.Test.assert_storage_adapter!/2` for all options.
 
 ## Adapter options
 

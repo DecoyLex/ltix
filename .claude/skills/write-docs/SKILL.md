@@ -8,14 +8,11 @@ version: 0.1.0
 
 Write or review documentation for $ARGUMENTS, following the conventions below.
 
-Distilled from studying Phoenix, Ecto, Plug, Req, Ash, Oban, Tesla, Jason,
-NimbleOptions, and Elixir's official writing-documentation guide.
+Distilled from studying Phoenix, Ecto, Plug, Req, Ash, Oban, Tesla, Jason, NimbleOptions, and Elixir's official writing-documentation guide.
 
 ## Core principle
 
-Documentation is a **contract with the library consumer**. It tells them
-*what* things do and *how to use* them. Code tells them *how* it works.
-Comments tell them *why*.
+Documentation is a **contract with the library consumer**. It tells them *what* things do and *how to use* them. Code tells them *how* it works. Comments tell them *why*.
 
 ---
 
@@ -23,9 +20,7 @@ Comments tell them *why*.
 
 ### Opening sentence
 
-Lead with one plain-English sentence that tells the reader what the module
-*is* or *does for them*. This sentence becomes the summary in ExDoc and
-`mix docs`. Keep it under ~120 characters.
+Lead with one plain-English sentence that tells the reader what the module *is* or *does for them*. This sentence becomes the summary in ExDoc and `mix docs`. Keep it under ~120 characters.
 
 **Patterns to follow:**
 - Data structs: "A [thing] representing [what]." or "[Noun] for [purpose]."
@@ -35,17 +30,15 @@ Lead with one plain-English sentence that tells the reader what the module
 
 **Anti-patterns:**
 - Starting with "This module..." (waste of words, reader knows it's a module)
-- Starting with "The" (project convention: never start headings with "The")
+- Starting with "The" (project convention, for openers and headings alike)
 - Implementation language: "A pure function that..." / "Delegates to..."
 
 **Good openers from top libraries:**
 
 | Library | Opening |
 |---|---|
-| Plug.Conn | "The Plug connection." |
 | Ecto.Changeset | "Changesets allow filtering, type casting, validation, and constraints when manipulating structs." |
 | Req | "Req is a batteries-included HTTP client for Elixir." |
-| Ash | "The primary interface to call actions and interact with resources." |
 
 ### Body structure
 
@@ -83,8 +76,7 @@ Ltix handles the LTI 1.3 OIDC launch flow. It is built around these components.
 
 ### Opening line
 
-One sentence, active voice, present tense. Describe what the function does
-*for the caller*, not how it works internally.
+One sentence, active voice, present tense. Describe what the function does *for the caller*, not how it works internally.
 
 **Good:**
 - "Assigns a value to a key in the connection."
@@ -98,9 +90,7 @@ One sentence, active voice, present tense. Describe what the function does
 
 ### Parameters
 
-For simple functions, parameters are self-evident from the typespec and
-argument names. Don't repeat what's obvious. For complex functions,
-document parameters inline or under a short paragraph:
+For simple functions, parameters are self-evident from the typespec and argument names. Don't repeat what's obvious. For complex functions, document parameters inline or under a short paragraph:
 
 ```elixir
 @doc """
@@ -112,8 +102,7 @@ are sent to the database.
 """
 ```
 
-When the compiler infers a bad argument name from pattern matching,
-declare a function head to fix it:
+When the compiler infers a bad argument name from pattern matching, declare a function head to fix it:
 
 ```elixir
 def size(map_with_size)
@@ -122,8 +111,7 @@ def size(%{size: size}), do: size
 
 ### Options
 
-Use `## Options` with a bullet list. NimbleOptions docs generate
-automatically; for hand-written options:
+Use `## Options` with a bullet list. `Zoi.describe/1` generates the list from a schema. Write other options in this format.
 
 ```elixir
 @doc """
@@ -177,8 +165,7 @@ Same as `authenticate/2` but raises on error.
 
 - Use `## Examples` heading
 - Show the simplest usage first, then variations
-- Avoid assertions in doctests (they clutter docs for the end user).
-  Show inputs and outputs directly:
+- Avoid assertions in doctests (they clutter docs for the end user). Show inputs and outputs directly:
 
 ```elixir
 ## Examples
@@ -188,8 +175,7 @@ Same as `authenticate/2` but raises on error.
     :world
 ```
 
-- For functions with side effects or external dependencies, use plain
-  code blocks without `iex>`:
+- For functions with side effects or external dependencies, use plain code blocks without `iex>`:
 
 ```elixir
 ## Examples
@@ -198,8 +184,7 @@ Same as `authenticate/2` but raises on error.
     {:ok, roster} = MembershipsService.list_members(client)
 ```
 
-- **When NOT to use doctests**: code with side effects (IO, file writes),
-  code that defines persistent modules, non-deterministic results.
+- **When NOT to use doctests.** Code with side effects (IO, file writes), code that defines persistent modules, and non-deterministic results.
 - Multiline expressions use `...>` continuation prefix
 - Separate doctests with blank lines to isolate variable scope
 
@@ -234,17 +219,16 @@ this function if you want to halt the plug pipeline.
 
 ### When to write a guide vs. moduledoc
 
-- **Guide**: Teaches a concept, walks through a workflow, explains *why*.
-- **Moduledoc**: Documents an API. Reader is looking up how to call something.
+- **Guide.** Teaches a concept, walks through a workflow, explains *why*.
+- **Moduledoc.** Documents an API. Reader is looking up how to call something.
 
 ### Structure
 
 1. **H1 title** (no "The" prefix). Short, descriptive.
-2. **Opening paragraph**: 1-3 sentences. What the guide covers and what
-   the reader will know by the end.
-3. **H2 sections**: Major steps or concepts.
-4. **H3 subsections**: Details within a section.
-5. **Next steps**: End with links to related guides and module docs.
+2. **Opening paragraph.** 1-3 sentences. What the guide covers and what the reader will know by the end.
+3. **H2 sections.** Major steps or concepts.
+4. **H3 subsections.** Details within a section.
+5. **Next steps.** End with links to related guides and module docs.
 
 ### Guide patterns
 
@@ -263,7 +247,7 @@ this function if you want to halt the plug pipeline.
 - Progress from simple to complex
 - **Show both input and output** so the reader knows what to expect
 - **Show error cases alongside success**
-- **Build progressively**: reuse variables from earlier sections
+- **Build progressively.** Reuse variables from earlier sections
 
 ### Tables
 
@@ -298,15 +282,13 @@ Types: `.info`, `.warning`, `.error`, `.tip`, `.neutral`
 
 ## Metadata
 
-Use `@doc since:` and `@moduledoc since:` to annotate when things were
-added to the public API:
+Use `@doc since:` and `@moduledoc since:` to annotate when things were added to the public API:
 
 ```elixir
 @doc since: "0.2.0"
 ```
 
-Use `@doc deprecated:` for soft deprecation (warning in docs, no
-compile warning):
+Use `@doc deprecated:` for soft deprecation (warning in docs, no compile warning):
 
 ```elixir
 @doc deprecated: "Use authenticate/2 instead"
@@ -323,12 +305,9 @@ def list_members(client, opts \\ [])
 
 ## Internal modules
 
-Use `@moduledoc false` for modules that consumers never interact with
-directly. These are implementation details behind a facade. Examples:
-parsers, internal helpers, protocol implementations.
+Use `@moduledoc false` for modules that consumers never interact with directly. These are implementation details behind a facade, such as parsers, internal helpers, and protocol implementations.
 
-Still document functions with `@doc` if the module is complex enough that
-*developers on the project* benefit from it, but the moduledoc stays false.
+Still document functions with `@doc` if the module is complex enough that *developers on the project* benefit from it, but the moduledoc stays false.
 
 ---
 
@@ -340,8 +319,7 @@ Still document functions with `@doc` if the module is complex enough that
 
 ### Headings
 - Never start with "The" (project convention)
-- Use sentence case: "Getting started", not "Getting Started"
-  (Exception: when used as a proper title in guide H1)
+- Use sentence case, "Getting started", not "Getting Started", except for a guide's H1 title
 
 ### Voice
 - Active voice, present tense: "Returns the value" not "The value is returned"
@@ -349,29 +327,23 @@ Still document functions with `@doc` if the module is complex enough that
 - Imperative for instructions: "Store the state in the session"
 
 ### Technical terms
-- Use backtick-code for: module names, function names, option keys, atoms,
-  struct names, file paths
-- Don't use backtick-code for: general English words, protocol names used
-  conversationally
+- Use backtick-code for module names, function names, option keys, atoms, struct names, and file paths
+- Don't use backtick-code for general English words or protocol names used conversationally
 
 ### Length
-- Keep the first paragraph of any @moduledoc or @doc concise. ExDoc uses
-  the first line/paragraph as the summary in lists.
+- Keep the first paragraph of any @moduledoc or @doc concise. ExDoc uses the first line/paragraph as the summary in lists.
 - Function docs should typically be 3-15 lines.
-- Guide sections should be skimmable. If a section is longer than ~2 screens,
-  break it into subsections.
+- Guide sections should be skimmable. If a section is longer than ~2 screens, break it into subsections.
 
 ---
 
 ## Spec references (ltix-specific)
 
-Spec references belong in **code comments next to the implementing code**,
-NOT in user-facing docs. Use the anchor mappings in `spec-anchors.md`.
+Spec references belong in **code comments next to the implementing code**, NOT in user-facing docs. Use the anchor mappings in `spec-anchors.md`.
 
-Format: `# [Core 5.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-domain-model)`
+Format: `# [Core §5.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-domain-model)`
 
-Exception: modules where the spec is directly relevant to the library
-consumer (e.g., `StorageAdapter`) may include spec refs in `@moduledoc`/`@doc`.
+Modules where the spec is directly relevant to the library consumer, such as `StorageAdapter`, may include spec refs in `@moduledoc`/`@doc`.
 
 ---
 

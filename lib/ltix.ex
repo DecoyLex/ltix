@@ -1,158 +1,161 @@
 defmodule Ltix do
   @moduledoc """
-  Ltix handles the LTI 1.3 OIDC launch flow for tool applications. It is
-  built around these components.
+  Ltix handles the tool side of LTI 1.3 launches, Advantage services, and Deep
+  Linking.
 
-    * `Ltix.Registration` - what the tool stores about a platform (issuer,
-      client_id, endpoints). Created during out-of-band registration
+  To set up a tool from scratch, follow [Getting Started](getting-started.md).
 
-    * `Ltix.StorageAdapter` - behaviour your app implements to look up
-      registrations, deployments, and manage nonces
+  ## Handling launches
 
-    * `Ltix.Launch` - the verified launch, with the registration,
-      deployment, endpoints, and the claims parsed from the ID token (roles,
-      context, resource link, and more)
-
-    * `Ltix.Plugin` - plugins that extend Ltix. Ltix's own support for each
-      specification is a default plugin
-
-  ## Configuration
-
-      config :ltix,
-        storage_adapter: MyApp.LtiStorage
-
-  `handle_login/3` takes `:storage_adapter`, `:storage_adapter_options`, and
-  `:plugins`. `handle_callback/3` takes `:storage_adapter`,
-  `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`,
-  `:local_network_access`, `:req_options`, `:key_set`, `:clock_skew`, and
-  `:plugins`. An option passed to a call overrides the application
-  configuration for that call. Unknown or invalid options raise
-  `Ltix.Errors.Invalid.InvalidOption`.
-
-  ### Required
-
-    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`.
-      Looked up at runtime, so it works with releases.
-
-  ### Optional
-
-    * `:allow_anonymous` - when `true`, allow launches without a `sub`
-      claim in the ID token. Defaults to `false`.
-
-    * `:max_token_age` - seconds after the platform issued the ID token
-      that the launch is still accepted, or `:infinity` to accept any age.
-      Defaults to `3600`.
-
-    * `:local_network_access` - the addresses platform requests may
-      connect to besides public ones. `:local` adds private network
-      addresses, and `:loopback` adds those and this machine. Defaults to
-      `:none`. The functions that send platform requests take the same
-      option. The `:finch`, `:adapter`, `:unix_socket`, and proxy options
-      in `:req_options` need `:loopback`, because Ltix can't check the
-      addresses they connect to.
-
-    * `:json_library` - JSON encoder/decoder module. Detected at
-      compile time, using `JSON` (Elixir 1.18+/OTP 27+) if available,
-      then `Jason`. Only set this if you need a different library. With
-      `JSON` or `Jason`, a token that repeats a claim has the last value.
-      With another library, it has the value that library's `decode/1`
-      returns.
-
-    * `:req_options` - default options passed to `Req.request/2` for
-      all HTTP calls, such as key set fetches, OAuth token requests, and
-      service calls. Useful for setting timeouts, middleware, or test
-      adapters.
-
-          config :ltix, req_options: [receive_timeout: 10_000]
-
-    * `:key_set` - name of the key set cache to get platform public keys
-      from. Defaults to `Ltix.JWT.KeySet`. The key set cache must be
-      started in your supervision tree.
-
-    * `:default_key_size` - RSA key size in bits for `Ltix.JWK.generate/1`
-      when no `:key_size` is given. Defaults to `4096`.
-
-    * `:plugins` - the plugins for calls that run plugins, such as
-      `handle_login/3` and `handle_callback/3`, each as `MyPlugin` or
-      `{MyPlugin, opts}`. Defaults to `[]`. The
-      [default plugins](`Ltix.DefaultPlugins`) always come first. See
-      [Writing Plugins](writing-plugins.md).
-
-          config :ltix, plugins: [{MyLibrary, tenant: "acme"}]
-
-  ## Handling Launches
-
-  The LTI launch flow requires two endpoints. In your login endpoint,
-  call `handle_login/3` with the platform's login parameters and your
-  launch URL.
+  Your tool needs two endpoints for a launch. The login endpoint calls
+  `handle_login/3`, keeps the state in the session, and redirects the browser to
+  the platform.
 
       def login(conn, params) do
         launch_url = url(conn, ~p"/lti/launch")
-        {:ok, %{redirect_uri: url, state: state}} =
-          Ltix.handle_login(params, launch_url)
 
-        conn
-        |> put_session(:lti_state, state)
-        |> redirect(external: url)
+        case Ltix.handle_login(params, launch_url) do
+          {:ok, %{redirect_uri: redirect_uri, state: state}} ->
+            conn
+            |> put_session(:lti_state, state)
+            |> redirect(external: redirect_uri)
+
+          {:error, error} ->
+            send_resp(conn, Ltix.Errors.status_code(error), "The launch could not be completed.")
+        end
       end
 
-  In your launch endpoint, call `handle_callback/3` with the POST
-  params and the stored state.
+  The platform then posts an ID token to the launch endpoint, which calls
+  `handle_callback/3` with that state.
 
       def launch(conn, params) do
         state = get_session(conn, :lti_state)
-        {:ok, launch} = Ltix.handle_callback(params, state)
 
-        # launch.claims has the parsed claims
-        # launch.claims.target_link_uri is where to redirect
-        # launch.claims.roles has the user's roles
+        case Ltix.handle_callback(params, state) do
+          {:ok, launch} ->
+            conn
+            |> delete_session(:lti_state)
+            |> render(:launch, launch: launch)
+
+          {:error, error} ->
+            send_resp(conn, Ltix.Errors.status_code(error), "The launch could not be completed.")
+        end
       end
 
-  ## Advantage Services
+  The browser sends the session cookie with the platform's cross-site post only
+  when the cookie has `SameSite=None`. [Getting Started](getting-started.md)
+  shows the setting.
 
-  After a successful launch, call platform services like roster queries
-  and grade passback. Authenticate with the platform's token endpoint,
-  then call service functions.
+  The parsed claims are in `launch.claims` (see `Ltix.Launch`).
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(launch)
-      {:ok, roster} = Ltix.MembershipsService.list_members(client)
+  [Error Handling](error-handling.md) covers what each error means and how to
+  respond.
 
-      Enum.each(roster, fn member ->
-        IO.puts("\#{member.name}: \#{inspect(member.roles)}")
-      end)
+  ## Advantage services
 
-  Post grades back to the platform's gradebook.
+  Authenticate with a service using the launch, then call it.
 
       {:ok, client} = Ltix.GradeService.authenticate(launch)
+
+      {:ok, score} =
+        Ltix.GradeService.Score.new(
+          user_id: launch.claims.subject,
+          score_given: 85,
+          score_maximum: 100,
+          activity_progress: :completed,
+          grading_progress: :fully_graded
+        )
+
       :ok = Ltix.GradeService.post_score(client, score)
 
-  See the [Advantage Services](advantage-services.md) guide for OAuth
-  details, token lifecycle, and multi-service authentication.
+  See [Advantage Services](advantage-services.md). To call a service later, such
+  as from a background job, see [Persisting Service
+  Endpoints](persisting-service-endpoints.md).
 
   ## Deep Linking
 
-  When a platform sends an `LtiDeepLinkingRequest` launch, the same
-  `handle_callback/3` returns an `Ltix.Launch`. Branch on the
-  message type and build a response.
-
-      {:ok, launch} = Ltix.handle_callback(params, state)
+  A Deep Linking request is a launch with the message type
+  `"LtiDeepLinkingRequest"`. Respond with the content items the user picks.
 
       case launch.claims.message_type do
         "LtiDeepLinkingRequest" ->
-          {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-            url: "https://tool.example.com/activity/1",
-            title: "Quiz 1"
-          )
+          {:ok, link} =
+            Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+              url: "https://tool.example.com/activity/1",
+              title: "Quiz 1"
+            )
 
           {:ok, response} = Ltix.DeepLinking.build_response(launch, [link])
-          # POST response.jwt to response.return_url
+
+          # The template has a form that posts response.jwt to response.return_url, in a field named JWT
+          render(conn, :deep_linking_response, response: response)
 
         "LtiResourceLinkRequest" ->
           render(conn, :launch, launch: launch)
       end
 
-  See the [Deep Linking](deep-linking.md) guide for content item types,
-  line items, and platform constraints.
+  See [Deep Linking](deep-linking.md).
+
+  ## Main modules
+
+    * `Ltix.Registration` and `Ltix.Deployment` - what your tool stores about a
+      platform and each deployment on it
+    * `Ltix.StorageAdapter` - the behaviour your application implements to look
+      up registrations and deployments, record used nonces, and sign your tool's
+      messages
+    * `Ltix.Launch` - a verified launch
+    * `Ltix.Role` - role checks
+    * `Ltix.GradeService`, `Ltix.MembershipsService`, and `Ltix.DeepLinking` -
+      the Advantage services and Deep Linking
+    * `Ltix.Plugin` - plugins that add claims, message types, content item
+      types, and steps. See [Writing Plugins](writing-plugins.md).
+    * `Ltix.Test` - a simulated platform for your tests
+
+  ## Configuration
+
+  Set defaults in your application configuration.
+
+      config :ltix, storage_adapter: MyApp.LtiStorage
+
+  An option passed to a call overrides the configured value for that call, and
+  `:req_options` passed to a call are merged over the configured ones.
+
+    * `:storage_adapter` - your `Ltix.StorageAdapter` module (required)
+    * `:allow_anonymous` - when `true`, accept resource link launches without a
+      `sub` claim (defaults to `false`)
+    * `:max_token_age` - the maximum age of an ID token Ltix accepts, in
+      seconds, or `:infinity` (defaults to `3600`)
+    * `:local_network_access` - the non-public addresses Ltix may connect to
+      when it calls a platform (defaults to `:none`). `:local` allows private
+      network addresses, and `:loopback` allows those and this machine. The
+      `:finch`, `:adapter`, `:unix_socket`, and proxy options in `:req_options`
+      require `:loopback`, as do its `:tcp_module` and `:cb_info` transport
+      options.
+    * `:json_library` - the JSON module Ltix encodes and decodes with (defaults
+      to `JSON` on Elixir 1.18 and OTP 27 or later, and to `Jason` otherwise).
+      Ltix reads it at compile time. Set it in `config/config.exs`.
+    * `:req_options` - options for `Req.request/2` on every platform request,
+      such as timeouts, Req steps, or a `Req.Test` plug
+
+          config :ltix, req_options: [receive_timeout: 10_000]
+
+    * `:key_set` - the name of the `Ltix.JWT.KeySet` cache you start in your
+      supervision tree (defaults to `Ltix.JWT.KeySet`)
+    * `:default_key_size` - the RSA key size in bits for `Ltix.JWK.generate/1`
+      (defaults to `4096`)
+    * `:plugins` - plugins every call runs with, after the
+      [default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or
+      `{MyPlugin, opts}` (defaults to `[]`). See
+      [Writing Plugins](writing-plugins.md).
+
+          config :ltix, plugins: [{MyPlugin, tenant: "acme"}]
+
+  Pass these options to a call. They can't be configured.
+
+    * `:storage_adapter_options` - a keyword list passed to each storage adapter
+      callback (defaults to `[]`)
+    * `:clock_skew` - seconds of tolerance for the ID token's `exp`, `iat`, and
+      `nbf` claims in `handle_callback/3` (defaults to `5`)
   """
 
   alias Ltix.AppConfig
@@ -163,55 +166,86 @@ defmodule Ltix do
   alias Ltix.PluginSet
   alias Ltix.Step
 
-  @login_schema Zoi.keyword(
-                  [
-                    storage_adapter: Zoi.module(),
-                    storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
-                    plugins: Zoi.list(Zoi.any())
-                  ],
+  @storage_adapter_fields [
+    storage_adapter: Zoi.module(description: "Your `Ltix.StorageAdapter` module."),
+    storage_adapter_options:
+      Zoi.keyword(Zoi.any(),
+        description: "A keyword list passed to each storage adapter callback."
+      )
+      |> Zoi.default([])
+  ]
+
+  @plugins_option Zoi.list(Zoi.any(),
+                    description:
+                      "Plugins the call runs with, after the [default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to `[]`. See [Writing Plugins](writing-plugins.md)."
+                  )
+
+  @login_schema Zoi.keyword(@storage_adapter_fields ++ [plugins: @plugins_option],
                   unrecognized_keys: :error
                 )
 
   @callback_schema Zoi.keyword(
-                     [
-                       storage_adapter: Zoi.module(),
-                       storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
-                       allow_anonymous: Zoi.boolean(),
-                       req_options: Zoi.keyword(Zoi.any()),
-                       key_set: Zoi.atom(),
-                       clock_skew: Zoi.integer() |> Zoi.non_negative(),
-                       max_token_age:
-                         Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)]),
-                       local_network_access: Ltix.HTTP.local_network_access_option(),
-                       plugins: Zoi.list(Zoi.any())
-                     ],
+                     @storage_adapter_fields ++
+                       [
+                         allow_anonymous:
+                           Zoi.boolean(
+                             description:
+                               "When `true`, accept resource link launches without a `sub` claim. Defaults to `false`."
+                           ),
+                         max_token_age:
+                           Zoi.union([Zoi.integer() |> Zoi.positive(), Zoi.literal(:infinity)],
+                             description:
+                               "The maximum age of an ID token Ltix accepts, in seconds, or `:infinity`. Defaults to `3600`."
+                           ),
+                         local_network_access: Ltix.HTTP.local_network_access_option(),
+                         req_options:
+                           Zoi.keyword(Zoi.any(),
+                             description:
+                               "Options for `Req.request/2` on the key set fetch, such as timeouts, Req steps, or a `Req.Test` plug. They're merged over the configured ones."
+                           ),
+                         key_set:
+                           Zoi.atom(
+                             description:
+                               "The name of the `Ltix.JWT.KeySet` cache you start in your supervision tree. Defaults to `Ltix.JWT.KeySet`."
+                           ),
+                         clock_skew:
+                           Zoi.integer(
+                             description:
+                               "Seconds of tolerance for the ID token's `exp`, `iat`, and `nbf` claims. Defaults to `5`."
+                           )
+                           |> Zoi.non_negative(),
+                         plugins: @plugins_option
+                       ],
                      unrecognized_keys: :error
                    )
 
   @doc """
-  Handles a platform's login and builds the authentication request.
+  Handles a platform's login request and returns the authentication request to
+  redirect the browser to.
 
-  The `redirect_uri` is the tool's launch URL where the platform will
-  POST the authentication response.
+  `params` are the request's query or form parameters. `redirect_uri` is your
+  launch URL, and must be one of the redirect URIs the platform has for your
+  tool.
 
-  Returns `{:ok, %{redirect_uri: url, state: state}}` on success. Store
-  `state` in the user's session for CSRF verification, then redirect the
-  user agent to `redirect_uri`.
+      {:ok, %{redirect_uri: redirect_uri, state: state}} = Ltix.handle_login(params, launch_url)
 
-  Steps that plugins add to `Ltix.Login` run during the call, and the errors
-  they return are returned. Returns
-  `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}` when the plugins
-  conflict.
+  Keep `state` in the user's session for `handle_callback/3`, and redirect the
+  browser to the returned `redirect_uri`, the platform's authentication URL.
+
+  ## Errors
+
+  Returns `{:error, error}` with an Ltix error when the login fails. See
+  [Error Handling](error-handling.md).
+
+  Raises `Ltix.Errors.Invalid.InvalidOption` for an unknown or invalid option,
+  or when no storage adapter is configured.
 
   ## Options
 
-    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
-      (defaults to application config)
-    * `:storage_adapter_options` - keyword list passed to each storage
-      adapter callback (defaults to `[]`)
-    * `:plugins` - the plugins for this call, each as `MyPlugin` or
-      `{MyPlugin, opts}` (defaults to the `:plugins` application
-      configuration)
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  #{Zoi.describe(@login_schema)}
   """
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
   # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
@@ -248,9 +282,7 @@ defmodule Ltix do
   end
 
   @doc """
-  Same as `handle_login/3`, but returns the redirect or raises the error.
-
-  Takes the same options as `handle_login/3`.
+  Same as `handle_login/3` but raises on error.
 
       %{redirect_uri: url, state: state} = Ltix.handle_login!(params, launch_url)
   """
@@ -287,26 +319,10 @@ defmodule Ltix do
 
   ## Options
 
-    * `:storage_adapter` - module implementing `Ltix.StorageAdapter`
-      (defaults to application config)
-    * `:storage_adapter_options` - keyword list passed to each storage
-      adapter callback (defaults to `[]`)
-    * `:allow_anonymous` - allow launches without a `sub` claim
-      (defaults to application config, then `false`)
-    * `:req_options` - options passed to the HTTP client for key set fetches
-    * `:key_set` - name of the key set cache to get platform public keys
-      from (defaults to application config, then `Ltix.JWT.KeySet`)
-    * `:clock_skew` - seconds of tolerance for the token's `exp`, `iat`, and
-      `nbf` (defaults to `5`)
-    * `:max_token_age` - seconds after the platform issued the ID token that
-      the launch is still accepted, or `:infinity` to accept any age
-      (defaults to application config, then `3600`)
-    * `:local_network_access` - `:local` or `:loopback` to fetch the
-      platform's keys from a private network address or this machine
-      (defaults to application config, then `:none`)
-    * `:plugins` - the plugins for this call, each as `MyPlugin` or
-      `{MyPlugin, opts}` (defaults to the `:plugins` application
-      configuration)
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  #{Zoi.describe(@callback_schema)}
   """
   # [Sec §5.1.1.3](https://www.imsglobal.org/spec/security/v1p0/#step-3-authentication-response)
   # [Sec §5.1.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
@@ -347,9 +363,7 @@ defmodule Ltix do
   end
 
   @doc """
-  Same as `handle_callback/3`, but returns the launch or raises the error.
-
-  Takes the same options as `handle_callback/3`.
+  Same as `handle_callback/3` but raises on error.
 
       launch = Ltix.handle_callback!(params, state)
   """
