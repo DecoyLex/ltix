@@ -440,6 +440,12 @@ In tests, read the content items from the signed response with `Ltix.Test.verify
 
 A JWK's `public_key_pem` and `Ltix.JWK.to_public_key/1` are SPKI PEMs (`BEGIN PUBLIC KEY`), where 0.2 gave PKCS #1 (`BEGIN RSA PUBLIC KEY`). `Ltix.JWK.new/1` accepts either form, as PEM or DER, and stored keys still load. Change only code that compares `public_key_pem` with a PEM you stored.
 
+## Platform requests
+
+### `:tcp_module` and `:cb_info` need loopback access
+
+A `:tcp_module` or `:cb_info` transport option in `:req_options` needs `local_network_access: :loopback`, like `:finch`, `:adapter`, `:unix_socket`, and a proxy, because Ltix can't check the addresses they connect to. Without it, a platform request returns `Ltix.Errors.Unknown.TransportError`. In 0.2, Ltix replaced a `:tcp_module` option with its own and accepted a `:cb_info` option without `:loopback`.
+
 ## Errors
 
 ### Some error messages changed

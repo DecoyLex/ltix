@@ -105,7 +105,13 @@ defmodule Ltix.Integration.LocalNetworkAccessTest do
             [finch: MyApp.Finch],
             [adapter: __MODULE__.Adapter],
             [unix_socket: "/run/platform.sock"],
-            [connect_options: [proxy: {:http, "proxy.example.com", 8888, []}]]
+            [connect_options: [proxy: {:http, "proxy.example.com", 8888, []}]],
+            [connect_options: [transport_opts: [tcp_module: :inet_tcp]]],
+            [
+              connect_options: [
+                transport_opts: [cb_info: {:gen_tcp, :tcp, :tcp_closed, :tcp_error}]
+              ]
+            ]
           ] do
         assert {:error, %TransportError{} = error} =
                  Pagination.stream(url, [], req_options: [retry: false] ++ opts)

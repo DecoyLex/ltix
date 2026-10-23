@@ -164,6 +164,10 @@ defmodule Ltix.HTTP do
   @spec validate_url(term()) :: {:ok, URI.t()} | {:error, TransportError.t()}
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   # [RFC 6750 §5.3](https://www.rfc-editor.org/rfc/rfc6750#section-5.3)
+  # Browsers treat loopback hosts as secure and relax mixed content for local
+  # addresses. The address a request connects to is checked separately.
+  # [Secure Contexts §3.1](https://www.w3.org/TR/secure-contexts/#is-origin-trustworthy)
+  # [LNA §2.5](https://wicg.github.io/local-network-access/#mixed-content)
   def validate_url(url) when is_binary(url) do
     with {:ok, %URI{scheme: scheme, host: host, userinfo: nil} = uri}
          when is_binary(scheme) and is_binary(host) and host != "" <- URI.new(url),
@@ -191,7 +195,7 @@ defmodule Ltix.HTTP do
   end
 
   # The address space a host is known to be in before it is resolved.
-  # Names under `localhost` are loopback.
+  # `localhost` and names under it are loopback.
   # [RFC 6761 §6.3](https://www.rfc-editor.org/rfc/rfc6761#section-6.3)
   defp host_address_space(host) do
     case :inet.parse_address(String.to_charlist(host)) do
@@ -205,8 +209,12 @@ defmodule Ltix.HTTP do
     end
   end
 
-  # Refuses hosts known to be outside the allowed address spaces, then has
-  # the connection refuse any other address a host name resolves to.
+  # Refuses hosts known to be outside the allowed address spaces. An HTTPS
+  # connection then refuses each address the host name resolves to that
+  # `access` doesn't allow. An HTTP request needs no transport check. Its host
+  # is an IP address, which is the address it connects to, or `localhost` or a
+  # name under it, which needs loopback access, and loopback access allows
+  # every address.
   # [LNA §2.2](https://wicg.github.io/local-network-access/#local-network-request)
   defp restrict_addresses(opts, uri, url, access) do
     space = host_address_space(uri.host)
@@ -216,10 +224,10 @@ defmodule Ltix.HTTP do
       not AddressSpace.allowed?(space, access) ->
         {:error, LocalNetworkAccessDenied.exception(url: url, address_space: space)}
 
-      option == nil ->
-        {:ok, put_transport_options(opts, access)}
+      option == nil && uri.scheme == "https" ->
+        {:ok, put_tls_transport_options(opts, access)}
 
-      access == :loopback ->
+      option == nil || access == :loopback ->
         {:ok, opts}
 
       true ->
@@ -243,13 +251,20 @@ defmodule Ltix.HTTP do
       get_in(opts, [:connect_options, :proxy]) != nil ->
         :proxy
 
+      option =
+          Enum.find(
+            [:tcp_module, :cb_info],
+            &(get_in(opts, [:connect_options, :transport_opts, &1]) != nil)
+          ) ->
+        option
+
       true ->
         nil
     end
   end
 
-  defp put_transport_options(opts, access) do
-    transport_options = AddressSpace.transport_options(access)
+  defp put_tls_transport_options(opts, access) do
+    transport_options = AddressSpace.tls_transport_options(access)
 
     Keyword.update(
       opts,

@@ -66,34 +66,94 @@ defmodule Ltix.HTTP.AddressSpace do
   def allowed?(:local, access), do: access in [:local, :loopback]
   def allowed?(:loopback, access), do: access == :loopback
 
+  # `:ssl` takes its transport as a module, so each access level has one.
+  @transports [
+    none: __MODULE__.PublicTransport,
+    local: __MODULE__.LocalTransport,
+    loopback: __MODULE__.LoopbackTransport
+  ]
+
   @doc """
-  Returns the transport options that refuse connections `access` doesn't allow.
+  Returns the TLS transport options for a connection that refuses the
+  addresses `access` doesn't allow.
 
-  The check runs on the address a connection is made to, after the host
-  name is resolved.
+  The check runs on each address the connection's host resolves to, before
+  connecting to it.
   """
-  @spec transport_options(access()) :: keyword()
-  def transport_options(:none), do: [tcp_module: __MODULE__.PublicSocket]
-  def transport_options(:local), do: [tcp_module: __MODULE__.LocalSocket]
-  def transport_options(:loopback), do: [tcp_module: __MODULE__.LoopbackSocket]
+  @spec tls_transport_options(access()) :: keyword()
+  def tls_transport_options(access) do
+    [cb_info: {Keyword.fetch!(@transports, access), :tcp, :tcp_closed, :tcp_error, :tcp_passive}]
+  end
 
-  @doc false
-  def getaddrs(address, _timer) when is_tuple(address), do: {:ok, [address]}
+  # [ssl cb_info](https://www.erlang.org/doc/apps/ssl/ssl.html#t:transport_option/0)
+  for {access, transport} <- @transports do
+    defmodule transport do
+      @moduledoc false
 
-  def getaddrs(address, timer) do
-    with {:error, _reason} <- :inet_tcp.getaddrs(address, timer) do
-      :inet6_tcp.getaddrs(address, timer)
+      alias Ltix.HTTP.AddressSpace
+
+      @access access
+
+      def connect(host, port, options, timeout),
+        do: AddressSpace.connect(@access, host, port, options, timeout)
+
+      defdelegate send(socket, data), to: :gen_tcp
+      defdelegate recv(socket, length, timeout), to: :gen_tcp
+      defdelegate controlling_process(socket, pid), to: :gen_tcp
+      defdelegate shutdown(socket, how), to: :gen_tcp
+      defdelegate close(socket), to: :gen_tcp
+      defdelegate setopts(socket, options), to: :inet
+      defdelegate getopts(socket, options), to: :inet
+      defdelegate peername(socket), to: :inet
+      defdelegate sockname(socket), to: :inet
+      defdelegate port(socket), to: :inet
     end
   end
 
   @doc false
-  def connect(access, address, port, options, timeout) do
+  # Connects like `:gen_tcp.connect/4` to the addresses `host` resolves to,
+  # skipping the ones `access` doesn't allow. Without a family option, the
+  # IPv6 addresses are tried when the host has no IPv4 address.
+  def connect(access, host, port, options, timeout) do
+    deadline = deadline(timeout)
+    # Removes the family options so `:gen_tcp.connect/4` uses the TCP module
+    # for each address's family.
+    {families, options} = Enum.split_with(options, &(&1 in [:inet, :inet6]))
+
+    with {:ok, addresses} <- getaddrs(host, families) do
+      Enum.reduce_while(addresses, {:error, :einval}, fn address, _error ->
+        try_address(access, address, port, options, remaining(deadline))
+      end)
+    end
+  end
+
+  defp getaddrs(host, []) do
+    with {:error, _reason} <- :inet.getaddrs(host, :inet) do
+      :inet.getaddrs(host, :inet6)
+    end
+  end
+
+  defp getaddrs(host, [family | _families]), do: :inet.getaddrs(host, family)
+
+  # Stops at a connection or at an `:einval` or `:timeout` error, to match
+  # `:gen_tcp.connect/4`. Moves to the next address after any other error or an
+  # address `access` doesn't allow.
+  defp try_address(access, address, port, options, timeout) do
     space = classify(address)
 
-    cond do
-      not allowed?(space, access) -> {:error, {:ltix_address_space, space}}
-      tuple_size(address) == 8 -> :inet6_tcp.connect(address, port, options, timeout)
-      true -> :inet_tcp.connect(address, port, options, timeout)
+    if allowed?(space, access) do
+      case :gen_tcp.connect(address, port, options, timeout) do
+        {:error, reason} = error when reason not in [:einval, :timeout] -> {:cont, error}
+        result -> {:halt, result}
+      end
+    else
+      {:cont, {:error, {:ltix_address_space, space}}}
     end
   end
+
+  defp deadline(:infinity), do: :infinity
+  defp deadline(timeout), do: System.monotonic_time(:millisecond) + timeout
+
+  defp remaining(:infinity), do: :infinity
+  defp remaining(deadline), do: max(deadline - System.monotonic_time(:millisecond), 0)
 end
