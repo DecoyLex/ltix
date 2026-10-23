@@ -21,7 +21,6 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.GradeService
   alias Ltix.PluginSet.Conflict
   alias Ltix.PluginSet.Entry
-  alias Ltix.Test.GradeServiceHelper
   alias Ltix.Test.StorageAdapter
   alias TestPlugins.Modules
 
@@ -602,10 +601,10 @@ defmodule Ltix.DeepLinkingTest do
          %{platform: platform} do
       plugins = [{Modules, add: [SubmissionReview]}]
       review = %{"reviewableStatus" => "Submitted"}
-      client = GradeServiceHelper.create_client(plugins: plugins)
+      client = GradeServiceFixtures.create_client(plugins: plugins)
 
-      GradeServiceHelper.stub_requests(fn "POST", body ->
-        Map.put(body, "id", GradeServiceHelper.line_item_url())
+      GradeServiceFixtures.stub_requests(fn "POST", body ->
+        Map.put(body, "id", GradeServiceFixtures.line_item_url())
       end)
 
       line_item = %GradeService.LineItem{

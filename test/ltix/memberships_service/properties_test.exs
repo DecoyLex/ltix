@@ -1,7 +1,7 @@
 defmodule Ltix.MembershipsService.PropertiesTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.MembershipsServiceHelper
+  import MembershipsServiceFixtures
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Unknown.InvalidPluginSet

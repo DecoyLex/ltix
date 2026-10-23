@@ -1,7 +1,7 @@
 defmodule Ltix.GradeService.LineItemTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.GradeServiceHelper
+  import GradeServiceFixtures
 
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.GradeService

@@ -1,7 +1,7 @@
 defmodule Ltix.GradeService.ResultTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.GradeServiceHelper
+  import GradeServiceFixtures
 
   alias Ltix.GradeService
   alias Ltix.GradeService.Result

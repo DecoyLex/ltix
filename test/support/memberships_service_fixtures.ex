@@ -1,35 +1,26 @@
-defmodule Ltix.Test.MembershipsServiceHelper do
+defmodule MembershipsServiceFixtures do
   @moduledoc false
 
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
-  alias Ltix.OAuth.AccessToken
-  alias Ltix.OAuth.Client
 
   # A client for the memberships endpoint, with the plugin set of the
-  # `:plugins` listing, or of the configured listing without it.
+  # `:plugins` list (defaults to no plugins).
   def create_client(opts \\ []) do
-    platform = Ltix.Test.setup_platform!()
-    {:ok, plugins} = Ltix.PluginSet.resolve(opts[:plugins])
-
-    %Client{
-      token: %AccessToken{
-        access_token: "nested-payload-token",
-        token_type: "bearer",
-        expires_at: DateTime.add(DateTime.utc_now(), 3600),
-        granted_scopes:
-          MapSet.new([
-            "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
-          ])
-      },
-      registration: platform.registration,
-      req_options: [plug: {Req.Test, MembershipsService}, retry: false],
-      endpoints: %{
+    TestClient.build(
+      Ltix.Test.setup_platform!().registration,
+      %{
         MembershipsService =>
           MembershipsServiceEndpoint.new!("https://platform.example.com/members")
       },
-      plugins: plugins
-    }
+      Keyword.merge(
+        [
+          scopes: ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"],
+          req_options: [plug: {Req.Test, MembershipsService}, retry: false]
+        ],
+        opts
+      )
+    )
   end
 
   # Stubs one page with `members`. Returns what `list_members/2` returns, and

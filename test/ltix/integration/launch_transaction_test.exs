@@ -15,10 +15,10 @@ defmodule Ltix.Integration.LaunchTransactionTest do
       | registration: %{platform.registration | client_id: "other-tool-client-id"}
     }
 
-    {:ok, pid} =
-      StorageAdapter.start_link(platforms: [platform, other_platform])
+    StorageAdapter.set_pid(
+      start_supervised!({StorageAdapter, platforms: [platform, other_platform]})
+    )
 
-    StorageAdapter.set_pid(pid)
     %{platform: platform, other_platform: other_platform}
   end
 

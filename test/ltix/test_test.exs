@@ -2,6 +2,7 @@ defmodule Ltix.TestTest do
   use ExUnit.Case, async: true
 
   alias Ltix.Claims.Context
+  alias Ltix.DeepLinking.Settings
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidOption
@@ -19,7 +20,6 @@ defmodule Ltix.TestTest do
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
-  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.Role
   alias Ltix.Test.StorageAdapter
@@ -30,11 +30,7 @@ defmodule Ltix.TestTest do
   setup do
     platform = Ltix.Test.setup_platform!()
 
-    {:ok, pid} =
-      StorageAdapter.start_link(platforms: [platform])
-
-    StorageAdapter.set_pid(pid)
-
+    use_storage_adapter(platforms: [platform])
     %{platform: platform}
   end
 
@@ -379,13 +375,9 @@ defmodule Ltix.TestTest do
 
       for _platform <- 1..2 do
         platform = Ltix.Test.setup_platform!(registration: registration)
-        {:ok, pid} = StorageAdapter.start_link(platforms: [platform])
-        StorageAdapter.set_pid(pid)
+        use_storage_adapter(platforms: [platform])
 
-        {:ok, login_result} = do_login(platform)
-        nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-
-        assert {:ok, %Launch{}} = do_callback(platform, login_result, nonce, [])
+        assert {:ok, %Launch{}} = LaunchFlow.launch(platform)
       end
     end
   end
@@ -422,8 +414,7 @@ defmodule Ltix.TestTest do
     test "finds deployments only under the registration they belong to" do
       first = Ltix.Test.setup_platform!(client_id: "first-tool", deployment_id: "first-dep")
       second = Ltix.Test.setup_platform!(client_id: "second-tool", deployment_id: "second-dep")
-      {:ok, pid} = StorageAdapter.start_link(platforms: [first, second])
-      StorageAdapter.set_pid(pid)
+      use_storage_adapter(platforms: [first, second])
 
       assert {:ok, _deployment} =
                StorageAdapter.get_deployment(second.registration, "second-dep", [])
@@ -435,8 +426,7 @@ defmodule Ltix.TestTest do
     test "launches from each of two platforms set up in one test" do
       first = Ltix.Test.setup_platform!(client_id: "first-tool")
       second = Ltix.Test.setup_platform!(client_id: "second-tool")
-      {:ok, pid} = StorageAdapter.start_link(platforms: [first, second])
-      StorageAdapter.set_pid(pid)
+      use_storage_adapter(platforms: [first, second])
 
       for platform <- [first, second] do
         params =
@@ -462,8 +452,8 @@ defmodule Ltix.TestTest do
 
     test "resolves registrations given without a deployment" do
       platform = Ltix.Test.setup_platform!(client_id: "new-tool")
-      {:ok, pid} = StorageAdapter.start_link(registrations: [platform.registration])
-      StorageAdapter.set_pid(pid)
+
+      use_storage_adapter(registrations: [platform.registration])
 
       assert {:ok, registration} =
                StorageAdapter.get_registration(platform.registration.issuer, "new-tool", [])
@@ -538,18 +528,12 @@ defmodule Ltix.TestTest do
          %{custom_registration: reg, custom_deployment: dep} do
       platform = Ltix.Test.setup_platform!(registration: reg, deployment: dep)
 
-      {:ok, pid} =
-        StorageAdapter.start_link(platforms: [platform])
+      use_storage_adapter(platforms: [platform])
 
-      StorageAdapter.set_pid(pid)
+      {:ok, launch} = LaunchFlow.launch(platform)
 
-      {:ok, login_result} = do_login(platform)
-      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-
-      {:ok, context} = do_callback(platform, login_result, nonce, [])
-
-      assert %CustomRegistration{id: "reg-uuid-001"} = context.source_registration
-      assert %CustomDeployment{id: "dep-uuid-001"} = context.source_deployment
+      assert %CustomRegistration{id: "reg-uuid-001"} = launch.source_registration
+      assert %CustomDeployment{id: "dep-uuid-001"} = launch.source_deployment
     end
   end
 
@@ -562,31 +546,63 @@ defmodule Ltix.TestTest do
           deployment_id: "dep-99"
         )
 
-      {:ok, pid} =
-        StorageAdapter.start_link(platforms: [platform])
+      use_storage_adapter(platforms: [platform])
 
-      StorageAdapter.set_pid(pid)
-      {:ok, login_result} = do_login(platform)
-      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
+      assert {:ok, launch} =
+               LaunchFlow.launch_with_claims(platform, &Map.put(&1, "sub", "student-1"))
 
-      claims =
-        Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce, "sub" => "student-1"})
+      assert launch.claims.issuer == "https://custom.lms.edu"
+      assert launch.claims.audience == "my-tool"
+      assert launch.claims.deployment_id == "dep-99"
+      assert launch.claims.subject == "student-1"
+    end
+  end
 
-      params = %{
-        "id_token" => Ltix.Test.sign_id_token(claims, platform.jwk),
-        "state" => login_result.state
-      }
+  describe "build_launch/2 with a Deep Linking request" do
+    test "has the Deep Linking settings given", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
+          message_type: :deep_linking,
+          deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
+        )
 
-      assert {:ok, context} =
-               Ltix.handle_callback(params, login_result.state,
-                 storage_adapter: StorageAdapter,
-                 req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
-               )
+      assert launch.claims.message_type == "LtiDeepLinkingRequest"
+      assert launch.claims.resource_link == nil
 
-      assert context.claims.issuer == "https://custom.lms.edu"
-      assert context.claims.audience == "my-tool"
-      assert context.claims.deployment_id == "dep-99"
-      assert context.claims.subject == "student-1"
+      assert %Settings{
+               accept_types: ["ltiResourceLink"],
+               deep_link_return_url: "https://platform.example.com/deep_links"
+             } = launch.claims.deep_linking_settings
+    end
+
+    test "has a nil key for each declared claim it doesn't send", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
+          message_type: :deep_linking,
+          claims: %{
+            "https://purl.imsglobal.org/spec/lti/claim/roles" => nil,
+            "https://purl.imsglobal.org/spec/lti/claim/context" => nil
+          },
+          plugins: [{Modules, add: [TestPlugins.Traced]}]
+        )
+
+      assert launch.claims.context == nil
+      assert launch.claims.traced == nil
+      assert launch.claims.roles == []
+    end
+
+    test "has default settings when none are given", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+
+      assert %Settings{
+               accept_types: ["ltiResourceLink", "link", "file", "html", "image"],
+               accept_multiple: true
+             } = launch.claims.deep_linking_settings
+    end
+
+    test "has the subject given", %{platform: platform} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking, subject: "user-42")
+      assert launch.claims.subject == "user-42"
     end
   end
 
@@ -770,8 +786,7 @@ defmodule Ltix.TestTest do
          add: [TestPlugins.SubmissionType, TestPlugins.LaunchUrl, TestPlugins.ResultFeedback]}
       ]
 
-      {:ok, plugin_set} = Ltix.PluginSet.resolve(plugins)
-      client = %{build_grade_client(platform) | plugins: plugin_set}
+      client = build_grade_client(platform, plugins: plugins)
 
       item = %{
         @quiz
@@ -1045,7 +1060,7 @@ defmodule Ltix.TestTest do
     )
   end
 
-  defp build_grade_client(platform) do
+  defp build_grade_client(platform, opts \\ []) do
     scopes = [
       "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
       "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
@@ -1060,7 +1075,7 @@ defmodule Ltix.TestTest do
         line_item: "https://lms.example.com/lineitems/1",
         scopes: scopes
       },
-      scopes
+      [scopes: scopes] ++ opts
     )
   end
 
@@ -1069,29 +1084,21 @@ defmodule Ltix.TestTest do
       platform,
       Ltix.MembershipsService,
       MembershipsServiceEndpoint.new!("https://lms.example.com/memberships"),
-      ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
+      scopes: ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
     )
   end
 
-  defp build_client(platform, service, endpoint, scopes) do
-    %Client{
-      token: %AccessToken{
-        access_token: "test-token",
-        token_type: "bearer",
-        expires_at: DateTime.add(DateTime.utc_now(), 3600),
-        granted_scopes: MapSet.new(scopes)
-      },
-      registration: platform.registration,
-      req_options: [plug: {Req.Test, service}, retry: false],
-      endpoints: %{service => endpoint}
-    }
+  defp build_client(platform, service, endpoint, opts) do
+    TestClient.build(
+      platform.registration,
+      %{service => endpoint},
+      [req_options: [plug: {Req.Test, service}, retry: false]] ++ opts
+    )
   end
 
   defp launch(platform, opts) do
-    {:ok, login_result} = do_login(platform)
-    nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
-    {:ok, context} = do_callback(platform, login_result, nonce, opts)
-    context
+    {:ok, launch} = LaunchFlow.launch(platform, opts)
+    launch
   end
 
   # Launch time fields differ between two launches.
@@ -1102,28 +1109,8 @@ defmodule Ltix.TestTest do
     Token.verify(token, platform.registration, req_options: [plug: {Req.Test, Ltix.JWT.KeySet}])
   end
 
-  # -- OIDC Flow Helpers --
-
-  defp do_login(platform) do
-    Ltix.handle_login(
-      Ltix.Test.login_params(platform),
-      @launch_url,
-      storage_adapter: StorageAdapter
-    )
-  end
-
-  defp do_callback(platform, login_result, nonce, opts) do
-    params =
-      Ltix.Test.launch_params(
-        platform,
-        Keyword.merge([nonce: nonce, state: login_result.state], opts)
-      )
-
-    Ltix.handle_callback(
-      params,
-      login_result.state,
-      storage_adapter: StorageAdapter,
-      req_options: [plug: {Req.Test, Ltix.JWT.KeySet}]
-    )
-  end
+  # Starts a storage adapter with `opts` for the test's launches, alongside any
+  # adapter the test started before.
+  defp use_storage_adapter(opts),
+    do: StorageAdapter.set_pid(start_supervised!({StorageAdapter, opts}, id: make_ref()))
 end

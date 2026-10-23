@@ -168,6 +168,17 @@ defmodule Ltix.RoleTest do
 
       assert by_kind(roles) == {context, institution, system}
     end
+
+    # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+    test "filters a roster member's roles" do
+      client = MembershipsServiceFixtures.create_client()
+      member = Map.put(MembershipsServiceFixtures.member("user-1"), "roles", @sent)
+
+      assert {{:ok, %{members: [%{roles: roles}]}}, _streamed} =
+               MembershipsServiceFixtures.list_and_stream(client, [member])
+
+      assert by_kind(roles) == {@context_forms, @institution_forms, @system_forms}
+    end
   end
 
   defp launch_roles(platform, roles) do

@@ -161,14 +161,14 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
     end
 
     test "passes the options from a launch", ctx do
-      context =
+      launch =
         Ltix.Test.build_launch(ctx.platform,
           memberships_endpoint: "https://platform.example.com/members"
         )
 
       assert {:ok, %Client{}} =
                OAuth.authenticate(
-                 context,
+                 launch,
                  [services: [MembershipsService], req_options: @req_options] ++ ctx.adapter
                )
 

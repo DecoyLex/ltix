@@ -14,8 +14,6 @@ defmodule Ltix.ServiceCollectionFailuresTest do
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.Member
   alias Ltix.MembershipsService.MembershipContainer
-  alias Ltix.OAuth.AccessToken
-  alias Ltix.OAuth.Client
 
   setup do
     %{registration: Ltix.Test.setup_platform!().registration}
@@ -357,24 +355,19 @@ defmodule Ltix.ServiceCollectionFailuresTest do
       "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
     ]
 
-    %Client{
-      token: %AccessToken{
-        access_token: "collection-token",
-        token_type: "bearer",
-        expires_at: DateTime.add(DateTime.utc_now(), 3600),
-        granted_scopes: MapSet.new(scopes)
-      },
-      registration: registration,
-      req_options: request_options(),
-      endpoints: %{
+    TestClient.build(
+      registration,
+      %{
         GradeService => %GradeServiceEndpoint{
           line_items: page_url(:line_items, 1),
           line_item: "https://platform.example.com/lineitems/1",
           scopes: scopes
         },
         MembershipsService => MembershipsServiceEndpoint.new!(page_url(:members, 1))
-      }
-    }
+      },
+      scopes: scopes,
+      req_options: request_options()
+    )
   end
 
   defp stub_pages(collection, last_page, last_response) do

@@ -1,7 +1,7 @@
 defmodule Ltix.MembershipsService.MemberTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.MembershipsServiceHelper
+  import MembershipsServiceFixtures
 
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.MembershipsService.Member

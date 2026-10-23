@@ -21,27 +21,14 @@ defmodule Ltix.OAuth.ClientTest do
   defp other_records_endpoint, do: %Records.Endpoint{url: "https://platform.example.com/other"}
   defp calendar_endpoint, do: %Calendar.Endpoint{url: "https://platform.example.com/calendar"}
 
-  defp build_client(overrides \\ %{}) do
-    {:ok, plugins} = PluginSet.resolve(@plugins)
-
-    defaults = %{
-      token: build_token(DateTime.add(DateTime.utc_now(), 3600)),
-      registration: nil,
-      req_options: [],
-      endpoints: %{Records => records_endpoint()},
-      plugins: plugins
-    }
-
-    struct!(Client, Map.merge(defaults, overrides))
-  end
-
-  defp build_token(expires_at) do
-    %AccessToken{
-      access_token: "test-token",
-      token_type: "bearer",
-      granted_scopes: MapSet.new([@records_scope]),
-      expires_at: expires_at
-    }
+  # A client with the records endpoint and scope. Takes `TestClient.build/3`'s
+  # options.
+  defp build_client(opts \\ []) do
+    TestClient.build(
+      build_registration(),
+      %{Records => records_endpoint()},
+      Keyword.merge([scopes: [@records_scope], plugins: @plugins], opts)
+    )
   end
 
   defp both_endpoints, do: %{Records => records_endpoint(), Calendar => calendar_endpoint()}
@@ -70,21 +57,10 @@ defmodule Ltix.OAuth.ClientTest do
     registration
   end
 
-  defp stub_token_response do
-    Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
-      Req.Test.json(conn, %{
-        "access_token" => "refreshed-token",
-        "token_type" => "Bearer",
-        "expires_in" => 3600,
-        "scope" => @records_scope
-      })
-    end)
-  end
-
   describe "require_unexpired/1" do
     test "returns AccessTokenExpired with the expiry when the token has expired" do
       expires_at = DateTime.add(DateTime.utc_now(), -100)
-      client = build_client(%{token: build_token(expires_at)})
+      client = build_client(expires_at: expires_at)
 
       assert {:error, %Ltix.Errors.Security.AccessTokenExpired{expires_at: ^expires_at}} =
                Client.require_unexpired(client)
@@ -278,36 +254,33 @@ defmodule Ltix.OAuth.ClientTest do
 
   describe "refresh/1" do
     test "re-acquires token when expired" do
-      stub_token_response()
-      registration = build_registration()
+      Ltix.Test.stub_token_response(scopes: [@records_scope], access_token: "refreshed-token")
 
       client =
-        build_client(%{
-          registration: registration,
-          token: build_token(DateTime.add(DateTime.utc_now(), -1)),
+        build_client(
+          expires_at: DateTime.add(DateTime.utc_now(), -1),
           req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-        })
+        )
 
       assert {:ok, %Client{} = refreshed} = Client.refresh(client)
       assert refreshed.token.access_token == "refreshed-token"
-      assert refreshed.registration == registration
+      assert refreshed.registration == client.registration
       assert refreshed.endpoints == client.endpoints
     end
   end
 
   describe "refresh telemetry" do
     setup do
-      stub_token_response()
+      Ltix.Test.stub_token_response(scopes: [@records_scope], access_token: "refreshed-token")
       events = for suffix <- [:start, :stop], do: [:ltix, :oauth, :refresh, suffix]
       ref = :telemetry_test.attach_event_handlers(self(), events)
       on_exit(fn -> :telemetry.detach(ref) end)
 
       client =
-        build_client(%{
-          registration: build_registration(),
-          token: build_token(DateTime.add(DateTime.utc_now(), -1)),
+        build_client(
+          expires_at: DateTime.add(DateTime.utc_now(), -1),
           req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-        })
+        )
 
       %{client: client}
     end
@@ -351,33 +324,24 @@ defmodule Ltix.OAuth.ClientTest do
 
   describe "force_refresh/1" do
     test "re-acquires token regardless of expiry" do
-      stub_token_response()
-      registration = build_registration()
+      Ltix.Test.stub_token_response(scopes: [@records_scope], access_token: "refreshed-token")
 
       client =
-        build_client(%{
-          registration: registration,
-          req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-        })
+        build_client(req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}])
 
       assert {:ok, %Client{} = refreshed} = Client.force_refresh(client)
       assert refreshed.token.access_token == "refreshed-token"
-      assert refreshed.registration == registration
+      assert refreshed.registration == client.registration
       assert refreshed.endpoints == client.endpoints
     end
 
     test "raises on token request failure" do
-      registration = build_registration()
-
       Req.Test.stub(Ltix.OAuth.ClientCredentials, fn conn ->
         Plug.Conn.send_resp(conn, 400, Jason.encode!(%{"error" => "invalid_grant"}))
       end)
 
       client =
-        build_client(%{
-          registration: registration,
-          req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-        })
+        build_client(req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}])
 
       assert_raise Ltix.Errors.Invalid.TokenRequestFailed, fn ->
         Client.force_refresh!(client)
@@ -387,7 +351,7 @@ defmodule Ltix.OAuth.ClientTest do
 
   describe "request/3" do
     setup do
-      %{client: build_client(%{req_options: [plug: {Req.Test, :ltix}, retry: false]})}
+      %{client: build_client(req_options: [plug: {Req.Test, :ltix}, retry: false])}
     end
 
     test "sends the request with the client's token to the service's stub", %{client: client} do
@@ -461,7 +425,7 @@ defmodule Ltix.OAuth.ClientTest do
 
   describe "request_pages/3" do
     setup do
-      %{client: build_client(%{req_options: [plug: {Req.Test, :ltix}, retry: false]})}
+      %{client: build_client(req_options: [plug: {Req.Test, :ltix}, retry: false])}
     end
 
     test "follows next links with the client's token", %{client: client} do

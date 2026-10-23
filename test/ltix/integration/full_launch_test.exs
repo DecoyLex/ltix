@@ -28,10 +28,7 @@ defmodule Ltix.Integration.FullLaunchTest do
       jwk: platform_jwk
     }
 
-    {:ok, pid} =
-      StorageAdapter.start_link(platforms: [platform])
-
-    StorageAdapter.set_pid(pid)
+    StorageAdapter.set_pid(start_supervised!({StorageAdapter, platforms: [platform]}))
 
     Req.Test.stub(Ltix.JWT.KeySet, fn conn ->
       conn
@@ -52,7 +49,7 @@ defmodule Ltix.Integration.FullLaunchTest do
     test "login → callback → Launch", ctx do
       {:ok, login_result} = do_login()
 
-      nonce = extract_nonce(login_result.redirect_uri)
+      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
       claims = Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => nonce})
       id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
 
@@ -78,7 +75,7 @@ defmodule Ltix.Integration.FullLaunchTest do
     test "anonymous launch with allow_anonymous", ctx do
       {:ok, login_result} = do_login()
 
-      nonce = extract_nonce(login_result.redirect_uri)
+      nonce = Ltix.Test.extract_nonce(login_result.redirect_uri)
 
       claims = Map.delete(Ltix.Test.valid_lti_claims(ctx.platform, %{"nonce" => nonce}), "sub")
 
@@ -109,14 +106,6 @@ defmodule Ltix.Integration.FullLaunchTest do
       @redirect_uri,
       storage_adapter: StorageAdapter
     )
-  end
-
-  defp extract_nonce(redirect_uri) do
-    redirect_uri
-    |> URI.parse()
-    |> Map.get(:query)
-    |> URI.decode_query()
-    |> Map.fetch!("nonce")
   end
 
   defp req_options, do: [plug: {Req.Test, Ltix.JWT.KeySet}]

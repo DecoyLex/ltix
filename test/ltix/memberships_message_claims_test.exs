@@ -1,7 +1,7 @@
 defmodule Ltix.MembershipsMessageClaimsTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.MembershipsServiceHelper
+  import MembershipsServiceFixtures
 
   alias Ltix.Claims.Context
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -42,15 +42,10 @@ defmodule Ltix.MembershipsMessageClaimsTest do
     end
   end
 
-  test "claims are parsed with the client's plugins, and plugins: replaces them", %{
-    client: client
-  } do
+  test "claims are parsed with the client's plugins, and plugins: replaces them" do
     message = %{"https://tool.example.com/claim/traced" => "traced"}
 
-    {:ok, plugins} =
-      Ltix.PluginSet.resolve([{TestPlugins.Modules, add: [TestPlugins.Traced]}])
-
-    client = %{client | plugins: plugins}
+    client = create_client(plugins: [{TestPlugins.Modules, add: [TestPlugins.Traced]}])
 
     assert {{:ok, %MembershipContainer{members: [%Member{message: [listed]}]}},
             {:ok, [%Member{message: [streamed]}]}} = list_message(client, message)

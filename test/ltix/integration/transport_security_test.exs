@@ -28,26 +28,23 @@ defmodule Ltix.Integration.TransportSecurityTest do
       "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
     ]
 
-    client = %Client{
-      token: %AccessToken{
-        access_token: "secret-bearer-token",
-        token_type: "bearer",
-        expires_at: DateTime.add(DateTime.utc_now(), 3600),
-        granted_scopes: MapSet.new(scopes)
-      },
-      registration: platform.registration,
-      req_options: [plug: {Req.Test, :ltix}, retry: false],
-      endpoints: %{
-        GradeService => %GradeServiceEndpoint{
-          line_items: "https://grades.example.com/lineitems",
-          line_item: "https://grades.example.com/lineitems/1",
-          scopes: scopes
+    client =
+      TestClient.build(
+        platform.registration,
+        %{
+          GradeService => %GradeServiceEndpoint{
+            line_items: "https://grades.example.com/lineitems",
+            line_item: "https://grades.example.com/lineitems/1",
+            scopes: scopes
+          },
+          MembershipsService => %MembershipsServiceEndpoint{
+            context_memberships_url: "https://roster.example.com/members"
+          }
         },
-        MembershipsService => %MembershipsServiceEndpoint{
-          context_memberships_url: "https://roster.example.com/members"
-        }
-      }
-    }
+        access_token: "secret-bearer-token",
+        scopes: scopes,
+        req_options: [plug: {Req.Test, :ltix}, retry: false]
+      )
 
     {:ok, score} =
       Score.new(
@@ -876,10 +873,7 @@ defmodule Ltix.Integration.TransportSecurityTest do
   end
 
   test "JWKS redirects permit a complete callback launch", %{platform: platform} do
-    {:ok, pid} =
-      StorageAdapter.start_link(platforms: [platform])
-
-    StorageAdapter.set_pid(pid)
+    StorageAdapter.set_pid(start_supervised!({StorageAdapter, platforms: [platform]}))
     owner = self()
 
     Req.Test.expect(KeySet, fn conn ->

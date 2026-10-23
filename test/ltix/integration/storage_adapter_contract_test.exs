@@ -339,14 +339,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     Process.put(:contract_adapter_pid, pid)
 
     registration = fn registration ->
-      record = %CustomRegistration{
-        id: System.unique_integer([:positive]),
-        platform_issuer: registration.issuer,
-        oauth_client_id: registration.client_id,
-        oidc_auth_url: registration.auth_endpoint,
-        platform_jwks_url: registration.jwks_uri,
-        platform_token_url: registration.token_endpoint
-      }
+      record = CustomRegistration.from_registration(registration)
 
       Agent.update(pid, &%{&1 | registrations: [record | &1.registrations]})
       record

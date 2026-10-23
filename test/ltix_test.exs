@@ -91,10 +91,7 @@ defmodule LtixTest do
       jwk: platform_jwk
     }
 
-    {:ok, pid} =
-      StorageAdapter.start_link(platforms: [platform])
-
-    StorageAdapter.set_pid(pid)
+    StorageAdapter.set_pid(start_supervised!({StorageAdapter, platforms: [platform]}))
 
     {:ok, login} =
       Ltix.handle_login(
@@ -128,6 +125,7 @@ defmodule LtixTest do
     end)
 
     %{
+      platform: platform,
       registration: registration,
       platform_jwk: platform_jwk,
       state: state,
@@ -640,22 +638,10 @@ defmodule LtixTest do
   end
 
   defp callback_with_claim(ctx, key, value, opts \\ []) do
-    {:ok, login} =
-      Ltix.handle_login(login_params(), @redirect_uri, storage_adapter: StorageAdapter)
-
-    nonce = Ltix.Test.extract_nonce(login.redirect_uri)
-
-    claims =
-      ctx.claims
-      |> Map.put("nonce", nonce)
-      |> Map.put(key, value)
-
-    id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
-
-    Ltix.handle_callback(
-      %{"id_token" => id_token, "state" => login.state},
-      login.state,
-      Keyword.merge([storage_adapter: StorageAdapter, req_options: req_options()], opts)
+    LaunchFlow.launch_with_claims(
+      ctx.platform,
+      &Map.put(&1, key, value),
+      [storage_adapter: StorageAdapter] ++ opts
     )
   end
 

@@ -34,10 +34,7 @@ defmodule Ltix.Integration.CertificationTest do
       jwk: platform_jwk
     }
 
-    {:ok, pid} =
-      StorageAdapter.start_link(platforms: [platform])
-
-    StorageAdapter.set_pid(pid)
+    StorageAdapter.set_pid(start_supervised!({StorageAdapter, platforms: [platform]}))
 
     {:ok, login} =
       Ltix.handle_login(
@@ -92,7 +89,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "Wrong LTI Version", ctx do
       claims = put_lti_claim(ctx.claims, "version", "1.2.0")
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %InvalidClaim{claim: "version", value: "1.2.0"}} =
                handle_callback(params, ctx.state)
@@ -100,7 +97,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "No LTI Version", ctx do
       claims = Map.delete(ctx.claims, @lti <> "version")
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "version"}} =
                handle_callback(params, ctx.state)
@@ -119,7 +116,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.delete(@lti <> "version")
         |> Map.delete(@lti <> "deployment_id")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error,
               %Ltix.Errors.Invalid{
@@ -133,7 +130,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "Timestamps Incorrect", ctx do
       claims = Map.put(ctx.claims, "exp", System.system_time(:second) - 3600)
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %Security.TokenExpired{}} = handle_callback(params, ctx.state)
     end
@@ -141,7 +138,7 @@ defmodule Ltix.Integration.CertificationTest do
     # [sic], matches cert suite spelling
     test "messsage_type Claim Missing", ctx do
       claims = Map.delete(ctx.claims, @lti <> "message_type")
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "message_type"}} =
                handle_callback(params, ctx.state)
@@ -149,7 +146,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "role Claim Missing", ctx do
       claims = Map.delete(ctx.claims, @lti <> "roles")
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "roles"}} =
                handle_callback(params, ctx.state)
@@ -157,7 +154,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "deployment_id Claim Missing", ctx do
       claims = Map.delete(ctx.claims, @lti <> "deployment_id")
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "deployment_id"}} =
                handle_callback(params, ctx.state)
@@ -165,7 +162,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "resource_link_id Claim Missing", ctx do
       claims = put_lti_claim(ctx.claims, "resource_link", %{"title" => "No ID"})
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "resource_link.id"}} =
                handle_callback(params, ctx.state)
@@ -173,7 +170,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "user Claim Missing", ctx do
       claims = Map.delete(ctx.claims, "sub")
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:error, %MissingClaim{claim: "sub"}} = handle_callback(params, ctx.state)
     end
@@ -192,7 +189,7 @@ defmodule Ltix.Integration.CertificationTest do
           "title" => "Intro to CS"
         })
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -209,7 +206,7 @@ defmodule Ltix.Integration.CertificationTest do
           "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty"
         ])
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -221,7 +218,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "Valid Instructor Launch Short Role", ctx do
       claims = put_lti_claim(ctx.claims, "roles", ["Instructor"])
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -235,7 +232,7 @@ defmodule Ltix.Integration.CertificationTest do
           "http://example.com/custom/TeachingAssistant"
         ])
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -244,7 +241,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "Valid Instructor Launch No Role", ctx do
       claims = put_lti_claim(ctx.claims, "roles", [])
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -259,7 +256,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.delete("given_name")
         |> Map.delete("family_name")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -275,7 +272,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.put("family_name", "Doe")
         |> Map.delete("email")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -291,7 +288,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.delete("given_name")
         |> Map.delete("family_name")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{}} = handle_callback(params, ctx.state)
     end
@@ -302,7 +299,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.put("email", "instructor@example.com")
         |> Map.delete(@lti <> "context")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -327,7 +324,7 @@ defmodule Ltix.Integration.CertificationTest do
           "title" => "Intro to CS"
         })
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -344,7 +341,7 @@ defmodule Ltix.Integration.CertificationTest do
           "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Student"
         ])
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -356,7 +353,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "Valid Student Launch Short Role", ctx do
       claims = put_lti_claim(ctx.claims, "roles", ["Learner"])
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -370,7 +367,7 @@ defmodule Ltix.Integration.CertificationTest do
           "http://example.com/custom/Auditor"
         ])
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -379,7 +376,7 @@ defmodule Ltix.Integration.CertificationTest do
 
     test "Valid Student Launch No Role", ctx do
       claims = put_lti_claim(ctx.claims, "roles", [])
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{}} = handle_callback(params, ctx.state)
     end
@@ -395,7 +392,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.delete("given_name")
         |> Map.delete("family_name")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -414,7 +411,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.put("family_name", "Smith")
         |> Map.delete("email")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -433,7 +430,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.delete("given_name")
         |> Map.delete("family_name")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{}} = handle_callback(params, ctx.state)
     end
@@ -447,7 +444,7 @@ defmodule Ltix.Integration.CertificationTest do
         |> Map.put("email", "student@example.com")
         |> Map.delete(@lti <> "context")
 
-      params = mint_and_params(claims, ctx)
+      params = sign_params(claims, ctx)
 
       assert {:ok, %Launch{} = launch} = handle_callback(params, ctx.state)
 
@@ -458,19 +455,13 @@ defmodule Ltix.Integration.CertificationTest do
 
   # -- Helpers --
 
-  defp handle_callback(params, state) do
-    Ltix.handle_callback(params, state,
-      storage_adapter: StorageAdapter,
-      req_options: req_options()
-    )
-  end
+  defp handle_callback(params, state),
+    do: LaunchFlow.callback(params, state, storage_adapter: StorageAdapter)
 
-  defp mint_and_params(claims, ctx) do
+  defp sign_params(claims, ctx) do
     id_token = Ltix.Test.sign_id_token(claims, ctx.platform_jwk)
     %{"id_token" => id_token, "state" => ctx.state}
   end
-
-  defp req_options, do: [plug: {Req.Test, Ltix.JWT.KeySet}]
 
   defp put_lti_claim(claims, key, value) do
     Map.put(claims, @lti <> key, value)

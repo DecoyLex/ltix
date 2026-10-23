@@ -12,7 +12,6 @@ defmodule Ltix.MembershipsServiceTest do
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.MembershipsService.MembershipContainer
-  alias Ltix.OAuth.AccessToken
   alias Ltix.OAuth.Client
   alias Ltix.Role
 
@@ -92,31 +91,22 @@ defmodule Ltix.MembershipsServiceTest do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
+  # A client for `platform`'s memberships endpoint. Takes an `:endpoint`, and
+  # `TestClient.build/3`'s options.
   defp build_client(platform, opts \\ []) do
-    endpoint =
-      Keyword.get(
-        opts,
-        :endpoint,
+    {endpoint, opts} =
+      Keyword.pop_lazy(opts, :endpoint, fn ->
         MembershipsServiceEndpoint.new!(@memberships_url)
+      end)
+
+    TestClient.build(
+      platform.registration,
+      %{MembershipsService => endpoint},
+      Keyword.merge(
+        [access_token: "test-nrps-token", scopes: [@nrps_scope], req_options: req_options()],
+        opts
       )
-
-    scopes =
-      Keyword.get(opts, :scopes, [@nrps_scope])
-
-    expires_at =
-      Keyword.get(opts, :expires_at, DateTime.add(DateTime.utc_now(), 3600))
-
-    %Client{
-      token: %AccessToken{
-        access_token: "test-nrps-token",
-        token_type: "bearer",
-        expires_at: expires_at,
-        granted_scopes: MapSet.new(scopes)
-      },
-      registration: platform.registration,
-      req_options: req_options(),
-      endpoints: %{MembershipsService => endpoint}
-    }
+    )
   end
 
   @learner_uri "http://purl.imsglobal.org/vocab/lis/v2/membership#Learner"

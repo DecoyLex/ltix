@@ -1,7 +1,7 @@
 defmodule Ltix.GradeService.PropertiesTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.GradeServiceHelper
+  import GradeServiceFixtures
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField

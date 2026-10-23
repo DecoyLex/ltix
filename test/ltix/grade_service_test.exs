@@ -1,7 +1,7 @@
 defmodule Ltix.GradeServiceTest do
   use ExUnit.Case, async: true
 
-  import Ltix.Test.GradeServiceHelper
+  import GradeServiceFixtures
 
   alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
@@ -24,14 +24,13 @@ defmodule Ltix.GradeServiceTest do
 
   @scope_lineitem "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"
   @scope_lineitem_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly"
-  @scope_result_readonly "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly"
   @scope_score "https://purl.imsglobal.org/spec/lti-ags/scope/score"
   @nrps_scope "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
 
-  @all_scopes [@scope_lineitem, @scope_result_readonly, @scope_score]
+  @all_scopes GradeServiceFixtures.scopes()
 
-  @line_items_url "https://platform.example.com/context/2923/lineitems"
-  @line_item_url "https://platform.example.com/context/2923/lineitems/1/lineitem"
+  @line_items_url GradeServiceFixtures.line_items_url()
+  @line_item_url GradeServiceFixtures.line_item_url()
 
   @lineitem_media_type "application/vnd.ims.lis.v2.lineitem+json"
   @lineitem_container_media_type "application/vnd.ims.lis.v2.lineitemcontainer+json"

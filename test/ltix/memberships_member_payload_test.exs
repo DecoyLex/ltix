@@ -1,7 +1,7 @@
 defmodule Ltix.MembershipsMemberPayloadTest do
   use ExUnit.Case, async: false
 
-  import Ltix.Test.MembershipsServiceHelper
+  import MembershipsServiceFixtures
 
   alias Ltix.Claims.Context
   alias Ltix.Errors.Invalid.InvalidClaim
@@ -211,7 +211,7 @@ defmodule Ltix.MembershipsMemberPayloadTest do
     assert_raise InvalidClaim, fn -> Enum.to_list(stream) end
   end
 
-  test "optional null fields, empty arrays and unknown properties remain accepted", %{
+  test "optional null fields, empty arrays and unrecognized properties remain accepted", %{
     client: client
   } do
     optional =
