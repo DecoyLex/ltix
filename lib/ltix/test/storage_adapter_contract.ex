@@ -3,7 +3,6 @@ defmodule Ltix.Test.StorageAdapterContract do
 
   alias Ltix.Deployable
   alias Ltix.Deployment
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
   alias Ltix.Options
@@ -56,10 +55,7 @@ defmodule Ltix.Test.StorageAdapterContract do
 
     unless is_atom(adapter) and Code.ensure_loaded?(adapter) and
              Enum.all?(callbacks, fn {name, arity} -> function_exported?(adapter, name, arity) end) do
-      raise InvalidOption,
-        key: :storage_adapter,
-        value: adapter,
-        reason: "must export all three Ltix.StorageAdapter callbacks"
+      Options.invalid!(:storage_adapter, "must export all three Ltix.StorageAdapter callbacks")
     end
   end
 
@@ -78,22 +74,21 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp validate_signing!(_adapter, 0, false), do: :ok
 
   defp validate_signing!(_adapter, 2, false) do
-    raise InvalidOption,
-      key: :jwks,
-      reason: "the key set is required to check an adapter that exports key_id/2 and sign/4"
+    Options.invalid!(
+      :jwks,
+      "the key set is required to check an adapter that exports key_id/2 and sign/4"
+    )
   end
 
   defp validate_signing!(_adapter, 0, true) do
-    raise InvalidOption,
-      key: :jwks,
-      reason: "the adapter exports neither key_id/2 nor sign/4, so no signature can be checked"
+    Options.invalid!(
+      :jwks,
+      "the adapter exports neither key_id/2 nor sign/4, so no signature can be checked"
+    )
   end
 
-  defp validate_signing!(adapter, 1, _key_set_given?) do
-    raise InvalidOption,
-      key: :storage_adapter,
-      value: adapter,
-      reason: "must export both key_id/2 and sign/4, or neither"
+  defp validate_signing!(_adapter, 1, _key_set_given?) do
+    Options.invalid!(:storage_adapter, "must export both key_id/2 and sign/4, or neither")
   end
 
   defp create_platforms!(opts) do

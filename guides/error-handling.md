@@ -106,11 +106,11 @@ The message of a grouped error lists the message of each error it contains.
 
 ## Invalid options
 
-Ltix raises `Ltix.Errors.Invalid.InvalidOption` when a function gets an unknown option, a missing required option, or an option with a value of the wrong type.
+Ltix raises `ArgumentError` when a function gets an unknown option, a missing required option, or an option with a value of the wrong type. These are mistakes in the calling code.
 
 ```elixir
 Ltix.JWK.generate(key_sise: 4096)
-** (Ltix.Errors.Invalid.InvalidOption) Option :key_sise is unknown
+** (ArgumentError) Option :key_sise is unknown
 ```
 
 ## Error messages
@@ -134,7 +134,6 @@ These indicate problems with the incoming data or the calling code.
 | `MissingClaim` | `claim` | A JWT or platform response, such as a memberships page, is missing a required claim, such as `sub` or `resource_link.id` |
 | `InvalidClaim` | `claim`, `value`, `message` | A claim in a JWT or platform response has an invalid value, or a plugin's declared claim is malformed |
 | `InvalidField` | `struct`, `field`, `value`, `reason` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
-| `InvalidOption` | `key`, `value`, `reason` | A function got an unknown, missing, or invalid option |
 | `InvalidJSON` | — | The ID token is not a JWT whose header and payload are JSON objects |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |
 | `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment_id |

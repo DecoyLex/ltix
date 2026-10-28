@@ -375,7 +375,7 @@ defmodule Ltix.GradeService do
 
   Returns the error of `Ltix.GradeService.LineItem.validate/1` without
   sending anything. A keyword list with a missing, unknown, or mistyped
-  field raises `Ltix.Errors.Invalid.InvalidOption`.
+  field raises `ArgumentError`.
 
   ## Examples
 

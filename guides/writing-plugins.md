@@ -303,7 +303,7 @@ Exception.message(error)
 | Two modules that [replace](writing-claim-and-launch-plugins.md#replace-a-check) the same check in the same message type | Enable only one of the plugins |
 | A conflict another module's `c:Ltix.Provider.resolve/1` reports | See that module's documentation |
 
-Enabling a module that isn't a plugin raises `Ltix.Errors.Invalid.InvalidOption`.
+Enabling a module that isn't a plugin raises `ArgumentError`.
 
 ## Test a plugin
 

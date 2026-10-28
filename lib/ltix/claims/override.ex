@@ -79,8 +79,7 @@ defmodule Ltix.Claims.Override do
   @doc """
   Adds an anonymous override to a plugin.
 
-  Raises `Ltix.Errors.Invalid.InvalidOption` for a missing, unknown, or invalid
-  option.
+  Raises `ArgumentError` for a missing, unknown, or invalid option.
 
   ## Options
 

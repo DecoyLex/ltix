@@ -63,9 +63,8 @@ defmodule Ltix.Plugin do
   Creates a plugin's declaration.
 
   The name and version appear in error messages, such as those of
-  `Ltix.Errors.Unknown.InvalidPluginSet`. Raises
-  `Ltix.Errors.Invalid.InvalidOption` for an unknown option or a value that
-  isn't a string.
+  `Ltix.Errors.Unknown.InvalidPluginSet`. Raises `ArgumentError` for an
+  unknown option or a value that isn't a string.
 
   ## Options
 

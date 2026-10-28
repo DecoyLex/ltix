@@ -100,9 +100,9 @@ defmodule Ltix.OAuth do
       the platform didn't grant a scope
     * an error a plugin's `Ltix.ClientAssertion` step returns
 
-  A registration that doesn't implement `Ltix.Registerable` raises
-  `ArgumentError`, and a `:deployment` that doesn't implement
-  `Ltix.Deployable` raises `Ltix.Errors.Invalid.InvalidOption`.
+  A registration that doesn't implement `Ltix.Registerable`, or a
+  `:deployment` that doesn't implement `Ltix.Deployable`, raises
+  `ArgumentError`.
   [Error Handling](error-handling.md) lists the errors any platform request
   can return.
 

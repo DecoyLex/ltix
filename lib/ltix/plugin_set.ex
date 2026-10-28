@@ -28,8 +28,8 @@ defmodule Ltix.PluginSet do
   """
 
   alias Ltix.AppConfig
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Unknown.InvalidPluginSet
+  alias Ltix.Options
   alias Ltix.Plugin
   alias Ltix.PluginSet.Conflict
   alias Ltix.PluginSet.Entry
@@ -69,9 +69,9 @@ defmodule Ltix.PluginSet do
         Ltix.DefaultPlugins
       ]
 
-  Raises `Ltix.Errors.Invalid.InvalidOption` when the list includes a module
-  that isn't a plugin, and `ArgumentError` when a plugin's
-  `c:Ltix.Plugin.plugin/1` doesn't return an `%Ltix.Plugin{}`.
+  Raises `ArgumentError` when the list includes a module that isn't a plugin,
+  or when a plugin's `c:Ltix.Plugin.plugin/1` doesn't return an
+  `%Ltix.Plugin{}`.
   """
   @spec resolve(enabled_plugins() | t() | nil) :: {:ok, t()} | {:error, Exception.t()}
   def resolve(%__MODULE__{} = plugins), do: {:ok, plugins}
@@ -145,18 +145,15 @@ defmodule Ltix.PluginSet do
   def data(%__MODULE__{data: data}, module), do: Map.get(data, module)
 
   defp normalize!(enabled) when is_list(enabled), do: Enum.map(enabled, &normalize_entry!/1)
-  defp normalize!(enabled), do: invalid!(enabled, "expected a list of plugins")
+  defp normalize!(_enabled), do: Options.invalid!(:plugins, "expected a list of plugins")
 
   defp normalize_entry!({module, opts}) do
     if Plugin.plugin?(module),
       do: {module, opts},
-      else: invalid!(module, "#{inspect(module)} is not a plugin")
+      else: Options.invalid!(:plugins, "#{inspect(module)} is not a plugin")
   end
 
   defp normalize_entry!(module), do: normalize_entry!({module, []})
-
-  defp invalid!(value, reason),
-    do: raise(InvalidOption, key: :plugins, value: value, reason: reason)
 
   defp build(enabled) do
     {plugins, cycles} = expand(enabled)

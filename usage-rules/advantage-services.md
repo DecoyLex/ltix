@@ -112,7 +112,7 @@ item.extensions.canvas_submission_type
 ```
 
 - `Score.new/1` takes property names the same way.
-- A name that's neither a field nor a declared property raises `InvalidOption` from `create_line_item/3` and returns `InvalidField` from `Score.new/1`.
+- A name that's neither a field nor a declared property raises `ArgumentError` from `create_line_item/3` and returns `InvalidField` from `Score.new/1`.
 - Undeclared properties are in `unrecognized`, keyed by JSON name.
 - To declare a property, follow [Add a property to line items, scores, or results](https://ltix.hexdocs.pm/writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results).
 

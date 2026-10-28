@@ -6,7 +6,6 @@ defmodule Ltix.GradeServiceTest do
   alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.CoupledLineItem
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingLineItemId
   alias Ltix.Errors.Invalid.ScopeMismatch
@@ -119,14 +118,14 @@ defmodule Ltix.GradeServiceTest do
             fn -> GradeService.post_score(client, score, unknown: true) end,
             fn -> GradeService.list_results(client, unknown: true) end
           ] do
-        assert_raise InvalidOption, "Option :unknown is unknown", call
+        assert_raise ArgumentError, "Option :unknown is unknown", call
       end
     end
 
     test "operations raise on invalid option values" do
       client = create_client()
 
-      assert_raise InvalidOption, ~r/Option :line_item is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :line_item is invalid/, fn ->
         GradeService.list_results(client, line_item: 1)
       end
     end
@@ -255,7 +254,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "raises without endpoint option", ctx do
-      assert_raise InvalidOption, "Option :endpoint is required", fn ->
+      assert_raise ArgumentError, "Option :endpoint is required", fn ->
         GradeService.authenticate(ctx.platform.registration, [])
       end
     end
@@ -478,7 +477,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "raises on extensions" do
-      assert_raise InvalidOption, "Option :extensions is unknown", fn ->
+      assert_raise ArgumentError, "Option :extensions is unknown", fn ->
         GradeService.create_line_item(create_client(),
           label: "Quiz 1",
           score_maximum: 100,
@@ -547,7 +546,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "raises when a date time is not a DateTime" do
-      assert_raise InvalidOption, ~r/Option :start_date_time is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :start_date_time is invalid/, fn ->
         GradeService.create_line_item(create_client(),
           label: "Quiz",
           score_maximum: 10,
@@ -568,7 +567,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "raises when score_maximum is not a number" do
-      assert_raise InvalidOption, ~r/Option :score_maximum is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :score_maximum is invalid/, fn ->
         GradeService.create_line_item(create_client(),
           label: "Quiz 1",
           score_maximum: "100"
@@ -579,7 +578,7 @@ defmodule Ltix.GradeServiceTest do
     test "raises when label is missing" do
       client = create_client()
 
-      assert_raise InvalidOption, "Option :label is required", fn ->
+      assert_raise ArgumentError, "Option :label is required", fn ->
         GradeService.create_line_item(client, score_maximum: 100)
       end
     end
@@ -587,7 +586,7 @@ defmodule Ltix.GradeServiceTest do
     test "raises when score_maximum is missing" do
       client = create_client()
 
-      assert_raise InvalidOption, "Option :score_maximum is required", fn ->
+      assert_raise ArgumentError, "Option :score_maximum is required", fn ->
         GradeService.create_line_item(client, label: "Quiz 1")
       end
     end
@@ -1474,11 +1473,11 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "stream options reject the eager limits", ctx do
-      assert_raise InvalidOption, "Option :max_line_items is unknown", fn ->
+      assert_raise ArgumentError, "Option :max_line_items is unknown", fn ->
         GradeService.stream_line_items(ctx.client, max_line_items: 1)
       end
 
-      assert_raise InvalidOption, "Option :max_results is unknown", fn ->
+      assert_raise ArgumentError, "Option :max_results is unknown", fn ->
         GradeService.stream_results(ctx.client, max_results: 1)
       end
     end
@@ -1497,7 +1496,7 @@ defmodule Ltix.GradeServiceTest do
     end
 
     test "a limit must be an integer or :infinity", ctx do
-      assert_raise InvalidOption, ~r/Option :max_results is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :max_results is invalid/, fn ->
         GradeService.list_results(ctx.client, max_results: :none)
       end
     end

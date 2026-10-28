@@ -139,8 +139,7 @@ defmodule Ltix.DeepLinking do
     * an error from a plugin's `Ltix.DeepLinking.Response` step
 
   An error about one item has the item's position in `items` as its
-  `index`. Unknown or invalid options raise
-  `Ltix.Errors.Invalid.InvalidOption`.
+  `index`. Unknown or invalid options raise `ArgumentError`.
 
   ## Examples
 

@@ -13,7 +13,6 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
   alias Ltix.Errors.Invalid.InvalidContentItem
   alias Ltix.Errors.Invalid.InvalidMessageType
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.LineItemNotAccepted
   alias Ltix.Errors.Invalid.MediaTypeNotAccepted
   alias Ltix.Errors.Invalid.PresentationTargetNotAccepted
@@ -461,11 +460,11 @@ defmodule Ltix.DeepLinkingTest do
     end
 
     test "add_property/2 raises for missing or invalid options, and Ltix.Property.add/3 for a module that isn't a type with properties" do
-      assert_raise InvalidOption, ~r/:property/, fn ->
+      assert_raise ArgumentError, ~r/:property/, fn ->
         LTIResourceLink.add_property(Ltix.Plugin.new(), name: :difficulty)
       end
 
-      assert_raise InvalidOption, ~r/:writes/, fn ->
+      assert_raise ArgumentError, ~r/:writes/, fn ->
         LTIResourceLink.add_property(Ltix.Plugin.new(),
           property: "https://vendor.example.com/difficulty",
           name: :difficulty,
@@ -790,20 +789,17 @@ defmodule Ltix.DeepLinkingTest do
       launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
       resource_link_context = Ltix.Test.build_launch(platform)
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :msg is unknown", fn ->
+      assert_raise ArgumentError, "Option :msg is unknown", fn ->
         DeepLinking.build_response(launch, [], msg: "Done")
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :msg is unknown", fn ->
+      assert_raise ArgumentError, "Option :msg is unknown", fn ->
         DeepLinking.build_response(resource_link_context, [], msg: "Done")
       end
 
-      error =
-        assert_raise Ltix.Errors.Invalid.InvalidOption, fn ->
-          DeepLinking.build_response(launch, [], log: 123)
-        end
-
-      assert %{key: :log, value: 123} = error
+      assert_raise ArgumentError, ~r/^Option :log is invalid, /, fn ->
+        DeepLinking.build_response(launch, [], log: 123)
+      end
     end
 
     test "omits absent message options from JWT", %{platform: platform} do

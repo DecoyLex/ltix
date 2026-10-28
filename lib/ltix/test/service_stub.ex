@@ -7,12 +7,12 @@ defmodule Ltix.Test.ServiceStub do
   # Each stubbing process has its own routes. The stub function captures them,
   # and they apply in every process allowed with `allow/1`.
 
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.GradeService
   alias Ltix.HTTP
   alias Ltix.JWT.KeySet
   alias Ltix.MembershipsService
   alias Ltix.OAuth.ClientCredentials
+  alias Ltix.Options
   alias Ltix.Test.StorageAdapter
 
   @compile {:no_warn_undefined,
@@ -190,10 +190,7 @@ defmodule Ltix.Test.ServiceStub do
         {uri.host, uri.port, trim_path(uri.path || "") <> suffix}
 
       {:error, _error} ->
-        raise InvalidOption,
-          key: :line_item,
-          value: url,
-          reason: "it must be an absolute HTTPS URL"
+        Options.invalid!(:line_item, "it must be an absolute HTTPS URL")
     end
   end
 

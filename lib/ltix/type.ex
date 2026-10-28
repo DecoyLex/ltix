@@ -395,8 +395,7 @@ defmodule Ltix.Type do
 
   Returns `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}` when the plugins
   [conflict](writing-plugins.md#fix-a-plugin-set-that-fails-to-resolve).
-  Raises `Ltix.Errors.Invalid.InvalidOption` when `:plugins` has a module that
-  isn't a plugin.
+  Raises `ArgumentError` when `:plugins` has a module that isn't a plugin.
 
       iex> {:ok, line_item} =
       ...>   Ltix.Type.from_json(Ltix.DeepLinking.LineItem, %{
@@ -522,8 +521,7 @@ defmodule Ltix.Type do
 
   Raises `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins
   [conflict](writing-plugins.md#fix-a-plugin-set-that-fails-to-resolve), and
-  `Ltix.Errors.Invalid.InvalidOption` when `plugins` has a module that isn't a
-  plugin.
+  `ArgumentError` when `plugins` has a module that isn't a plugin.
 
       iex> {:ok, line_item} =
       ...>   Ltix.Type.new(Ltix.DeepLinking.LineItem, label: "Quiz 1", score_maximum: 10)

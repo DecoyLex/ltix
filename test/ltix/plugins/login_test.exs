@@ -1,7 +1,6 @@
 defmodule Ltix.Plugins.LoginTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Unknown.InvalidPluginSet
@@ -88,7 +87,7 @@ defmodule Ltix.Plugins.LoginTest do
     end
 
     test "enabling a module that isn't a plugin raises", %{params: params} do
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    "Option :plugins is invalid, TestPlugins.Trace is not a plugin",
                    fn ->
                      login(params, plugins: [Trace])

@@ -2,7 +2,6 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
   use ExUnit.Case, async: true
 
   alias Ltix.DeepLinking
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
@@ -138,7 +137,7 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
     test "raise for storage adapter options given as a map", ctx do
       opts = Keyword.put(ctx.adapter, :storage_adapter_options, %{tenant: "acme"})
 
-      assert_raise InvalidOption, ~r/Option :storage_adapter_options is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :storage_adapter_options is invalid/, fn ->
         login(ctx, opts)
       end
     end

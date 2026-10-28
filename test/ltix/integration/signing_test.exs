@@ -3,7 +3,6 @@ defmodule Ltix.Integration.SigningTest do
 
   alias Ltix.DeepLinking
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
   alias Ltix.MembershipsService
@@ -160,7 +159,7 @@ defmodule Ltix.Integration.SigningTest do
           memberships_endpoint: "https://platform.example.com/members"
         )
 
-      assert_raise InvalidOption, "Option :deployment is unknown", fn ->
+      assert_raise ArgumentError, "Option :deployment is unknown", fn ->
         MembershipsService.authenticate(launch, deployment: "deployment-007")
       end
     end
@@ -176,7 +175,7 @@ defmodule Ltix.Integration.SigningTest do
       assert {:error, %InvalidField{field: :deployment_id}} =
                OAuth.authenticate(ctx.registration, Keyword.put(ctx.opts, :deployment, "é"))
 
-      assert_raise InvalidOption, ~r/Option :deployment is invalid.*Ltix.Deployable/, fn ->
+      assert_raise ArgumentError, ~r/Option :deployment is invalid.*Ltix.Deployable/, fn ->
         OAuth.authenticate(ctx.registration, Keyword.put(ctx.opts, :deployment, %{id: 7}))
       end
 
@@ -192,7 +191,7 @@ defmodule Ltix.Integration.SigningTest do
 
       launch = Ltix.Test.build_launch(ctx.platform)
 
-      assert_raise InvalidOption, "Option :deployment is unknown", fn ->
+      assert_raise ArgumentError, "Option :deployment is unknown", fn ->
         OAuth.authenticate(launch, services: [MembershipsService], deployment: "deployment-007")
       end
 

@@ -177,8 +177,8 @@ defmodule Ltix.Property do
 
       def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 
-  Raises `ArgumentError` when `type` isn't a type that takes properties, and
-  `Ltix.Errors.Invalid.InvalidOption` for a missing, unknown, or invalid option.
+  Raises `ArgumentError` when `type` isn't a type that takes properties, or for
+  a missing, unknown, or invalid option.
 
   ## Options
 

@@ -5,7 +5,6 @@ defmodule Ltix.GradeService.PropertiesTest do
 
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Unknown.InvalidPluginSet
   alias Ltix.GradeService
   alias Ltix.GradeService.LineItem
@@ -245,7 +244,7 @@ defmodule Ltix.GradeService.PropertiesTest do
     test "create_line_item/3 raises for an option that is neither a field nor a property name" do
       client = create_client(plugins: [{Modules, add: [SubmissionType]}])
 
-      assert_raise InvalidOption, "Option :submision_type is unknown", fn ->
+      assert_raise ArgumentError, "Option :submision_type is unknown", fn ->
         GradeService.create_line_item(client,
           label: "Essay",
           score_maximum: 10,
@@ -253,7 +252,7 @@ defmodule Ltix.GradeService.PropertiesTest do
         )
       end
 
-      assert_raise InvalidOption, "Option :submission_type is unknown", fn ->
+      assert_raise ArgumentError, "Option :submission_type is unknown", fn ->
         GradeService.create_line_item(client,
           label: "Essay",
           score_maximum: 10,

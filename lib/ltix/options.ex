@@ -2,33 +2,33 @@ defmodule Ltix.Options do
   @moduledoc false
 
   alias Ltix.Errors
-  alias Ltix.Errors.Invalid.InvalidOption
 
   # Validates options against a keyword schema that rejects unrecognized keys
   # (`unrecognized_keys: :error`), which the function head enforces. Unknown,
-  # missing, and invalid options raise `InvalidOption`.
+  # missing, and invalid options raise `ArgumentError`.
   @spec parse!(keyword(), Zoi.schema()) :: keyword()
   def parse!(opts, %Zoi.Types.Keyword{unrecognized_keys: :error} = schema) do
     case Zoi.parse(schema, opts) do
-      {:ok, parsed} ->
-        parsed
-
-      {:error, errors} ->
-        errors
-        |> Enum.map(&invalid_option(&1, opts))
-        |> Errors.combine()
-        |> raise()
+      {:ok, parsed} -> parsed
+      {:error, errors} -> raise ArgumentError, Enum.map_join(errors, "\n", &message/1)
     end
   end
 
   # Returns the option, or the application environment value when the option
-  # is unset. Raises `InvalidOption` when neither is set. A `nil` option
+  # is unset. Raises `ArgumentError` when neither is set. A `nil` option
   # counts as unset.
   @spec fetch_configured!(keyword(), atom()) :: term()
   def fetch_configured!(opts, key) do
     Keyword.get(opts, key) || Application.get_env(:ltix, key) ||
-      raise InvalidOption, key: key, reason: :not_configured
+      raise ArgumentError,
+            "Option #{inspect(key)} is required. Pass it or set it in the :ltix application config."
   end
+
+  # Raises `ArgumentError` for an option with an invalid value, with the
+  # reason it's invalid, such as "it must be an absolute HTTPS URL".
+  @spec invalid!(atom(), String.t()) :: no_return()
+  def invalid!(key, reason),
+    do: raise(ArgumentError, "Option #{inspect(key)} is invalid, #{reason}")
 
   # Returns a keyword list option value as a map. Other values are returned
   # unchanged.
@@ -41,24 +41,13 @@ defmodule Ltix.Options do
 
   def keyword_to_map(value), do: value
 
-  defp invalid_option(%{code: :unrecognized_key, path: [], issue: {_, vars}}, opts) do
-    key = Keyword.fetch!(vars, :key)
-    InvalidOption.exception(key: key, value: Keyword.get(opts, key), reason: :unknown)
-  end
+  defp message(%{code: :unrecognized_key, path: [], issue: {_, vars}}),
+    do: "Option #{inspect(Keyword.fetch!(vars, :key))} is unknown"
 
-  defp invalid_option(%{code: :required, path: [key]}, _opts) do
-    InvalidOption.exception(key: key, reason: :required)
-  end
+  defp message(%{code: :required, path: [key]}), do: "Option #{inspect(key)} is required"
 
-  defp invalid_option(%{path: [key | _]} = error, opts) do
-    InvalidOption.exception(
-      key: key,
-      value: Keyword.get(opts, key),
-      reason: Errors.zoi_message(error)
-    )
-  end
+  defp message(%{path: [key | _]} = error),
+    do: "Option #{inspect(key)} is invalid, #{Errors.zoi_message(error)}"
 
-  defp invalid_option(error, opts) do
-    InvalidOption.exception(value: opts, reason: Errors.zoi_message(error))
-  end
+  defp message(error), do: "Options are invalid, #{Errors.zoi_message(error)}"
 end

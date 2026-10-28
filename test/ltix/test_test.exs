@@ -5,7 +5,6 @@ defmodule Ltix.TestTest do
   alias Ltix.DeepLinking.Settings
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.TokenRequestFailed
@@ -53,16 +52,16 @@ defmodule Ltix.TestTest do
             fn -> Ltix.Test.sign_id_token(%{}, platform.jwk, unknown: true) end,
             fn -> StorageAdapter.start_link(unknown: true) end
           ] do
-        assert_raise InvalidOption, "Option :unknown is unknown", call
+        assert_raise ArgumentError, "Option :unknown is unknown", call
       end
     end
 
     test "helpers raise on missing and invalid options", %{platform: platform} do
-      assert_raise InvalidOption, "Option :nonce is required", fn ->
+      assert_raise ArgumentError, "Option :nonce is required", fn ->
         Ltix.Test.launch_params(platform, state: "s")
       end
 
-      assert_raise InvalidOption, ~r/Option :scopes is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :scopes is invalid/, fn ->
         Ltix.Test.stub_token_response(
           scopes: "https://purl.imsglobal.org/spec/lti-ags/scope/score"
         )
@@ -354,15 +353,14 @@ defmodule Ltix.TestTest do
             ags_endpoint: %{lineitem: "https://lms.example.com/items/1", scopes: [@ags_scope]},
             memberships_endpoint: %{url: "https://lms.example.com/memberships"}
           ] do
-        error =
-          assert_raise InvalidOption, fn ->
-            Ltix.Test.build_launch(platform, [{key, value}])
-          end
-
-        assert %{key: ^key, value: ^value} = error
+        assert_raise ArgumentError,
+                     ~r/^Option #{inspect(key)} is invalid, unrecognized key: /,
+                     fn ->
+                       Ltix.Test.build_launch(platform, [{key, value}])
+                     end
       end
 
-      assert_raise InvalidOption, ~r/Option :roles is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :roles is invalid/, fn ->
         Ltix.Test.build_launch(platform, roles: [:instructor])
       end
     end
@@ -420,10 +418,10 @@ defmodule Ltix.TestTest do
       end
     end
 
-    test "raises InvalidOption for a registration that doesn't convert" do
+    test "raises ArgumentError for a registration that doesn't convert" do
       registration = %BareRegistration{registration: Ltix.Test.setup_platform!().registration}
 
-      assert_raise InvalidOption, ~r/Option :registration is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :registration is invalid/, fn ->
         Ltix.Test.setup_platform!(registration: registration)
       end
     end
@@ -513,7 +511,7 @@ defmodule Ltix.TestTest do
 
     test "raises when :registration and :issuer are both set",
          %{custom_registration: reg} do
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    "Option :issuer is invalid, cannot be combined with a :registration struct",
                    fn ->
                      Ltix.Test.setup_platform!(
@@ -525,7 +523,7 @@ defmodule Ltix.TestTest do
 
     test "raises when :registration and :client_id are both set",
          %{custom_registration: reg} do
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    "Option :client_id is invalid, cannot be combined with a :registration struct",
                    fn ->
                      Ltix.Test.setup_platform!(registration: reg, client_id: "other-client")
@@ -534,7 +532,7 @@ defmodule Ltix.TestTest do
 
     test "raises when :deployment and :deployment_id are both set",
          %{custom_deployment: dep} do
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    "Option :deployment_id is invalid, cannot be combined with a :deployment struct",
                    fn ->
                      Ltix.Test.setup_platform!(deployment: dep, deployment_id: "other-dep")
@@ -735,7 +733,7 @@ defmodule Ltix.TestTest do
                  line_item: "https://lms.example.com/lineitems/9/"
                )
 
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    "Option :line_item is invalid, it must be an absolute HTTPS URL",
                    fn ->
                      Ltix.Test.stub_post_score(line_item: "http://lms.example.com/lineitems/9")
@@ -985,7 +983,7 @@ defmodule Ltix.TestTest do
             [status: 101],
             [transport_error: :not_a_reason]
           ] do
-        assert_raise InvalidOption, fn -> Ltix.Test.stub_token_response(opts) end
+        assert_raise ArgumentError, fn -> Ltix.Test.stub_token_response(opts) end
       end
     end
   end
@@ -1046,7 +1044,7 @@ defmodule Ltix.TestTest do
             [transport_error: :timeout, status: 500],
             [transport_error: :timeout, body: ""]
           ] do
-        assert_raise InvalidOption, ~r/cannot be combined/, fn ->
+        assert_raise ArgumentError, ~r/cannot be combined/, fn ->
           Ltix.Test.stub_key_set(platform, opts)
         end
       end
@@ -1103,12 +1101,9 @@ defmodule Ltix.TestTest do
     end
 
     test "raises for unknown context keys" do
-      error =
-        assert_raise InvalidOption, fn ->
-          Ltix.Test.stub_list_members([], context: %{id: "c", name: "Course"})
-        end
-
-      assert %{key: :context, value: %{id: "c", name: "Course"}} = error
+      assert_raise ArgumentError, "Option :context is invalid, unrecognized key: name", fn ->
+        Ltix.Test.stub_list_members([], context: %{id: "c", name: "Course"})
+      end
     end
 
     test "returns serialized members in a container", %{platform: platform} do
@@ -1216,12 +1211,12 @@ defmodule Ltix.TestTest do
       roster = %MembershipContainer{context: %Context{id: "course-42"}, members: []}
 
       for {key, value} <- [context: %{id: "course-7"}, id: "https://lms.example.com/m"] do
-        error =
-          assert_raise InvalidOption, fn ->
-            Ltix.Test.stub_list_members(roster, [{key, value}])
-          end
+        message =
+          "Option #{inspect(key)} is invalid, cannot be combined with a membership container"
 
-        assert %{key: ^key, reason: "cannot be combined with a membership container"} = error
+        assert_raise ArgumentError, message, fn ->
+          Ltix.Test.stub_list_members(roster, [{key, value}])
+        end
       end
     end
 

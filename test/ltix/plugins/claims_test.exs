@@ -8,7 +8,6 @@ defmodule Ltix.Plugins.ClaimsTest do
   alias Ltix.Claims.Override
   alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidClaim
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Unknown.InvalidPluginSet
   alias Ltix.PluginSet.Conflict
@@ -151,11 +150,11 @@ defmodule Ltix.Plugins.ClaimsTest do
     end
 
     test "Ltix.Claims.Check.add/2 raises for missing or invalid options" do
-      assert_raise InvalidOption, ~r/:check/, fn ->
+      assert_raise ArgumentError, ~r/:check/, fn ->
         Check.add(Ltix.Plugin.new(), claim: @context)
       end
 
-      assert_raise InvalidOption, ~r/:check/, fn ->
+      assert_raise ArgumentError, ~r/:check/, fn ->
         Check.add(Ltix.Plugin.new(), claim: @context, check: fn _value -> :ok end)
       end
     end

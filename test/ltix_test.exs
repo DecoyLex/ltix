@@ -5,7 +5,6 @@ defmodule LtixTest do
   alias Ltix.Errors.Invalid.DeploymentNotFound
   alias Ltix.Errors.Invalid.InvalidClaim
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingParameter
   alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.Errors.Security.TokenExpired
@@ -179,7 +178,7 @@ defmodule LtixTest do
     test "raises when no storage adapter is passed or configured" do
       Application.delete_env(:ltix, :storage_adapter)
 
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    ~r/Option :storage_adapter is required. Pass it or set it/,
                    fn ->
                      Ltix.handle_login(login_params(), @redirect_uri)
@@ -187,11 +186,11 @@ defmodule LtixTest do
     end
 
     test "raises on unknown and invalid options" do
-      assert_raise InvalidOption, "Option :storage is unknown", fn ->
+      assert_raise ArgumentError, "Option :storage is unknown", fn ->
         Ltix.handle_login(login_params(), @redirect_uri, storage: StorageAdapter)
       end
 
-      assert_raise InvalidOption, ~r/Option :storage_adapter is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :storage_adapter is invalid/, fn ->
         Ltix.handle_login(login_params(), @redirect_uri, storage_adapter: "StorageAdapter")
       end
     end
@@ -241,11 +240,11 @@ defmodule LtixTest do
     test "raises on unknown and invalid options", ctx do
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
 
-      assert_raise InvalidOption, "Option :allow_anonymous_launches is unknown", fn ->
+      assert_raise ArgumentError, "Option :allow_anonymous_launches is unknown", fn ->
         Ltix.handle_callback(params, ctx.state, allow_anonymous_launches: true)
       end
 
-      assert_raise InvalidOption, ~r/Option :clock_skew is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :clock_skew is invalid/, fn ->
         Ltix.handle_callback(params, ctx.state, clock_skew: -1)
       end
     end
@@ -254,7 +253,7 @@ defmodule LtixTest do
       Application.delete_env(:ltix, :storage_adapter)
       params = %{"id_token" => ctx.id_token, "state" => ctx.state}
 
-      assert_raise InvalidOption,
+      assert_raise ArgumentError,
                    ~r/Option :storage_adapter is required. Pass it or set it/,
                    fn ->
                      Ltix.handle_callback(params, ctx.state)

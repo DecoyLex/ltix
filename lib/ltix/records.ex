@@ -6,7 +6,7 @@ defmodule Ltix.Records do
 
   alias Ltix.Deployable
   alias Ltix.Deployment
-  alias Ltix.Errors.Invalid.InvalidOption
+  alias Ltix.Options
   alias Ltix.Registerable
   alias Ltix.Registration
 
@@ -26,14 +26,14 @@ defmodule Ltix.Records do
     do: convert(record, Deployable, &Deployable.to_deployment/1, Deployment)
 
   # Same as `convert/2`, but raises for a record that doesn't convert. A
-  # record given as option `key` raises `InvalidOption`, and one given as an
+  # record given as option `key` raises `ArgumentError`, and one given as an
   # argument raises `ArgumentError`.
   @spec convert!(term(), kind(), atom() | nil) ::
           {:ok, Registration.t() | Deployment.t()} | {:error, Exception.t()}
   def convert!(record, kind, key \\ nil) do
     case convert(record, kind) do
       {:invalid, reason} when is_nil(key) -> raise ArgumentError, reason
-      {:invalid, reason} -> raise InvalidOption, key: key, reason: reason
+      {:invalid, reason} -> Options.invalid!(key, reason)
       result -> result
     end
   end

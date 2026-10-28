@@ -1,8 +1,6 @@
 defmodule Ltix.Integration.StorageAdapterContractTest do
   use ExUnit.Case, async: true
 
-  alias Ltix.Errors.Invalid.InvalidOption
-
   @moduletag capture_log: true
 
   defmodule ScriptedAdapter do
@@ -539,19 +537,19 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
     end
 
     test "requires the jwks option when the adapter signs", %{opts: opts} do
-      assert_raise InvalidOption, ~r/jwks.*key_id\/2 and sign\/4/s, fn ->
+      assert_raise ArgumentError, ~r/jwks.*key_id\/2 and sign\/4/s, fn ->
         Ltix.Test.assert_storage_adapter!(SigningAdapter, Keyword.delete(opts, :jwks))
       end
     end
 
     test "rejects the jwks option for an adapter that doesn't sign", %{opts: opts} do
-      assert_raise InvalidOption, ~r/jwks.*neither key_id\/2 nor sign\/4/s, fn ->
+      assert_raise ArgumentError, ~r/jwks.*neither key_id\/2 nor sign\/4/s, fn ->
         Ltix.Test.assert_storage_adapter!(CustomStorageAdapter, opts)
       end
     end
 
     test "rejects an adapter that exports only one signing callback", %{opts: opts} do
-      assert_raise InvalidOption, ~r/storage_adapter.*key_id\/2 and sign\/4/s, fn ->
+      assert_raise ArgumentError, ~r/storage_adapter.*key_id\/2 and sign\/4/s, fn ->
         Ltix.Test.assert_storage_adapter!(HalfSigningAdapter, opts)
       end
     end
@@ -577,7 +575,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
   end
 
   test "rejects modules missing callbacks before writing records", %{opts: opts} do
-    assert_raise InvalidOption, ~r/storage_adapter.*callbacks/s, fn ->
+    assert_raise ArgumentError, ~r/storage_adapter.*callbacks/s, fn ->
       Ltix.Test.assert_storage_adapter!(String, opts)
     end
 
@@ -648,7 +646,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
           Keyword.put(opts, :timeout, 0),
           Keyword.put(opts, :unknown, true)
         ] do
-      assert_raise InvalidOption, fn ->
+      assert_raise ArgumentError, fn ->
         Ltix.Test.assert_storage_adapter!(CustomStorageAdapter, invalid)
       end
     end

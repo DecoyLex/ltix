@@ -40,11 +40,11 @@ defmodule Ltix.JWT.TokenTest do
     test "raises on unknown and invalid options", ctx do
       token = mint_valid_token(ctx)
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :skew is unknown", fn ->
+      assert_raise ArgumentError, "Option :skew is unknown", fn ->
         Token.verify(token, ctx.registration, skew: 10)
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :now is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :now is invalid/, fn ->
         Token.verify(token, ctx.registration, now: DateTime.utc_now())
       end
     end

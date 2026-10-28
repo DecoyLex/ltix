@@ -14,7 +14,6 @@ defmodule Ltix.LaunchTest do
   alias Ltix.DeepLinking.Settings
   alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidClaim
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MissingClaim
   alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.Errors.Security.NonceReused
@@ -588,11 +587,11 @@ defmodule Ltix.LaunchTest do
     end
 
     test "Ltix.Claim.add/2 raises for missing or invalid options" do
-      assert_raise InvalidOption, ~r/:name/, fn ->
+      assert_raise ArgumentError, ~r/:name/, fn ->
         Ltix.Claim.add(Ltix.Plugin.new(), claim: @tenant)
       end
 
-      assert_raise InvalidOption, ~r/must be a Zoi schema/, fn ->
+      assert_raise ArgumentError, ~r/must be a Zoi schema/, fn ->
         Ltix.Claim.add(Ltix.Plugin.new(), claim: @tenant, name: :tenant, schema: :string)
       end
     end

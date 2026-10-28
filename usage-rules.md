@@ -11,7 +11,7 @@ The entire OIDC launch flow is two functions.
 2. `Ltix.handle_callback(params, state, opts)` - called when the platform POSTs back to your launch endpoint. Returns `{:ok, %Ltix.Launch{}}` with the parsed claims, the registration and deployment, your storage adapter's records in `source_registration` and `source_deployment`, and the service endpoints in `endpoints`. Read one with `Ltix.Launch.get_endpoint/2`.
 
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use the two public functions, or their raising variants `handle_login!/3` and `handle_callback!/3`.
-- `handle_login/3` takes `:storage_adapter`, `:storage_adapter_options`, and `:plugins`. `handle_callback/3` takes `:storage_adapter`, `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`, `:clock_skew`, and `:plugins`. Each option except `:storage_adapter_options` and `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- `handle_login/3` takes `:storage_adapter`, `:storage_adapter_options`, and `:plugins`. `handle_callback/3` takes `:storage_adapter`, `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`, `:clock_skew`, and `:plugins`. Each option except `:storage_adapter_options` and `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `ArgumentError`.
 
 ## Required Configuration
 

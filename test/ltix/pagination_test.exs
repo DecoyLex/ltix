@@ -32,7 +32,7 @@ defmodule Ltix.PaginationTest do
 
   describe "options" do
     test "stream/3 raises on unknown options" do
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :query is unknown", fn ->
+      assert_raise ArgumentError, "Option :query is unknown", fn ->
         Pagination.stream("https://example.com/api", [], query: %{})
       end
     end

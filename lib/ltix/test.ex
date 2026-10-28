@@ -74,7 +74,6 @@ defmodule Ltix.Test do
   alias Ltix.DeepLinking.Settings
   alias Ltix.Deployment
   alias Ltix.Errors
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Security.SignatureInvalid
   alias Ltix.GradeService
   alias Ltix.GradeService.Endpoint, as: GradeServiceEndpoint
@@ -527,10 +526,7 @@ defmodule Ltix.Test do
         status = Keyword.fetch!(opts, :status)
 
         if status in 300..399 do
-          raise InvalidOption,
-            key: :status,
-            value: status,
-            reason: "it must be a success or error status"
+          Options.invalid!(:status, "it must be a success or error status")
         end
 
         default = if status in 200..299, do: success_body, else: ""
@@ -545,11 +541,10 @@ defmodule Ltix.Test do
     Req.Test.transport_error(struct(Plug.Conn), reason)
   rescue
     ArgumentError ->
-      reraise InvalidOption,
+      reraise ArgumentError,
               [
-                key: :transport_error,
-                value: reason,
-                reason: "it isn't a Req.TransportError reason"
+                message:
+                  "Option :transport_error is invalid, it isn't a Req.TransportError reason"
               ],
               __STACKTRACE__
   end
@@ -1029,8 +1024,8 @@ defmodule Ltix.Test do
       :error ->
         nil
 
-      {:ok, %LineItem{id: nil} = item} ->
-        raise InvalidOption, key: :line_item, value: item, reason: "the line item has no id"
+      {:ok, %LineItem{id: nil}} ->
+        Options.invalid!(:line_item, "the line item has no id")
 
       {:ok, %LineItem{id: url}} ->
         url
@@ -1059,7 +1054,7 @@ defmodule Ltix.Test do
 
   Pass an `Ltix.MembershipsService.MembershipContainer` to return its `id`,
   `context`, and extensions too. With a container, passing `:context` or `:id`
-  raises `Ltix.Errors.Invalid.InvalidOption`.
+  raises `ArgumentError`.
 
       roster = %Ltix.MembershipsService.MembershipContainer{
         context: %Ltix.Claims.Context{id: "course-42"},
@@ -1340,7 +1335,7 @@ defmodule Ltix.Test do
         {fields, extensions}
 
       [key | _] ->
-        raise InvalidOption, key: option, value: value, reason: "unrecognized key: #{key}"
+        Options.invalid!(option, "unrecognized key: #{key}")
     end
   end
 
@@ -1404,10 +1399,7 @@ defmodule Ltix.Test do
 
   defp reject_combined_option!(opts, key, other) do
     if Keyword.has_key?(opts, key) do
-      raise InvalidOption,
-        key: key,
-        value: Keyword.fetch!(opts, key),
-        reason: "cannot be combined with #{other}"
+      Options.invalid!(key, "cannot be combined with #{other}")
     end
   end
 

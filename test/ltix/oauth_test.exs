@@ -4,7 +4,6 @@ defmodule Ltix.OAuthTest do
   alias Ltix.Errors.Invalid
   alias Ltix.Errors.Invalid.InvalidEndpoint
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
@@ -453,18 +452,18 @@ defmodule Ltix.OAuthTest do
     end
 
     test "raises on missing, unknown, and invalid options", ctx do
-      assert_raise InvalidOption, "Option :endpoints is required", fn ->
+      assert_raise ArgumentError, "Option :endpoints is required", fn ->
         OAuth.authenticate(ctx.registration, [])
       end
 
-      assert_raise InvalidOption, "Option :endpoint is unknown", fn ->
+      assert_raise ArgumentError, "Option :endpoint is unknown", fn ->
         authenticate(ctx.registration,
           endpoints: %{Records => records_endpoint()},
           endpoint: records_endpoint()
         )
       end
 
-      assert_raise InvalidOption, ~r/Option :endpoints is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :endpoints is invalid/, fn ->
         authenticate(ctx.registration, endpoints: [Records])
       end
     end
@@ -806,15 +805,15 @@ defmodule Ltix.OAuthTest do
     test "raises on missing, unknown, and invalid options" do
       launch = build_launch()
 
-      assert_raise InvalidOption, "Option :services is required", fn ->
+      assert_raise ArgumentError, "Option :services is required", fn ->
         OAuth.authenticate(launch)
       end
 
-      assert_raise InvalidOption, "Option :endpoints is unknown", fn ->
+      assert_raise ArgumentError, "Option :endpoints is unknown", fn ->
         authenticate(launch, services: [Records], endpoints: %{})
       end
 
-      assert_raise InvalidOption, ~r/Option :services is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :services is invalid/, fn ->
         authenticate(launch, services: Records)
       end
     end

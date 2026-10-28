@@ -103,7 +103,7 @@ defmodule Ltix.JWK do
 
   The public key is an SPKI PEM (`BEGIN PUBLIC KEY`) and the private key a
   PKCS #8 PEM (`BEGIN PRIVATE KEY`). A `:key_size` under 2048 raises
-  `Ltix.Errors.Invalid.InvalidOption`.
+  `ArgumentError`.
 
   ## Examples
 

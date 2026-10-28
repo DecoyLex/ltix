@@ -74,7 +74,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 ```
 
 - Pass a list of items (or `[]` for cancellation).
-- Options are `:message`, `:log`, `:error_message`, and `:error_log`. Unknown or invalid options raise `Ltix.Errors.Invalid.InvalidOption`.
+- Options are `:message`, `:log`, `:error_message`, and `:error_log`. Unknown or invalid options raise `ArgumentError`.
 - `:plugins` replaces the plugins the launch ran with.
 - `build_response!/3` raises on error.
 - Returns `{:ok, %Ltix.DeepLinking.Response{}}` with the signed `jwt` and the platform's `return_url`.

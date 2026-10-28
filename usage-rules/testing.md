@@ -150,7 +150,7 @@ end
 
 ## Claim Customization
 
-`launch_params/2` and `build_launch/2` take the same options for building claims, with the same defaults. Unknown options, including unknown keys in nested maps, raise `Ltix.Errors.Invalid.InvalidOption`.
+`launch_params/2` and `build_launch/2` take the same options for building claims, with the same defaults. Unknown options, including unknown keys in nested maps, raise `ArgumentError`.
 
 - `:roles` - list of role URIs, such as `Ltix.Role.context_learner()` and `Ltix.Role.instructor_teaching_assistant()` (defaults to an instructor). URIs are sent as given.
 - `:subject` - user identifier (defaults to `"user-12345"`), `nil` for an anonymous launch

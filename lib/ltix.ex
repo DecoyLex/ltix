@@ -237,8 +237,8 @@ defmodule Ltix do
   Returns `{:error, error}` with an Ltix error when the login fails. See
   [Error Handling](error-handling.md).
 
-  Raises `Ltix.Errors.Invalid.InvalidOption` for an unknown or invalid option,
-  or when no storage adapter is configured.
+  Raises `ArgumentError` for an unknown or invalid option, or when no storage
+  adapter is configured.
 
   ## Options
 
@@ -313,9 +313,9 @@ defmodule Ltix do
   the session cookie, so check the cookie's `SameSite` setting.
   [Getting Started](getting-started.md) shows the setting.
 
-  Raises `Ltix.Errors.Invalid.InvalidOption` for an unknown or invalid option,
-  or when no storage adapter is configured. Raises
-  `Ltix.Errors.Unknown.KeySetNotStarted` when the key set cache isn't running.
+  Raises `ArgumentError` for an unknown or invalid option, or when no storage
+  adapter is configured. Raises `Ltix.Errors.Unknown.KeySetNotStarted` when
+  the key set cache isn't running.
 
   ## Options
 

@@ -102,11 +102,11 @@ defmodule Ltix.OAuth.ClientTest do
   end
 
   describe "from_access_token/2 with a registration that doesn't convert" do
-    test "raises InvalidOption for the registration option" do
+    test "raises ArgumentError for the registration option" do
       {:ok, token} =
         AccessToken.from_response(%{"access_token" => "cached-token", "token_type" => "Bearer"})
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :registration is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :registration is invalid/, fn ->
         Client.from_access_token(token,
           registration: %BareRegistration{registration: build_registration()},
           endpoints: %{Records => records_endpoint()}
@@ -122,11 +122,11 @@ defmodule Ltix.OAuth.ClientTest do
 
       registration = build_registration()
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :registration is required", fn ->
+      assert_raise ArgumentError, "Option :registration is required", fn ->
         Client.from_access_token(token, endpoints: %{Records => records_endpoint()})
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :scopes is unknown", fn ->
+      assert_raise ArgumentError, "Option :scopes is unknown", fn ->
         Client.from_access_token(token,
           registration: registration,
           endpoints: %{Records => records_endpoint()},
@@ -134,7 +134,7 @@ defmodule Ltix.OAuth.ClientTest do
         )
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :req_options is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :req_options is invalid/, fn ->
         Client.from_access_token(token,
           registration: registration,
           endpoints: %{Records => records_endpoint()},
@@ -252,7 +252,7 @@ defmodule Ltix.OAuth.ClientTest do
     end
 
     test "raises on unknown options" do
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :unknown is unknown", fn ->
+      assert_raise ArgumentError, "Option :unknown is unknown", fn ->
         Client.with_endpoints(build_client(), both_endpoints(), unknown: true)
       end
     end

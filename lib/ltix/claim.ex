@@ -207,8 +207,7 @@ defmodule Ltix.Claim do
   @doc """
   Adds an anonymous claim to a plugin.
 
-  Raises `Ltix.Errors.Invalid.InvalidOption` for a missing, unknown, or invalid
-  option.
+  Raises `ArgumentError` for a missing, unknown, or invalid option.
 
   ## Options
 

@@ -59,7 +59,7 @@ Claim structs have two new fields, `extensions` for properties plugins parse and
 
 ### `:claim_parsers` is removed
 
-Declare each claim in a plugin. Passing `:claim_parsers` raises `Ltix.Errors.Invalid.InvalidOption`, and Ltix ignores the `Ltix.LaunchClaims` configuration.
+Declare each claim in a plugin. Passing `:claim_parsers` raises `ArgumentError`, and Ltix ignores the `Ltix.LaunchClaims` configuration.
 
 ```elixir
 # 0.2
@@ -197,7 +197,7 @@ Your service module keeps its functions, and `Ltix.OAuth.Client.request/3` still
 
 ### `extensions:` is replaced by property names
 
-`create_line_item/3` raises `Ltix.Errors.Invalid.InvalidOption` for `extensions:`, and `Score.new/1` returns `Ltix.Errors.Invalid.InvalidField`. Enable a plugin that declares the property, then pass the property by its name.
+`create_line_item/3` raises `ArgumentError` for `extensions:`, and `Score.new/1` returns `Ltix.Errors.Invalid.InvalidField`. Enable a plugin that declares the property, then pass the property by its name.
 
 ```elixir
 # 0.2
@@ -278,7 +278,7 @@ A `%Ltix.MembershipsService.Member{}` you build has a `status` of `:active`, whe
 
 ### Roles are URIs
 
-`Ltix.LaunchClaims.Role` is now `Ltix.Role`, and `roles` on launches and members are the URIs the platform sent, in its order. They include the roles 0.2 left out and listed in `unrecognized_roles`. Role parsers are gone, and passing `:role_parsers` raises `Ltix.Errors.Invalid.InvalidOption`.
+`Ltix.LaunchClaims.Role` is now `Ltix.Role`, and `roles` on launches and members are the URIs the platform sent, in its order. They include the roles 0.2 left out and listed in `unrecognized_roles`. Role parsers are gone, and passing `:role_parsers` raises `ArgumentError`.
 
 | 0.2 | 0.3 |
 |---|---|
@@ -342,7 +342,7 @@ Enum.filter(roles, fn role -> Enum.any?(accepted, &Role.has?([role], &1)) end)
 
 ### Role options take URIs
 
-The `:role` filter of `list_members/2` and `stream_members/2`, and the `:roles` option of the test helpers, take URIs. Atoms and `%Role{}` structs raise `Ltix.Errors.Invalid.InvalidOption`.
+The `:role` filter of `list_members/2` and `stream_members/2`, and the `:roles` option of the test helpers, take URIs. Atoms and `%Role{}` structs raise `ArgumentError`.
 
 ```elixir
 # 0.2
@@ -459,7 +459,11 @@ Update code that matches on error messages. Your tests show the new text.
 - The messages of `Ltix.Errors.Security.AuthenticationFailed`, `Ltix.Errors.Security.KidNotFound`, `Ltix.Errors.Unknown.KeySetNotStarted`, and `Ltix.Errors.Invalid.CoupledLineItem` changed.
 - An error about a claim a plugin declares refers to the claim by its short name, such as `session`, where a 0.2 claim parser's error used its URI.
 - `Ltix.Errors.Invalid.InvalidField` reads as a sentence, such as `Ltix.Deployment field :deployment_id must be a non-empty string (got "")`. Its `reason` is the text after the field name.
-- Failed type and range checks in `InvalidField`, `Ltix.Errors.Invalid.InvalidClaim`, and `Ltix.Errors.Invalid.InvalidOption` read as sentences, such as `must be at least 2048`.
+- Failed type and range checks in `InvalidField`, `Ltix.Errors.Invalid.InvalidClaim`, and invalid options read as sentences, such as `must be at least 2048`.
+
+### `InvalidOption` is removed
+
+Ltix raises `ArgumentError` for an unknown, missing, invalid, or unconfigured option, with the message `Ltix.Errors.Invalid.InvalidOption` had, such as `Option :key_sise is unknown`. Replace `Ltix.Errors.Invalid.InvalidOption` with `ArgumentError` where you rescue it or assert that it's raised.
 
 ### Errors don't include a spec reference
 

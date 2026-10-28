@@ -3,7 +3,6 @@ defmodule Ltix.MembershipsServiceTest do
 
   alias Ltix.Errors.Invalid.CollectionTooLarge
   alias Ltix.Errors.Invalid.InvalidField
-  alias Ltix.Errors.Invalid.InvalidOption
   alias Ltix.Errors.Invalid.MalformedResponse
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Invalid.ServiceNotAvailable
@@ -134,22 +133,22 @@ defmodule Ltix.MembershipsServiceTest do
             fn -> MembershipsService.stream_members(client, unknown: true) end,
             fn -> MembershipsService.stream_members!(client, unknown: true) end
           ] do
-        assert_raise InvalidOption, "Option :unknown is unknown", call
+        assert_raise ArgumentError, "Option :unknown is unknown", call
       end
     end
 
     test "operations raise on invalid values and options they do not accept", ctx do
       client = build_client(ctx.platform)
 
-      assert_raise InvalidOption, ~r/Option :max_members is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :max_members is invalid/, fn ->
         MembershipsService.list_members(client, max_members: 0)
       end
 
-      assert_raise InvalidOption, "Option :max_members is unknown", fn ->
+      assert_raise ArgumentError, "Option :max_members is unknown", fn ->
         MembershipsService.stream_members(client, max_members: 10)
       end
 
-      assert_raise InvalidOption, ~r/Option :role is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :role is invalid/, fn ->
         MembershipsService.list_members(client, role: :learner)
       end
     end
@@ -278,7 +277,7 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "raises without endpoint option", ctx do
-      assert_raise InvalidOption, "Option :endpoint is required", fn ->
+      assert_raise ArgumentError, "Option :endpoint is required", fn ->
         MembershipsService.authenticate(ctx.platform.registration, [])
       end
     end

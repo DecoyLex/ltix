@@ -24,11 +24,11 @@ defmodule Ltix.JWT.KeySetTest do
 
   describe "get_key/3" do
     test "raises on unknown and invalid options", ctx do
-      assert_raise Ltix.Errors.Invalid.InvalidOption, "Option :request_options is unknown", fn ->
+      assert_raise ArgumentError, "Option :request_options is unknown", fn ->
         KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, request_options: [])
       end
 
-      assert_raise Ltix.Errors.Invalid.InvalidOption, ~r/Option :key_set is invalid/, fn ->
+      assert_raise ArgumentError, ~r/Option :key_set is invalid/, fn ->
         KeySet.get_key(ctx.registration, ctx.platform_jwk.kid, key_set: "keys")
       end
     end
