@@ -35,41 +35,9 @@ Always run quality checks before committing.
 mix precommit
 ```
 
-Use the `qc` skill for checks on test hygiene
+## Coding standards
 
-## Pipes
-
-- Don't use a single `|>`. Call the function directly. Zoi builder chains, Ltix builder chains, and Req response piping are exceptions.
-- Start pipe chains with a raw value, not a function call. Zoi type constructors, Ltix builder chains, and Req HTTP calls are exceptions.
-- Ltix builder chains (`Ltix.Plugin` declarations and `Ltix.Validator`) always pipe from `new(...)`, even for one call, with each call on its own line. Write `Ltix.Plugin.new(name: "Blocklist")` and then `|> Ltix.Plugin.add(Blocklist.Login)`, not `Ltix.Plugin.add(Ltix.Plugin.new(name: "Blocklist"), Blocklist.Login)`.
-
-## Doctests
-
-Include doctests on public functions whenever reasonable. Doctests serve as both documentation and tests. Avoid assertions in doctests, because they muddy things for the end-user. Show inputs and outputs directly.
-
-## Declared Claims and Types
-
-Object claims (in `lib/ltix/claims/`) and other types, such as line items and members, build their structs with `Ltix.Type`.
-
-1. An object claim passes its fields to `use Ltix.Claim` as `fields:`, a keyword list of Zoi schemas. `use` builds the struct, its `t` type, and its enforced keys with `Ltix.Type`, and parses the claim with `Ltix.Type.from_json/3`.
-2. A scalar claim implements `parse/2`, usually with `Zoi.parse/2` over a Zoi schema.
-3. Another type writes `use Ltix.Provider, hook: [Ltix.Property]` and `use Ltix.Type, fields: [...]`. The default `resolve/1` reports its property conflicts.
-4. Every property of a type, including in test plugins, declares a `name:` in `use`.
-5. Give a field another JSON name with `json_key:` in its schema's metadata.
-
-## Spec References
-
-Always link spec annotations to the relevant section of the online spec. Label each one the way the linked page shows the section.
-
-Pages on standards.1edtech.org show section titles. Cite them by title, as the page writes it.
-
-`[Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)`
-
-The Security Framework, on imsglobal.org, shows section numbers. Cite it by number.
-
-`[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
-
-Use the prefixes Core, AGS, DL, NRPS, Cert, and Sec. Write several citations as separate labels, such as `[AGS, Result service endpoint], [AGS, Service endpoint]`.
+Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before writing or reviewing code, docs, or tests. The Credo checks in `credo/` enforce its mechanical rules.
 
 <!-- usage-rules-start -->
 <!-- usage_rules-start -->
