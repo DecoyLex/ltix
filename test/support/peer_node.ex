@@ -15,7 +15,12 @@ defmodule PeerNode do
       })
 
     :ok = :peer.call(peer, :code, :add_paths, [:code.get_path()])
-    {:ok, _applications} = :peer.call(peer, Application, :ensure_all_started, [:ltix])
+
+    # Loading Ltix and its dependencies on a new node takes longer than the
+    # default 5 seconds of `:peer.call/4` when async tests keep every core busy.
+    {:ok, _applications} =
+      :peer.call(peer, Application, :ensure_all_started, [:ltix], :timer.minutes(1))
+
     lookup = :peer.call(peer, :inet_db, :res_option, [:lookup])
     :ok = :peer.call(peer, :inet_db, :set_lookup, [[:file | lookup]])
     peer
