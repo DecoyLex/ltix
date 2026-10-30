@@ -105,21 +105,48 @@ defmodule Ltix.Test do
 
   @setup_platform_schema Zoi.keyword(
                            [
-                             issuer: Zoi.string(),
-                             client_id: Zoi.string(),
-                             deployment_id: Zoi.string(),
-                             registration: Zoi.any(),
-                             deployment: Zoi.any(),
-                             tool_jwk: Zoi.struct(Ltix.JWK)
+                             issuer:
+                               Zoi.string(
+                                 description:
+                                   "The platform's issuer URL. Defaults to `\"https://platform.example.com\"`."
+                               ),
+                             client_id:
+                               Zoi.string(
+                                 description:
+                                   "The OAuth client ID. Defaults to `\"tool-client-id\"`."
+                               ),
+                             deployment_id:
+                               Zoi.string(
+                                 description:
+                                   "The deployment ID. Defaults to `\"deployment-001\"`."
+                               ),
+                             registration:
+                               Zoi.any(
+                                 description:
+                                   "A struct implementing `Ltix.Registerable`, or a function that receives an `Ltix.Registration` and returns your application's struct. Use a function to store a record with the registration's issuer, client ID, and endpoints. A function works with `:issuer` and `:client_id`, and a struct can't be combined with them."
+                               ),
+                             deployment:
+                               Zoi.any(
+                                 description:
+                                   "A struct implementing `Ltix.Deployable`, or a function that receives an `Ltix.Deployment` and the record the `:registration` function returned, and returns your deployment record. A struct can't be combined with `:deployment_id`."
+                               ),
+                             tool_jwk:
+                               Zoi.struct(Ltix.JWK,
+                                 description:
+                                   "The `Ltix.JWK` your tool signs with for this platform. Pass the key your own storage adapter signs with. Defaults to the key `Ltix.Test.StorageAdapter` signs with."
+                               )
                            ],
                            unrecognized_keys: :error
                          )
 
   @login_params_schema Zoi.keyword(
                          [
-                           login_hint: Zoi.string() |> Zoi.default("user-hint"),
+                           login_hint:
+                             Zoi.string(description: "The login hint.")
+                             |> Zoi.default("user-hint"),
                            target_link_uri:
-                             Zoi.string() |> Zoi.default("https://tool.example.com/launch")
+                             Zoi.string(description: "The launch URL.")
+                             |> Zoi.default("https://tool.example.com/launch")
                          ],
                          unrecognized_keys: :error
                        )
@@ -425,24 +452,7 @@ defmodule Ltix.Test do
 
   ## Options
 
-    * `:issuer` - platform issuer URL (defaults to `"https://platform.example.com"`)
-    * `:client_id` - OAuth client ID (defaults to `"tool-client-id"`)
-    * `:deployment_id` - deployment identifier (defaults to `"deployment-001"`)
-    * `:registration` - either an app struct implementing `Ltix.Registerable`
-      (mutually exclusive with `:issuer` and `:client_id`), or a 1-arity
-      function that receives an `Ltix.Registration` and returns your
-      application's struct. The function form lets you create a matching record in your
-      own persistence layer using the registration details (issuer,
-      client_id, endpoints). Works with `:issuer` and `:client_id`
-      overrides.
-    * `:deployment` - either an app struct implementing `Ltix.Deployable`
-      (mutually exclusive with `:deployment_id`), or a 2-arity function
-      `(Ltix.Deployment, registration)` where `registration` is whatever
-      the registration step returned. Lets you create a deployment record
-      linked to your registration.
-    * `:tool_jwk` - the `Ltix.JWK` your tool signs with for this platform.
-      Pass the key your own storage adapter signs with. Defaults to the
-      key `Ltix.Test.StorageAdapter` signs with.
+  #{Zoi.describe(@setup_platform_schema)}
   """
   @spec setup_platform!(keyword()) :: Platform.t()
   def setup_platform!(opts \\ []) do
@@ -593,54 +603,30 @@ defmodule Ltix.Test do
 
   ## Options
 
-    * `:registration` is a required 1-arity factory. Receives a valid
-      `Ltix.Registration` and returns your stored record implementing
-      `Ltix.Registerable`. Preserve the supplied issuer and client ID.
-    * `:deployment` is a required 2-arity factory. Receives an
-      `Ltix.Deployment` and your registration record. Returns the stored
-      record implementing `Ltix.Deployable`. Preserve the supplied deployment
-      ID. Lookups must return the same stored record.
-    * `:registration_identity` and `:deployment_identity` are optional 1-arity
-      functions that return a record's storage identity, such as `& &1.id`.
-      By default, the complete factory and lookup records must match. Use
-      these functions when lookups preload associations or change metadata.
-      Protocol-converted fields must still match.
-    * `:jwks` is a 1-arity function that receives a registration record and
-      returns the key set your tool publishes for it, such as the result of
-      `Ltix.JWK.to_jwks/1`. Required when the adapter exports `key_id/2` and
-      `sign/4`, and rejected when it exports neither. The key set must
-      include the key `key_id/2` returns, without private keys.
-    * `:storage_adapter_options` is the keyword list each callback receives
-      as its last argument. Defaults to `[]`.
-    * `:prepare_process` is a 0-arity function called in each concurrent
-      callback process. Use it to allow database sandbox access or set
-      process-local adapter state. Defaults to a no-op.
-    * `:auto_create_deployments` defaults to `false`, requiring missing
-      deployments to return `{:error, :not_found}`. Set to `true` for adapters
-      that create a deployment when none exists. Return distinct storage
-      identities to check that registrations with the same deployment ID
-      get separate automatically created deployments.
-    * `:timeout` is the positive timeout in milliseconds for concurrent
-      process preparation and validation. Defaults to `5000`.
+  #{Zoi.describe(Ltix.Test.StorageAdapterContract.options_schema())}
 
-      test "storage adapter satisfies the contract" do
-        parent = self()
+  ## Examples
 
-        :ok = Ltix.Test.assert_storage_adapter!(MyApp.LtiStorage,
-          registration: fn registration ->
-            MyApp.Lti.create_registration!(Map.from_struct(registration))
-          end,
-          deployment: fn deployment, registration ->
-            MyApp.Lti.create_deployment!(%{
-              deployment_id: deployment.deployment_id,
-              registration_id: registration.id
-            })
-          end,
-          prepare_process: fn ->
-            Ecto.Adapters.SQL.Sandbox.allow(MyApp.Repo, parent, self())
-          end
-        )
+  ```elixir
+  test "storage adapter satisfies the contract" do
+    parent = self()
+
+    :ok = Ltix.Test.assert_storage_adapter!(MyApp.LtiStorage,
+      registration: fn registration ->
+        MyApp.Lti.create_registration!(Map.from_struct(registration))
+      end,
+      deployment: fn deployment, registration ->
+        MyApp.Lti.create_deployment!(%{
+          deployment_id: deployment.deployment_id,
+          registration_id: registration.id
+        })
+      end,
+      prepare_process: fn ->
+        Ecto.Adapters.SQL.Sandbox.allow(MyApp.Repo, parent, self())
       end
+    )
+  end
+  ```
   """
   @spec assert_storage_adapter!(module(), keyword()) :: :ok
   def assert_storage_adapter!(adapter, opts), do: StorageAdapterContract.verify!(adapter, opts)
@@ -653,8 +639,7 @@ defmodule Ltix.Test do
 
   ## Options
 
-    * `:login_hint` - login hint value (defaults to `"user-hint"`)
-    * `:target_link_uri` - launch URL (defaults to `"https://tool.example.com/launch"`)
+  #{Zoi.describe(@login_params_schema)}
   """
   @spec login_params(Platform.t(), keyword()) :: map()
   def login_params(%Platform{} = platform, opts \\ []) do

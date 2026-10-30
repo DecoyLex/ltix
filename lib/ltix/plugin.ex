@@ -55,7 +55,10 @@ defmodule Ltix.Plugin do
   @callback plugin(opts :: term()) :: t()
 
   @new_schema Zoi.keyword(
-                [name: Zoi.string() |> Zoi.optional(), version: Zoi.string() |> Zoi.optional()],
+                [
+                  name: Zoi.string(description: "The plugin's name.") |> Zoi.optional(),
+                  version: Zoi.string(description: "The plugin's version.") |> Zoi.optional()
+                ],
                 unrecognized_keys: :error
               )
 
@@ -68,8 +71,7 @@ defmodule Ltix.Plugin do
 
   ## Options
 
-    * `:name` - the plugin's name
-    * `:version` - the plugin's version
+  #{Zoi.describe(@new_schema)}
 
   ## Examples
 

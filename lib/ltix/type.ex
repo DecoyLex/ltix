@@ -97,6 +97,33 @@ defmodule Ltix.Type do
   # How the schemas of a type's struct and of `object/2` parse their fields.
   @schema_options [coerce: true, unrecognized_keys: :error, empty_values: [nil]]
 
+  @new_schema Zoi.keyword(
+                [
+                  schema:
+                    Zoi.any(
+                      description:
+                        "A stricter struct schema to check the standard fields with, such as one that requires HTTPS URLs. Defaults to the type's schema."
+                    )
+                ],
+                unrecognized_keys: :error
+              )
+
+  @from_json_schema Zoi.keyword(
+                      [
+                        plugins:
+                          Zoi.any(
+                            description:
+                              "A list of plugins such as `[MyPlugin]`, or an `Ltix.PluginSet`, to parse properties with. Defaults to the configured plugins."
+                          ),
+                        name:
+                          Zoi.string(
+                            description:
+                              "A prefix for the paths in errors, such as `\"context\"` for an error about `\"context.id\"`."
+                          )
+                      ],
+                      unrecognized_keys: :error
+                    )
+
   defmacro __using__(opts) do
     fields = Keyword.fetch!(opts, :fields)
     json_keys = Keyword.get(opts, :json_keys, :field_name)
@@ -248,11 +275,12 @@ defmodule Ltix.Type do
       "Quiz 1"
   """
   @spec schema(module(), keyword()) :: Zoi.schema()
-  def schema(type, opts \\ []), do: Zoi.struct(type, fields(type), @schema_options ++ opts)
+  def schema(type, zoi_options \\ []),
+    do: Zoi.struct(type, fields(type), @schema_options ++ zoi_options)
 
   @doc """
   Returns a Zoi schema for a nested object with `fields`, given as a map of
-  Zoi schemas. `opts` are Zoi options for the map, such as `description:`.
+  Zoi schemas. `zoi_options` are Zoi options for the map, such as `description:`.
 
   The schema rejects unknown keys, and treats a key whose value is `nil` as
   omitted. Wrap it in `Zoi.optional/1` to make the field optional.
@@ -262,11 +290,11 @@ defmodule Ltix.Type do
       {:ok, %{name: "Ada"}}
   """
   @spec object(map(), keyword()) :: Zoi.schema()
-  def object(fields, opts \\ []) do
+  def object(fields, zoi_options \\ []) do
     Zoi.map(
       fields,
       Keyword.merge(
-        opts,
+        zoi_options,
         @schema_options ++ [error: "must be a map or keyword list"]
       )
     )
@@ -308,11 +336,11 @@ defmodule Ltix.Type do
 
   ## Options
 
-    * `:schema` - a stricter struct schema to check the standard fields with,
-      such as one that requires HTTPS URLs. Defaults to the type's schema.
+  #{Zoi.describe(@new_schema)}
   """
   @spec new(module(), keyword() | map(), keyword()) :: {:ok, struct()} | {:error, Exception.t()}
   def new(type, fields, opts \\ []) when is_list(fields) or is_map(fields) do
+    opts = Options.parse!(opts, @new_schema)
     {plugins, fields} = Map.pop(Map.new(fields), :plugins)
 
     schema = Keyword.get_lazy(opts, :schema, fn -> type.__ltix_type__(:schema) end)
@@ -408,16 +436,13 @@ defmodule Ltix.Type do
 
   ## Options
 
-    * `:plugins` - a list of plugins such as `[MyPlugin]` or an `Ltix.PluginSet` to
-      parse properties with. Defaults to `nil`, which uses the configured
-      plugins.
-    * `:name` - a prefix for the paths in errors, such as `"context"` for an
-      error about `"context.id"`
+  #{Zoi.describe(@from_json_schema)}
   """
   @spec from_json(module(), term(), keyword()) :: {:ok, struct()} | {:error, Exception.t()}
-  def from_json(type, json, opts \\ [])
+  def from_json(type, json, opts \\ []),
+    do: parse_json(type, json, Options.parse!(opts, @from_json_schema))
 
-  def from_json(type, json, opts) when is_map(json) do
+  defp parse_json(type, json, opts) when is_map(json) do
     with {:ok, plugins} <- PluginSet.resolve(opts[:plugins]) do
       opts = Keyword.put(opts, :plugins, plugins)
       properties = properties(type, plugins)
@@ -433,7 +458,7 @@ defmodule Ltix.Type do
     end
   end
 
-  def from_json(_type, json, opts) do
+  defp parse_json(_type, json, opts) do
     {:error,
      InvalidClaim.exception(claim: opts[:name], value: json, message: "must be an object")}
   end

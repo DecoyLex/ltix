@@ -227,15 +227,17 @@ defmodule Ltix.Validator do
       ...> |> Ltix.Validator.missing(%{resource_link: nil, roles: []}, [])
       [:resource_link]
   """
-  @spec missing(validator :: t(), claims :: %{atom() => term()}, opts :: keyword()) :: [claim()]
-  def missing(%__MODULE__{} = validator, claims, opts) when is_map(claims) and is_list(opts),
-    do: missing(validator, claims, opts, &(claims[&1] == nil))
+  @spec missing(validator :: t(), claims :: %{atom() => term()}, callback_options :: keyword()) ::
+          [claim()]
+  def missing(%__MODULE__{} = validator, claims, callback_options)
+      when is_map(claims) and is_list(callback_options),
+      do: missing(validator, claims, callback_options, &(claims[&1] == nil))
 
   # Returns the claims a message must have and `missing?` returns `true` for, in
   # the order the validator first mentions them.
   @doc false
   @spec missing(t(), %{atom() => term()}, keyword(), (claim() -> boolean())) :: [claim()]
-  def missing(%__MODULE__{} = validator, claims, opts, missing?) do
+  def missing(%__MODULE__{} = validator, claims, callback_options, missing?) do
     mentioned =
       for {_kind, claim, _presence, _condition, _source} <- validator.requirements,
           uniq: true,
@@ -243,7 +245,7 @@ defmodule Ltix.Validator do
 
     for claim <- mentioned,
         missing?.(claim),
-        required?(validator, claim, claims, opts),
+        required?(validator, claim, claims, callback_options),
         do: claim
   end
 

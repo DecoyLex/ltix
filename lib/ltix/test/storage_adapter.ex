@@ -27,8 +27,18 @@ defmodule Ltix.Test.StorageAdapter do
 
   @start_link_schema Zoi.keyword(
                        [
-                         platforms: Zoi.list(Zoi.struct(Platform)),
-                         registrations: Zoi.list(Zoi.any())
+                         platforms:
+                           Zoi.list(Zoi.struct(Platform),
+                             description:
+                               "`Ltix.Test.Platform` structs whose registration and deployment the adapter resolves."
+                           )
+                           |> Zoi.default([]),
+                         registrations:
+                           Zoi.list(Zoi.any(),
+                             description:
+                               "Structs implementing `Ltix.Registerable` that have no deployment."
+                           )
+                           |> Zoi.default([])
                        ],
                        unrecognized_keys: :error
                      )
@@ -38,17 +48,14 @@ defmodule Ltix.Test.StorageAdapter do
 
   ## Options
 
-    * `:platforms` - list of `Ltix.Test.Platform` structs whose registration
-      and deployment the adapter resolves (defaults to `[]`)
-    * `:registrations` - list of structs implementing `Ltix.Registerable`
-      that have no deployment (defaults to `[]`)
+  #{Zoi.describe(@start_link_schema)}
   """
   def start_link(opts \\ []) do
     opts = Options.parse!(opts, @start_link_schema)
-    platforms = Keyword.get(opts, :platforms, [])
+    platforms = Keyword.fetch!(opts, :platforms)
 
     registrations =
-      Enum.uniq(Enum.map(platforms, & &1.registration) ++ Keyword.get(opts, :registrations, []))
+      Enum.uniq(Enum.map(platforms, & &1.registration) ++ Keyword.fetch!(opts, :registrations))
 
     deployments =
       Map.new(platforms, fn platform ->

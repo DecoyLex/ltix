@@ -26,7 +26,20 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   `Ltix.Type.object/2` builds the schema of a nested object of your own.
   """
 
+  alias Ltix.Options
   alias Ltix.Type
+
+  @iframe_schema Zoi.keyword(
+                   [
+                     src:
+                       Zoi.boolean(
+                         description:
+                           "When `true`, the schema requires a `src` key. When `false`, it rejects one."
+                       )
+                       |> Zoi.default(false)
+                   ],
+                   unrecognized_keys: :error
+                 )
 
   # [DL, Link](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#link)
 
@@ -37,8 +50,8 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
       {:ok, "Quiz 1"}
   """
   @spec title(keyword()) :: Zoi.schema()
-  def title(opts \\ []),
-    do: Zoi.string(described(opts, "Title for the content item.")) |> Zoi.optional()
+  def title(zoi_options \\ []),
+    do: Zoi.string(described(zoi_options, "Title for the content item.")) |> Zoi.optional()
 
   @doc """
   Returns a schema for a plain-text description of the content item.
@@ -47,8 +60,8 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
       {:ok, "Ten questions"}
   """
   @spec text(keyword()) :: Zoi.schema()
-  def text(opts \\ []),
-    do: Zoi.string(described(opts, "Plain-text description.")) |> Zoi.optional()
+  def text(zoi_options \\ []),
+    do: Zoi.string(described(zoi_options, "Plain-text description.")) |> Zoi.optional()
 
   @doc """
   Returns a schema for an icon the platform shows with the content item, with
@@ -61,11 +74,11 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
       {:ok, %{url: "https://tool.example.com/icon.png", width: 32}}
   """
   @spec icon(keyword()) :: Zoi.schema()
-  def icon(opts \\ []),
+  def icon(zoi_options \\ []),
     do:
       image(
         described(
-          opts,
+          zoi_options,
           "Icon to show with the content item, with `url` and optional `width` and `height`."
         )
       )
@@ -81,11 +94,11 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
       {:ok, %{url: "https://tool.example.com/thumbnail.png"}}
   """
   @spec thumbnail(keyword()) :: Zoi.schema()
-  def thumbnail(opts \\ []),
+  def thumbnail(zoi_options \\ []),
     do:
       image(
         described(
-          opts,
+          zoi_options,
           "Thumbnail to show as a link to the content item, with `url` and optional `width` and `height`."
         )
       )
@@ -98,7 +111,7 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
       {:ok, %{target_name: "quiz"}}
   """
   @spec window(keyword()) :: Zoi.schema()
-  def window(opts \\ []) do
+  def window(zoi_options \\ []) do
     %{
       target_name: Zoi.string(description: "Name of the window or tab.") |> Zoi.optional(),
       width: Zoi.integer(description: "Suggested window width in pixels.") |> Zoi.optional(),
@@ -109,7 +122,7 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
     }
     |> Type.object(
       described(
-        opts,
+        zoi_options,
         "How to open the content item in a new window or tab, with optional `target_name`, `width`, `height`, and `window_features`."
       )
     )
@@ -125,16 +138,18 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
 
   ## Options
 
-    * `:src` - when `true`, the schema requires a `src` key. When `false`, it
-      rejects one (defaults to `false`)
+  #{Zoi.describe(@iframe_schema)}
+
+  The other options are Zoi options, such as `description:`.
   """
   @spec iframe(keyword()) :: Zoi.schema()
   def iframe(opts \\ []) do
-    {src?, opts} = Keyword.pop(opts, :src, false)
+    {iframe_opts, zoi_options} = Keyword.split(opts, [:src])
+    src? = Keyword.fetch!(Options.parse!(iframe_opts, @iframe_schema), :src)
     {fields, description} = iframe_fields(src?)
 
     fields
-    |> Type.object(described(opts, description))
+    |> Type.object(described(zoi_options, description))
     |> Zoi.optional()
   end
 
@@ -160,21 +175,22 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
       {:ok, %{html: "<p>Poll</p>"}}
   """
   @spec embed(keyword()) :: Zoi.schema()
-  def embed(opts \\ []) do
+  def embed(zoi_options \\ []) do
     %{html: Zoi.string(description: "HTML that embeds the content item.")}
-    |> Type.object(described(opts, "HTML that embeds the content item, with `html`."))
+    |> Type.object(described(zoi_options, "HTML that embeds the content item, with `html`."))
     |> Zoi.optional()
   end
 
-  defp image(opts) do
+  defp image(zoi_options) do
     %{
       url: Zoi.string(description: "URL of the image."),
       width: Zoi.integer(description: "Width in pixels.") |> Zoi.optional(),
       height: Zoi.integer(description: "Height in pixels.") |> Zoi.optional()
     }
-    |> Type.object(opts)
+    |> Type.object(zoi_options)
     |> Zoi.optional()
   end
 
-  defp described(opts, description), do: Keyword.put_new(opts, :description, description)
+  defp described(zoi_options, description),
+    do: Keyword.put_new(zoi_options, :description, description)
 end

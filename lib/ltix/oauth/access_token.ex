@@ -35,8 +35,17 @@ defmodule Ltix.OAuth.AccessToken do
 
   @options_schema Zoi.keyword(
                     [
-                      requested_scopes: Zoi.list(Zoi.string()) |> Zoi.default([]),
-                      now: Zoi.struct(DateTime)
+                      requested_scopes:
+                        Zoi.list(Zoi.string(),
+                          description:
+                            "The scopes the request asked for, used when the response has no `\"scope\"`."
+                        )
+                        |> Zoi.default([]),
+                      now:
+                        Zoi.struct(DateTime,
+                          description:
+                            "The time the token was issued. Defaults to `DateTime.utc_now/0`."
+                        )
                     ],
                     unrecognized_keys: :error
                   )
@@ -61,9 +70,7 @@ defmodule Ltix.OAuth.AccessToken do
 
   ## Options
 
-    * `:requested_scopes` - list of scope strings that were requested, used
-      when the response omits `"scope"`.
-    * `:now` - override current time (defaults to `DateTime.utc_now/0`).
+  #{Zoi.describe(@options_schema)}
   """
   # [Sec §4.1](https://www.imsglobal.org/spec/security/v1p0/#using-oauth-2-0-client-credentials-grant)
   # [RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1)

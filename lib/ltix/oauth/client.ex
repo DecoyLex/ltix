@@ -254,7 +254,7 @@ defmodule Ltix.OAuth.Client do
   @doc """
   Send an authenticated request to a platform service.
 
-  Use this to call a platform from your own Advantage service. `opts`
+  Use this to call a platform from your own Advantage service. `req_options`
   are `Req` request options such as `:url`, `:method`, `:headers`, `:params`,
   and `:json`. The request has the client's access token as its bearer token,
   and it gets the same checks as every request Ltix sends, including HTTPS and
@@ -276,11 +276,15 @@ defmodule Ltix.OAuth.Client do
   """
   # [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750#section-2.1)
   @spec request(t(), module(), keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
-  def request(%__MODULE__{token: %AccessToken{access_token: token}} = client, service, opts)
-      when is_atom(service) and is_list(opts) do
+  def request(
+        %__MODULE__{token: %AccessToken{access_token: token}} = client,
+        service,
+        req_options
+      )
+      when is_atom(service) and is_list(req_options) do
     client.req_options
     |> HTTP.req_options(service)
-    |> Keyword.merge(opts)
+    |> Keyword.merge(req_options)
     |> Keyword.merge(auth: {:bearer, token}, local_network_access: client.local_network_access)
     |> HTTP.request_success()
   end
@@ -289,7 +293,7 @@ defmodule Ltix.OAuth.Client do
   Send an authenticated GET request and follow the `rel="next"` links of the
   responses.
 
-  `opts` are `Req` request options, as in `request/3`. `:params` apply to the
+  `req_options` are `Req` request options, as in `request/3`. `:params` apply to the
   first page only.
 
   Fetches the first page before returning. Returns `{:ok, stream}` with
@@ -308,12 +312,12 @@ defmodule Ltix.OAuth.Client do
       Enum.flat_map(pages, fn {:ok, body} -> body["records"] end)
   """
   @spec request_pages(t(), module(), keyword()) :: {:ok, Enumerable.t()} | {:error, Exception.t()}
-  def request_pages(%__MODULE__{} = client, service, opts)
-      when is_atom(service) and is_list(opts) do
-    {params, opts} = Keyword.pop(opts, :params, [])
+  def request_pages(%__MODULE__{} = client, service, req_options)
+      when is_atom(service) and is_list(req_options) do
+    {params, req_options} = Keyword.pop(req_options, :params, [])
 
-    Pagination.paginate(Keyword.get(opts, :url), params, fn url ->
-      request(client, service, Keyword.merge(opts, method: :get, url: url, params: []))
+    Pagination.paginate(Keyword.get(req_options, :url), params, fn url ->
+      request(client, service, Keyword.merge(req_options, method: :get, url: url, params: []))
     end)
   end
 

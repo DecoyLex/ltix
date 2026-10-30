@@ -67,13 +67,27 @@ defmodule Ltix.DeepLinking do
 
   @options_schema Zoi.keyword(
                     [
-                      message: Zoi.string(),
-                      log: Zoi.string(),
-                      error_message: Zoi.string(),
-                      error_log: Zoi.string(),
-                      storage_adapter: Zoi.module(),
-                      storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
-                      plugins: Zoi.list(Zoi.any())
+                      message: Zoi.string(description: "A message the platform shows the user."),
+                      log: Zoi.string(description: "A message the platform logs."),
+                      error_message:
+                        Zoi.string(
+                          description:
+                            "An error message the platform shows the user, such as when your tool couldn't create the content."
+                        ),
+                      error_log: Zoi.string(description: "An error message the platform logs."),
+                      storage_adapter:
+                        Zoi.module(description: "The storage adapter that signs the response."),
+                      storage_adapter_options:
+                        Zoi.keyword(Zoi.any(),
+                          description:
+                            "Options passed to the storage adapter's signing callbacks."
+                        )
+                        |> Zoi.default([]),
+                      plugins:
+                        Zoi.list(Zoi.any(),
+                          description:
+                            "The plugins for this call, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to the launch's plugins."
+                        )
                     ],
                     unrecognized_keys: :error
                   )
@@ -104,16 +118,7 @@ defmodule Ltix.DeepLinking do
   When you [configure](`m:Ltix#module-configuration`) an option, the configured
   value is its default.
 
-    * `:message` - a message the platform shows the user
-    * `:log` - a message the platform logs
-    * `:error_message` - an error message the platform shows the user, such
-      as when your tool couldn't create the content
-    * `:error_log` - an error message the platform logs
-    * `:storage_adapter` - the storage adapter that signs the response
-    * `:storage_adapter_options` - options passed to the storage adapter's
-      signing callbacks (defaults to `[]`)
-    * `:plugins` - the plugins for this call, each as `MyPlugin` or
-      `{MyPlugin, opts}` (defaults to the launch's plugins)
+  #{Zoi.describe(@options_schema)}
 
   ## Errors
 

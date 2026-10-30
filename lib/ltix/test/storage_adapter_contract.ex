@@ -14,21 +14,70 @@ defmodule Ltix.Test.StorageAdapterContract do
 
   @schema Zoi.keyword(
             [
-              registration: Zoi.function(arity: 1) |> Zoi.required(),
-              deployment: Zoi.function(arity: 2) |> Zoi.required(),
-              registration_identity: Zoi.function(arity: 1),
-              deployment_identity: Zoi.function(arity: 1),
-              prepare_process: Zoi.function(arity: 0),
-              jwks: Zoi.function(arity: 1),
-              storage_adapter_options: Zoi.keyword(Zoi.any()) |> Zoi.default([]),
-              auto_create_deployments: Zoi.boolean() |> Zoi.default(false),
+              registration:
+                Zoi.function(
+                  arity: 1,
+                  description:
+                    "A factory that receives a valid `Ltix.Registration` and returns your stored record implementing `Ltix.Registerable`. Keep the issuer and client ID it receives."
+                )
+                |> Zoi.required(),
+              deployment:
+                Zoi.function(
+                  arity: 2,
+                  description:
+                    "A factory that receives an `Ltix.Deployment` and your registration record, and returns your stored record implementing `Ltix.Deployable`. Keep the deployment ID it receives. Lookups must return the same stored record."
+                )
+                |> Zoi.required(),
+              registration_identity:
+                Zoi.function(
+                  arity: 1,
+                  description:
+                    "A function that returns a registration record's storage identity, such as `& &1.id`. Without it, the record a factory returns and the record a lookup returns must match in full. Use it when lookups preload associations or change metadata. Fields the protocols convert must still match."
+                ),
+              deployment_identity:
+                Zoi.function(
+                  arity: 1,
+                  description: "The same as `:registration_identity`, for deployment records."
+                ),
+              prepare_process:
+                Zoi.function(
+                  arity: 0,
+                  description:
+                    "A function called in each concurrent callback process, such as one that allows database sandbox access or sets process-local adapter state. Without it, the processes run with no preparation."
+                ),
+              jwks:
+                Zoi.function(
+                  arity: 1,
+                  description:
+                    "A function that receives a registration record and returns the key set your tool publishes for it, such as the result of `Ltix.JWK.to_jwks/1`. Required when the adapter exports `key_id/2` and `sign/4`, and rejected when it exports neither. The key set must include the key `key_id/2` returns, without private keys."
+                ),
+              storage_adapter_options:
+                Zoi.keyword(Zoi.any(),
+                  description: "The keyword list each callback receives as its last argument."
+                )
+                |> Zoi.default([]),
+              auto_create_deployments:
+                Zoi.boolean(
+                  description:
+                    "When `false`, a missing deployment must return `{:error, :not_found}`. Set it to `true` for an adapter that creates a deployment when none exists, and return distinct storage identities so the check can see that registrations with the same deployment ID get separate deployments."
+                )
+                |> Zoi.default(false),
               timeout:
-                Zoi.integer()
+                Zoi.integer(
+                  description:
+                    "The timeout in milliseconds for preparing and checking the concurrent processes."
+                )
                 |> Zoi.min(1)
                 |> Zoi.default(5000)
             ],
             unrecognized_keys: :error
           )
+
+  # Returns the schema of `verify!/2`'s options, for the
+  # `Ltix.Test.assert_storage_adapter!/2` docs.
+  @doc false
+  @spec options_schema() :: Zoi.schema()
+  def options_schema, do: @schema
 
   @doc false
   def verify!(adapter, opts) do
