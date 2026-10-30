@@ -174,6 +174,7 @@
           ## Ltix checks, in credo/
           #
           {Ltix.Credo.BooleanOperators, []},
+          {Ltix.Credo.DocCodeFences, []},
           {Ltix.Credo.DoctestOutput, [files: %{included: ["lib/"]}]},
           {Ltix.Credo.InternalFunctions, []},
           {Ltix.Credo.OptionsDocs, []},

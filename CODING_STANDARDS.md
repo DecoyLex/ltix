@@ -114,7 +114,7 @@ Write for an intermediate to experienced Elixir developer with passing EdTech ex
 
 - Add a doctest when its output teaches the reader something. A one-line function whose doc already says what it returns needs none.
 - Show the value an expression returns.
-- Show code with side effects, such as an HTTP request, as a plain code block.
+- Put code in a fenced block that names its language, such as ```elixir. Show code with side effects, such as an HTTP request, without `iex>`.
 - Run a module's doctests from its test file with `doctest`.
 
 ### Guides
