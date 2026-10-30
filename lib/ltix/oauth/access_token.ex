@@ -180,7 +180,7 @@ defmodule Ltix.OAuth.AccessToken do
   defp stored_scopes(scope) when scope in [nil, ""], do: {:ok, MapSet.new()}
 
   defp stored_scopes(scope) do
-    if is_binary(scope) and scope_tokens?(scope),
+    if is_binary(scope) && scope_tokens?(scope),
       do: {:ok, MapSet.new(String.split(scope, " "))},
       else:
         {:error,
@@ -239,10 +239,10 @@ defmodule Ltix.OAuth.AccessToken do
   # [RFC 6749 §7.1](https://www.rfc-editor.org/rfc/rfc6749#section-7.1)
   defp validate_token(access_token, token_type) do
     cond do
-      not bearer_credential?(access_token) ->
+      !bearer_credential?(access_token) ->
         malformed_response("access_token must be a nonempty bearer credential")
 
-      not Regex.match?(~r/\Abearer\z/i, token_type) ->
+      !Regex.match?(~r/\Abearer\z/i, token_type) ->
         malformed_response("unsupported token_type")
 
       true ->
@@ -280,7 +280,7 @@ defmodule Ltix.OAuth.AccessToken do
 
   # [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750#section-2.1)
   defp bearer_credential?(token),
-    do: is_binary(token) and Regex.match?(~r/\A[A-Za-z0-9._~+\/-]+=*\z/, token)
+    do: is_binary(token) && Regex.match?(~r/\A[A-Za-z0-9._~+\/-]+=*\z/, token)
 
   # [RFC 6749 §3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3)
   defp scope_tokens?(scope),

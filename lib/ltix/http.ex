@@ -132,7 +132,7 @@ defmodule Ltix.HTTP do
     |> Enum.any?(fn content_type ->
       [media_type | _parameters] = String.split(content_type, ";")
       media_type = String.downcase(String.trim(media_type), :ascii)
-      media_type == "application/json" or String.ends_with?(media_type, "+json")
+      media_type == "application/json" || String.ends_with?(media_type, "+json")
     end)
   end
 
@@ -175,7 +175,7 @@ defmodule Ltix.HTTP do
          when is_binary(scheme) and is_binary(host) and host != "" <- URI.new(url),
          scheme = String.downcase(scheme, :ascii),
          host = String.downcase(host, :ascii),
-         true <- scheme == "https" or (scheme == "http" and host_address_space(host) != :public),
+         true <- scheme == "https" || (scheme == "http" && host_address_space(host) != :public),
          port = uri.port || URI.default_port(scheme),
          true <- port in 1..65_535 do
       {:ok, %{uri | scheme: scheme, host: host, port: port}}
@@ -205,7 +205,7 @@ defmodule Ltix.HTTP do
         AddressSpace.classify(address)
 
       {:error, :einval} ->
-        if host == "localhost" or String.ends_with?(host, ".localhost"),
+        if host == "localhost" || String.ends_with?(host, ".localhost"),
           do: :loopback,
           else: :public
     end
@@ -223,7 +223,7 @@ defmodule Ltix.HTTP do
     option = unchecked_connection_option(opts)
 
     cond do
-      not AddressSpace.allowed?(space, access) ->
+      !AddressSpace.allowed?(space, access) ->
         {:error, LocalNetworkAccessDenied.exception(url: url, address_space: space)}
 
       option == nil && uri.scheme == "https" ->
@@ -286,7 +286,7 @@ defmodule Ltix.HTTP do
         _ -> []
       end
 
-    if get_in(opts, [:connect_options, :transport_opts, :verify]) == :verify_none or
+    if get_in(opts, [:connect_options, :transport_opts, :verify]) == :verify_none ||
          get_in(finch_options, [:conn_opts, :transport_opts, :verify]) == :verify_none do
       {:error,
        TransportError.exception(body: "Platform requests require TLS certificate verification")}

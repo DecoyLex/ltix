@@ -288,11 +288,11 @@ defmodule Ltix.JWT.Token do
 
     cond do
       # Single string audience
-      is_binary(aud) and aud == client_id ->
+      is_binary(aud) && aud == client_id ->
         validate_azp(azp, client_id)
 
       # Array audience. It must contain only client_id, no untrusted audiences
-      is_list(aud) and aud == [client_id] ->
+      is_list(aud) && aud == [client_id] ->
         validate_azp(azp, client_id)
 
       true ->

@@ -317,7 +317,7 @@ defmodule Ltix.StorageAdapter do
   end
 
   defp require_signing(adapter) do
-    if Code.ensure_loaded?(adapter) and function_exported?(adapter, :key_id, 2) and
+    if Code.ensure_loaded?(adapter) && function_exported?(adapter, :key_id, 2) &&
          function_exported?(adapter, :sign, 4) do
       :ok
     else

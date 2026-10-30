@@ -53,7 +53,7 @@ defmodule Ltix.Test.StorageAdapterContract do
   defp validate_adapter!(adapter) do
     callbacks = [get_registration: 3, get_deployment: 3, validate_nonce: 4]
 
-    unless is_atom(adapter) and Code.ensure_loaded?(adapter) and
+    unless is_atom(adapter) && Code.ensure_loaded?(adapter) &&
              Enum.all?(callbacks, fn {name, arity} -> function_exported?(adapter, name, arity) end) do
       Options.invalid!(:storage_adapter, "must export all three Ltix.StorageAdapter callbacks")
     end

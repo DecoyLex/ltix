@@ -1381,12 +1381,12 @@ defmodule Ltix.Test do
     # Struct registrations are mutually exclusive with :issuer/:client_id.
     # Function registrations are not, because the function receives a
     # registration built from those values.
-    if not is_nil(registration) and not is_function(registration) do
+    if !is_nil(registration) && !is_function(registration) do
       reject_combined_option!(opts, :issuer, "a :registration struct")
       reject_combined_option!(opts, :client_id, "a :registration struct")
     end
 
-    if not is_nil(deployment) and not is_function(deployment) do
+    if !is_nil(deployment) && !is_function(deployment) do
       reject_combined_option!(opts, :deployment_id, "a :deployment struct")
     end
   end

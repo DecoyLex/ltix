@@ -41,7 +41,7 @@ defmodule Ltix.Deployment do
 
   def new(deployment_id) when is_binary(deployment_id) and deployment_id != "" do
     cond do
-      not ascii?(deployment_id) ->
+      !ascii?(deployment_id) ->
         invalid(deployment_id, "must contain only ASCII characters")
 
       byte_size(deployment_id) > @max_length ->
@@ -73,7 +73,7 @@ defmodule Ltix.Deployment do
     end
   end
 
-  defp ascii?(string), do: String.printable?(string) and string =~ ~r/\A[\x00-\x7F]*\z/
+  defp ascii?(string), do: String.printable?(string) && string =~ ~r/\A[\x00-\x7F]*\z/
 
   defp invalid(deployment_id, reason) do
     {:error, InvalidField.invalid(__MODULE__, :deployment_id, deployment_id, reason)}

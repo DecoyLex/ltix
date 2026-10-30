@@ -181,8 +181,8 @@ defmodule Ltix.Registration do
   defp validate_audience(nil), do: nil
 
   defp validate_audience(audience) when is_binary(audience) and audience != "" do
-    if String.contains?(audience, ":") and
-         not match?({:ok, %URI{scheme: scheme}} when scheme != nil, URI.new(audience)) do
+    if String.contains?(audience, ":") &&
+         !match?({:ok, %URI{scheme: scheme}} when scheme != nil, URI.new(audience)) do
       invalid(:audience, audience, "must be a URI when it includes a colon")
     end
   end

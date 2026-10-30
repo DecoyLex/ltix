@@ -249,7 +249,7 @@ defmodule Ltix.Pagination do
          {:ok, parameters, rest} <- parse_parameters(rest, %{}) do
       relations = String.split(Map.get(parameters, "rel", ""), " ", trim: true)
 
-      if not Map.has_key?(parameters, "anchor") and
+      if !Map.has_key?(parameters, "anchor") &&
            Enum.any?(relations, &(String.downcase(&1, :ascii) == "next")) do
         target
       else

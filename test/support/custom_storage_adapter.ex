@@ -29,8 +29,8 @@ defmodule CustomStorageAdapter do
     Agent.get(get_pid(), fn state ->
       state.registrations
       |> Enum.find(fn reg ->
-        reg.platform_issuer == issuer and
-          (client_id == nil or reg.oauth_client_id == client_id)
+        reg.platform_issuer == issuer &&
+          (client_id == nil || reg.oauth_client_id == client_id)
       end)
       |> case do
         nil -> {:error, :not_found}
@@ -44,7 +44,7 @@ defmodule CustomStorageAdapter do
     Agent.get(get_pid(), fn state ->
       deployment =
         Enum.find(state.deployments, fn deployment ->
-          deployment.registration_id == registration_id and
+          deployment.registration_id == registration_id &&
             deployment.platform_deployment_id == deployment_id
         end)
 

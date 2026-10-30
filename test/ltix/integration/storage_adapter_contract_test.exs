@@ -34,8 +34,8 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
 
       found(
         Enum.find(records, fn record ->
-          String.downcase(record.platform_issuer) == String.downcase(issuer) and
-            (client_id == nil or
+          String.downcase(record.platform_issuer) == String.downcase(issuer) &&
+            (client_id == nil ||
                String.downcase(record.oauth_client_id) == String.downcase(client_id))
         end)
       )
@@ -131,7 +131,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
            deployment_id,
            {:error, :not_found}
          ) do
-      if Process.get(:contract_worker) == true and
+      if Process.get(:contract_worker) == true &&
            String.starts_with?(deployment_id, "Concurrent-") do
         race_deployment(registration, deployment_id)
       else
@@ -235,7 +235,7 @@ defmodule Ltix.Integration.StorageAdapterContractTest do
 
       Agent.get_and_update(Process.get(:contract_adapter_pid), fn state ->
         case Enum.find(state.deployments, fn stored ->
-               stored.registration_id == registration.id and
+               stored.registration_id == registration.id &&
                  stored.platform_deployment_id == deployment.deployment_id
              end) do
           nil -> {record, %{state | deployments: [record | state.deployments]}}
