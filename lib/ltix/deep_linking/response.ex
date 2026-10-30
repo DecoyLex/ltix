@@ -47,7 +47,7 @@ defmodule Ltix.DeepLinking.Response do
       `Ltix.DeepLinking.build_response/3` returns has none.
     * `:plugins` - the `Ltix.PluginSet` the response is built with
   """
-  # [DL §4.5](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-response-message)
+  # [DL, Deep linking response message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-response-message)
   use Ltix.Provider, hook: [Ltix.Step, Ltix.Ordered]
 
   defstruct [:launch, :plugins, :jwt, :return_url, claims: %{}, errors: []]

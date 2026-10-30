@@ -114,7 +114,7 @@ defmodule Ltix.JWK do
 
   #{Zoi.describe(@generate_schema)}
   """
-  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#rsa-key)
   # RSA keys with RS256 algorithm
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   # Each key identified by kid
@@ -258,7 +258,7 @@ defmodule Ltix.JWK do
       iex> byte_size(signature)
       256
   """
-  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#rsa-key)
   @spec sign(t(), binary()) :: {:ok, binary()} | {:error, Exception.t()}
   def sign(%__MODULE__{private_key_pem: nil}, message) when is_binary(message) do
     {:error, required(:private_key_pem)}
@@ -292,7 +292,7 @@ defmodule Ltix.JWK do
 
   # Returns `{:ok, {public_key_pem, private_key_pem}}` for the one key given.
   # Key material is left out of the errors.
-  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#platform-originating-messages)
+  # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#rsa-key)
   defp parse_key(attrs) do
     case for field <- @key_fields, attrs[field] != nil, do: field do
       [] ->

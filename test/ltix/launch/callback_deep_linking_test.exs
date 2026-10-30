@@ -40,7 +40,7 @@ defmodule Ltix.Launch.CallbackDeepLinkingTest do
   defp delete_setting(ctx, key),
     do: Map.update!(ctx.claims, @dl_settings_key, &Map.delete(&1, key))
 
-  # [DL §4.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-request-message)
+  # [DL, Deep linking request message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-request-message)
   describe "valid deep linking launch" do
     test "deep linking launch returns Launch", ctx do
       assert {:ok, %Launch{} = launch} = callback(ctx.claims, ctx)
@@ -60,19 +60,19 @@ defmodule Ltix.Launch.CallbackDeepLinkingTest do
       assert launch.claims.resource_link == nil
     end
 
-    # [DL §4.4.9](https://www.imsglobal.org/spec/lti-dl/v2p0/#role)
+    # [DL, Role](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#role)
     test "succeeds without roles claim", ctx do
       assert {:ok, %Launch{}} = callback(Map.delete(ctx.claims, @lti <> "roles"), ctx)
     end
 
-    # [DL §4.4.5](https://www.imsglobal.org/spec/lti-dl/v2p0/#user)
+    # [DL, User](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#user)
     test "succeeds without sub claim", ctx do
       assert {:ok, %Launch{} = launch} = callback(Map.delete(ctx.claims, "sub"), ctx)
       assert launch.claims.subject == nil
     end
   end
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   describe "deep_linking_settings validation" do
     test "missing deep_linking_settings returns MissingClaim error", ctx do
       assert {:error, %MissingClaim{claim: "deep_linking_settings"}} =

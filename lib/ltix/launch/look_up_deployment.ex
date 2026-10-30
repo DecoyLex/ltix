@@ -4,8 +4,8 @@ defmodule Ltix.Launch.LookUpDeployment do
 
   alias Ltix.StorageAdapter
 
-  # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)
-  # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+  # [Core, Tool Deployment](https://standards.1edtech.org/lti/specifications/core/lti-spec#tool-deployment)
+  # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
   @impl Ltix.Step
   def call(
         %Ltix.Launch{errors: [], claims: %{deployment_id: deployment_id}, private: private} =

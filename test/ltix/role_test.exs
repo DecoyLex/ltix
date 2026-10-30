@@ -13,7 +13,7 @@ defmodule Ltix.RoleTest do
     %{platform: Ltix.Test.setup_platform!()}
   end
 
-  # [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim)
+  # [Core, Roles claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#roles-claim)
   test "a launch's roles are the URIs the platform sent" do
     # Stubs the platform's key set for this test's process.
     platform = Ltix.Test.setup_platform!()
@@ -24,7 +24,7 @@ defmodule Ltix.RoleTest do
     assert launch.claims.roles == sent
   end
 
-  # [Core §A.2](https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies)
+  # [Core, Role vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies)
   describe "predicates" do
     for {predicate, [matching, other]} <- [
           instructor?: [
@@ -104,7 +104,7 @@ defmodule Ltix.RoleTest do
     end
   end
 
-  # [Core §A.2](https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies)
+  # [Core, Role vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies)
   describe "filters by kind" do
     @context_forms [
       "http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor",
@@ -121,8 +121,8 @@ defmodule Ltix.RoleTest do
       "http://purl.imsglobal.org/vocab/lti/system/person#TestUser",
       "http://purl.imsglobal.org/vocab/lis/v2/person#AccountAdmin"
     ]
-    # [Core §A.2.1](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-system-roles)
-    # [Core §A.2.2](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-institution-roles)
+    # [Core, LIS vocabulary for system roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-system-roles)
+    # [Core, LIS vocabulary for institution roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-institution-roles)
     @both_forms [
       "http://purl.imsglobal.org/vocab/lis/v2/person#Administrator",
       "http://purl.imsglobal.org/vocab/lis/v2/person#None"
@@ -169,7 +169,7 @@ defmodule Ltix.RoleTest do
       assert by_kind(roles) == {context, institution, system}
     end
 
-    # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+    # [NRPS, Sharing of personal data](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#sharing-of-personal-data)
     test "filters a roster member's roles" do
       client = MembershipsServiceFixtures.create_client()
       member = Map.put(MembershipsServiceFixtures.member("user-1"), "roles", @sent)

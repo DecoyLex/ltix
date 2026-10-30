@@ -62,7 +62,7 @@ defmodule Ltix.DeepLinking do
     ContentItem.Image
   ]
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   @presentation_targets ["embed", "iframe", "window"]
 
   @options_schema Zoi.keyword(
@@ -209,7 +209,7 @@ defmodule Ltix.DeepLinking do
              return_url: settings.deep_link_return_url
            }),
          :ok <- Errors.collect(response.errors),
-         # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
+         # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
          {:ok, jwt} <-
            StorageAdapter.sign_jwt(
              storage_adapter,
@@ -227,7 +227,7 @@ defmodule Ltix.DeepLinking do
 
   # --- Content items ---
 
-  # [DL §4.5.6](https://www.imsglobal.org/spec/lti-dl/v2p0/#content-items)
+  # [DL, Content items](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#content-items)
   defp content_items(items, plugins, settings) when is_list(items) do
     types = PluginSet.data(plugins, ContentItemType)
     indexed = Enum.with_index(items)
@@ -274,7 +274,7 @@ defmodule Ltix.DeepLinking do
 
   # --- Checks ---
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   defp type_not_accepted(type, index, accept_types) do
     if type in accept_types do
       []
@@ -319,8 +319,8 @@ defmodule Ltix.DeepLinking do
 
   # --- JWT Construction ---
 
-  # [DL §4.5](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-response-message)
-  # [Sec §5.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
+  # [DL, Deep linking response message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-response-message)
+  # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-jwt)
   defp build_jwt_claims(%Launch{registration: registration} = launch, items_json, opts) do
     settings = launch.claims.deep_linking_settings
     now = System.system_time(:second)

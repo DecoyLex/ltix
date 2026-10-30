@@ -32,6 +32,7 @@ defmodule Ltix.LoginTest do
 
   describe "handle_login/3" do
     # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
+    # [Sec §5.1.1.2](https://www.imsglobal.org/spec/security/v1p0/#step-2-authentication-request)
     test "a valid login returns the redirect URI and state", %{params: params} do
       assert {:ok, result} = login(params)
 

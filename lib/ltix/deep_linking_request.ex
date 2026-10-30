@@ -8,7 +8,7 @@ defmodule Ltix.DeepLinkingRequest do
   request requires with an `Ltix.Launch.MessageType.Requirements`.
   """
 
-  # [DL §4.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-request-message)
+  # [DL, Deep linking request message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-request-message)
   use Ltix.Launch.MessageType
 
   @impl Ltix.Launch.MessageType

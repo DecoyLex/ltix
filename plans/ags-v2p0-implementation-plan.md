@@ -6,12 +6,12 @@ launch that includes the AGS claim, the tool can manage line items
 gradebook.
 
 **Spec references**:
-- `[AGS §X]` → LTI Assignment and Grade Services v2.0
-  (https://www.imsglobal.org/spec/lti-ags/v2p0/)
+- `[AGS, Section title]` → LTI Assignment and Grade Services v2.0
+  (https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec)
 - `[Sec §X]` → 1EdTech Security Framework v1.0
   (https://www.imsglobal.org/spec/security/v1p0/)
-- `[Core §X]` → LTI Core Specification v1.3
-  (https://www.imsglobal.org/spec/lti/v1p3/)
+- `[Core, Section title]` → LTI Core Specification v1.3
+  (https://standards.1edtech.org/lti/specifications/core/lti-spec)
 
 **Prerequisites**: LTI 1.3 Core launch flow, OAuth 2.0 client credentials
 (`Ltix.OAuth`), pagination (`Ltix.Pagination`), and the `AdvantageService`
@@ -36,7 +36,9 @@ infrastructure:
 | **Result** | Read-only | GET (container) | `application/vnd.ims.lis.v2.resultcontainer+json` |
 | **Score** | Write-only | POST | `application/vnd.ims.lis.v1.score+json` |
 
-**Scopes** [AGS §3.2, §3.3.2, §3.4.2]:
+**Scopes** [AGS, Line item service scope and allowed http methods],
+[AGS, Result service scope and allowed http methods],
+[AGS, Score service scope and allowed http methods]:
 
 | Scope | Grants |
 |-------|--------|
@@ -78,7 +80,8 @@ is the internal claim name, and `GradeService` is the public-facing name).
 
 The three services are tightly coupled:
 - Results and scores are accessed via URLs derived from line item `id`
-  (`{lineitem_id}/results`, `{lineitem_id}/scores`) [AGS §3.3.1, §3.4.1]
+  (`{lineitem_id}/results`, `{lineitem_id}/scores`) [AGS, Result service endpoint],
+  [AGS, Service endpoint]
 - They share the same endpoint claim and authentication
 - The common workflow is: get/create a line item, then post scores or
   read results for it
@@ -105,20 +108,20 @@ between them. A single module with clear function names is simpler:
 
 ### 3.1 `Ltix.GradeService.LineItem`
 
-**Spec basis**: [AGS §3.2] Line item service.
+**Spec basis**: [AGS, Line item service scope and allowed http methods] Line item service.
 
 ```elixir
 defstruct [
-  :id,               # URL — set by platform on create [AGS §3.2.3]
-  :label,            # REQUIRED, non-blank string [AGS §3.2.7]
-  :score_maximum,    # REQUIRED, number > 0 [AGS §3.2.8]
-  :resource_link_id, # Optional, binds to resource link [AGS §3.2.9]
-  :resource_id,      # Optional, tool's own identifier [AGS §3.2.10]
-  :tag,              # Optional, further qualifier [AGS §3.2.11]
-  :start_date_time,  # Optional, ISO 8601 with timezone [AGS §3.2.12]
-  :end_date_time,    # Optional, ISO 8601 with timezone [AGS §3.2.13]
-  :grades_released,  # Optional, boolean hint [AGS §3.2.14]
-  extensions: %{}    # All unrecognized JSON keys (includes URL-keyed extensions per [AGS §3.1.2])
+  :id,               # URL — set by platform on create [AGS, Line Item id REST Endpoint]
+  :label,            # REQUIRED, non-blank string [AGS, Label]
+  :score_maximum,    # REQUIRED, number > 0 [AGS, scoreMaximum]
+  :resource_link_id, # Optional, binds to resource link [AGS, resourceLinkId and binding a line item to a resource link]
+  :resource_id,      # Optional, tool's own identifier [AGS, Tool resource identifier resourceId]
+  :tag,              # Optional, further qualifier [AGS, tag]
+  :start_date_time,  # Optional, ISO 8601 with timezone [AGS, startDateTime]
+  :end_date_time,    # Optional, ISO 8601 with timezone [AGS, endDateTime]
+  :grades_released,  # Optional, boolean hint [AGS, gradesReleased]
+  extensions: %{}    # All unrecognized JSON keys (includes URL-keyed extensions per [AGS, Extensions])
 ]
 ```
 
@@ -127,11 +130,11 @@ serialized to camelCase for JSON (`scoreMaximum`). The `from_json/1` and
 `to_json/1` functions handle the conversion.
 
 **Immutable on update**: `id` and `resource_link_id` MUST NOT be changed
-on PUT [AGS §3.2.6]. The `to_json/1` function for updates should exclude
+on PUT [AGS, Updating a line item]. The `to_json/1` function for updates should exclude
 `id` and preserve `resource_link_id` as-is.
 
 **Extensions**: All unrecognized JSON keys are captured in `extensions`.
-The spec requires extension keys to be fully qualified URLs [AGS §3.1.2],
+The spec requires extension keys to be fully qualified URLs [AGS, Extensions],
 but platforms may include non-URL keys. Capturing everything ensures
 lossless round-trips through GET → modify → PUT (robustness principle).
 
@@ -146,8 +149,8 @@ outbound `to_json/1` for create/update, where we must be conservative.
 - Parse line item with missing `label` or `scoreMaximum` (still succeeds, `nil`)
 - `id` parsed from JSON (platform-set)
 - `to_json/1` serializes to camelCase
-- `to_json/1` validates `label` present and non-blank [AGS §3.2.7]
-- `to_json/1` validates `scoreMaximum` > 0 [AGS §3.2.8]
+- `to_json/1` validates `label` present and non-blank [AGS, Label]
+- `to_json/1` validates `scoreMaximum` > 0 [AGS, scoreMaximum]
 - `to_json/1` excludes `nil` optional fields
 - All unrecognized JSON keys captured in `extensions` map
 - URL-keyed extensions round-trip through from_json → to_json
@@ -156,27 +159,27 @@ outbound `to_json/1` for create/update, where we must be conservative.
 
 ### 3.2 `Ltix.GradeService.Score`
 
-**Spec basis**: [AGS §3.4] Score publish service.
+**Spec basis**: [AGS, Score publish service].
 
 Scores are write-only — the tool POSTs them to the platform. The struct
 focuses on construction and serialization.
 
 ```elixir
 defstruct [
-  :user_id,            # REQUIRED [AGS §3.4.5]
-  :activity_progress,  # REQUIRED, atom [AGS §3.4.7]
-  :grading_progress,   # REQUIRED, atom [AGS §3.4.8]
-  :timestamp,          # REQUIRED, ISO 8601 [AGS §3.4.9]
-  :score_given,        # Optional, number ≥ 0 [AGS §3.4.4]
-  :score_maximum,      # REQUIRED when score_given is present [AGS §3.4.4]
-  :scoring_user_id,    # Optional [AGS §3.4.6]
-  :comment,            # Optional, plain text [AGS §3.4.11]
-  :submission,         # Optional, %{started_at: _, submitted_at: _} [AGS §3.4.10]
-  extensions: %{}      # URL-keyed extension properties [AGS §3.1.2]
+  :user_id,            # REQUIRED [AGS, userId]
+  :activity_progress,  # REQUIRED, atom [AGS, activityProgress]
+  :grading_progress,   # REQUIRED, atom [AGS, gradingProgress]
+  :timestamp,          # REQUIRED, ISO 8601 [AGS, timestamp]
+  :score_given,        # Optional, number ≥ 0 [AGS, scoreGiven and scoreMaximum]
+  :score_maximum,      # REQUIRED when score_given is present [AGS, scoreGiven and scoreMaximum]
+  :scoring_user_id,    # Optional [AGS, scoringUserId]
+  :comment,            # Optional, plain text [AGS, comment]
+  :submission,         # Optional, %{started_at: _, submitted_at: _} [AGS, submission (Optional)]
+  extensions: %{}      # URL-keyed extension properties [AGS, Extensions]
 ]
 ```
 
-**Activity progress values** [AGS §3.4.7]:
+**Activity progress values** [AGS, activityProgress]:
 
 | Atom | JSON | Meaning |
 |------|------|---------|
@@ -186,7 +189,7 @@ defstruct [
 | `:submitted` | `"Submitted"` | Submitted, may resubmit |
 | `:completed` | `"Completed"` | Done |
 
-**Grading progress values** [AGS §3.4.8]:
+**Grading progress values** [AGS, gradingProgress]:
 
 | Atom | JSON | Meaning |
 |------|------|---------|
@@ -198,19 +201,19 @@ defstruct [
 
 > The tool should default to `FullyGraded` for final scores.
 >
-> [AGS §4.7]: "The Tool must set the 'gradingProgress' to 'FullyGraded'
+> [AGS, Scores and gradingProgress]: "The Tool must set the 'gradingProgress' to 'FullyGraded'
 > when communicating the actual student's final score. The platform may
 > decide to not record any score that is not final ('FullyGraded')."
 >
 > Non-final scores may never reach the gradebook, so the library should
 > document this prominently.
 
-**Timestamp** [AGS §3.4.9]: MUST include sub-second precision and
+**Timestamp** [AGS, timestamp]: MUST include sub-second precision and
 timezone. MUST be strictly increasing per (line_item, user). The library
 generates timestamps automatically via `DateTime.utc_now/0` if not
 provided, serialized with microsecond precision and `Z` suffix.
 
-**Submission** [AGS §3.4.10]: Optional nested object with `started_at`
+**Submission** [AGS, submission (Optional)]: Optional nested object with `started_at`
 and `submitted_at`. Both are ISO 8601 with timezone. `submitted_at` must
 be ≥ `started_at` if both present.
 
@@ -236,7 +239,7 @@ Auto-generates `timestamp` if not provided.
 - `new/1` auto-generates `timestamp` when not provided
 - `new/1` with `score_given` but no `score_maximum` returns error
 - `new/1` with `score_given < 0` returns error
-- `new/1` with `score_given > score_maximum` succeeds (extra credit) [AGS §3.4.4]
+- `new/1` with `score_given > score_maximum` succeeds (extra credit) [AGS, scoreGiven and scoreMaximum]
 - `new/1` with unknown `activity_progress` value returns error
 - `to_json/1` serializes atoms to PascalCase strings
 - `to_json/1` serializes timestamp with sub-second precision and `Z`
@@ -246,21 +249,21 @@ Auto-generates `timestamp` if not provided.
 
 ### 3.3 `Ltix.GradeService.Result`
 
-**Spec basis**: [AGS §3.3.4] Result media type.
+**Spec basis**: [AGS, Media type and schema] Result media type.
 
 Results are read-only — the platform provides them. The struct focuses
 on parsing.
 
 ```elixir
 defstruct [
-  :id,               # URL of this result record [AGS §3.3.4.2]
-  :score_of,         # URL of the line item [AGS §3.3.4.3]
-  :user_id,          # REQUIRED [AGS §3.3.4.4]
-  :result_score,     # Optional, number [AGS §3.3.4.5]
-  :result_maximum,   # Optional, positive number, default 1 [AGS §3.3.4.6]
-  :scoring_user_id,  # Optional [AGS §3.3.4.7]
-  :comment,          # Optional, string [AGS §3.3.4.8]
-  extensions: %{}    # All unrecognized JSON keys (includes URL-keyed extensions per [AGS §3.1.2])
+  :id,               # URL of this result record [AGS, id]
+  :score_of,         # URL of the line item [AGS, scoreOf]
+  :user_id,          # REQUIRED [AGS, userId]
+  :result_score,     # Optional, number [AGS, resultScore]
+  :result_maximum,   # Optional, positive number, default 1 [AGS, resultMaximum]
+  :scoring_user_id,  # Optional [AGS, scoringUserId]
+  :comment,          # Optional, string [AGS, comment]
+  extensions: %{}    # All unrecognized JSON keys (includes URL-keyed extensions per [AGS, Extensions])
 ]
 ```
 
@@ -272,7 +275,7 @@ Be liberal: missing fields become `nil`, no validation errors.
 - Parse result with only `userId` present (other fields `nil`)
 - Parse result with missing `userId` (still succeeds, `nil`)
 - Missing `resultMaximum` in JSON defaults to `nil` in struct; consumers
-  must treat `nil` as 1 per spec [AGS §3.3.4.6]
+  must treat `nil` as 1 per spec [AGS, resultMaximum]
 - All unrecognized JSON keys parsed into `extensions`
 
 ---
@@ -292,10 +295,10 @@ def endpoint_from_claims(_), do: :error
 @impl true
 def validate_endpoint(%AgsEndpoint{}), do: :ok
 def validate_endpoint(_),
-  do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "AGS §3.1")}
+  do: {:error, InvalidEndpoint.exception(service: __MODULE__, spec_ref: "AGS, Assignment and Grade Service claim")}
 
 @impl true
-# [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+# [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
 def scopes(%AgsEndpoint{scope: scopes}) when is_list(scopes), do: scopes
 def scopes(%AgsEndpoint{scope: nil}), do: []
 ```
@@ -346,7 +349,7 @@ or `Registration`.
 
 #### `list_line_items/2` — Fetch line items from the container
 
-**Spec basis**: [AGS §3.2.4] Container request filters.
+**Spec basis**: [AGS, Container Request Filters].
 
 Requires scope: `lineitem` or `lineitem.readonly`.
 
@@ -400,7 +403,7 @@ def get_line_item(%Client{} = client, opts \\ [])
 GETs the line item at the given URL. Uses `lineitem+json` Accept header.
 
 The line item URL comes from:
-1. The `line_item:` option [AGS §3.2.3]
+1. The `line_item:` option [AGS, Line Item id REST Endpoint]
 2. The endpoint's `lineitem` URL (coupled flow default)
 
 ```elixir
@@ -421,7 +424,7 @@ The line item URL comes from:
 
 #### `create_line_item/2` — Create a new line item
 
-**Spec basis**: [AGS §3.2.5] Creating a new line item.
+**Spec basis**: [AGS, Creating a new line item].
 
 Requires scope: `lineitem` (not `lineitem.readonly`).
 
@@ -446,7 +449,7 @@ def create_line_item(%Client{} = client, opts)
 ```
 
 POSTs to the `lineitems` container URL. Parses the 201 response into a
-`%LineItem{}` with the platform-assigned `id` [AGS §3.2.5].
+`%LineItem{}` with the platform-assigned `id` [AGS, Creating a new line item].
 
 **Tests**:
 - Creates line item with required fields
@@ -459,7 +462,7 @@ POSTs to the `lineitems` container URL. Parses the 201 response into a
 
 #### `update_line_item/3` — Update a line item
 
-**Spec basis**: [AGS §3.2.6] Updating a line item.
+**Spec basis**: [AGS, Updating a line item].
 
 Requires scope: `lineitem`.
 
@@ -471,9 +474,9 @@ def update_line_item(%Client{} = client, %LineItem{} = line_item)
 
 PUTs the full line item to its `id` URL. This is a full replacement,
 not a patch — callers should GET first to avoid overwriting fields
-[AGS §3.2.6].
+[AGS, Updating a line item].
 
-`id` and `resource_link_id` MUST NOT be changed [AGS §3.2.6]. The
+`id` and `resource_link_id` MUST NOT be changed [AGS, Updating a line item]. The
 serialization sends `id` (required by some platforms) and
 `resourceLinkId` as-is.
 
@@ -530,7 +533,7 @@ GradeService.delete_line_item(client, tool_created_item)
 
 #### `post_score/3` — Post a score for a user
 
-**Spec basis**: [AGS §3.4] Score publish service.
+**Spec basis**: [AGS, Score publish service].
 
 Requires scope: `score`.
 
@@ -559,7 +562,7 @@ POSTs to `{lineitem_id}/scores`. The line item URL comes from:
 :ok = Ltix.GradeService.post_score(client, score, line_item: item)
 ```
 
-**URL derivation** [AGS §3.4.1]: The scores endpoint is the line item's
+**URL derivation** [AGS, Service endpoint]: The scores endpoint is the line item's
 `id` with `/scores` appended. Any existing query parameters on the line
 item URL MUST be preserved.
 
@@ -568,7 +571,7 @@ ignored — score POST is fire-and-forget from the API perspective.
 
 > Stale timestamps do not produce errors visible to the tool.
 >
-> [AGS §3.4.9]: "The platform MUST NOT update a result if the last
+> [AGS, timestamp]: "The platform MUST NOT update a result if the last
 > timestamp on record is later than the incoming score update. It may
 > just ignore the incoming score update, or log it if it maintains any
 > kind of history or for traceability."
@@ -591,7 +594,7 @@ ignored — score POST is fire-and-forget from the API perspective.
 
 #### `get_results/3` — Fetch results for a line item
 
-**Spec basis**: [AGS §3.3] Result service.
+**Spec basis**: [AGS, Result Service].
 
 Requires scope: `result.readonly`.
 
@@ -631,7 +634,7 @@ GETs `{lineitem_id}/results`. Follows `rel="next"` pagination.
 
 > Result lists may be sparse.
 >
-> [AGS §3.3.5]: "A GET on Results URL MUST return a result record for
+> [AGS, Platform MAY skip empty results]: "A GET on Results URL MUST return a result record for
 > each user that has a non empty 'resultScore' for the queried upon line
 > item. The platform MAY skip empty results."
 >
@@ -641,7 +644,7 @@ GETs `{lineitem_id}/results`. Follows `rel="next"` pagination.
 - Fetches results from `{lineitem_id}/results`
 - Uses `lineitem` from endpoint when no `line_item:` option
 - Follows `rel="next"` pagination
-- Filters by `user_id` query parameter [AGS §3.3.6]
+- Filters by `user_id` query parameter [AGS, Container Request Filters]
 - Sends correct Accept header (`resultcontainer+json`)
 - Returns error when client lacks `result.readonly` scope
 - Returns error when no line item URL available
@@ -652,7 +655,7 @@ GETs `{lineitem_id}/results`. Follows `rel="next"` pagination.
 ## 5. URL Derivation
 
 The Result and Score service endpoints are derived from line item URLs
-[AGS §3.3.1, §3.4.1]:
+[AGS, Result service endpoint], [AGS, Service endpoint]:
 
 ```
 Line item:  https://lms.example.com/2344/lineitems/1234/lineitem
@@ -771,9 +774,10 @@ test/
 **Acceptance criteria**:
 - [x] `LineItem.from_json/1` and `to_json/1` round-trip correctly
 - [x] `Score.new/1` validates all required fields and constraints
-- [x] `Score.to_json/1` serializes enums to PascalCase [AGS §3.4.7, §3.4.8]
+- [x] `Score.to_json/1` serializes enums to PascalCase [AGS, activityProgress],
+      [AGS, gradingProgress]
 - [x] `Score.new/1` auto-generates ISO 8601 timestamp with microseconds
-      and `Z` suffix [AGS §3.4.9]
+      and `Z` suffix [AGS, timestamp]
 - [x] All unrecognized JSON keys round-trip through from/to_json (including non-URL keys)
 
 ### Phase 2: Service Module
@@ -795,20 +799,22 @@ test/
 
 **Acceptance criteria**:
 - [x] `authenticate/2` from LaunchContext requests scopes from
-      `AgsEndpoint.scope` [AGS §3.1]
+      `AgsEndpoint.scope` [AGS, Assignment and Grade Service claim]
 - [x] `list_line_items/2` sends correct Accept header and pagination
-      [AGS §3.2.1]
+      [AGS, Line item service Media types and schemas],
+      [AGS, Container Request Filters]
 - [x] `list_line_items/2` passes filter parameters (`resource_link_id`,
-      `resource_id`, `tag`) [AGS §3.2.4]
+      `resource_id`, `tag`) [AGS, Container Request Filters]
 - [x] `create_line_item/2` POSTs to `lineitems` URL and returns the
-      platform's response with assigned `id` [AGS §3.2.5]
+      platform's response with assigned `id` [AGS, Creating a new line item]
 - [x] `update_line_item/2` PUTs the full line item to its `id` URL
-      [AGS §3.2.6]
+      [AGS, Updating a line item]
 - [x] `delete_line_item/2` sends DELETE to the line item URL
 - [x] `post_score/3` POSTs to `{lineitem}/scores` with correct
-      Content-Type [AGS §3.4]
+      Content-Type [AGS, Service endpoint],
+      [AGS, Score service Media type and schema]
 - [x] `get_results/3` GETs `{lineitem}/results` with pagination
-      [AGS §3.3]
+      [AGS, Result service endpoint], [AGS, Container Request Filters]
 - [x] Each function checks the appropriate scope before making HTTP calls
 - [x] Coupled flow: `post_score/3` and `get_results/3` default to the
       endpoint's `lineitem` URL when no explicit line item given
@@ -824,8 +830,8 @@ test/
    - Reading results
    - Score construction: activity/grading progress, timestamps
    - Multi-service authentication (AGS + NRPS in one token)
-   - Common patterns: migrating from Basic Outcomes [AGS §4.5],
-     managing multiple line items [AGS §4.8]
+   - Common patterns: migrating from Basic Outcomes [AGS, Migrating from basic outcomes service],
+     managing multiple line items [AGS, Managing Multiple Line Items]
 
 9. **Module docs** — `@moduledoc` / `@doc` on all public modules
    and functions
@@ -907,7 +913,7 @@ scores endpoint, and results endpoint. Follow the same pattern as
 
 8. **Extensions**: All unrecognized JSON keys are captured in an
    `extensions` map and round-tripped through serialization. The spec
-   requires extension keys to be fully qualified URLs [AGS §3.1.2],
+   requires extension keys to be fully qualified URLs [AGS, Extensions],
    but we capture all unknown keys to ensure lossless round-trips
    (robustness principle — platforms may include non-URL keys).
    See §12 for known platform extensions.
@@ -922,7 +928,7 @@ scores endpoint, and results endpoint. Follow the same pattern as
 ## 12. Platform Extensions
 
 The AGS spec allows extension properties on line items, scores, and
-results via URL-keyed JSON fields [AGS §3.1.2]. The `extensions` map on
+results via URL-keyed JSON fields [AGS, Extensions]. The `extensions` map on
 each struct captures these automatically. No special struct fields are
 needed — tools set/read extensions through the map.
 

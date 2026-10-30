@@ -86,7 +86,7 @@ defmodule Ltix.OAuth.AccessToken do
       iex> Ltix.OAuth.AccessToken.expired?(token)
       false
   """
-  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
+  # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec expired?(t()) :: boolean()
   def expired?(%__MODULE__{issued_at: issued_at, expires_at: expires_at}) do
     buffered = DateTime.add(expires_at, -expiry_buffer(issued_at, expires_at))

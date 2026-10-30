@@ -28,7 +28,7 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
 
   alias Ltix.Type
 
-  # [DL §3](https://www.imsglobal.org/spec/lti-dl/v2p0/#content-item-types)
+  # [DL, Link](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#link)
 
   @doc """
   Returns a schema for the content item's plain-text title.

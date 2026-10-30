@@ -22,7 +22,7 @@ defmodule Ltix.GradeService.Result do
 
   use Ltix.Provider, hook: [Ltix.Property]
 
-  # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema)
+  # [AGS, Media type and schema](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#media-type-and-schema)
   use Ltix.Type,
     json_keys: :camel_case,
     fields: [

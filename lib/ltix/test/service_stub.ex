@@ -27,8 +27,8 @@ defmodule Ltix.Test.ServiceStub do
   @score GradeService.media_type(:score)
   @membership_container MembershipsService.media_type(:membership_container)
 
-  # [AGS §3.3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service-endpoint)
-  # [AGS §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#service-endpoint)
+  # [AGS, Result service endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#result-service-endpoint)
+  # [AGS, Service endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#service-endpoint)
   @line_item_suffixes %{post_score: "/scores", list_results: "/results"}
 
   @doc """
@@ -140,9 +140,9 @@ defmodule Ltix.Test.ServiceStub do
     end
   end
 
-  # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
-  # [AGS §3.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
-  # [AGS §3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#score-publish-service)
+  # [AGS, Line item service scope and allowed http methods](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#line-item-service-scope-and-allowed-http-methods)
+  # [AGS, Result Service](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#result-service)
+  # [AGS, Score publish service](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#score-publish-service)
   defp operation(GradeService, conn) do
     case {conn.method, header(conn, "accept"), header(conn, "content-type")} do
       {"GET", @line_item_container, _} -> :list_line_items
@@ -156,7 +156,7 @@ defmodule Ltix.Test.ServiceStub do
     end
   end
 
-  # [NRPS §2.4](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+  # [NRPS, Using the service](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#using-the-service)
   defp operation(MembershipsService, conn) do
     if {conn.method, header(conn, "accept")} == {"GET", @membership_container},
       do: :list_members

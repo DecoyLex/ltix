@@ -6,14 +6,14 @@ selection UI, build content items, sign a response JWT, and redirect the
 user back to the platform with the selected items.
 
 **Spec references**:
-- `[DL §X]` → LTI Deep Linking v2.0
-  (https://www.imsglobal.org/spec/lti-dl/v2p0/)
+- `[DL, Section title]` → LTI Deep Linking v2.0
+  (https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec)
 - `[Sec §X]` → 1EdTech Security Framework v1.0
   (https://www.imsglobal.org/spec/security/v1p0/)
-- `[Core §X]` → LTI Core Specification v1.3
-  (https://www.imsglobal.org/spec/lti/v1p3/)
-- `[AGS §X]` → LTI Assignment and Grade Services v2.0
-  (https://www.imsglobal.org/spec/lti-ags/v2p0/)
+- `[Core, Section title]` → LTI Core Specification v1.3
+  (https://standards.1edtech.org/lti/specifications/core/lti-spec)
+- `[AGS, Section title]` → LTI Assignment and Grade Services v2.0
+  (https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec)
 
 **Prerequisites**: LTI 1.3 Core launch flow (already implemented). The
 `DeepLinkingSettings` claim is already parsed from launch JWTs
@@ -77,7 +77,7 @@ defp validate_message_type(claims) do
   case claims[@lti <> "message_type"] do
     "LtiResourceLinkRequest" -> {:ok, "LtiResourceLinkRequest"}
     "LtiDeepLinkingRequest" -> {:ok, "LtiDeepLinkingRequest"}
-    nil -> {:error, MissingClaim.exception(claim: "message_type", spec_ref: "Core §5.3.1")}
+    nil -> {:error, MissingClaim.exception(claim: "message_type", spec_ref: "Core, Message type claim")}
     other -> {:error, InvalidClaim.exception(claim: "message_type", ...)}
   end
 end
@@ -91,14 +91,14 @@ The validation rules differ by message type:
 |-------|--------------------------|------------------------|
 | `message_type` | REQUIRED, `"LtiResourceLinkRequest"` | REQUIRED, `"LtiDeepLinkingRequest"` |
 | `version` | REQUIRED, `"1.3.0"` | REQUIRED, `"1.3.0"` |
-| `deployment_id` | REQUIRED | REQUIRED [DL §4.4.4] |
+| `deployment_id` | REQUIRED | REQUIRED [DL, Deployment ID] |
 | `target_link_uri` | REQUIRED | REQUIRED (tool's DL endpoint) |
-| `resource_link` | REQUIRED [Core §5.3.5] | NOT present [DL §4.4] |
-| `roles` | REQUIRED [Core §5.3.7] | OPTIONAL [DL §4.4.9] |
-| `sub` | REQUIRED (unless `allow_anonymous`) [Core §5.3.6] | OPTIONAL [DL §4.4.5] |
-| `deep_linking_settings` | N/A | REQUIRED [DL §4.4.1] |
+| `resource_link` | REQUIRED [Core, Resource link claim] | NOT present [DL, Deep linking request message] |
+| `roles` | REQUIRED [Core, Roles claim] | OPTIONAL [DL, Role] |
+| `sub` | REQUIRED (unless `allow_anonymous`) [Core, User Identity claims] | OPTIONAL [DL, User] |
+| `deep_linking_settings` | N/A | REQUIRED [DL, Deep linking settings] |
 
-> [DL §4.4]: "The platform sends the same message parameters in the deep
+> [DL, Redirection from platform to tool]: "The platform sends the same message parameters in the deep
 > linking request message as it would in the resource link launch request
 > message with the exception of the resource link claim, along with some
 > additional parameters."
@@ -109,8 +109,8 @@ The validation rules differ by message type:
 defp validate_required_lti_claims(claims, opts) do
   with {:ok, message_type} <- validate_message_type(claims),
        :ok <- validate_version(claims),
-       :ok <- validate_present(claims, @lti <> "deployment_id", "deployment_id", "Core §5.3.3"),
-       :ok <- validate_present(claims, @lti <> "target_link_uri", "target_link_uri", "Core §5.3.4"),
+       :ok <- validate_present(claims, @lti <> "deployment_id", "deployment_id", "Core, LTI Deployment ID claim"),
+       :ok <- validate_present(claims, @lti <> "target_link_uri", "target_link_uri", "Core, Target Link URI"),
        :ok <- validate_message_specific_claims(message_type, claims, opts) do
     :ok
   end
@@ -130,8 +130,8 @@ end
 
 For `LtiDeepLinkingRequest`:
 - `resource_link` is NOT validated (not present in DL requests)
-- `roles` is NOT validated (optional per [DL §4.4.9])
-- `sub` is NOT validated (optional per [DL §4.4.5])
+- `roles` is NOT validated (optional per [DL, Role])
+- `sub` is NOT validated (optional per [DL, User])
 - `deep_linking_settings` IS validated as present
 
 **`validate_deep_linking_settings_present/1`**: Checks that the
@@ -146,7 +146,7 @@ is present.
 defp validate_deep_linking_settings_present(claims) do
   case claims[@dl_settings_key] do
     %{} -> :ok
-    _ -> {:error, MissingClaim.exception(claim: "deep_linking_settings", spec_ref: "DL §4.4.1")}
+    _ -> {:error, MissingClaim.exception(claim: "deep_linking_settings", spec_ref: "DL, Deep linking settings")}
   end
 end
 ```
@@ -176,7 +176,7 @@ No new public functions on `Ltix`. No new return types.
 ### 2.4 DeepLinkingSettings Validation Enhancement
 
 The existing `DeepLinkingSettings.from_json/1` only validates
-`deep_link_return_url` is present. Per [DL §4.4.1], `accept_types` and
+`deep_link_return_url` is present. Per [DL, Deep linking settings], `accept_types` and
 `accept_presentation_document_targets` are also required.
 
 **Change**: Add validation for both required array fields:
@@ -189,7 +189,7 @@ def from_json(%{"deep_link_return_url" => url, "accept_types" => types,
 end
 ```
 
-Missing `accept_types` → `MissingClaim` error referencing [DL §4.4.1].
+Missing `accept_types` → `MissingClaim` error referencing [DL, Deep linking settings].
 Missing `accept_presentation_document_targets` → same.
 
 **Tests** (§2):
@@ -210,7 +210,7 @@ Missing `accept_presentation_document_targets` → same.
 
 ## 3. Content Item Types
 
-The DL spec defines five content item types [DL §3]. Each is represented
+The DL spec defines five content item types [DL, Content Item Types]. Each is represented
 as a struct with a Zoi-validated constructor (`new/1`) and a serializer
 (`to_json/1`).
 
@@ -219,7 +219,7 @@ them; the library serializes them into the response JWT. There is no
 inbound parsing (`from_json/1`) because the tool never receives content
 items — it creates them.
 
-**Type extensions** [DL §3.6]: The spec allows enriching any content
+**Type extensions** [DL, Extending a type]: The spec allows enriching any content
 item type with additional properties keyed by fully qualified URLs.
 Each content item struct includes an `extensions` field
 (`Zoi.map(Zoi.string(), Zoi.any())`, default `%{}`) that is merged
@@ -233,7 +233,8 @@ Several content item types share icon, thumbnail, window, and iframe
 sub-structures. These are represented as plain maps (not structs) for
 simplicity. Zoi map schemas validate their shape at construction time.
 
-**Icon / Thumbnail** [DL §3.1, §3.2, §3.3, §3.5]:
+**Icon / Thumbnail** [DL, Link], [DL, LTI Resource Link], [DL, File],
+[DL, Image]:
 
 ```elixir
 @icon_schema Zoi.map(%{
@@ -243,7 +244,7 @@ simplicity. Zoi map schemas validate their shape at construction time.
 })
 ```
 
-**Window** [DL §3.1, §3.2]:
+**Window** [DL, Link], [DL, LTI Resource Link]:
 
 ```elixir
 @window_schema Zoi.map(%{
@@ -254,7 +255,7 @@ simplicity. Zoi map schemas validate their shape at construction time.
 })
 ```
 
-**Iframe** [DL §3.1, §3.2]:
+**Iframe** [DL, Link], [DL, LTI Resource Link]:
 
 ```elixir
 # For Link type (src is required for iframes on links)
@@ -271,7 +272,7 @@ simplicity. Zoi map schemas validate their shape at construction time.
 })
 ```
 
-**Embed** [DL §3.1]:
+**Embed** [DL, Link]:
 
 ```elixir
 @embed_schema Zoi.map(%{
@@ -287,7 +288,7 @@ single source of truth for key naming — no hand-written mapping in
 
 ### 3.2 `Ltix.DeepLinking.ContentItem.Link`
 
-**Spec basis**: [DL §3.1] A fully qualified URL to a resource hosted on
+**Spec basis**: [DL, Link] A fully qualified URL to a resource hosted on
 the internet.
 
 **Schema, struct, and constructor**:
@@ -345,12 +346,13 @@ into the top-level output via `Map.merge/2`, same pattern as
 
 ### 3.3 `Ltix.DeepLinking.ContentItem.LtiResourceLink`
 
-**Spec basis**: [DL §3.2] A link to an LTI resource, usually delivered
+**Spec basis**: [DL, LTI Resource Link] A link to an LTI resource, usually delivered
 by the same tool.
 
-**Line item sub-structure** [DL §3.2, AGS §4.9]:
+**Line item sub-structure** [DL, LTI Resource Link],
+[AGS, Line Item Declaration through Deep Linking]:
 
-> [DL §3.2]: "A lineItem object that indicates this activity is expected
+> [DL, LTI Resource Link]: "A lineItem object that indicates this activity is expected
 > to receive scores; the platform may automatically create a corresponding
 > line item when the resource link is created."
 
@@ -365,14 +367,14 @@ by the same tool.
 })
 ```
 
-**Custom parameters** [DL §3.2]:
+**Custom parameters** [DL, LTI Resource Link]:
 
 > "A map of key/value custom parameters. Those parameters MUST be included
 > in the LtiResourceLinkRequest payload."
 
 Map values must be strings. `null` is not a valid value.
 
-**Available / Submission** [DL §3.2]:
+**Available / Submission** [DL, LTI Resource Link]:
 
 > `startDateTime` (optional): ISO 8601 date and time when the link
 > becomes accessible.
@@ -445,17 +447,17 @@ sub-structures: `score_maximum` → `scoreMaximum`,
 
 ### 3.4 `Ltix.DeepLinking.ContentItem.File`
 
-**Spec basis**: [DL §3.3] A resource to be transferred from the tool and
+**Spec basis**: [DL, File] A resource to be transferred from the tool and
 stored/processed by the platform.
 
-> [DL §3.3]: "The URL to the resource should be considered short lived
+> [DL, File]: "The URL to the resource should be considered short lived
 > and the platform must process the file within a short time frame
 > (within minutes)."
 
 **Schema, struct, and constructor**:
 
-Note: `media_type` is not in the §3.3 property table but is present in
-the Appendix B example — a spec inconsistency. Included for interop.
+Note: `media_type` is not in the [DL, File] property table but is present in
+the [DL, Deep linking response example] — a spec inconsistency. Included for interop.
 
 ```elixir
 @schema Zoi.struct(__MODULE__, %{
@@ -496,10 +498,10 @@ def new(opts)
 
 ### 3.5 `Ltix.DeepLinking.ContentItem.HtmlFragment`
 
-**Spec basis**: [DL §3.4] An HTML fragment to be embedded in an HTML
+**Spec basis**: [DL, HTML fragment] An HTML fragment to be embedded in an HTML
 document.
 
-> [DL §3.4]: "If the HTML fragment renders a single resource which is
+> [DL, HTML fragment]: "If the HTML fragment renders a a single resource which is
 > also addressable directly, the tool SHOULD use the `link` type with an
 > `embed` code."
 
@@ -538,7 +540,7 @@ top-level output via `Map.merge/2`.
 
 ### 3.6 `Ltix.DeepLinking.ContentItem.Image`
 
-**Spec basis**: [DL §3.5] A URL pointing to an image that SHOULD be
+**Spec basis**: [DL, Image] A URL pointing to an image that SHOULD be
 rendered directly using the HTML `img` tag.
 
 **Schema, struct, and constructor**:
@@ -580,7 +582,7 @@ top-level output via `Map.merge/2`.
 
 ### 3.7 Custom Content Item Types
 
-> [DL §3.7]: "When a new type is added, it must to the minimum contain a
+> [DL, Defining new types]: "When a new type is added, it must to the minimum contain a
 > `type` property and a value that uniquely identifies the new type. To
 > avoid collisions, the value must be a fully qualified URL unless
 > specified otherwise by IMS Global."
@@ -635,10 +637,10 @@ defstruct [:jwt, :return_url]
 
 ### 4.2 `Ltix.DeepLinking.build_response/3` — Build the Response JWT
 
-**Spec basis**: [DL §4.5] Deep linking response message; [Sec §5.2]
+**Spec basis**: [DL, Deep linking response message]; [Sec §5.2]
 Tool-Originating Messages.
 
-> [DL §2.3]: "After encoding the deep linking return message as a JWT,
+> [DL, Redirection back to the platform]: "After encoding the deep linking return message as a JWT,
 > the tool MUST always perform this redirection using an auto-submitted
 > form as an HTTP POST request using the `JWT` parameter."
 
@@ -693,7 +695,7 @@ def build_response(%LaunchContext{} = context, items \\ [], opts \\ [])
 
 ### 4.3 JWT Construction
 
-**Spec basis**: [DL §4.5] response message claims; [Sec §5.2]
+**Spec basis**: [DL, Deep linking response message] claims; [Sec §5.2]
 tool-originating message signing.
 
 The response JWT contains these claims:
@@ -701,28 +703,28 @@ The response JWT contains these claims:
 | Claim | Value | Source | Spec |
 |-------|-------|--------|------|
 | `iss` | Tool's `client_id` | `context.registration.client_id` | [Sec §5.2.2] |
-| `aud` | Platform's issuer URL | `context.registration.issuer` | [DL §4.5.1] |
+| `aud` | Platform's issuer URL | `context.registration.issuer` | [DL, aud] |
 | `exp` | Current time + 300s | Generated | [Sec §5.2.2] |
 | `iat` | Current time | Generated | [Sec §5.2.2] |
 | `nonce` | Fresh UUID | Generated | [Sec §5.2.2] |
 | `azp` | Platform's issuer URL | `context.registration.issuer` | [Sec §5.2.2] ¹ |
-| `deployment_id` | Deployment ID | `context.deployment.deployment_id` | [DL §4.5.4] |
-| `message_type` | `"LtiDeepLinkingResponse"` | Constant | [DL §4.5.2] |
-| `version` | `"1.3.0"` | Constant | [DL §4.5.3] |
-| `content_items` | Serialized items array | From items parameter | [DL §4.5.6] |
-| `data` | Opaque value from request | `settings.data` | [DL §4.5.5] |
-| `msg` | User message | From opts | [DL §4.5.7] |
-| `log` | Log message | From opts | [DL §4.5.8] |
-| `errormsg` | Error message | From opts `:error_message` | [DL §4.5.9] |
-| `errorlog` | Error log | From opts `:error_log` | [DL §4.5.10] |
+| `deployment_id` | Deployment ID | `context.deployment.deployment_id` | [DL, Deployment ID] |
+| `message_type` | `"LtiDeepLinkingResponse"` | Constant | [DL, Message type] |
+| `version` | `"1.3.0"` | Constant | [DL, LTI version] |
+| `content_items` | Serialized items array | From items parameter | [DL, Content items] |
+| `data` | Opaque value from request | `settings.data` | [DL, Data] |
+| `msg` | User message | From opts | [DL, Message] |
+| `log` | Log message | From opts | [DL, Log] |
+| `errormsg` | Error message | From opts `:error_message` | [DL, Error message] |
+| `errorlog` | Error log | From opts `:error_log` | [DL, ErrorLog] |
 
-¹ **`azp` value**: The DL spec's Appendix B example incorrectly shows
+¹ **`azp` value**: The DL spec's [DL, Deep linking response example] incorrectly shows
 `azp` set to the tool's `client_id` (matching `iss`). This contradicts
 [Sec §5.2.2], which says for tool-originating messages: "If present,
 \[`azp`\] MUST contain the same value as in the `aud` Claim." The
 platform validation rule [Sec §5.2.3 rule 5] confirms: "the Platform
 SHOULD verify that its Issuer URL is the Claim Value." The `azp` claim
-means "authorized party — the party to which the JWT was issued." The
+means "Authorized party - the party to which the Tool JWT was issued." The
 tool issues the JWT *to* the platform, so `azp` = platform's issuer URL
 = `aud`. We follow the normative text, not the buggy example.
 Although `azp` is optional and redundant when `aud` is a single value,
@@ -730,12 +732,13 @@ we include it per the robustness principle — be conservative in what you
 send. Some platforms may check for it, and sending a correct value costs
 nothing.
 
-> [DL §4.5.1]: "the required `aud` must contain the case-sensitive URL
+> [DL, aud]: "the required `aud` must contain the case-sensitive URL
 > used by the Platform to identify itself as an Issuer, that is the `iss`
 > value in the Deep Linking request message."
 
-> [DL §4.5.5]: "The `data` value must match the value of the `data`
-> property of the `deep_linking_settings` claim from the
+> [DL, Data]: "The `https://purl.imsglobal.org/spec/lti-dl/claim/data`
+> value must match the value of the `data` property of the
+> `https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings` claim from the
 > `LtiDeepLinkingRequest` message. This claim is required if present in
 > LtiDeepLinkingRequest message."
 
@@ -798,7 +801,7 @@ the platform's `deep_linking_settings`:
    than required — we prefer to fail early rather than silently send
    data the platform will discard.
 
-> [DL §4.4.1 `accept_lineitem`]: "False indicates line items will be
+> [DL, Deep linking settings, `accept_lineitem`]: "False indicates line items will be
 > ignored. True indicates the platform will create a line item when
 > creating the resource link."
 
@@ -848,7 +851,7 @@ Raised when a content item's type is not in the platform's
 ```elixir
 use Splode.Error, fields: [:type, :accept_types, :spec_ref], class: :invalid
 
-# spec_ref: "DL §4.4.1"
+# spec_ref: "DL, Deep linking settings"
 def message(%{type: type, accept_types: accepted}) do
   "Content item type #{inspect(type)} is not accepted; platform accepts: #{inspect(accepted)}"
 end
@@ -861,7 +864,7 @@ Raised when multiple items are returned but `accept_multiple` is `false`.
 ```elixir
 use Splode.Error, fields: [:count, :spec_ref], class: :invalid
 
-# spec_ref: "DL §4.4.1"
+# spec_ref: "DL, Deep linking settings"
 def message(%{count: count}) do
   "#{count} content items returned but platform does not accept multiple items"
 end
@@ -875,7 +878,7 @@ Raised when a content item includes a `line_item` but the platform's
 ```elixir
 use Splode.Error, fields: [:spec_ref], class: :invalid
 
-# spec_ref: "DL §4.4.1"
+# spec_ref: "DL, Deep linking settings"
 def message(_) do
   "Content item includes a line_item but the platform does not accept line items"
 end
@@ -1036,7 +1039,7 @@ testable state.
 
 1. **`DeepLinkingSettings.from_json/1` validation** — validate
    `accept_types` and `accept_presentation_document_targets` as required
-   [DL §4.4.1]
+   [DL, Deep linking settings]
 
 2. **`Ltix.OIDC.Callback` message type handling** — accept
    `LtiDeepLinkingRequest`, branch validation per message type
@@ -1049,7 +1052,7 @@ testable state.
 - [x] DL requests without `resource_link` and `roles` claims succeed
 - [x] DL requests without `deep_linking_settings` return `MissingClaim`
 - [x] `DeepLinkingSettings.from_json/1` validates `accept_types` and
-      `accept_presentation_document_targets` as required [DL §4.4.1]
+      `accept_presentation_document_targets` as required [DL, Deep linking settings]
 - [x] `build_launch_context(platform, message_type: :deep_linking)`
       produces a DL context with `deep_linking_settings` populated
 - [x] Existing resource link launch tests pass unchanged
@@ -1070,14 +1073,15 @@ signing. Each module is independent.
 
 **Acceptance criteria**:
 - [X] Each content item type serializes to the correct JSON structure
-      with `"type"` field [DL §3.1–§3.5]
+      with `"type"` field [DL, Link], [DL, LTI Resource Link], [DL, File],
+      [DL, HTML fragment], [DL, Image]
 - [X] Zoi validates required fields (e.g., `url` for Link,
       `html` for HtmlFragment)
 - [X] Sub-structures serialize to camelCase (`scoreMaximum`,
       `targetName`, `startDateTime`, etc.)
 - [X] `nil` / absent optional fields are excluded from JSON output
 - [X] `LtiResourceLink.new/1` validates `line_item.score_maximum` > 0
-- [X] Custom parameter map values must be strings [DL §3.2]
+- [X] Custom parameter map values must be strings [DL, LTI Resource Link]
 
 ### Phase 2: Response Builder
 
@@ -1095,19 +1099,20 @@ signing. Each module is independent.
 **Acceptance criteria**:
 - [x] `build_response/3` returns `{:ok, %Response{}}` with signed JWT
       and return URL
-- [x] JWT `iss` = `client_id`, `aud` = platform issuer [DL §4.5.1]
-- [x] JWT includes `deployment_id` from context [DL §4.5.4]
-- [x] JWT `message_type` = `"LtiDeepLinkingResponse"` [DL §4.5.2]
-- [x] JWT `version` = `"1.3.0"` [DL §4.5.3]
-- [x] `data` echoed from `deep_linking_settings.data` [DL §4.5.5]
-- [x] `data` omitted when not present in settings [DL §4.5.5]
+- [x] JWT `iss` = `client_id`, `aud` = platform issuer [Sec §5.2.2], [DL, aud]
+- [x] JWT includes `deployment_id` from context [DL, Deployment ID]
+- [x] JWT `message_type` = `"LtiDeepLinkingResponse"` [DL, Message type]
+- [x] JWT `version` = `"1.3.0"` [DL, LTI version]
+- [x] `data` echoed from `deep_linking_settings.data` [DL, Data]
+- [x] `data` omitted when not present in settings [DL, Data]
 - [x] Content items serialized into
       `https://purl.imsglobal.org/spec/lti-dl/claim/content_items` array
-      [DL §4.5.6]
+      [DL, Content items]
 - [x] Empty items list produces empty `content_items` array
 - [x] `msg`, `log`, `error_message`, `error_log` opts map to JWT claims
-      `msg`, `log`, `errormsg`, `errorlog` [DL §4.5.7–§4.5.10]
-- [x] JWT signed with `registration.tool_jwk` using RS256 [Sec §5.2]
+      `msg`, `log`, `errormsg`, `errorlog` [DL, Message], [DL, Log],
+      [DL, Error message], [DL, ErrorLog]
+- [x] JWT signed with `registration.tool_jwk` using RS256 [Sec §5.2.1, §6.1]
 - [x] JOSE header includes `kid` from tool JWK [Sec §6.3]
 - [x] `build_response/3` on non-DL context returns `InvalidMessageType`
 - [x] Items with types not in `accept_types` return
@@ -1126,7 +1131,7 @@ signing. Each module is independent.
     - Building content items (each type with examples)
     - Building and sending the response
     - Validation: `accept_types`, `accept_multiple`, `accept_lineitem`
-    - Line item declaration through deep linking [AGS §4.9]
+    - Line item declaration through deep linking [AGS, Line Item Declaration through Deep Linking]
     - Custom content item types
     - Testing deep linking flows
 
@@ -1196,7 +1201,7 @@ signing. Each module is independent.
 
 3. **No content item protocol**: Pattern matching + raw map fallback
    handles serialization dispatch. The five standard types are fixed by
-   the spec. Custom types use raw maps [DL §3.7]. A protocol can be
+   the spec. Custom types use raw maps [DL, Defining new types]. A protocol can be
    added later if needed.
 
 4. **`data` echoing is automatic**: `build_response/3` reads
@@ -1216,7 +1221,7 @@ signing. Each module is independent.
    submitting items that the platform will reject.
 
 7. **No HTML generation in Ltix**: The auto-submit form POST
-   ([DL §2.3]) is a framework concern. Ltix returns a `%Response{}`
+   ([DL, Redirection back to the platform]) is a framework concern. Ltix returns a `%Response{}`
    with the signed JWT and return URL; delivering it via HTML form is
    left to framework-specific packages like `ltix_phoenix`.
 
@@ -1233,7 +1238,7 @@ signing. Each module is independent.
 10. **`accept_types` / `accept_presentation_document_targets` validation**:
     The current `DeepLinkingSettings.from_json/1` only validates
     `deep_link_return_url`. Both `accept_types` and
-    `accept_presentation_document_targets` are required per [DL §4.4.1].
+    `accept_presentation_document_targets` are required per [DL, Deep linking settings].
     Fixing this is included as Phase 0 step 1.
 
 11. **Zoi for schema validation**: All modules use Zoi. `Zoi.struct/3`
@@ -1250,7 +1255,7 @@ signing. Each module is independent.
     with wildcards and parameters is complex, and the platform will
     reject invalid types anyway. Not worth the complexity.
 
-13. **Type extensions via `extensions` field** [DL §3.6]: Standard
+13. **Type extensions via `extensions` field** [DL, Extending a type]: Standard
     content item types can be enriched with custom properties keyed by
     fully qualified URLs. Each content item struct carries an
     `extensions` field (`%{String.t() => term()}`, default `%{}`) that

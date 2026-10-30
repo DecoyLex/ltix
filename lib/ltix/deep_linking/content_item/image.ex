@@ -20,7 +20,7 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
       "Ltix.DeepLinking.ContentItem.Image field :url is required"
   """
 
-  # [DL §3.5](https://www.imsglobal.org/spec/lti-dl/v2p0/#image)
+  # [DL, Image](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#image)
   use Ltix.DeepLinking.ContentItemType,
     type: "image",
     fields: [

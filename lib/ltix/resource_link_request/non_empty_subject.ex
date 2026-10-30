@@ -7,7 +7,7 @@ defmodule Ltix.ResourceLinkRequest.NonEmptySubject do
   `subject`. A plugin can replace the check with an `Ltix.Claims.Override`.
   """
 
-  # [Core §5.3.6](https://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims)
+  # [Core, User Identity claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#user-identity-claims)
   use Ltix.Claims.Check, claim: "sub", message_types: ["LtiResourceLinkRequest"]
 
   @impl Ltix.Claims.Check

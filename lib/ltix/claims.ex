@@ -182,7 +182,7 @@ defmodule Ltix.Claims do
     end)
   end
 
-  # [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims)
+  # [Core, Services exposed as additional claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#services-exposed-as-additional-claims)
   defp validate_endpoint(nil, service, _endpoint) do
     {:error,
      ServiceNotAvailable.exception(

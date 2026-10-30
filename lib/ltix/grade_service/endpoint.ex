@@ -9,7 +9,7 @@ defmodule Ltix.GradeService.Endpoint do
   an example.
   """
 
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint",
     name: :ags_endpoint,
@@ -39,7 +39,7 @@ defmodule Ltix.GradeService.Endpoint do
 
   alias Ltix.HTTP
 
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   @https_url Zoi.refine(Zoi.string(), {HTTP, :https_url, []})
 
@@ -80,7 +80,7 @@ defmodule Ltix.GradeService.Endpoint do
   """
   @impl Ltix.Claim
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
   def new(attributes) when is_list(attributes) or is_map(attributes),
     do: Ltix.Type.new(__MODULE__, attributes, schema: @new_schema)

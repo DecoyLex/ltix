@@ -40,7 +40,7 @@ The design decisions below were settled during planning and are recorded in "Des
 - `guides/upgrading-to-0.3.md` covers every breaking change.
 
 ### Key Discoveries:
-- Core §5.3.7 requires a non-empty `roles` list to contain at least one standard vocabulary role, so a platform's own role URIs always arrive alongside a standard one. That is why roles need no parsing extension point.
+- [Core, Roles claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#roles-claim) requires a non-empty `roles` list to contain at least one standard vocabulary role, so a platform's own role URIs always arrive alongside a standard one. That is why roles need no parsing extension point.
 - Core 1.3.0 and 1.3.1 both send `version: "1.3.0"`, so a message never says which revision it follows. The bundled Core plugin follows 1.3.0.
 - Messages of every kind repeat the same claim shapes, while required claims vary by message type. Parsing is shared and per claim, and required-claim validation is per message type.
 - Zoi can't combine plugins' contributions. `Zoi.extend` drops refinements, replaces fields silently, and fails on string keys. Ltix owns a small validator value and keeps Zoi for claim and field shapes.
@@ -283,7 +283,7 @@ The Core 1.3.0 owners cover:
 defmodule Ltix.Claims.LaunchPresentation do
   @moduledoc "How the platform displays the tool."
 
-  # [Core §5.4.4](https://www.imsglobal.org/spec/lti/v1p3/#launch-presentation-claim)
+  # [Core, Launch presentation claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#launch-presentation-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/launch_presentation",
     name: :launch_presentation,
@@ -338,7 +338,7 @@ Ltix.Role.has?(launch.claims.roles, Ltix.Role.teaching_assistant())
 defmodule Ltix.ResourceLinkRequest do
   @moduledoc "A user follows a resource link into the tool."
 
-  # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
+  # [Core, Required message claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#required-message-claims)
   use Ltix.Launch.MessageType
 
   @impl true
@@ -620,7 +620,7 @@ Deep Linking becomes a bundled plugin with its message type, settings owner, con
 defmodule Ltix.DeepLinkingRequest do
   @moduledoc "A user asks the tool for content to place."
 
-  # [DL §4.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-request-message)
+  # [DL, Deep linking request message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-request-message)
   use Ltix.Launch.MessageType
 
   @impl true
@@ -640,7 +640,7 @@ end
 defmodule Ltix.DeepLinking.ContentItem.File do
   @moduledoc "A file the platform downloads or links to."
 
-  # [DL §3.3](https://www.imsglobal.org/spec/lti-dl/v2p0/#file)
+  # [DL, File](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#file)
   use Ltix.DeepLinking.ContentItemType,
     type: "file",
     fields: [
@@ -651,7 +651,7 @@ defmodule Ltix.DeepLinking.ContentItem.File do
       media_type: Zoi.string(description: "Media type of the file, such as `image/png`.") |> Zoi.optional()
     ]
 
-  # `accept_media_types` "only applies to File types" (DL §4.4.1)
+  # `accept_media_types` "only applies to File types" ([DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings))
   @impl true
   def check(%{media_type: media_type}, %{accept_media_types: accepted}) do
     if accepted?(media_type, accepted), do: :ok, else: {:error, {:media_type_not_accepted, media_type}}
@@ -977,13 +977,13 @@ end
 - content item `new/1`
 
 ## Spec References
-- [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims), required message claims
-- [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim), roles
-- [Core §5.4.3](https://www.imsglobal.org/spec/lti/v1p3/#role-scope-mentor-claim), `role_scope_mentor`
-- [Core §6.1](https://www.imsglobal.org/spec/lti/v1p3/#services-exposed-as-additional-claims), service claims
+- [Core, Required message claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#required-message-claims), required message claims
+- [Core, Roles claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#roles-claim), roles
+- [Core, Role-scope mentor claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-scope-mentor-claims), `role_scope_mentor`
+- [Core, Services exposed as additional claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#services-exposed-as-additional-claims), service claims
 - [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant), token requests
-- [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim), AGS claim and scopes
-- [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings), deep linking settings
+- [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim), AGS claim and scopes
+- [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings), deep linking settings
 
 ## References
 - Spec: `plans/2026-10-18-plugin-system.md`, whose "Spike for Hooks" section has the building blocks this plan starts from

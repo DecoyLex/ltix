@@ -1,7 +1,7 @@
 defmodule Ltix.MembershipsService do
   @moduledoc """
   Query context membership (roster) from a platform using the
-  [Names and Roles Provisioning Service (NRPS) v2.0](https://www.imsglobal.org/spec/lti-nrps/v2p0/).
+  [Names and Role Provisioning Services (NRPS) v2.0](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec).
 
   Given a successful LTI 1.3 launch that includes the memberships endpoint
   claim, retrieve the list of users enrolled in the course or resource link.
@@ -192,7 +192,7 @@ defmodule Ltix.MembershipsService do
 
   #{Zoi.describe(@list_members_schema)}
   """
-  # [NRPS §2.4](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+  # [NRPS, Using the service](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#using-the-service)
   @spec list_members(Client.t(), keyword()) ::
           {:ok, MembershipContainer.t()} | {:error, Exception.t()}
   def list_members(%Client{} = client, opts \\ []) do
@@ -235,7 +235,7 @@ defmodule Ltix.MembershipsService do
 
   #{Zoi.describe(@stream_members_schema)}
   """
-  # [NRPS §2.4.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#limit-query-parameter)
+  # [NRPS, Limit query parameter](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#limit-query-parameter)
   @spec stream_members(Client.t(), keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_members(%Client{} = client, opts \\ []) do
@@ -280,7 +280,7 @@ defmodule Ltix.MembershipsService do
   # when `url` is an error. Returns `AccessTokenExpired` when the client's
   # token has expired, and `ScopeMismatch` when it wasn't granted the
   # memberships scope.
-  # [NRPS §3.6.1.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#scope-for-access)
+  # [NRPS, Scope and Service security](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#scope-and-service-security)
   defp run(operation, client, url, request) do
     metadata = %{endpoint: requested_url(url)}
 
@@ -339,7 +339,7 @@ defmodule Ltix.MembershipsService do
   end
 
   # A container without a context is parsed as one with a `null` context.
-  # [NRPS §2.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+  # [NRPS, Membership container media type](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#membership-container-media-type)
   defp parse_container(%{"members" => members} = body, plugins) when is_list(members) do
     Ltix.Type.from_json(MembershipContainer, Map.put_new(body, "context", nil),
       plugins: plugins,
@@ -372,7 +372,7 @@ defmodule Ltix.MembershipsService do
 
   defp client_endpoint(%Client{endpoints: %{__MODULE__ => endpoint}}), do: {:ok, endpoint}
 
-  # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
+  # [NRPS, LTI 1.3 integration](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#lti-1-3-integration)
   defp client_endpoint(_client) do
     {:error,
      ServiceNotAvailable.exception(
@@ -382,8 +382,9 @@ defmodule Ltix.MembershipsService do
      )}
   end
 
-  # [NRPS §2.4.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#role-query-parameter)
-  # [NRPS §3](https://www.imsglobal.org/spec/lti-nrps/v2p0/#resource-link-level-membership-service)
+  # [NRPS, Role query parameter](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#role-query-parameter)
+  # [NRPS, Limit query parameter](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#limit-query-parameter)
+  # [NRPS, Resource Link Membership Service](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#resource-link-membership-service)
   defp query_params(opts) do
     for {option, param} <- [role: "role", per_page: "limit", resource_link_id: "rlid"],
         value = Keyword.get(opts, option),

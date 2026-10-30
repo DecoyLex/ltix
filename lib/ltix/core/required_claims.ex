@@ -4,9 +4,9 @@ defmodule Ltix.Core.RequiredClaims do
   type, including undeclared ones.
   """
 
-  # [Core §5.3.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-version-claim)
-  # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
-  # [Core §5.3.4](https://www.imsglobal.org/spec/lti/v1p3/#target-link-uri)
+  # [Core, LTI Version claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-version-claim)
+  # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
+  # [Core, Target Link URI](https://standards.1edtech.org/lti/specifications/core/lti-spec#target-link-uri)
   use Ltix.Launch.EveryMessageType
 
   @impl Ltix.Launch.MessageType.Requirements

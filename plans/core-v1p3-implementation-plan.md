@@ -7,11 +7,12 @@ No Advantage service *API calls* — just parsing the claims platforms send in l
 **Guiding principle**: Every line of every function must clearly communicate which
 passage of the spec it implements. Spec references use the format:
 
-- `[Core §X.Y.Z]` → LTI 1.3 Core Specification (https://www.imsglobal.org/spec/lti/v1p3/)
-- `[Sec §X.Y.Z]` → 1EdTech Security Framework v1.0 (https://www.imsglobal.org/spec/security/v1p0/)
-- `[Cert §X.Y.Z]` → LTI Advantage Conformance Certification Guide (https://www.imsglobal.org/spec/lti/v1p3/cert)
+- `[Core, Section title]` → LTI 1.3 Core Specification (https://standards.1edtech.org/lti/specifications/core/lti-spec), cited by section title
+- `[Sec §X.Y.Z]` → 1EdTech Security Framework v1.0 (https://www.imsglobal.org/spec/security/v1p0/), cited by section number
+- `[Cert, Section title]` → LTI Advantage Conformance Certification Guide (https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide), cited by section title
+- `[DL, Section title]` → LTI Deep Linking Specification (https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec), cited by section title
 
-**Approach**: TDD, driven by the Certification Guide test cases [Cert §6].
+**Approach**: TDD, driven by the Certification Guide test cases [Cert, Tool Certification].
 Each module is developed test-first, with tests named after the conformance
 scenario they cover.
 
@@ -46,8 +47,8 @@ registrations).
 lib/
   ltix.ex                          # Public API facade
   ltix/
-    registration.ex                # Platform registration data [Core §3.1.2, §3.1.3]
-    deployment.ex                  # Deployment identity [Core §3.1.3]
+    registration.ex                # Platform registration data [Core, LTI Domain Model], [Core, Tool Deployment]
+    deployment.ex                  # Deployment identity [Core, Tool Deployment]
     launch_context.ex              # Parsed & validated launch (output struct)
     oidc/
       login_initiation.ex          # Step 1: Handle login initiation [Sec §5.1.1.1]
@@ -58,25 +59,25 @@ lib/
       key_set.ex                   # JWKS fetching and caching [Sec §6.3, §6.4]
     launch_claims.ex               # Main claims struct + from_json/2 entry point
     launch_claims/
-      role.ex                      # %Role{type, name, sub_role, uri} + predicates [Core §5.3.7, §A.2]
-      context.ex                   # %Context{id, label, title, type} [Core §5.4.1]
-      resource_link.ex             # %ResourceLink{id, title, description} [Core §5.3.5]
-      launch_presentation.ex       # %LaunchPresentation{...} [Core §5.4.4]
-      tool_platform.ex             # %ToolPlatform{guid, name, ...} [Core §5.4.2]
-      lis.ex                       # %Lis{person_sourcedid, ...} [Core §5.4.5]
-      ags_endpoint.ex              # %AgsEndpoint{scope, lineitems, lineitem} [Core §6.1]
-      nrps_endpoint.ex             # %NrpsEndpoint{context_memberships_url, ...} [Core §6.1]
-      deep_linking_settings.ex     # %DeepLinkingSettings{deep_link_return_url, ...} [Core §6.1]
+      role.ex                      # %Role{type, name, sub_role, uri} + predicates [Core, Roles claim], [Core, Role vocabularies]
+      context.ex                   # %Context{id, label, title, type} [Core, Context claim]
+      resource_link.ex             # %ResourceLink{id, title, description} [Core, Resource link claim]
+      launch_presentation.ex       # %LaunchPresentation{...} [Core, Launch presentation claim]
+      tool_platform.ex             # %ToolPlatform{guid, name, ...} [Core, Platform instance claim]
+      lis.ex                       # %Lis{person_sourcedid, ...} [Core, Learning Information Services LIS claim]
+      ags_endpoint.ex              # %AgsEndpoint{scope, lineitems, lineitem} [Core, Services exposed as additional claims]
+      nrps_endpoint.ex             # %NrpsEndpoint{context_memberships_url, ...} [Core, Services exposed as additional claims]
+      deep_linking_settings.ex     # %DeepLinkingSettings{deep_link_return_url, ...} [DL, Deep linking settings]
     errors.ex                      # Splode root: use Splode, error_classes: [...]
     errors/
       invalid.ex                   # Error class for spec-violating input
       invalid/
         missing_claim.ex           # Missing required LTI claim
         invalid_claim.ex           # Claim present but wrong value/format
-        invalid_json.ex            # Malformed JSON/JWT structure [Cert §6.1.1 "Invalid LTI message"]
+        invalid_json.ex            # Malformed JSON/JWT structure [Cert, Known "Bad" Payloads, "Invalid LTI message"]
         missing_parameter.ex       # Missing OIDC login parameter [Sec §5.1.1.1]
         registration_not_found.ex  # Unknown issuer/client_id [Sec §5.1.1.1]
-        deployment_not_found.ex    # Unknown deployment_id [Core §3.1.3]
+        deployment_not_found.ex    # Unknown deployment_id [Core, Tool Deployment]
       security.ex                  # Error class for security violations
       security/
         signature_invalid.ex       # JWT signature verification failed [Sec §5.1.3 step 1]
@@ -87,9 +88,9 @@ lib/
         nonce_missing.ex            # No nonce in JWT [Sec §5.1.3 step 9]
         nonce_reused.ex            # Nonce previously seen [Sec §5.1.3 step 9]
         nonce_not_found.ex         # Nonce not issued by this tool [Sec §5.1.3 step 9]
-        state_mismatch.ex          # CSRF state doesn't match [Sec §7.3.1]
-        kid_missing.ex             # No kid in JWT header [Cert §6.1.1 "No KID Sent"]
-        kid_not_found.ex           # kid not in JWKS [Cert §6.1.1 "Incorrect KID"]
+        state_mismatch.ex          # CSRF state doesn't match [Sec §5.1.1.4]
+        kid_missing.ex             # No kid in JWT header [Cert, Known "Bad" Payloads, "No KID Sent in JWT header"]
+        kid_not_found.ex           # kid not in JWKS [Cert, Known "Bad" Payloads, "Incorrect KID in JWT header"]
       unknown.ex                   # Catch-all error class
       unknown/
         unknown.ex                 # Generic unexpected error
@@ -105,7 +106,7 @@ test/
       key_set_test.exs
     launch_claims_test.exs           # Claims parsing: OIDC, LTI, nested, extensions
     launch_claims/
-      role_test.exs                  # Comprehensive role URI parsing [Core §A.2]
+      role_test.exs                  # Comprehensive role URI parsing [Core, Role vocabularies]
       context_test.exs
       resource_link_test.exs
       launch_presentation_test.exs
@@ -116,7 +117,7 @@ test/
       deep_linking_settings_test.exs
     integration/
       full_launch_test.exs         # End-to-end launch flow [Sec §5.1.1]
-      certification_test.exs       # Tests mapped to [Cert §6.1] scenarios
+      certification_test.exs       # Tests mapped to [Cert, LTI Core testing] scenarios
   support/
     jwt_helper.ex                  # RSA key generation, JWT minting for tests
 ```
@@ -133,18 +134,18 @@ flow top-down).
 
 ### 2.1 `Ltix.Registration` — Platform Registration Data
 
-**Spec basis**: [Core §3.1.2] LTI Domain Model — platform-tool relationship;
-[Core §3.1.3] Tool Deployment — registration and deployment model;
+**Spec basis**: [Core, LTI Domain Model] — platform-tool relationship;
+[Core, Tool Deployment] — registration and deployment model;
 [Sec §5.1.1.1] Third-party Initiated Login — tool must know platform's endpoints
 prior to launch (out-of-band registration).
 
-> [Core §3.1.3]: "When a user deploys a tool within their tool platform, the
+> [Core, Tool Deployment]: "When a user deploys a tool within their tool platform, the
 > platform MUST generate an immutable `deployment_id` identifier to identify the
 > integration."
 
 A struct holding everything the tool knows about a registered platform.
 
-> [Core §3.1.3]: "A tool MUST allow multiple deployments on a given platform to
+> [Core, Tool Deployment]: "A tool MUST thus allow multiple deployments on a given platform to
 > share the same `client_id` and the security contract attached to it."
 
 This means the data model supports a **one-to-many relationship** from
@@ -169,8 +170,8 @@ defstruct [
   > and, no query or fragment components."
 - `client_id` MUST be non-empty string [Sec §5.1.1.2: tool must send `client_id`]
 - `auth_endpoint` MUST be HTTPS URL
-  > [Sec §3]: "Implementers MUST use TLS 1.2 and/or TLS 1.3... Implementers MUST NOT use Secure Sockets Layer (SSL)."
-  > [Cert §4.2]: "All communication endpoints MUST be secured with TLS (SSL-alone is expressly forbidden)."
+  > [Sec §3]: "Implementers MUST use TLS 1.2 (see [RFC5246]) and/or TLS 1.3 (see [RFC8446])... Implementers MUST NOT use Secure Sockets Layer (SSL)."
+  > [Cert, General Requirements for Certification Testing Setup]: "All communication endpoints MUST be secured with TLS (SSL-alone is expressly forbidden)."
 - `jwks_uri` MUST be HTTPS URL [Sec §3; Sec §6.3]
 - `token_endpoint` MUST be HTTPS URL when present [Sec §3]
 
@@ -187,21 +188,21 @@ defstruct [
 
 ### 2.1b `Ltix.Deployment` — Deployment Identity
 
-**Spec basis**: [Core §3.1.3] Tool Deployment; [Core §5.3.3] deployment_id claim.
+**Spec basis**: [Core, Tool Deployment]; [Core, LTI Deployment ID claim].
 
-> [Core §3.1.3]: "When a user deploys a tool within their tool platform, the
+> [Core, Tool Deployment]: "When a user deploys a tool within their tool platform, the
 > platform MUST generate an immutable `deployment_id` identifier to identify the
 > integration. A platform MUST generate a unique `deployment_id` for each tool
 > it integrates with."
 >
-> [Core §3.1.3]: "Every message between the platform and tool MUST include the
+> [Core, Tool Deployment]: "Every message between the platform and tool MUST include the
 > `deployment_id` in addition to the `client_id`."
 
 A struct representing a single deployment of a tool on a platform:
 
 ```elixir
 defstruct [
-  :deployment_id       # [Core §5.3.3] Case-sensitive string, ≤ 255 ASCII chars
+  :deployment_id       # [Core, LTI Deployment ID claim] Case-sensitive string, ≤ 255 ASCII chars
 ]
 
 @type t :: %__MODULE__{
@@ -212,15 +213,15 @@ defstruct [
 **Validation rules**:
 - `deployment_id` MUST be a non-empty string
 - `deployment_id` MUST NOT exceed 255 ASCII characters in length
-  > [Core §5.3.3]: "The required deployment_id claim's value contains a
-  > case-sensitive string that identifies the platform-tool integration. It MUST
-  > NOT exceed 255 ASCII characters in length."
+  > [Core, LTI Deployment ID claim]: "The required [deployment_id] claim's value contains a
+  > case-sensitive string that identifies the platform-tool integration governing
+  > the message. It MUST NOT exceed 255 ASCII characters in length."
 - `deployment_id` is case-sensitive — comparisons MUST be exact byte match
 
 **Tests**:
 - Valid deployment construction
 - Rejection of empty deployment_id
-- Rejection of deployment_id exceeding 255 characters [Core §5.3.3]
+- Rejection of deployment_id exceeding 255 characters [Core, LTI Deployment ID claim]
 - Rejection of non-ASCII deployment_id (> 255 ASCII chars, even if fewer Unicode chars)
 
 ---
@@ -238,7 +239,7 @@ Called during OIDC login initiation [Sec §5.1.1.1]. The `client_id` parameter
 is optional — when not provided by the platform in the login request, the tool
 must be able to locate the registration by issuer alone.
 
-> [Core §4.1.3]: "The new optional parameter `client_id` specifies the client
+> [Core, client_id login parameter]: "The new optional parameter `client_id` specifies the client
 > id for the authorization server that should be used to authorize the
 > subsequent LTI message request."
 """
@@ -251,7 +252,7 @@ Look up a deployment by registration and deployment_id.
 Called during callback validation after the JWT deployment_id claim is
 extracted. The deployment_id is case-sensitive.
 
-> [Core §3.1.3]: "Every message between the platform and tool MUST include
+> [Core, Tool Deployment]: "Every message between the platform and tool MUST include
 > the `deployment_id` in addition to the `client_id`."
 """
 @callback get_deployment(registration :: Registration.t(), deployment_id :: String.t()) ::
@@ -295,8 +296,8 @@ implementation by host apps. The library converts these at the call boundary:
 
 **Spec basis**:
 - Registration lookup: [Sec §5.1.1.1] Tool receives `iss` (and optionally
-  `client_id` per [Core §4.1.3]) and must locate the correct registration.
-  > [Core §4.1.3]: "The new optional parameter `client_id` specifies the client
+  `client_id` per [Core, client_id login parameter]) and must locate the correct registration.
+  > [Core, client_id login parameter]: "The new optional parameter `client_id` specifies the client
   > id for the authorization server that should be used to authorize the
   > subsequent LTI message request."
   The `client_id` may be absent from the login initiation request. When absent,
@@ -312,22 +313,22 @@ implementation by host apps. The library converts these at the call boundary:
   request (the nonce in the JWT must match the nonce sent in Step 2), and
   (2) replay prevention (a nonce must not be accepted twice).
 - Deployment lookup:
-  > [Core §3.1.3]: "When a user deploys a tool within their tool platform, the
+  > [Core, Tool Deployment]: "When a user deploys a tool within their tool platform, the
   > platform MUST generate an immutable `deployment_id` identifier to identify
   > the integration."
   >
-  > [Core §5.3.3]: "The required deployment_id claim's value contains a
-  > case-sensitive string that identifies the platform-tool integration. It MUST
-  > NOT exceed 255 ASCII characters in length. The `deployment_id` is a stable
+  > [Core, LTI Deployment ID claim]: "The required [deployment_id] claim's value contains a
+  > case-sensitive string that identifies the platform-tool integration governing
+  > the message. It MUST NOT exceed 255 ASCII characters in length. The `deployment_id` is a stable
   > locally unique identifier within the `iss` (Issuer)."
 
 ---
 
 ### 2.3 `Ltix.JWT.KeySet` — JWKS Fetching & Caching
 
-**Spec basis**: [Sec §6.3] Key Set URL — "platform publishes JWKS endpoint for
-public key distribution"; [Sec §6.4] Issuer Public Key Rotation — clients
-should periodically refresh key sets; [Cert §4.2.1] "A Platform MUST provide a
+**Spec basis**: [Sec §6.3] Key Set URL — "When systems use Key Sets, they MUST provide
+a URL to the key set"; [Sec §6.4] Issuer Public Key Rotation — clients
+should periodically refresh key sets; [Cert, Requirements for Certification for Learning Platforms] "A Platform MUST provide a
 Well-Known URL (JWKS) for the retrieval of Public Cryptographic keys."
 
 **Responsibilities**:
@@ -353,11 +354,11 @@ Well-Known URL (JWKS) for the retrieval of Public Cryptographic keys."
    JWKS, the tool SHOULD re-fetch the JWKS URL (the platform may have rotated
    keys). To prevent abuse, re-fetch at most once per `kid` miss.
 
-**Tests** (TDD from [Cert §6.1.1] bad payload scenarios):
+**Tests** (TDD from [Cert, Known "Bad" Payloads] bad payload scenarios):
 - Successful JWKS fetch and key selection by `kid` [Sec §6.3]
 - Key selection from JWKS with multiple keys [Sec §6.3]
-- `{:error, %Security.KidNotFound{}}` when JWT `kid` not in JWKS [Cert §6.1.1 "Incorrect KID in JWT header"]
-- `{:error, %Security.KidMissing{}}` when JWT header has no `kid` field [Cert §6.1.1 "No KID Sent in JWT header"]
+- `{:error, %Security.KidNotFound{}}` when JWT `kid` not in JWKS [Cert, Known "Bad" Payloads, "Incorrect KID in JWT header"]
+- `{:error, %Security.KidMissing{}}` when JWT header has no `kid` field [Cert, Known "Bad" Payloads, "No KID Sent in JWT header"]
 - Re-fetch on unknown `kid` (key rotation) [Sec §6.4] — verify only one re-fetch per miss
 - Respect `cache-control: max-age` header for cache TTL [Sec §6.3]
 - `{:error, %Unknown.Unknown{}}` on network failure
@@ -368,13 +369,12 @@ Well-Known URL (JWKS) for the retrieval of Public Cryptographic keys."
 
 **Spec basis**: [Sec §5.1.3] Authentication Response Validation — the nine
 validation steps tools MUST perform on the ID Token; [Sec §5.1.2] ID Token
-structure; [Sec §5.4] JWT Message requirements; [Cert §6.1.1] Known "Bad"
-Payloads.
+structure; [Sec §5.4] JWT Message requirements; [Cert, Known "Bad" Payloads].
 
 **Responsibilities** — implements [Sec §5.1.3] Authentication Response Validation.
 Each step is annotated with its requirement level (MUST/SHOULD/MAY) from the spec:
 
-> [Sec §5.1.3]: Tools "MUST validate ID tokens" by performing the following steps.
+> [Sec §5.1.3]: Tools "MUST validate the ID Token in the token response in the following manner".
 
 1. Decode JWT without verification (to extract header for `kid` lookup) [Sec §5.1.2]
 2. **[MUST] Verify RS256 signature** using platform's public key — Step 1
@@ -388,11 +388,11 @@ Each step is annotated with its requirement level (MUST/SHOULD/MAY) from the spe
    >
    > [Sec §5.4]: "Message Tool JWTs MUST NOT use `none` as the `alg` value."
    >
-   > [Cert §4.2]: "All Learning Platforms and Tools MUST provide the mechanisms
+   > [Cert, General Requirements for Certification Testing Setup]: "All Learning Platforms and Tools MUST provide the mechanisms
    > (the libraries) for signing and verification of signatures for JWTs signed
    > with RSA 256."
    >
-   > [Cert §4.2]: "The use of Symmetric Cryptosystems SHALL NOT be considered
+   > [Cert, General Requirements for Certification Testing Setup]: "The use of Symmetric Cryptosystems SHALL NOT be considered
    > legal and use of them is expressly forbidden."
    >
    > Although the Security Framework says SHOULD for the `alg` check, the
@@ -435,10 +435,10 @@ Each step is annotated with its requirement level (MUST/SHOULD/MAY) from the spe
      > SHOULD verify that it has not yet received this nonce value (within a
      > Tool-defined time window), in order to help prevent replay attacks."
 
-**Tests** (TDD from [Cert §6.1.1]):
+**Tests** (TDD from [Cert, Known "Bad" Payloads]):
 - Valid JWT passes all checks
 - `{:error, %Security.SignatureInvalid{}}` on tampered payload [Sec §5.1.3 step 1]
-- `{:error, %Security.TokenExpired{}}` when `exp` is in the past [Cert §6.1.1 "Timestamps Incorrect"]
+- `{:error, %Security.TokenExpired{}}` when `exp` is in the past [Cert, Known "Bad" Payloads, "Timestamps Incorrect"]
 - `{:error, %Security.IssuerMismatch{}}` when `iss` doesn't match [Sec §5.1.3 step 2]
 - `{:error, %Security.AudienceMismatch{}}` when `client_id` not in `aud` as string [Sec §5.1.3 step 3]
 - `{:error, %Security.AudienceMismatch{}}` when `client_id` not in `aud` as array [Sec §5.1.3 step 3]
@@ -446,17 +446,17 @@ Each step is annotated with its requirement level (MUST/SHOULD/MAY) from the spe
 - Valid when `aud` is an array containing `client_id` [Sec §5.1.2]
 - `{:error, %Security.AudienceMismatch{}}` when multiple audiences but `azp` is wrong [Sec §5.1.3 step 5]
 - `{:error, %Security.AlgorithmNotAllowed{}}` if alg is `none` [Sec §5.4]
-- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is HS256 [Cert §4.2 symmetric forbidden]
-- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is not RS256 [Sec §5.1.3 step 6; Cert §4.2]
+- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is HS256, symmetric forbidden [Cert, General Requirements for Certification Testing Setup]
+- `{:error, %Security.AlgorithmNotAllowed{}}` if alg is not RS256 [Sec §5.1.3 step 6], [Cert, General Requirements for Certification Testing Setup]
 - `{:error, %Security.NonceMissing{}}` when nonce claim absent [Sec §5.1.3 step 9]
 
 ---
 
 ### 2.5 `Ltix.LaunchClaims` — Claim Parsing & Classification
 
-**Spec basis**: [Core §5.3] Required message claims; [Core §5.4] Optional
-message claims; [Sec §5.1.2] ID Token claims; [Core §6.1] Services exposed as
-additional claims; [Core §5.4.7] Vendor-specific extension claims.
+**Spec basis**: [Core, Required message claims]; [Core, Optional message claims];
+[Sec §5.1.2] ID Token claims; [Core, Services exposed as additional claims];
+[Core, Vendor-specific extension claims].
 
 **Architecture** (mirrors AshLti pattern): The `LaunchClaims` module is the main
 struct + `from_json/2` entry point. It uses three mapping tables to classify every
@@ -469,11 +469,11 @@ unrecognized keys into an `extensions` map.
 # Table 1: OIDC standard claims → flat struct fields [Sec §5.1.2]
 @oidc_keys %{
   "iss" => :issuer,              # [Sec §5.1.2] Issuer Identifier (HTTPS URL, no query/fragment)
-  # [Core §5.3.6]: "sub (Required): When included, the sub (Subject) MUST be a
-  #   stable locally unique to the iss (Issuer) identifier for the actual,
-  #   authenticated End-User. It MUST NOT exceed 255 ASCII characters in length
-  #   and is case-sensitive."
-  # [Core §5.3.6.1]: "The platform may in these cases not include the sub claim
+  # [Core, User Identity claims]: "sub (Required): ... When included, per OIDC specifications,
+  #   the sub (Subject) MUST be a stable locally unique to the iss (Issuer)
+  #   identifier for the actual, authenticated End-User that initiated the launch.
+  #   It MUST NOT exceed 255 ASCII characters in length and is case-sensitive."
+  # [Core, Anonymous launch case]: "The platform may in these cases not include the sub claim
   #   or any other user identity claims. The tool must interpret the lack of a sub
   #   claim as a launch request coming from an anonymous user."
   "sub" => :subject,
@@ -484,8 +484,8 @@ unrecognized keys into an `extensions` map.
   "azp" => :authorized_party,    # [Sec §5.1.2] Required if multiple audiences; MUST contain Tool ID
   "email" => :email,             # [OIDC Core §5.1] Standard claim
   "name" => :name,               # [OIDC Core §5.1] Standard claim
-  "given_name" => :given_name,   # [OIDC Core §5.1] Standard claim; [Core §5.3.6] user identity
-  "family_name" => :family_name, # [OIDC Core §5.1] Standard claim; [Core §5.3.6] user identity
+  "given_name" => :given_name,   # [OIDC Core §5.1] Standard claim; [Core, User Identity claims] user identity
+  "family_name" => :family_name, # [OIDC Core §5.1] Standard claim; [Core, User Identity claims] user identity
   "middle_name" => :middle_name, # [OIDC Core §5.1] Standard claim
   "picture" => :picture,         # [OIDC Core §5.1] Standard claim
   "locale" => :locale            # [OIDC Core §5.1] Standard claim
@@ -495,60 +495,63 @@ unrecognized keys into an `extensions` map.
 @lti_claim_prefix "https://purl.imsglobal.org/spec/lti/claim/"
 
 @lti_keys %{
-  # [Core §5.3.1]: "For conformance with this specification, the claim must have
+  # [Core, Message type claim]: "For conformance with this specification, the claim must have
   #   the value `LtiResourceLinkRequest`."
   "message_type" => :message_type,
 
-  # [Core §5.3.2]: "For conformance with this specification, the claim must have
+  # [Core, LTI Version claim]: "For conformance with this specification, the claim must have
   #   the value `1.3.0`."
   "version" => :version,
 
-  # [Core §5.3.3]: "The required deployment_id claim's value contains a case-sensitive
+  # [Core, LTI Deployment ID claim]: "The required [deployment_id] claim's value contains a case-sensitive
   #   string... It MUST NOT exceed 255 ASCII characters in length. The deployment_id
   #   is a stable locally unique identifier within the iss (Issuer)."
   "deployment_id" => :deployment_id,
 
-  # [Core §5.3.4]: "The required target_link_uri MUST be the same value as the
+  # [Core, Target Link URI]: "The required [target_link_uri claim] MUST be the same value as the
   #   target_link_uri passed by the platform in the OIDC third party initiated
   #   login request."
   "target_link_uri" => :target_link_uri,
 
-  # [Core §5.3.7]: "If this list is not empty, it MUST contain at least one role
-  #   from the role vocabularies described in [Core §A.2]."
+  # [Core, Roles claim]: "If this list is not empty, it MUST contain at least one role
+  #   from the role vocabularies described in role vocabularies."
   "roles" => :roles,
 
-  # [Core §5.4.3]: Array of user IDs this user can mentor/supervise.
-  # [Core §5.4.3]: "The sender MUST NOT include a list of user ID values in
+  # [Core, Role-scope mentor claims]: Array of user IDs this user can mentor/supervise.
+  # [Core, Role-scope mentor claims]: "The sender of the message MUST NOT include a list of user ID values in
   #   this property unless they also provide
   #   http://purl.imsglobal.org/vocab/lis/v2/membership#Mentor as one of the
   #   values passed in the roles claim."
   "role_scope_mentor" => :role_scope_mentor,
 
-  # [Core §5.4.1]: "id (REQUIRED). Stable identifier that uniquely identifies the
-  #   context. The context id MUST be locally unique to the deployment_id."
+  # [Core, Context claim]: "id (REQUIRED). Stable identifier that uniquely identifies the
+  #   context from which the LTI message initiates. The context id MUST be locally
+  #   unique to the deployment_id."
   "context" => :context,                   # → nested Context struct
 
-  # [Core §5.3.5]: "id (REQUIRED). Opaque identifier for a placement of an LTI
+  # [Core, Resource link claim]: "id (REQUIRED). Opaque identifier for a placement of an LTI
   #   resource link within a context that MUST be a stable and locally unique to the
-  #   deployment_id. This value MUST change if the link is copied or exported. The
-  #   value of id MUST NOT exceed 255 ASCII characters in length and is case-sensitive."
+  #   deployment_id. This value MUST change if the link is copied or exported from one
+  #   system or context and imported into another system or context. The value of id
+  #   MUST NOT exceed 255 ASCII characters in length and is case-sensitive."
   "resource_link" => :resource_link,       # → nested ResourceLink struct
 
-  # [Core §5.4.6]: Key-value map.
-  # [Core §5.4.6]: "Each custom property value MUST always be of type string."
+  # [Core, Custom properties and variable substitution]: Key-value map.
+  # [Core, Custom properties and variable substitution]: "A custom property value must always be of type string."
   # Empty string ("") IS valid. null is NOT valid.
-  # Values with $ prefix are unresolved substitution variables [Core §5.4.6.1]:
-  # "If the platform does not support a given variable, the substitution parameter
-  # MUST be passed unresolved."
+  # Values with $ prefix are unresolved substitution variables [Core, Custom parameter substitution]:
+  # "If the platform supports a given variable and authorizes the tool to access it,
+  # it must resolve it at launch time. Otherwise, the substitution parameter must be
+  # passed unresolved, indicating to the tool that this variable is not supported."
   "custom" => :custom,
 
-  "launch_presentation" => :launch_presentation, # [Core §5.4.4] → nested
-  "tool_platform" => :tool_platform,       # [Core §5.4.2] → nested
-  "lis" => :lis                            # [Core §5.4.5] → nested
+  "launch_presentation" => :launch_presentation, # [Core, Launch presentation claim] → nested
+  "tool_platform" => :tool_platform,       # [Core, Platform instance claim] → nested
+  "lis" => :lis                            # [Core, Learning Information Services LIS claim] → nested
 }
 
 # Table 3: Service endpoint claims (full URIs) → struct fields
-# [Core §6.1]: "The platform MUST include in each message applicable service
+# [Core, Services exposed as additional claims]: "The platform MUST include in each message applicable service
 #   endpoints as fully resolved URLs (not as URL templates). The platform MUST
 #   have a separate claim in the message for each service."
 @service_keys %{
@@ -584,7 +587,7 @@ end
 
 OIDC keys take priority → service keys → LTI prefix+suffix → extension.
 
-> [Core §5.4.7]: "In order to preserve forward compatibility and
+> [Core, Message claims]: "In order to preserve forward compatibility and
 > interoperability between platforms and tools, receivers of messages MUST ignore
 > any claims in messages they do not understand, and not treat the presence of
 > such claims as an error."
@@ -610,31 +613,31 @@ end
 Pipeline stages (short-circuits on first error via `with`):
 1. **Classify keys** — split JWT body into known fields vs extensions
 2. **Parse nested claims** — call `from_json/1` on each nested struct type
-3. **Parse roles** — convert URI strings to `%Role{}` structs per [Core §A.2]
-4. **Parse extensions** — apply registered extension parsers per [Core §5.4.7]
+3. **Parse roles** — convert URI strings to `%Role{}` structs per [Core, Role vocabularies]
+4. **Parse extensions** — apply registered extension parsers per [Core, Vendor-specific extension claims]
 5. **Build struct** — construct `%LaunchClaims{}`
 
 #### 2.5.4 Nested Claim Parsers
 
 ```elixir
 @nested_parsers %{
-  context: &Context.from_json/1,                       # [Core §5.4.1]
-  resource_link: &ResourceLink.from_json/1,            # [Core §5.3.5]
-  launch_presentation: &LaunchPresentation.from_json/1, # [Core §5.4.4]
-  tool_platform: &ToolPlatform.from_json/1,            # [Core §5.4.2]
-  lis: &Lis.from_json/1,                               # [Core §5.4.5]
-  ags_endpoint: &AgsEndpoint.from_json/1,              # [Core §6.1]
-  nrps_endpoint: &NrpsEndpoint.from_json/1,            # [Core §6.1]
-  deep_linking_settings: &DeepLinkingSettings.from_json/1 # [Core §6.1]
+  context: &Context.from_json/1,                       # [Core, Context claim]
+  resource_link: &ResourceLink.from_json/1,            # [Core, Resource link claim]
+  launch_presentation: &LaunchPresentation.from_json/1, # [Core, Launch presentation claim]
+  tool_platform: &ToolPlatform.from_json/1,            # [Core, Platform instance claim]
+  lis: &Lis.from_json/1,                               # [Core, Learning Information Services LIS claim]
+  ags_endpoint: &AgsEndpoint.from_json/1,              # [Core, Services exposed as additional claims]
+  nrps_endpoint: &NrpsEndpoint.from_json/1,            # [Core, Services exposed as additional claims]
+  deep_linking_settings: &DeepLinkingSettings.from_json/1 # [DL, Deep linking settings]
 }
 ```
 
 If a nested claim is **present but invalid** (e.g., Context missing `id` per
-[Core §5.4.1]), the error propagates and `from_json/2` returns `{:error, reason}`.
+[Core, Context claim]), the error propagates and `from_json/2` returns `{:error, reason}`.
 If a nested claim is **absent**, the field defaults to `nil` — no error per
-[Core §5.4]: optional claims may be omitted.
+[Core, Optional message claims]: optional claims may be omitted.
 
-#### 2.5.5 Extension Parsers — Pluggable [Core §5.4.7]
+#### 2.5.5 Extension Parsers — Pluggable [Core, Vendor-specific extension claims]
 
 ```elixir
 # Application config
@@ -649,7 +652,7 @@ LaunchClaims.from_json(jwt_body, parsers: %{
 ```
 
 Parser contract: arity 1, receives raw value, returns `{:ok, parsed}` or
-`{:error, reason}`. Errors halt the pipeline. Per [Core §5.4.7], vendor
+`{:error, reason}`. Errors halt the pipeline. Per [Core, Vendor-specific extension claims], vendor
 extensions use fully-qualified URL claim names.
 
 #### 2.5.6 The `%LaunchClaims{}` Struct
@@ -658,14 +661,14 @@ extensions use fully-qualified URL claim names.
 @type t :: %__MODULE__{
   # OIDC Standard Claims [Sec §5.1.2]
   issuer: String.t() | nil,            # [Sec §5.1.2] iss
-  subject: String.t() | nil,           # [Sec §5.1.2] sub; [Core §5.3.6] ≤255 ASCII
+  subject: String.t() | nil,           # [Sec §5.1.2] sub; [Core, User Identity claims] ≤255 ASCII
   audience: String.t() | [String.t()] | nil, # [Sec §5.1.2] aud
   expires_at: integer() | nil,         # [Sec §5.1.2] exp
   issued_at: integer() | nil,          # [Sec §5.1.2] iat
   nonce: String.t() | nil,             # [Sec §5.1.2] nonce
   authorized_party: String.t() | nil,  # [Sec §5.1.2] azp
 
-  # OIDC Profile Claims [OIDC Core §5.1]; [Core §5.3.6] user identity
+  # OIDC Profile Claims [OIDC Core §5.1]; [Core, User Identity claims] user identity
   email: String.t() | nil,
   name: String.t() | nil,
   given_name: String.t() | nil,
@@ -674,43 +677,43 @@ extensions use fully-qualified URL claim names.
   picture: String.t() | nil,
   locale: String.t() | nil,
 
-  # LTI Core Required Claims [Core §5.3]
-  message_type: String.t() | nil,      # [Core §5.3.1] "LtiResourceLinkRequest"
-  version: String.t() | nil,           # [Core §5.3.2] "1.3.0"
-  deployment_id: String.t() | nil,     # [Core §5.3.3] ≤255 ASCII, case-sensitive
-  target_link_uri: String.t() | nil,   # [Core §5.3.4] actual endpoint URL
-  roles: [Role.t()],                   # [Core §5.3.7] parsed role URIs from [Core §A.2]
-  unrecognized_roles: [String.t()],    # URIs not in [Core §A.2] vocabularies (preserved)
-  role_scope_mentor: [String.t()] | nil, # [Core §5.4.3] array of user IDs
+  # LTI Core Required Claims [Core, Required message claims]
+  message_type: String.t() | nil,      # [Core, Message type claim] "LtiResourceLinkRequest"
+  version: String.t() | nil,           # [Core, LTI Version claim] "1.3.0"
+  deployment_id: String.t() | nil,     # [Core, LTI Deployment ID claim] ≤255 ASCII, case-sensitive
+  target_link_uri: String.t() | nil,   # [Core, Target Link URI] actual endpoint URL
+  roles: [Role.t()],                   # [Core, Roles claim] parsed role URIs from [Core, Role vocabularies]
+  unrecognized_roles: [String.t()],    # URIs not in [Core, Role vocabularies] vocabularies (preserved)
+  role_scope_mentor: [String.t()] | nil, # [Core, Role-scope mentor claims] array of user IDs
 
   # Nested Claim Objects
-  context: Context.t() | nil,          # [Core §5.4.1]
-  resource_link: ResourceLink.t() | nil, # [Core §5.3.5]
-  custom: map() | nil,                 # [Core §5.4.6]
-  launch_presentation: LaunchPresentation.t() | nil, # [Core §5.4.4]
-  tool_platform: ToolPlatform.t() | nil, # [Core §5.4.2]
-  lis: Lis.t() | nil,                  # [Core §5.4.5]
+  context: Context.t() | nil,          # [Core, Context claim]
+  resource_link: ResourceLink.t() | nil, # [Core, Resource link claim]
+  custom: map() | nil,                 # [Core, Custom properties and variable substitution]
+  launch_presentation: LaunchPresentation.t() | nil, # [Core, Launch presentation claim]
+  tool_platform: ToolPlatform.t() | nil, # [Core, Platform instance claim]
+  lis: Lis.t() | nil,                  # [Core, Learning Information Services LIS claim]
 
-  # Advantage Service Claims [Core §6.1] (parsed from launch, no API calls)
+  # Advantage Service Claims [Core, Services exposed as additional claims] (parsed from launch, no API calls)
   ags_endpoint: AgsEndpoint.t() | nil,
   nrps_endpoint: NrpsEndpoint.t() | nil,
   deep_linking_settings: DeepLinkingSettings.t() | nil,
 
-  # Forward compatibility [Core §5.4.7] + vendor extensions
+  # Forward compatibility [Core, Message claims] + vendor extensions [Core, Vendor-specific extension claims]
   extensions: %{optional(String.t()) => term()}
 }
 ```
 
 **Tests** (`test/ltix/launch_claims_test.exs`):
 - OIDC claims parsed correctly [Sec §5.1.2] (iss, sub, aud, exp, iat, nonce, azp, profile)
-- LTI claims parsed correctly [Core §5.3, §5.4] (message_type, version, deployment_id, etc.)
-- Service endpoint claims parsed into nested structs [Core §6.1]
-- Unknown claims preserved in `extensions` [Core §5.4.7]
+- LTI claims parsed correctly [Core, Required message claims], [Core, Optional message claims] (message_type, version, deployment_id, etc.)
+- Service endpoint claims parsed into nested structs [Core, Services exposed as additional claims]
+- Unknown claims preserved in `extensions` [Core, Message claims]
 - Extension parsers invoked (config-based and per-call)
 - Per-call parsers override config parsers
-- Missing optional nested claims default to `nil` [Core §5.4]
+- Missing optional nested claims default to `nil` [Core, Optional message claims]
 - Present but invalid nested claims propagate errors
-- Roles parsed into `%Role{}` structs [Core §A.2]; unrecognized collected separately
+- Roles parsed into `%Role{}` structs [Core, Role vocabularies]; unrecognized collected separately
 
 ---
 
@@ -719,27 +722,28 @@ extensions use fully-qualified URL claim names.
 Each nested claim type lives in `lib/ltix/launch_claims/` and implements
 `from_json/1` returning `{:ok, struct}` or `{:error, reason}`.
 
-#### 2.6.1 `Ltix.LaunchClaims.Context` [Core §5.4.1]
+#### 2.6.1 `Ltix.LaunchClaims.Context` [Core, Context claim]
 
 Claim key: `https://purl.imsglobal.org/spec/lti/claim/context`
 
-> [Core §5.4.1]: "id (REQUIRED). Stable identifier that uniquely identifies the
-> context. The context id MUST be locally unique to the `deployment_id`. The
-> value of `id` MUST NOT exceed 255 ASCII characters in length and is
-> case-sensitive."
+> [Core, Context claim]: "id (REQUIRED). Stable identifier that uniquely identifies the
+> context from which the LTI message initiates. The context id MUST be locally
+> unique to the `deployment_id`. It is recommended to also be locally unique to
+> `iss` (Issuer). The value of `id` MUST NOT exceed 255 ASCII characters in
+> length and is case-sensitive."
 
 ```elixir
 defstruct [:id, :label, :title, :type]
 
-# type is array of URIs from [Core §A.1] context type vocabulary
+# type is array of URIs from [Core, Context type vocabulary]
 def from_json(%{"id" => _} = json), do: {:ok, ...}
 def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
-  claim: "context.id", spec_ref: "Core §5.4.1")}
+  claim: "context.id", spec_ref: "Core, Context claim")}
 ```
 
-**Context Type Vocabulary** [Core §A.1]:
+**Context Type Vocabulary** [Core, Context type vocabulary]:
 
-> [Core §A.1]: Conforming implementations "MUST recognize the new URI values."
+> [Core, Appendix A - LTI standard vocabularies]: Conforming implementations "MUST recognize the new URI values."
 > Implementations "MAY recognize the deprecated simple names... and the deprecated
 > URN values."
 
@@ -751,65 +755,65 @@ def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
 | Group | `http://purl.imsglobal.org/vocab/lis/v2/course#Group` | `Group` |
 
 The `type` array, if present, MUST contain at least one value from this
-vocabulary per [Core §5.4.1]. The implementation SHOULD use fully-qualified URIs
+vocabulary per [Core, Context claim]. The implementation SHOULD use fully-qualified URIs
 for any non-standard context types.
 
-#### 2.6.2 `Ltix.LaunchClaims.ResourceLink` [Core §5.3.5]
+#### 2.6.2 `Ltix.LaunchClaims.ResourceLink` [Core, Resource link claim]
 
 Claim key: `https://purl.imsglobal.org/spec/lti/claim/resource_link`
 
-> [Core §5.3.5]: "id (REQUIRED). Opaque identifier for a placement of an LTI
+> [Core, Resource link claim]: "id (REQUIRED). Opaque identifier for a placement of an LTI
 > resource link within a context that MUST be a stable and locally unique to the
-> `deployment_id`. This value MUST change if the link is copied or exported. The
-> value of `id` MUST NOT exceed 255 ASCII characters in length and is
-> case-sensitive."
+> `deployment_id`. This value MUST change if the link is copied or exported from
+> one system or context and imported into another system or context. The value
+> of `id` MUST NOT exceed 255 ASCII characters in length and is case-sensitive."
 
 ```elixir
 defstruct [:id, :title, :description]
 
 def from_json(%{"id" => _} = json), do: {:ok, ...}
 def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
-  claim: "resource_link.id", spec_ref: "Core §5.3.5")}
+  claim: "resource_link.id", spec_ref: "Core, Resource link claim")}
 ```
 
-#### 2.6.3 `Ltix.LaunchClaims.LaunchPresentation` [Core §5.4.4]
+#### 2.6.3 `Ltix.LaunchClaims.LaunchPresentation` [Core, Launch presentation claim]
 
 Claim key: `https://purl.imsglobal.org/spec/lti/claim/launch_presentation`
 
 ```elixir
 defstruct [:document_target, :height, :width, :return_url, :locale]
 
-# [Core §5.4.4] All fields optional.
+# [Core, Launch presentation claim] All fields optional.
 def from_json(json) do
   # Validate document_target if present
-  # [Core §5.4.4]: document_target MUST be one of: "frame", "iframe", or "window"
+  # [Core, Launch presentation claim]: document_target MUST be one of: "frame", "iframe", or "window"
   {:ok, ...}
 end
 ```
 
 **Validation rules**:
 - `document_target`: when present, MUST be one of `"frame"`, `"iframe"`, or `"window"`
-  > [Core §5.4.4]: "The value MUST be one of: `frame`, `iframe`, or `window`."
+  > [Core, Launch presentation claim]: "The value for this property MUST be one of: `frame`, `iframe`, or `window`."
 - `height`: optional, number (viewport height in pixels)
 - `width`: optional, number (viewport width in pixels)
 - `return_url`: optional, fully-qualified HTTPS URL
 - `locale`: optional, IETF BCP47 language tag
 
-**Return URL parameters** [Core §5.4.4]: When the tool redirects back to
+**Return URL parameters** [Core, Launch presentation claim]: When the tool redirects back to
 `return_url`, it MAY append these query parameters:
 - `lti_errormsg` — user-targeted message for unsuccessful activity
 - `lti_msg` — user-targeted message for successful activity
 - `lti_errorlog` — log-targeted message for unsuccessful activity
 - `lti_log` — log-targeted message for successful activity
 
-> [Core §5.4.4]: "If the message sender includes a `return_url` in its
+> [Core, Launch presentation claim]: "If the message sender includes a `return_url` in its
 > `launch_presentation`, it MUST support these four query parameters."
 
-#### 2.6.4 `Ltix.LaunchClaims.ToolPlatform` [Core §5.4.2]
+#### 2.6.4 `Ltix.LaunchClaims.ToolPlatform` [Core, Platform instance claim]
 
 Claim key: `https://purl.imsglobal.org/spec/lti/claim/tool_platform`
 
-> [Core §5.4.2]: "guid (REQUIRED). A stable locally unique to the `iss`
+> [Core, Platform instance claim]: "guid (REQUIRED). A stable locally unique to the `iss`
 > identifier for an instance of the tool platform. The value of `guid` is a
 > case-sensitive string that MUST NOT exceed 255 ASCII characters in length."
 
@@ -817,10 +821,10 @@ Claim key: `https://purl.imsglobal.org/spec/lti/claim/tool_platform`
 defstruct [:guid, :name, :contact_email, :description, :url,
            :product_family_code, :version]
 
-# guid is REQUIRED when the claim is present [Core §5.4.2]
+# guid is REQUIRED when the claim is present [Core, Platform instance claim]
 def from_json(%{"guid" => _} = json), do: {:ok, ...}
 def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
-  claim: "tool_platform.guid", spec_ref: "Core §5.4.2")}
+  claim: "tool_platform.guid", spec_ref: "Core, Platform instance claim")}
 ```
 
 **Validation rules**:
@@ -828,7 +832,7 @@ def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
   ASCII characters. UUID recommended per RFC 4122.
 - All other fields are optional.
 
-#### 2.6.5 `Ltix.LaunchClaims.Lis` [Core §5.4.5]
+#### 2.6.5 `Ltix.LaunchClaims.Lis` [Core, Learning Information Services LIS claim]
 
 Claim key: `https://purl.imsglobal.org/spec/lti/claim/lis`
 
@@ -836,36 +840,36 @@ Claim key: `https://purl.imsglobal.org/spec/lti/claim/lis`
 defstruct [:person_sourcedid, :course_offering_sourcedid,
            :course_section_sourcedid]
 
-# [Core §5.4.5] SIS integration identifiers. All optional.
-# See also [Core §Appendix D] for LIS integration guidance.
+# [Core, Learning Information Services LIS claim] SIS integration identifiers. All optional.
+# See also [Core, Using Learning Information Services with LTI] for LIS integration guidance.
 def from_json(json), do: {:ok, ...}
 ```
 
-#### 2.6.6 `Ltix.LaunchClaims.AgsEndpoint` [Core §6.1]
+#### 2.6.6 `Ltix.LaunchClaims.AgsEndpoint` [Core, Services exposed as additional claims]
 
 Claim key: `https://purl.imsglobal.org/spec/lti-ags/claim/endpoint`
 
 ```elixir
 defstruct [:scope, :lineitems, :lineitem]
 
-# [Core §6.1] Service endpoint exposed as additional claim.
+# [Core, Services exposed as additional claims] Service endpoint exposed as additional claim.
 # scope: array of granted scope strings; lineitems/lineitem: fully resolved URLs.
 # All optional.
 def from_json(json), do: {:ok, ...}
 ```
 
-#### 2.6.7 `Ltix.LaunchClaims.NrpsEndpoint` [Core §6.1]
+#### 2.6.7 `Ltix.LaunchClaims.NrpsEndpoint` [Core, Services exposed as additional claims]
 
 Claim key: `https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice`
 
 ```elixir
 defstruct [:context_memberships_url, :service_versions]
 
-# [Core §6.1] NRPS service endpoint claim. All optional.
+# [Core, Services exposed as additional claims] NRPS service endpoint claim. All optional.
 def from_json(json), do: {:ok, ...}
 ```
 
-#### 2.6.8 `Ltix.LaunchClaims.DeepLinkingSettings` [Core §6.1]
+#### 2.6.8 `Ltix.LaunchClaims.DeepLinkingSettings` [DL, Deep linking settings]
 
 Claim key: `https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings`
 
@@ -878,38 +882,40 @@ defstruct [:deep_link_return_url, :accept_types,
 # deep_link_return_url REQUIRED when claim is present; rest optional.
 def from_json(%{"deep_link_return_url" => _} = json), do: {:ok, ...}
 def from_json(_), do: {:error, Errors.Invalid.MissingClaim.exception(
-  claim: "deep_linking_settings.deep_link_return_url", spec_ref: "Core §6.1")}
+  claim: "deep_linking_settings.deep_link_return_url", spec_ref: "DL, Deep linking settings")}
 ```
 
 **Tests**: Each nested struct has its own test file covering:
 - All fields populated
 - Only required fields populated
 - Missing required field returns error:
-  - Context missing `id` [Core §5.4.1]
-  - ResourceLink missing `id` [Core §5.3.5]
-  - ToolPlatform missing `guid` [Core §5.4.2]
+  - Context missing `id` [Core, Context claim]
+  - ResourceLink missing `id` [Core, Resource link claim]
+  - ToolPlatform missing `guid` [Core, Platform instance claim]
   - DeepLinkingSettings missing `deep_link_return_url`
 - Missing optional fields default to `nil`
-- LaunchPresentation: valid `document_target` values accepted (`frame`, `iframe`, `window`) [Core §5.4.4]
-- LaunchPresentation: invalid `document_target` returns error [Core §5.4.4]
-- Context: `type` array with full URI values recognized [Core §A.1]
-- Context: `type` array with deprecated simple names recognized [Core §A.1]
+- LaunchPresentation: valid `document_target` values accepted (`frame`, `iframe`, `window`) [Core, Launch presentation claim]
+- LaunchPresentation: invalid `document_target` returns error [Core, Launch presentation claim]
+- Context: `type` array with full URI values recognized [Core, Context type vocabulary]
+- Context: `type` array with deprecated simple names recognized [Core, Context type vocabulary]
 
 ---
 
 ### 2.7 `Ltix.LaunchClaims.Role` — Role URI Parsing
 
-**Spec basis**: [Core §5.3.7] Roles claim; [Core §A.2] Role vocabularies —
-[Core §A.2.1] LIS vocabulary for system roles, [Core §A.2.2] LIS vocabulary
-for institution roles, [Core §A.2.3] LIS vocabulary for context roles,
-[Core §A.2.3.1] Context sub-roles, [Core §A.2.4] LTI vocabulary for system roles.
+**Spec basis**: [Core, Roles claim]; [Core, Role vocabularies] —
+[Core, LIS vocabulary for system roles], [Core, LIS vocabulary for institution roles],
+[Core, LIS vocabulary for context roles], [Core, Context sub-roles],
+[Core, LTI vocabulary for system roles].
 
-> [Core §5.3.7]: "If this list is not empty, it MUST contain at least one role
-> from the role vocabularies described in [role vocabularies]."
+> [Core, Roles claim]: "If this list is not empty, it MUST contain at least one role
+> from the role vocabularies described in role vocabularies."
 >
-> [Core §5.3.7.1]: "The platform may provide no user-identity claims, but may
-> still include roles claim values. If the platform wishes to send no role
-> information, it must still send the roles claim, but may leave the value empty."
+> [Core, Anonymous launch case]: "Note that the platform may, in the case of an
+> anonymous launch, provide no user-identity claims, but may still include roles
+> claim values. ... If the platform wishes to send no role information, it must
+> still send the roles claim, but may leave the value of the roles claim array
+> empty."
 
 **Struct**:
 
@@ -917,18 +923,18 @@ for institution roles, [Core §A.2.3] LIS vocabulary for context roles,
 @type t :: %__MODULE__{
   type: :context | :institution | :system,
   name: atom(),           # e.g., :instructor, :learner, :administrator
-  sub_role: atom() | nil, # e.g., :teaching_assistant, :grader [Core §A.2.3.1]
+  sub_role: atom() | nil, # e.g., :teaching_assistant, :grader [Core, Context sub-roles]
   uri: String.t()         # Original URI preserved
 }
 ```
 
 **Responsibilities**:
-1. Parse full context role URIs per [Core §A.2.3]: `http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor`
-2. Parse context sub-roles per [Core §A.2.3.1]: `membership/Instructor#TeachingAssistant`
-3. Parse institution role URIs per [Core §A.2.2]: `http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty`
-4. Parse system role URIs per [Core §A.2.1]: `http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator`
-5. Parse LTI system role URIs per [Core §A.2.4]: `http://purl.imsglobal.org/vocab/lti/system/person#TestUser`
-6. Parse short (simple name) role URIs [Cert §6.1.2 "Valid Instructor Launch Short Role"]
+1. Parse full context role URIs per [Core, LIS vocabulary for context roles]: `http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor`
+2. Parse context sub-roles per [Core, Context sub-roles]: `membership/Instructor#TeachingAssistant`
+3. Parse institution role URIs per [Core, LIS vocabulary for institution roles]: `http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty`
+4. Parse system role URIs per [Core, LIS vocabulary for system roles]: `http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator`
+5. Parse LTI system role URIs per [Core, LTI vocabulary for system roles]: `http://purl.imsglobal.org/vocab/lti/system/person#TestUser`
+6. Parse short (simple name) role URIs [Cert, Valid Teacher Launches, "Valid Instructor Launch Short Role"]
 7. Accept unknown role URIs — return `:error`, collected in `unrecognized_roles` by `LaunchClaims`
 
 **`parse_all/1`** — Separates recognized from unrecognized:
@@ -967,21 +973,21 @@ def institution_roles(roles), do: Enum.filter(roles, &(&1.type == :institution))
 def system_roles(roles), do: Enum.filter(roles, &(&1.type == :system))
 ```
 
-**Role vocabulary** (comprehensive, per [Core §A.2]):
+**Role vocabulary** (comprehensive, per [Core, Role vocabularies]):
 
-> [Core §A]: "Conforming implementations MAY recognize the deprecated simple
+> [Core, Appendix A - LTI standard vocabularies]: "Conforming implementations MAY recognize the deprecated simple
 > names (for context types and context roles) and the deprecated URN values,
 > and MUST recognize the new URI values."
 
 | Type | Spec section | Base URI | Roles |
 |---|---|---|---|
-| Context (core) | [Core §A.2.3] | `http://purl.imsglobal.org/vocab/lis/v2/membership#` | Administrator, ContentDeveloper, Instructor, Learner, Mentor |
-| Context (non-core) | [Core §A.2.3] | `http://purl.imsglobal.org/vocab/lis/v2/membership#` | Manager, Member, Officer |
-| Institution (core) | [Core §A.2.2] | `http://purl.imsglobal.org/vocab/lis/v2/institution/person#` | Administrator, Faculty, Guest, None, Other, Staff, Student |
-| Institution (non-core) | [Core §A.2.2] | `http://purl.imsglobal.org/vocab/lis/v2/institution/person#` | Alumni, Instructor, Learner, Member, Mentor, Observer, ProspectiveStudent |
-| System (LIS, core) | [Core §A.2.1] | `http://purl.imsglobal.org/vocab/lis/v2/system/person#` | Administrator, None |
-| System (LIS, non-core) | [Core §A.2.1] | `http://purl.imsglobal.org/vocab/lis/v2/system/person#` | AccountAdmin, Creator, SysAdmin, SysSupport, User |
-| System (LTI) | [Core §A.2.4] | `http://purl.imsglobal.org/vocab/lti/system/person#` | TestUser |
+| Context (core) | [Core, LIS vocabulary for context roles] | `http://purl.imsglobal.org/vocab/lis/v2/membership#` | Administrator, ContentDeveloper, Instructor, Learner, Mentor |
+| Context (non-core) | [Core, LIS vocabulary for context roles] | `http://purl.imsglobal.org/vocab/lis/v2/membership#` | Manager, Member, Officer |
+| Institution (core) | [Core, LIS vocabulary for institution roles] | `http://purl.imsglobal.org/vocab/lis/v2/institution/person#` | Administrator, Faculty, Guest, None, Other, Staff, Student |
+| Institution (non-core) | [Core, LIS vocabulary for institution roles] | `http://purl.imsglobal.org/vocab/lis/v2/institution/person#` | Alumni, Instructor, Learner, Member, Mentor, Observer, ProspectiveStudent |
+| System (LIS, core) | [Core, LIS vocabulary for system roles] | `http://purl.imsglobal.org/vocab/lis/v2/system/person#` | Administrator, None |
+| System (LIS, non-core) | [Core, LIS vocabulary for system roles] | `http://purl.imsglobal.org/vocab/lis/v2/system/person#` | AccountAdmin, Creator, SysAdmin, SysSupport, User |
+| System (LTI) | [Core, LTI vocabulary for system roles] | `http://purl.imsglobal.org/vocab/lti/system/person#` | TestUser |
 
 **Deprecated URI forms** (MAY recognize for backward compatibility):
 - System roles formerly used `http://purl.imsglobal.org/vocab/lis/v2/person#`
@@ -989,11 +995,11 @@ def system_roles(roles), do: Enum.filter(roles, &(&1.type == :system))
 - Institution roles formerly used `http://purl.imsglobal.org/vocab/lis/v2/person#`
   (without `institution/` in path)
 
-**Context sub-roles** [Core §A.2.3.1] — Complete listing:
+**Context sub-roles** [Core, Context sub-roles] — Complete listing:
 
 URI format: `http://purl.imsglobal.org/vocab/lis/v2/membership/{RoleName}#{SubRoleName}`
 
-> [Core §A.2.3.1]: "Whenever a platform specifies a sub-role, by best practice
+> [Core, Context sub-roles]: "Whenever a platform specifies a sub-role, by best practice
 > it should also include the associated principal role." The tool should NOT
 > assume the principal role is always present alongside the sub-role.
 
@@ -1008,24 +1014,26 @@ URI format: `http://purl.imsglobal.org/vocab/lis/v2/membership/{RoleName}#{SubRo
 | Mentor | Advisor, Auditor, ExternalAdvisor, ExternalAuditor, ExternalLearningFacilitator, ExternalMentor, ExternalReviewer, ExternalTutor, LearningFacilitator, Mentor, Reviewer, Tutor |
 | Officer | Chair, Communications, Secretary, Treasurer, Vice-Chair |
 
-**TestUser role** [Core §A.2.4]:
-> Indicates the user is created by the platform for testing purposes (e.g.,
-> student preview mode). Tools MAY wish to filter this user from rosters. Tools
-> MAY want to ignore this user when sending grades but SHOULD be able to treat
-> it as a regular user.
+**TestUser role** [Core, LTI vocabulary for system roles]:
+> "It indicates this user is created by the platform for testing different user
+> scenarios. The most common use case is when an instructor wants to view the
+> course as a student would see it, student-preview mode. ... Tools may wish to
+> filter out this user when displaying the course roster. They may want to ignore
+> this user when it comes to sending grades, but they should be able to treat it
+> as a regular user."
 
 **Tests** (`test/ltix/launch_claims/role_test.exs`):
-- Full URI parsing for each context role (8 roles) [Core §A.2.3]
-- Full URI parsing for each context sub-role (complete table above) [Core §A.2.3.1]
-- Full URI parsing for each institution role (14 roles) [Core §A.2.2]
-- Full URI parsing for each system role (LIS: 7 roles) [Core §A.2.1]
-- Full URI parsing for LTI system role (TestUser) [Core §A.2.4]
-- Deprecated URI forms (without `system/` or `institution/` path segment) [Core §A]
-- Short role format acceptance (e.g., `Instructor`) [Cert §6.1.2 "Valid Instructor Launch Short Role"]
-- Multiple roles via `parse_all/1` [Cert §6.1.2 "Valid Instructor Launch with Roles"]
-- Unknown role URIs → `:error`, collected in unrecognized [Cert §6.1.2 "Valid Instructor Launch Unknown Role"]
-- Empty list accepted (anonymous launch) [Core §5.3.7.1]
-- Sub-role without principal role present (tool must handle) [Core §A.2.3.1]
+- Full URI parsing for each context role (8 roles) [Core, LIS vocabulary for context roles]
+- Full URI parsing for each context sub-role (complete table above) [Core, Context sub-roles]
+- Full URI parsing for each institution role (14 roles) [Core, LIS vocabulary for institution roles]
+- Full URI parsing for each system role (LIS: 7 roles) [Core, LIS vocabulary for system roles]
+- Full URI parsing for LTI system role (TestUser) [Core, LTI vocabulary for system roles]
+- Deprecated URI forms (without `system/` or `institution/` path segment) [Core, LIS vocabulary for system roles], [Core, LIS vocabulary for institution roles]
+- Short role format acceptance (e.g., `Instructor`) [Cert, Valid Teacher Launches, "Valid Instructor Launch Short Role"]
+- Multiple roles via `parse_all/1` [Cert, Valid Teacher Launches, "Valid Instructor Launch with Roles"]
+- Unknown role URIs → `:error`, collected in unrecognized [Cert, Valid Teacher Launches, "Valid Instructor Launch Unknown Role"]
+- Empty list accepted (anonymous launch) [Core, Anonymous launch case]
+- Sub-role without principal role present (tool must handle) [Core, Context sub-roles]
 - Predicate helpers return correct booleans
 - Filter helpers return correct subsets
 - Original URI preserved in struct
@@ -1036,13 +1044,13 @@ URI format: `http://purl.imsglobal.org/vocab/lis/v2/membership/{RoleName}#{SubRo
 
 **Spec basis**: [Sec §5.1.1.1] Step 1: Third-party Initiated Login.
 
-> [Cert §4.2.2]: "All launches will be required to go through the OIDC
+> [Cert, Requirements for Certification for Tools]: "All launches will be required to go through the OIDC
 > initialization and launch process. There are no exceptions to the requirement
 > that OIDC always will be used."
 
 **Input**: HTTP request from platform with parameters per [Sec §5.1.1.1].
 
-> [Sec §5.1.1.1]: "The redirect may be a form POST or a GET — a Tool must
+> [Sec §5.1.1.1]: "The redirect may be a form POST or a GET - a Tool must
 > support either case."
 
 The library accepts a plain `map()` of string-keyed params, so the host app's
@@ -1055,21 +1063,21 @@ while ensuring both delivery methods are supported.
 - `login_hint` (REQUIRED) — Opaque login hint [Sec §5.1.1.1]
 - `target_link_uri` (REQUIRED) — Tool endpoint for post-auth resource display [Sec §5.1.1.1]
 - `lti_message_hint` (OPTIONAL) — Opaque to tool; pass through verbatim
-  > [Core §4.1.1]: "If present in the login initiation request, the tool MUST
+  > [Core, lti_message_hint login parameter]: "If present in the login initiation request, the tool MUST
   > include it back in the authentication request unaltered."
 - `lti_deployment_id` (OPTIONAL) — May be used for deployment-specific routing
-  > [Core §4.1.2]: "If included, MUST contain the same deployment id that would
-  > be passed in the deployment_id claim for the subsequent LTI message launch."
+  > [Core, lti_deployment_id login parameter]: "If included, MUST contain the same deployment id that would
+  > be passed in the [deployment_id] claim for the subsequent LTI message launch."
 - `client_id` (OPTIONAL) — Disambiguates registrations when issuer has multiple
-  > [Core §4.1.3]: "The new optional parameter `client_id` specifies the client
+  > [Core, client_id login parameter]: "The new optional parameter `client_id` specifies the client
   > id for the authorization server that should be used to authorize the
   > subsequent LTI message request."
 
 **Responsibilities**:
 1. Extract and validate required parameters [Sec §5.1.1.1]
-2. Look up registration via callback behaviour (`iss`, optionally `client_id` per [Core §4.1.3])
+2. Look up registration via callback behaviour (`iss`, optionally `client_id` per [Core, client_id login parameter])
 3. Generate cryptographic `state` value [Sec §5.1.1.2: CSRF prevention; Sec §7.3.1]
-4. Generate cryptographic `nonce` value [Sec §5.1.1.2: "nonce: Unique per-request value for replay mitigation"]
+4. Generate cryptographic `nonce` value [Sec §5.1.1.2: "String value used to associate a Client session with an ID Token, and to mitigate replay attacks"]
 5. Store `nonce` via callback behaviour (`store_nonce/2`) for later validation
 6. Return authentication request parameters for redirect to platform
 
@@ -1079,38 +1087,38 @@ while ensuring both delivery methods are supported.
 - Missing `login_hint` returns error [Sec §5.1.1.1: required]
 - Missing `target_link_uri` returns error [Sec §5.1.1.1: required]
 - Unknown issuer returns error (registration not found)
-- `lti_message_hint` preserved when present [Core §4.1.1: "tool must return unaltered"]
+- `lti_message_hint` preserved when present [Core, lti_message_hint login parameter] "the tool MUST include it back in the authentication request unaltered"
 - `lti_message_hint` omitted when not present in input
-- `client_id` used for registration lookup when present [Core §4.1.3]
+- `client_id` used for registration lookup when present [Core, client_id login parameter]
 - `client_id` absent — registration looked up by issuer alone
-- `lti_deployment_id` preserved in output for host app routing [Core §4.1.2]
+- `lti_deployment_id` preserved in output for host app routing [Core, lti_deployment_id login parameter]
 
 ---
 
 ### 2.9 `Ltix.OIDC.AuthenticationRequest` — Step 2: Build Auth Redirect
 
-**Spec basis**: [Sec §5.1.1.2] Step 2: Authentication Request — "Tool redirects
-to Platform's OIDC authorization endpoint."
+**Spec basis**: [Sec §5.1.1.2] Step 2: Authentication Request — "redirects the UA
+to the platform at the OIDC Authentication endpoint registered with the `iss`".
 
 **Responsibilities**: Build the redirect URL to the platform's OIDC authorization
 endpoint with these parameters:
 
 | Parameter | Value | Spec |
 |---|---|---|
-| `scope` | `openid` | [Sec §5.1.1.2] "scope=openid" |
-| `response_type` | `id_token` | [Sec §5.1.1.2] "response_type=id_token" |
-| `client_id` | Registration's client_id | [Sec §5.1.1.2] "client_id: Tool's client ID" |
-| `redirect_uri` | Tool's registered callback URI | [Sec §5.1.1.2] "redirect_uri: Registered redirect URI" |
-| `login_hint` | From Step 1 (pass through) | [Sec §5.1.1.2] "login_hint: From step 1" |
-| `state` | Generated in Step 1 | [Sec §5.1.1.2] "state: For CSRF/state maintenance"; [Sec §7.3.1] |
-| `response_mode` | `form_post` | [Sec §5.1.1.2] "response_mode=form_post" |
-| `nonce` | Generated in Step 1 | [Sec §5.1.1.2] "nonce: Unique per-request value" |
-| `prompt` | `none` | [Sec §5.1.1.2] "prompt=none: Fail if no existing user session" |
-| `lti_message_hint` | From Step 1 (pass through, if present) | [Core §4.1.1] "tool must return unaltered" |
+| `scope` | `openid` | [Sec §5.1.1.2] "scope: openid" |
+| `response_type` | `id_token` | [Sec §5.1.1.2] "response_type: id_token" |
+| `client_id` | Registration's client_id | [Sec §5.1.1.2] "The Tool’s Client ID for this issuer." |
+| `redirect_uri` | Tool's registered callback URI | [Sec §5.1.1.2] "One of the registered redirect URIs." |
+| `login_hint` | From Step 1 (pass through) | [Sec §5.1.1.2] "As passed in the initiate login request." |
+| `state` | Generated in Step 1 | [Sec §5.1.1.2] "Opaque value for the platform to maintain state between the request and callback and provide Cross-Site Request Forgery (CSRF) mitigation."; [Sec §7.3.1] |
+| `response_mode` | `form_post` | [Sec §5.1.1.2] "response_mode: form_post" |
+| `nonce` | Generated in Step 1 | [Sec §5.1.1.2] "String value used to associate a Client session with an ID Token, and to mitigate replay attacks." |
+| `prompt` | `none` | [Sec §5.1.1.2] "If the user has no session, a platform must just fail the flow rather than ask the user to log in." |
+| `lti_message_hint` | From Step 1 (pass through, if present) | [Core, lti_message_hint login parameter] "the tool MUST include it back in the authentication request unaltered" |
 
 **Tests**:
 - All required parameters present in output URL [Sec §5.1.1.2]
-- `lti_message_hint` included when provided [Core §4.1.1]
+- `lti_message_hint` included when provided [Core, lti_message_hint login parameter]
 - `lti_message_hint` omitted when not provided
 - Redirect URI is properly URL-encoded
 - `prompt=none` is always set [Sec §5.1.1.2]
@@ -1119,9 +1127,9 @@ endpoint with these parameters:
 
 ### 2.10 `Ltix.OIDC.Callback` — Step 3: Handle Authentication Response
 
-**Spec basis**: [Sec §5.1.1.3] Step 3: Authentication Response — "Platform
-validates redirect URI and login hint, then sends id_token and state to
-redirect_uri"; [Sec §5.1.3] Authentication Response Validation — the nine
+**Spec basis**: [Sec §5.1.1.3] Step 3: Authentication Response — "The
+authentication response is sent to the `redirect_uri` with the following
+parameters"; [Sec §5.1.3] Authentication Response Validation — the nine
 steps tools MUST perform; [Sec §5.1.1.5] Authentication Error Response.
 
 This is the heart of the library. It receives the platform's form POST and
@@ -1138,21 +1146,23 @@ Validation. The nine numbered steps from the spec are mapped below, with
 additional LTI-layer validation appended. Step numbers in parentheses reference
 the spec's step numbering:
 
-> [Sec §5.1.3]: Tools "MUST validate ID tokens" by performing the following.
+> [Sec §5.1.3]: Tools "MUST validate the ID Token in the token response in the following manner".
 
 1. **Check for error response** [Sec §5.1.1.5]
    If `error` parameter is present (instead of `id_token`), return error
    immediately — the platform could not complete authentication.
 2. **Verify `state`** matches the value generated in Step 1
-   > [Sec §7.3.1]: "State parameter MUST be used" to prohibit CSRF.
+   > [Sec §5.1.1.4]: "The tool, after decoding and validating the `id_token` and
+   > verified the `state` matches the current state attached to the browser
+   > session, will display the resource".
 3. **Extract JWT header** — get `kid` and `alg` [Sec §5.1.2]
-4. **Validate `alg`** is RS256 (Spec step 6, SHOULD; Cert §4.2, MUST for LTI)
+4. **Validate `alg`** is RS256 (Spec step 6, SHOULD; [Cert, General Requirements for Certification Testing Setup], MUST for LTI)
    > [Sec §5.4]: "Message Tool JWTs MUST NOT use `none` as the `alg` value."
    >
-   > [Cert §4.2]: "The use of Symmetric Cryptosystems SHALL NOT be considered
+   > [Cert, General Requirements for Certification Testing Setup]: "The use of Symmetric Cryptosystems SHALL NOT be considered
    > legal and use of them is expressly forbidden."
 5. **Fetch platform public key** by `kid` from JWKS [Sec §6.3]
-   > [Cert §4.2.1]: "A Platform MUST provide a Well-Known URL (JWKS) for the
+   > [Cert, Requirements for Certification for Learning Platforms]: "A Platform MUST provide a Well-Known URL (JWKS) for the
    > retrieval of Public Cryptographic keys."
 6. **Verify JWT signature** (Spec step 1, MUST) — [Sec §5.1.3 step 1]:
    > "The Tool MUST Validate the signature of the ID Token according to JSON
@@ -1181,79 +1191,80 @@ the spec's step numbering:
    The nonce in the JWT must match a nonce previously issued by this tool in
    Step 2 (binding), and must not have been used before (replay prevention).
    Both checks are delegated to `StorageAdapter.validate_nonce/2`.
-13. **Parse claims** — `LaunchClaims.from_json(jwt_body)` [Core §5.3, §5.4]
-14. **Validate required LTI claims** [Core §5.3]:
-    - `message_type` MUST equal `"LtiResourceLinkRequest"` [Core §5.3.1]
-    - `version` MUST equal `"1.3.0"` [Core §5.3.2]
-    - `deployment_id` MUST be present [Core §5.3.3]
-    - `target_link_uri` MUST be present [Core §5.3.4]
-    - `resource_link` MUST be present with `id` sub-field [Core §5.3.5]
-    - `roles` MUST be present (may be empty array) [Core §5.3.7]
-    - `sub` MUST be present (except anonymous launches) [Core §5.3.6]
+13. **Parse claims** — `LaunchClaims.from_json(jwt_body)` [Core, Required message claims], [Core, Optional message claims]
+14. **Validate required LTI claims** [Core, Required message claims]:
+    - `message_type` MUST equal `"LtiResourceLinkRequest"` [Core, Message type claim]
+    - `version` MUST equal `"1.3.0"` [Core, LTI Version claim]
+    - `deployment_id` MUST be present [Core, LTI Deployment ID claim]
+    - `target_link_uri` MUST be present [Core, Target Link URI]
+    - `resource_link` MUST be present with `id` sub-field [Core, Resource link claim]
+    - `roles` MUST be present (may be empty array) [Core, Roles claim]
+    - `sub` MUST be present (except anonymous launches) [Core, User Identity claims]
 15. **Validate `deployment_id`** — must be known for this registration
-   > [Core §5.3.3]: "The deployment_id is a stable locally unique identifier
+   > [Core, LTI Deployment ID claim]: "The deployment_id is a stable locally unique identifier
    > within the iss (Issuer)."
 16. **Build `LaunchContext`** from validated claims [Sec §5.1.1.4]
-   > [Core §5.3.4]: "A Tool should rely on this claim rather than the initial
+   > [Core, Target Link URI]: "A Tool should rely on this claim rather than the initial
    > `target_link_uri` to do the final redirection, since the login initiation
    > request is unsigned."
    The `LaunchContext.target_link_uri` (from the signed JWT) should be used
    by the host app for the final redirect, not the unsigned value from Step 1.
 
-**Tests** (mapped to [Cert §6.1] tool certification scenarios):
+**Tests** (mapped to [Cert, LTI Core testing] tool certification scenarios):
 
-*Known "Bad" Payloads [Cert §6.1.1]*:
-- Missing KID → `Security.KidMissing` [Cert §6.1.1 "No KID Sent in JWT header"]
-- Incorrect KID → `Security.KidNotFound` [Cert §6.1.1 "Incorrect KID in JWT header"]
-- Wrong LTI version → `Invalid.InvalidClaim` [Cert §6.1.1 "Wrong LTI Version"]
-- Missing version → `Invalid.MissingClaim` [Cert §6.1.1 "No LTI Version"]
-- Invalid JSON → `Invalid.InvalidJson` [Cert §6.1.1 "Invalid LTI message"]
-- Missing claims → `Invalid.MissingClaim` [Cert §6.1.1 "Missing LTI Claims"]
-- Invalid timestamps → `Security.TokenExpired` [Cert §6.1.1 "Timestamps Incorrect"]
-- Missing message_type → `Invalid.MissingClaim` [Cert §6.1.1 "messsage_type Claim Missing"]
-- Missing role → `Invalid.MissingClaim` [Cert §6.1.1 "role Claim Missing"]
-- Missing deployment_id → `Invalid.MissingClaim` [Cert §6.1.1 "deployment_id Claim Missing"]
-- Missing resource_link_id → `Invalid.MissingClaim` [Cert §6.1.1 "resource_link_id Claim Missing"]
-- Missing sub → `Invalid.MissingClaim` [Cert §6.1.1 "user Claim Missing"]
-- State mismatch → `Security.StateMismatch` [Sec §7.3.1]
+*Known "Bad" Payloads [Cert, Known "Bad" Payloads]*:
+- Missing KID → `Security.KidMissing` [Cert, Known "Bad" Payloads, "No KID Sent in JWT header"]
+- Incorrect KID → `Security.KidNotFound` [Cert, Known "Bad" Payloads, "Incorrect KID in JWT header"]
+- Wrong LTI version → `Invalid.InvalidClaim` [Cert, Known "Bad" Payloads, "Wrong LTI Version"]
+- Missing version → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "No LTI Version"]
+- Invalid JSON → `Invalid.InvalidJson` [Cert, Known "Bad" Payloads, "Invalid LTI message"]
+- Missing claims → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "Missing LTI Claims"]
+- Invalid timestamps → `Security.TokenExpired` [Cert, Known "Bad" Payloads, "Timestamps Incorrect"]
+- Missing message_type → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "messsage_type Claim Missing"]
+- Missing role → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "role Claim Missing"]
+- Missing deployment_id → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "deployment_id Claim Missing"]
+- Missing resource_link_id → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "resource_link_id Claim Missing"]
+- Missing sub → `Invalid.MissingClaim` [Cert, Known "Bad" Payloads, "user Claim Missing"]
+- State mismatch → `Security.StateMismatch` [Sec §5.1.1.4]
 
-*Valid Teacher Launches [Cert §6.1.2]*:
-- Valid Instructor Launch [Cert §6.1.2]
-- Valid Instructor Launch with Roles [Cert §6.1.2]
-- Valid Instructor Launch Short Role [Cert §6.1.2]
-- Valid Instructor Launch Unknown Role [Cert §6.1.2]
-- Valid Instructor Launch No Role [Cert §6.1.2]
-- Valid Instructor Launch Email Only [Cert §6.1.2]
-- Valid Instructor Launch Names Only [Cert §6.1.2]
-- Valid Instructor No PII [Cert §6.1.2]
-- Valid Instructor Email Without Context [Cert §6.1.2]
+*Valid Teacher Launches [Cert, Valid Teacher Launches]*:
+- Valid Instructor Launch [Cert, Valid Teacher Launches]
+- Valid Instructor Launch with Roles [Cert, Valid Teacher Launches]
+- Valid Instructor Launch Short Role [Cert, Valid Teacher Launches]
+- Valid Instructor Launch Unknown Role [Cert, Valid Teacher Launches]
+- Valid Instructor Launch No Role [Cert, Valid Teacher Launches]
+- Valid Instructor Launch Email Only [Cert, Valid Teacher Launches]
+- Valid Instructor Launch Names Only [Cert, Valid Teacher Launches]
+- Valid Instructor No PII [Cert, Valid Teacher Launches]
+- Valid Instructor Email Without Context [Cert, Valid Teacher Launches]
 
-*Valid Student Launches [Cert §6.1.3]*:
-- Valid Student Launch [Cert §6.1.3]
-- Valid Student Launch with Roles [Cert §6.1.3]
-- Valid Student Launch Short Role [Cert §6.1.3]
-- Valid Student Launch Unknown Role [Cert §6.1.3]
-- Valid Student Launch No Role [Cert §6.1.3]
-- Valid Student Launch Email Only [Cert §6.1.3]
-- Valid Student Launch Names Only [Cert §6.1.3]
-- Valid Student No PII [Cert §6.1.3]
-- Valid Student Email Without Context [Cert §6.1.3]
+*Valid Student Launches [Cert, Valid Student Launches]*:
+- Valid Student Launch [Cert, Valid Student Launches]
+- Valid Student Launch with Roles [Cert, Valid Student Launches]
+- Valid Student Launch Short Role [Cert, Valid Student Launches]
+- Valid Student Launch Unknown Role [Cert, Valid Student Launches]
+- Valid Student Launch No Role [Cert, Valid Student Launches]
+- Valid Student Launch Email Only [Cert, Valid Student Launches]
+- Valid Student Launch Names Only [Cert, Valid Student Launches]
+- Valid Student No PII [Cert, Valid Student Launches]
+- Valid Student Email Without Context [Cert, Valid Student Launches]
 
 ---
 
 ### 2.11 `Ltix.LaunchContext` — Validated Launch Output
 
-**Spec basis**: [Sec §5.1.1.4] Step 4: Resource is displayed — "Tool validates
-ID token, verifies state, then displays resource."
+**Spec basis**: [Sec §5.1.1.4] Step 4: Resource is displayed — "The tool, after
+decoding and validating the `id_token` and verified the `state` matches the
+current state attached to the browser session, will display the resource".
 
 The successful output of the OIDC callback — wraps the parsed `%LaunchClaims{}`
 along with the resolved `%Registration{}` and `%Deployment{}`:
 
 ```elixir
 defstruct [
-  :claims,         # %LaunchClaims{} — all parsed claim data [Core §5.3, §5.4, §6.1]
-  :registration,   # %Registration{} — the matched platform registration [Core §3.1.2]
-  :deployment      # %Deployment{} — the matched deployment [Core §3.1.3]
+  :claims,         # %LaunchClaims{} — all parsed claim data [Core, Required message claims], [Core, Optional message claims], [Core, Services exposed as additional claims]
+  :registration,   # %Registration{} — the matched platform registration [Core, LTI Domain Model]
+  :deployment      # %Deployment{} — the matched deployment [Core, Tool Deployment]
 ]
 
 @type t :: %__MODULE__{
@@ -1319,23 +1330,23 @@ Individual error modules:
 
 | Module | Class | Spec ref |
 |---|---|---|
-| `Invalid.MissingClaim` | `:invalid` | Varies: [Core §5.3.1] message_type, [Core §5.3.2] version, [Core §5.3.3] deployment_id, [Core §5.3.5] resource_link.id, [Core §5.3.6] sub, [Core §5.3.7] roles |
-| `Invalid.InvalidClaim` | `:invalid` | Varies: [Core §5.3.1] wrong message_type, [Core §5.3.2] wrong version |
-| `Invalid.InvalidJson` | `:invalid` | [Cert §6.1.1 "Invalid LTI message"] |
+| `Invalid.MissingClaim` | `:invalid` | Varies: [Core, Message type claim] message_type, [Core, LTI Version claim] version, [Core, LTI Deployment ID claim] deployment_id, [Core, Resource link claim] resource_link.id, [Core, User Identity claims] sub, [Core, Roles claim] roles |
+| `Invalid.InvalidClaim` | `:invalid` | Varies: [Core, Message type claim] wrong message_type, [Core, LTI Version claim] wrong version |
+| `Invalid.InvalidJson` | `:invalid` | [Cert, Known "Bad" Payloads, "Invalid LTI message"] |
 | `Invalid.MissingParameter` | `:invalid` | [Sec §5.1.1.1] missing iss/login_hint/target_link_uri |
 | `Invalid.RegistrationNotFound` | `:invalid` | [Sec §5.1.1.1] unknown issuer+client_id |
-| `Invalid.DeploymentNotFound` | `:invalid` | [Core §3.1.3; Core §5.3.3] unknown deployment_id |
-| `Security.SignatureInvalid` | `:security` | [Sec §5.1.3 step 1] "Validating JWT signature" |
-| `Security.TokenExpired` | `:security` | [Sec §5.1.3 step 7] "Tool MUST NOT accept after exp" |
-| `Security.IssuerMismatch` | `:security` | [Sec §5.1.3 step 2] "iss exactly matches issuer identifier" |
-| `Security.AudienceMismatch` | `:security` | [Sec §5.1.3 step 3] "aud contains Tool's client_id" |
+| `Invalid.DeploymentNotFound` | `:invalid` | [Core, Tool Deployment], [Core, LTI Deployment ID claim] unknown deployment_id |
+| `Security.SignatureInvalid` | `:security` | [Sec §5.1.3 step 1] "The Tool MUST Validate the signature of the ID Token" |
+| `Security.TokenExpired` | `:security` | [Sec §5.1.3 step 7] "The current time MUST be before the time represented by the exp Claim" |
+| `Security.IssuerMismatch` | `:security` | [Sec §5.1.3 step 2] "The Issuer Identifier for the Platform MUST exactly match the value of the iss (Issuer) Claim" |
+| `Security.AudienceMismatch` | `:security` | [Sec §5.1.3 step 3] "The Tool MUST validate that the aud (audience) Claim contains its client_id value" |
 | `Security.AlgorithmNotAllowed` | `:security` | [Sec §5.1.3 step 6; Sec §7.3.2] RS256 only |
 | `Security.NonceMissing` | `:security` | [Sec §5.1.3 step 9] "The ID Token MUST contain a nonce Claim" |
-| `Security.NonceReused` | `:security` | [Sec §5.1.3 step 9] "nonce not previously received" |
+| `Security.NonceReused` | `:security` | [Sec §5.1.3 step 9] "The Tool SHOULD verify that it has not yet received this nonce value" |
 | `Security.NonceNotFound` | `:security` | [Sec §5.1.3 step 9] nonce not previously issued by this tool |
-| `Security.StateMismatch` | `:security` | [Sec §7.3.1] "state parameter MUST be used" for CSRF |
-| `Security.KidMissing` | `:security` | [Cert §6.1.1 "No KID Sent in JWT header"] |
-| `Security.KidNotFound` | `:security` | [Cert §6.1.1 "Incorrect KID in JWT header"] |
+| `Security.StateMismatch` | `:security` | [Sec §5.1.1.4] "verified the state matches the current state attached to the browser session" |
+| `Security.KidMissing` | `:security` | [Cert, Known "Bad" Payloads, "No KID Sent in JWT header"] |
+| `Security.KidNotFound` | `:security` | [Cert, Known "Bad" Payloads, "Incorrect KID in JWT header"] |
 | `Unknown.Unknown` | `:unknown` | — |
 
 ---
@@ -1352,7 +1363,7 @@ authentication request [Sec §5.1.1.2].
 
 The caller receives the full redirect URI (to the platform's auth endpoint)
 and the `state` value. The caller is responsible for:
-1. Storing `state` in the user's session for CSRF verification [Sec §7.3.1]
+1. Storing `state` in the user's session for CSRF verification [Sec §5.1.1.4]
 2. Redirecting the user agent to `redirect_uri`
 
 The nonce is stored via `StorageAdapter.store_nonce/2` automatically.
@@ -1362,13 +1373,13 @@ The nonce is stored via `StorageAdapter.store_nonce/2` automatically.
 
 @doc """
 Handle authentication response [Sec §5.1.1.3], validate ID token [Sec §5.1.3],
-parse claims [Core §5.3, §5.4], and display resource [Sec §5.1.1.4].
+parse claims [Core, Required message claims], [Core, Optional message claims], and display resource [Sec §5.1.1.4].
 
 The caller passes in the POST params (containing `id_token` and `state`) and
 the `state` value from the session. The library handles all validation per
 [Sec §5.1.3] and returns a validated `LaunchContext`.
 
-> [Core §5.3.4]: "A Tool should rely on [the target_link_uri claim in the
+> [Core, Target Link URI]: "A Tool should rely on [the target_link_uri claim in the
 > signed JWT] rather than the initial target_link_uri to do the final
 > redirection, since the login initiation request is unsigned."
 
@@ -1390,22 +1401,22 @@ The order is driven by dependency flow and TDD. We build leaf modules first
 
 | Phase | Module | Depends on | Test focus |
 |---|---|---|---|
-| **1** | `Ltix.Registration` | — | Struct validation [Core §3.1.3; Sec §5.1.2] |
-| **1** | `Ltix.Deployment` | — | Struct validation [Core §3.1.3] |
+| **1** | `Ltix.Registration` | — | Struct validation [Core, Tool Deployment], [Sec §5.1.2] |
+| **1** | `Ltix.Deployment` | — | Struct validation [Core, Tool Deployment] |
 | **1** | `Ltix.Errors` (Splode) | `splode` | Error classes & modules |
 | **1** | `Ltix.StorageAdapter` | — | Behaviour definition |
 | **1** | `test/support/jwt_helper.ex` | `jose` | RSA key gen [Sec §6.1], JWT minting [Sec §5.1.2] |
-| **2** | `Ltix.LaunchClaims.Role` | — | Role parsing [Core §A.2]; [Cert §6.1.2, §6.1.3] role scenarios |
-| **2** | Nested claim structs | — | Required/optional field parsing [Core §5.3.5, §5.4.1–§5.4.5, §6.1] |
-| **2** | `Ltix.LaunchClaims` | `Role`, nested structs | Key classification, from_json/2, extensions [Core §5.3, §5.4, §5.4.7] |
-| **3** | `Ltix.JWT.KeySet` | `jose`, `req` | JWKS fetch [Sec §6.3, §6.4]; kid lookup [Cert §6.1.1] |
-| **3** | `Ltix.JWT.Token` | `jose`, `KeySet` | ID Token validation [Sec §5.1.3]; [Cert §6.1.1] bad payloads |
+| **2** | `Ltix.LaunchClaims.Role` | — | Role parsing [Core, Role vocabularies]; [Cert, Valid Teacher Launches], [Cert, Valid Student Launches] role scenarios |
+| **2** | Nested claim structs | — | Required/optional field parsing [Core, Resource link claim], [Core, Context claim], [Core, Platform instance claim], [Core, Launch presentation claim], [Core, Learning Information Services LIS claim], [Core, Services exposed as additional claims], [DL, Deep linking settings] |
+| **2** | `Ltix.LaunchClaims` | `Role`, nested structs | Key classification, from_json/2, extensions [Core, Required message claims], [Core, Optional message claims], [Core, Vendor-specific extension claims] |
+| **3** | `Ltix.JWT.KeySet` | `jose`, `req` | JWKS fetch [Sec §6.3, §6.4]; kid lookup [Cert, Known "Bad" Payloads] |
+| **3** | `Ltix.JWT.Token` | `jose`, `KeySet` | ID Token validation [Sec §5.1.3]; [Cert, Known "Bad" Payloads] bad payloads |
 | **4** | `Ltix.LaunchContext` | `LaunchClaims` | Struct construction |
 | **4** | `Ltix.OIDC.LoginInitiation` | `Registration`, `StorageAdapter` | Login params [Sec §5.1.1.1] |
 | **4** | `Ltix.OIDC.AuthenticationRequest` | `Registration` | Auth redirect [Sec §5.1.1.2] |
 | **5** | `Ltix.OIDC.Callback` | `Token`, `LaunchClaims`, `KeySet`, `StorageAdapter` | Full validation [Sec §5.1.3] |
 | **6** | `Ltix` (facade) | `OIDC.*` | Two-function public API [Sec §5.1.1] |
-| **7** | Integration tests | All | [Cert §6.1] end-to-end scenarios |
+| **7** | Integration tests | All | [Cert, LTI Core testing] end-to-end scenarios |
 
 ---
 
@@ -1423,7 +1434,7 @@ defmodule Ltix.Test.JWTHelper do
 
   def generate_rsa_key_pair() do
     # Returns {private_jwk, public_jwk, kid}
-    # Keys per [Sec §6.1] RSA Key; kid per [Sec §6.2] JSON Web Key
+    # Keys per [Sec §6.1] RSA Key; kid per [Sec §6.3] Key Set URL
   end
 
   def build_jwks(public_keys) do
@@ -1432,12 +1443,12 @@ defmodule Ltix.Test.JWTHelper do
 
   def mint_id_token(claims, private_key, opts \\ []) do
     # Signs claims as a JWT with RS256 per [Sec §5.1.2; Sec §5.4]
-    # opts: :kid, :alg (for testing bad alg scenarios per [Cert §6.1.1])
+    # opts: :kid, :alg (for testing bad alg scenarios per [Cert, Known "Bad" Payloads])
   end
 
   def valid_lti_claims(overrides \\ %{}) do
     # Returns a complete, valid LtiResourceLinkRequest claim set
-    # per [Core §5.3] required claims + [Core §5.4] optional claims
+    # per [Core, Required message claims] required claims + [Core, Optional message claims] optional claims
     # Caller can override individual claims for negative tests
   end
 end
@@ -1445,12 +1456,12 @@ end
 
 ### 4.2 Certification Scenario Mapping
 
-Tests are organized to map directly to [Cert §6.1] test categories:
+Tests are organized to map directly to [Cert, LTI Core testing] test categories:
 
 ```
 test/ltix/integration/certification_test.exs
 
-describe "Known Bad Payloads [Cert §6.1.1]" do
+describe "Known Bad Payloads [Cert, Known \"Bad\" Payloads]" do
   test "No KID Sent in JWT header"
   test "Incorrect KID in JWT header"
   test "Wrong LTI Version"
@@ -1465,7 +1476,7 @@ describe "Known Bad Payloads [Cert §6.1.1]" do
   test "user Claim Missing"
 end
 
-describe "Valid Teacher Launches [Cert §6.1.2]" do
+describe "Valid Teacher Launches [Cert, Valid Teacher Launches]" do
   test "Valid Instructor Launch"
   test "Valid Instructor Launch with Roles"
   test "Valid Instructor Launch Short Role"
@@ -1477,7 +1488,7 @@ describe "Valid Teacher Launches [Cert §6.1.2]" do
   test "Valid Instructor Email Without Context"
 end
 
-describe "Valid Student Launches [Cert §6.1.3]" do
+describe "Valid Student Launches [Cert, Valid Student Launches]" do
   test "Valid Student Launch"
   test "Valid Student Launch with Roles"
   test "Valid Student Launch Short Role"
@@ -1545,18 +1556,18 @@ per [Sec §5.1.3 step 9].
 The `state` value generated in `handle_login/3` is returned to the caller. The
 caller is responsible for storing it (typically in a session or short-lived
 cache) and passing it back to `handle_callback/4`. The library verifies the match
-per [Sec §7.3.1: "state parameter MUST be used"] but does not manage session state.
+per [Sec §5.1.1.4: "verified the `state` matches the current state attached to the browser session"] but does not manage session state.
 
 ### 5.4 Symmetric Keys Forbidden
 
-> [Cert §4.2]: "The use of Symmetric Cryptosystems SHALL NOT be considered
+> [Cert, General Requirements for Certification Testing Setup]: "The use of Symmetric Cryptosystems SHALL NOT be considered
 > legal and use of them is expressly forbidden."
 >
-> [Cert §4.2]: "All Learning Platforms and Tools MUST provide the mechanisms
+> [Cert, General Requirements for Certification Testing Setup]: "All Learning Platforms and Tools MUST provide the mechanisms
 > (the libraries) for signing and verification of signatures for JWTs signed
 > with RSA 256."
 >
-> [Cert §4.2]: "The signing of a JWT with a public key SHALL NOT be legal or
+> [Cert, General Requirements for Certification Testing Setup]: "The signing of a JWT with a public key SHALL NOT be legal or
 > respected. All JWT instances to be signed MUST be signed only with the
 > provided private key."
 
@@ -1566,12 +1577,13 @@ The library only accepts RS256. Any JWT signed with a symmetric algorithm
 ### 5.5 Clock Skew Tolerance
 
 `exp` and `iat` validation accepts a configurable clock skew (default: 5 seconds)
-via `opts`. This is a practical necessity acknowledged by [Sec §5.1.3 step 7]:
-"Optionally limiting time skew using iat."
+via `opts`. This is a practical necessity acknowledged by [Sec §5.1.2]:
+"Implementers MAY provide for some small leeway, usually no more than a few
+minutes, to account for clock skew."
 
 ### 5.6 Forward Compatibility & Extensions
 
-> [Core §5.4.7]: "In order to preserve forward compatibility and
+> [Core, Message claims]: "In order to preserve forward compatibility and
 > interoperability between platforms and tools, receivers of messages MUST ignore
 > any claims in messages they do not understand, and not treat the presence of
 > such claims as an error."
@@ -1583,10 +1595,10 @@ without modifying the library.
 
 ### 5.7 User Identification — `sub` Only
 
-> [Core §3.3]: "A user MUST have a unique identifier within the platform, which
-> acts as an OpenID Provider."
+> [Core, Users and roles]: "A user MUST have a unique identifier within the platform, which
+> acts as an OpenId Provider."
 >
-> [Core §3.3]: "A tool or platform MUST NOT use any other attribute other than
+> [Core, Users and roles]: "A tool or platform MUST NOT use any other attribute other than
 > the unique identifier to identify a user when interacting between tool and
 > platform."
 
@@ -1596,10 +1608,10 @@ constraint should be documented prominently for library consumers.
 
 ### 5.8 HTTPS Everywhere
 
-> [Sec §3]: "Implementers MUST use TLS 1.2 and/or TLS 1.3. Implementers MUST
-> NOT use Secure Sockets Layer (SSL)."
+> [Sec §3]: "Implementers MUST use TLS 1.2 (see [RFC5246]) and/or TLS 1.3 (see
+> [RFC8446])... Implementers MUST NOT use Secure Sockets Layer (SSL)."
 >
-> [Core §3.5]: "Implementers MUST use HTTPS for all URLs to resources included
+> [Core, Messages and services]: "Implementers MUST use HTTPS for all URLs to resources included
 > in messages and services."
 
 All URLs (registration endpoints, JWKS URIs, service endpoints, return URLs)
@@ -1608,7 +1620,7 @@ document it for consumers.
 
 ### 5.9 Multi-Deployment Architecture
 
-> [Core §3.1.3]: "A tool MUST allow multiple deployments on a given platform to
+> [Core, Tool Deployment]: "A tool MUST thus allow multiple deployments on a given platform to
 > share the same `client_id` and the security contract attached to it."
 
 The `Registration` struct represents the security contract (issuer, client_id,
@@ -1621,13 +1633,13 @@ host apps to attach additional deployment-specific data.
 ### 5.10 AshLti-Aligned Claims Architecture
 
 The `LaunchClaims` module mirrors AshLti's proven pattern:
-- Three mapping tables (`@oidc_keys` per [Sec §5.1.2], `@lti_keys` per [Core §5.3–§5.4], `@service_keys` per [Core §6.1])
+- Three mapping tables (`@oidc_keys` per [Sec §5.1.2], `@lti_keys` per [Core, Required message claims] and [Core, Optional message claims], `@service_keys` per [Core, Services exposed as additional claims])
 - `classify_key/1` routes every JWT key deterministically
 - Nested structs with `from_json/1` for complex claims
-- `%Role{type, name, sub_role, uri}` per [Core §A.2] with predicates and filters
+- `%Role{type, name, sub_role, uri}` per [Core, Role vocabularies] with predicates and filters
 - `parse_all/1` splits recognized/unrecognized roles gracefully
 - `with`-chain short-circuits on first nested parse error
-- Pluggable extension parsers per [Core §5.4.7] (config + per-call, per-call wins)
+- Pluggable extension parsers per [Core, Vendor-specific extension claims] (config + per-call, per-call wins)
 
 This ensures AshLti can eventually depend on Ltix for claim parsing with zero
 impedance mismatch.
@@ -1639,13 +1651,13 @@ impedance mismatch.
 These are explicitly deferred:
 
 - **Platform side** — Only tool side is implemented
-- **Advantage service API calls** — AGS [Core §6.2], NRPS, Deep Linking *endpoints*
-  are parsed from launch claims [Core §6.1], but no HTTP calls to those services
+- **Advantage service API calls** — AGS [Core, Token endpoint claim and services], NRPS, Deep Linking *endpoints*
+  are parsed from launch claims [Core, Services exposed as additional claims], but no HTTP calls to those services
   are made. Service calls require OAuth 2.0 Client Credentials Grant [Sec §4.1]
   which is deferred.
-  - *Certification impact*: [Cert §6.3] NRPS (5 tests) and [Cert §6.4] AGS
+  - *Certification impact*: [Cert, Names and Role Provisioning Services Testing] NRPS (5 tests) and [Cert, Assignment and Grade Services Testing] AGS
     (1+ tests) require service API calls. These cert scenarios are deferred.
-- **Deep Linking responses** — [Cert §6.2] Deep Linking message testing (7 tests)
+- **Deep Linking responses** — [Cert, Deep Linking Message testing] (7 tests)
   requires the tool to construct and sign a Deep Linking Response JWT. This
   requires the tool to have its own JWKS endpoint and signing infrastructure.
   Deferred to v0.2.0.
@@ -1657,13 +1669,13 @@ These are explicitly deferred:
   - *Tool-signed JWTs MUST*:
     - Use RS256 (MUST NOT use `none`) [Sec §5.4]
     - Include `kid` in JOSE header [Sec §6.3]
-    - SHOULD NOT use `x5u`, `x5c`, `jku`, or `jwk` header fields [Sec §5.3]
+    - SHOULD NOT use `x5u`, `x5c`, `jku`, or `jwk` header fields [Sec §5.4]
 - **Tool-originating messages** [Sec §5.2] — Not needed for core launch
 - **OAuth 2.0 Client Credentials Grant** [Sec §4.1, §4.1.1] — Only needed for
   service calls. When implemented, the client assertion JWT must include:
   `iss` = `sub` = tool's `client_id`, `aud` = token endpoint URL, `iat`, `exp`
-  (typically 5 min after iat), `jti` (unique identifier) [Sec §4.1.1]
-- **Custom variable substitution** [Core §5.4.6.1] — Platform-side concern
+  (typically 5 min after iat), `jti` (unique identifier) [Sec §4.1.1], [Core, Token endpoint claim and services]
+- **Custom variable substitution** [Core, Custom property value substitution] — Platform-side concern
 - **Plug integration module** — Can be added in v0.2.0 as a convenience layer
 
 ---
@@ -1672,9 +1684,9 @@ These are explicitly deferred:
 
 The release is ready when:
 
-1. All [Cert §6.1.1] Known "Bad" Payloads tests pass (12 scenarios)
-2. All [Cert §6.1.2] Valid Teacher Launches tests pass (9 scenarios)
-3. All [Cert §6.1.3] Valid Student Launches tests pass (9 scenarios)
+1. All [Cert, Known "Bad" Payloads] tests pass (12 scenarios)
+2. All [Cert, Valid Teacher Launches] tests pass (9 scenarios)
+3. All [Cert, Valid Student Launches] tests pass (9 scenarios)
 4. Full end-to-end launch flow test passes (login [Sec §5.1.1.1] → redirect [Sec §5.1.1.2] → callback [Sec §5.1.1.3] → LaunchContext [Sec §5.1.1.4])
 5. Zero dependencies beyond `jose`, `req`, `splode`, and `plug` (optional; no test-only deps needed for HTTP mocking)
 6. Every public function has `@spec` and `@doc` with spec references

@@ -130,7 +130,7 @@ defmodule Ltix.Core do
     [claim: "iat", name: :issued_at, schema: Zoi.number()],
     [claim: "nonce", name: :nonce, schema: Zoi.string()],
     [claim: "azp", name: :authorized_party, schema: Zoi.string()],
-    # [Core §5.3.6](https://www.imsglobal.org/spec/lti/v1p3/#user-identity-claims)
+    # [Core, User Identity claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#user-identity-claims)
     [claim: "email", name: :email, schema: Zoi.string(), strict: false],
     [claim: "name", name: :name, schema: Zoi.string(), strict: false],
     [claim: "given_name", name: :given_name, schema: Zoi.string(), strict: false],
@@ -138,20 +138,20 @@ defmodule Ltix.Core do
     [claim: "middle_name", name: :middle_name, schema: Zoi.string(), strict: false],
     [claim: "picture", name: :picture, schema: Zoi.string(), strict: false],
     [claim: "locale", name: :locale, schema: Zoi.string(), strict: false],
-    # [Core §5.3.1](https://www.imsglobal.org/spec/lti/v1p3/#message-type-claim)
+    # [Core, Message type claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#message-type-claim)
     [claim: @lti <> "message_type", name: :message_type, schema: Zoi.string()],
-    # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+    # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
     [claim: @lti <> "deployment_id", name: :deployment_id, schema: Zoi.string() |> Zoi.min(1)],
-    # [Core §5.3.4](https://www.imsglobal.org/spec/lti/v1p3/#target-link-uri)
+    # [Core, Target Link URI](https://standards.1edtech.org/lti/specifications/core/lti-spec#target-link-uri)
     [
       claim: @lti <> "target_link_uri",
       name: :target_link_uri,
       schema: Zoi.string() |> Zoi.min(1)
     ],
-    # [Core §5.3.7](https://www.imsglobal.org/spec/lti/v1p3/#roles-claim). Ltix 0.2 gave a
+    # [Core, Roles claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#roles-claim). Ltix 0.2 gave a
     # launch without roles `[]`.
     [claim: @lti <> "roles", name: :roles, schema: Zoi.list(Zoi.string()), default: []],
-    # [Core §5.4.6](https://www.imsglobal.org/spec/lti/v1p3/#custom-properties-and-variable-substitution)
+    # [Core, Custom properties and variable substitution](https://standards.1edtech.org/lti/specifications/core/lti-spec#custom-properties-and-variable-substitution)
     [claim: @lti <> "custom", name: :custom]
   ]
 

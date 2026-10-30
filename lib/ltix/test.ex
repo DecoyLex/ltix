@@ -1231,8 +1231,8 @@ defmodule Ltix.Test do
 
   @lti_claim_prefix "https://purl.imsglobal.org/spec/lti/claim/"
 
-  # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
-  # [Core §5.4](https://www.imsglobal.org/spec/lti/v1p3/#optional-message-claims)
+  # [Core, Required message claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#required-message-claims)
+  # [Core, Optional message claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#optional-message-claims)
   defp build_claims(platform, opts, plugins) do
     registration = resolved_registration(platform)
     now = System.system_time(:second)
@@ -1278,10 +1278,10 @@ defmodule Ltix.Test do
       (@lti_claim_prefix <> "target_link_uri") => Keyword.fetch!(opts, :target_link_uri),
       (@lti_claim_prefix <> "roles") => Keyword.fetch!(opts, :roles),
       (@lti_claim_prefix <> "context") => platform_json(context, plugins),
-      # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+      # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
       "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint" =>
         ags_endpoint_claim(opts[:ags_endpoint], plugins),
-      # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
+      # [NRPS, Claim for inclusion in LTI messages](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#claim-for-inclusion-in-lti-messages)
       "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" =>
         memberships_endpoint_claim(opts[:memberships_endpoint], plugins)
     }
@@ -1292,7 +1292,7 @@ defmodule Ltix.Test do
     |> Map.merge(Keyword.get(opts, :claims, %{}))
   end
 
-  # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
+  # [Core, Resource link claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#resource-link-claim)
   defp message_type_claims(:resource_link, resource_link, _settings, plugins) do
     %{
       (@lti_claim_prefix <> "message_type") => "LtiResourceLinkRequest",
@@ -1300,7 +1300,7 @@ defmodule Ltix.Test do
     }
   end
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   defp message_type_claims(:deep_linking, _resource_link, settings, plugins) do
     %{
       (@lti_claim_prefix <> "message_type") => "LtiDeepLinkingRequest",

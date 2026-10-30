@@ -30,7 +30,7 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   alias Ltix.MembershipsService.Member
   alias Ltix.Type
 
-  # [NRPS §2.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-container-media-type)
+  # [NRPS, Membership container media type](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#membership-container-media-type)
   use Ltix.Type,
     defaults: [context: nil, members: []],
     fields: [
@@ -41,7 +41,7 @@ defmodule Ltix.MembershipsService.MembershipContainer do
 
   # Parses the context as a launch's context claim, with its properties. A
   # `null` context is missing its ID.
-  # [Core §5.4.1](https://www.imsglobal.org/spec/lti/v1p3/#context-claim)
+  # [Core, Context claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#context-claim)
   @doc false
   @spec parse_context(term(), keyword()) :: {:ok, Context.t()} | {:error, Exception.t()}
   def parse_context(json, opts) do
@@ -79,7 +79,7 @@ defmodule Ltix.MembershipsService.MembershipContainer do
   def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
 
   # A member with neither `user_id` nor `roles` is reported once.
-  # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data)
+  # [NRPS, Sharing of personal data](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#sharing-of-personal-data)
   defp parse_member(json, plugins)
        when is_map_key(json, "user_id") or is_map_key(json, "roles") do
     with {:ok, member} <- Type.from_json(Member, json, plugins: plugins, name: "member"),

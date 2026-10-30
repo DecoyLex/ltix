@@ -97,10 +97,10 @@ defmodule Ltix.Role do
   @person @lis <> "person#"
   @lti_system "http://purl.imsglobal.org/vocab/lti/system/person#"
 
-  # [Core §A.2.3](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-context-roles)
+  # [Core, LIS vocabulary for context roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-context-roles)
   @context_roles ~w(Administrator ContentDeveloper Instructor Learner Mentor Manager Member Officer)
 
-  # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#context-sub-roles)
+  # [Core, Context sub-roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#context-sub-roles)
   @sub_roles [
     {"Administrator",
      ~w(Administrator Developer ExternalDeveloper ExternalSupport ExternalSystemAdministrator Support SystemAdministrator)},
@@ -115,19 +115,19 @@ defmodule Ltix.Role do
     {"Officer", ~w(Chair Communications Secretary Treasurer Vice-Chair)}
   ]
 
-  # [Core §A.2.2](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-institution-roles)
+  # [Core, LIS vocabulary for institution roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-institution-roles)
   @institution_roles ~w(Administrator Faculty Guest None Other Staff Student Alumni Instructor Learner Member Mentor Observer ProspectiveStudent)
 
-  # [Core §A.2.1](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-system-roles)
+  # [Core, LIS vocabulary for system roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-system-roles)
   @system_roles ~w(Administrator None AccountAdmin Creator SysAdmin SysSupport User)
 
-  # [Core §A.2.4](https://www.imsglobal.org/spec/lti/v1p3/#lti-vocabulary-for-system-roles)
+  # [Core, LTI vocabulary for system roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-vocabulary-for-system-roles)
   @lti_system_roles ~w(TestUser)
 
   # Institution and system roles each have a deprecated `person#` URI. This maps each
   # deprecated name to the `{vocabulary, uri}` of each role it stands for.
-  # [Core §A.2.1](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-system-roles)
-  # [Core §A.2.2](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-institution-roles)
+  # [Core, LIS vocabulary for system roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-system-roles)
+  # [Core, LIS vocabulary for institution roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-institution-roles)
   @person_forms Map.new(Enum.uniq(@institution_roles ++ @system_roles), fn name ->
                   {name,
                    for(
@@ -142,7 +142,7 @@ defmodule Ltix.Role do
 
   # Maps each deprecated form to the standard URIs it stands for. A context role's
   # simple name stands for its URI.
-  # [Core §A.2.3](https://www.imsglobal.org/spec/lti/v1p3/#lis-vocabulary-for-context-roles)
+  # [Core, LIS vocabulary for context roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#lis-vocabulary-for-context-roles)
   @standard_forms Map.merge(
                     Map.new(@context_roles, &{&1, [@context <> &1]}),
                     Map.new(@person_forms, fn {name, forms} ->
@@ -424,7 +424,7 @@ defmodule Ltix.Role do
 
   # A sub-role belongs to its principal role, whether or not the platform
   # also sends the principal role.
-  # [Core §A.2.3.1](https://www.imsglobal.org/spec/lti/v1p3/#context-sub-roles)
+  # [Core, Context sub-roles](https://standards.1edtech.org/lti/specifications/core/lti-spec#context-sub-roles)
   defp context_role?(roles, principal) do
     sub_role = @sub_role <> principal <> "#"
     has?(roles, @context <> principal) || Enum.any?(roles, &String.starts_with?(&1, sub_role))
@@ -437,7 +437,7 @@ defmodule Ltix.Role do
   end
 
   # A standard role has the kind of its vocabulary.
-  # [Core §A.2](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies)
+  # [Core, Role vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies)
   defp kind(@context <> _name), do: :context
   defp kind(@sub_role <> _name), do: :context
   defp kind(@institution <> _name), do: :institution

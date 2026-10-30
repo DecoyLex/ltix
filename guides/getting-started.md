@@ -653,7 +653,7 @@ end
 
 The create-on-launch pattern shown here is common. It extracts the user and course from the launch data, persists them, and sets up a session.
 
-This particular setup aligns with the platform-centric approach described in the [Best Practices for LTI Assessment Tools](https://www.imsglobal.org/spec/lti/v1p3/impl-assess#account-binding). If user accounts in your tool are separate from platform accounts (such as in a standalone SaaS product), you might instead use a join table to link platform users to your internal accounts. Use whatever account binding strategy works best for your application.
+This particular setup aligns with the platform-centric approach described in the [Best Practices for LTI Assessment Tools](https://standards.1edtech.org/lti/guides/assessment/assessment-guide#account-binding). If user accounts in your tool are separate from platform accounts (such as in a standalone SaaS product), you might instead use a join table to link platform users to your internal accounts. Use whatever account binding strategy works best for your application.
 
 For structured error matching (e.g., showing different messages for security errors vs. invalid configuration), see [Error Handling](error-handling.md).
 

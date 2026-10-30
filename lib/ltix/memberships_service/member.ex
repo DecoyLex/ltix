@@ -46,13 +46,13 @@ defmodule Ltix.MembershipsService.Member do
 
   alias Ltix.Claims
 
-  # [NRPS §2.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#sharing-of-personal-data)
+  # [NRPS, Sharing of personal data](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#sharing-of-personal-data)
   use Ltix.Type,
     defaults: [user_id: nil, roles: []],
     fields: [
       user_id: Zoi.string(),
       roles: Zoi.list(Zoi.string()),
-      # [NRPS §2.3](https://www.imsglobal.org/spec/lti-nrps/v2p0/#membership-status)
+      # [NRPS, Membership status](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#membership-status)
       status:
         Zoi.enum([:active, :inactive, :deleted],
           metadata: [
@@ -72,7 +72,7 @@ defmodule Ltix.MembershipsService.Member do
         Zoi.string(metadata: [json_key: "lis_person_sourcedid"]) |> Zoi.optional(),
       lti_1_1_legacy_user_id:
         Zoi.string(metadata: [json_key: "lti11_legacy_user_id"]) |> Zoi.optional(),
-      # [NRPS §3.2](https://www.imsglobal.org/spec/lti-nrps/v2p0/#message-section)
+      # [NRPS, Message section](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#message-section)
       message:
         Zoi.list(Zoi.map(Zoi.atom(), Zoi.any()),
           metadata: [

@@ -8,7 +8,7 @@ defmodule Ltix.Errors.Invalid.ContentItemTypeNotAccepted do
   """
   use Ltix.Errors, fields: [:index, :type, :accept_types], class: :invalid
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   def message(%{index: index, type: type, accept_types: accepted}) do
     "Content item type #{inspect(type)} at index #{index} is not accepted; " <>
       "platform accepts: #{inspect(accepted)}"

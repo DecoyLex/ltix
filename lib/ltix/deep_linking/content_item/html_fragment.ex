@@ -15,7 +15,7 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
       "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required"
   """
 
-  # [DL §3.4](https://www.imsglobal.org/spec/lti-dl/v2p0/#html-fragment)
+  # [DL, HTML fragment](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#html-fragment)
   use Ltix.DeepLinking.ContentItemType,
     type: "html",
     fields: [

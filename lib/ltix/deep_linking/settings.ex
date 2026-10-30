@@ -14,7 +14,7 @@ defmodule Ltix.DeepLinking.Settings do
       )
   """
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings",
     name: :deep_linking_settings,

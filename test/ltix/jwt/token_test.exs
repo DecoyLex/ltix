@@ -49,7 +49,9 @@ defmodule Ltix.JWT.TokenTest do
       end
     end
 
-    # Algorithm validation [Sec §5.1.3 step 6, Cert §4.2]
+    # Algorithm validation
+    # [Sec §5.1.3 step 6](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
+    # [Cert, General Requirements for Certification Testing Setup](https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide#general-requirements-for-certification-testing-setup)
 
     # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
     test "rejects alg=none", ctx do
@@ -59,7 +61,8 @@ defmodule Ltix.JWT.TokenTest do
                Token.verify(token, ctx.registration, req_options: req_options())
     end
 
-    # Claims validation [Sec §5.1.3 steps 2-9]
+    # Claims validation
+    # [Sec §5.1.3 steps 2-9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
 
     # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
     test "rejects iss mismatch", ctx do

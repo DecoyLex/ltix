@@ -45,7 +45,7 @@ defmodule Ltix.Integration.FullLaunchTest do
   end
 
   # [Sec §5.1.1](https://www.imsglobal.org/spec/security/v1p0/#openid_connect_launch_flow)
-  describe "complete launch flow [Sec §5.1.1]" do
+  describe "complete launch flow" do
     test "login → callback → Launch", ctx do
       {:ok, login_result} = do_login()
 
@@ -70,8 +70,8 @@ defmodule Ltix.Integration.FullLaunchTest do
     end
   end
 
-  # [Core §5.3.6.1](https://www.imsglobal.org/spec/lti/v1p3/#anonymous-launch-case)
-  describe "full flow anonymous [Core §5.3.6.1]" do
+  # [Core, Anonymous launch case](https://standards.1edtech.org/lti/specifications/core/lti-spec#anonymous-launch-case)
+  describe "full flow anonymous" do
     test "anonymous launch with allow_anonymous", ctx do
       {:ok, login_result} = do_login()
 

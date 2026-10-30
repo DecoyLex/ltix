@@ -7,7 +7,7 @@ defmodule Ltix.Claims.LIS do
   the launch continues.
   """
 
-  # [Core §5.4.5](https://www.imsglobal.org/spec/lti/v1p3/#learning-information-services-lis-claim)
+  # [Core, Learning Information Services LIS claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#learning-information-services-lis-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/lis",
     name: :lis,

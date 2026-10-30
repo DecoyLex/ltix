@@ -5,6 +5,7 @@ defmodule Ltix.Launch.VerifyState do
   alias Ltix.Errors.Security.StateMismatch
   alias Ltix.OIDC.State
 
+  # [Sec §5.1.1.4](https://www.imsglobal.org/spec/security/v1p0/#step-4-resource-is-displayed)
   # [Sec §7.3.1](https://www.imsglobal.org/spec/security/v1p0/#prohibiting-the-login-csrf-vulnerability)
   @impl Ltix.Step
   def call(%Ltix.Launch{private: private} = launch, _opts) do

@@ -22,13 +22,14 @@ defmodule Ltix.DeploymentTest do
                    end
     end
 
-    # [Core §5.3.3] deployment_id MUST NOT exceed 255 ASCII characters
+    # deployment_id MUST NOT exceed 255 ASCII characters
+    # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
     test "accepts deployment_id at 255 characters" do
       id = String.duplicate("a", 255)
       assert {:ok, %Deployment{deployment_id: ^id}} = Deployment.new(id)
     end
 
-    # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+    # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
     test "reports an invalid deployment_id with its value" do
       for {value, reason} <- [
             {"", "must be a non-empty string"},

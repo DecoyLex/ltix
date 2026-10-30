@@ -163,7 +163,7 @@ defmodule Ltix.OAuth.Client do
       iex> Ltix.OAuth.Client.expired?(%Ltix.OAuth.Client{token: token})
       false
   """
-  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
+  # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec expired?(t()) :: boolean()
   def expired?(%__MODULE__{token: token}), do: AccessToken.expired?(token)
 
@@ -194,7 +194,7 @@ defmodule Ltix.OAuth.Client do
       iex> Ltix.OAuth.Client.require_unexpired(%Ltix.OAuth.Client{token: token})
       :ok
   """
-  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
+  # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec require_unexpired(t()) :: :ok | {:error, Exception.t()}
   def require_unexpired(%__MODULE__{token: token} = client) do
     if expired?(client) do
@@ -326,7 +326,7 @@ defmodule Ltix.OAuth.Client do
   Re-derives requested scopes from endpoints, so a transient partial grant
   does not become permanent.
   """
-  # [Sec §7.1](https://www.imsglobal.org/spec/security/v1p0/#access-token-management)
+  # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec refresh(t()) :: {:ok, t()} | {:error, Exception.t()}
   def refresh(%__MODULE__{} = client) do
     if expired?(client) do

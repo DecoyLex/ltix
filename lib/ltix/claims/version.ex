@@ -6,7 +6,7 @@ defmodule Ltix.Claims.Version do
   `"1.3.0"`.
   """
 
-  # [Core §5.3.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-version-claim)
+  # [Core, LTI Version claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-version-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/version",
     name: :version,

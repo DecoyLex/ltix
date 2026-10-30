@@ -157,7 +157,7 @@ defmodule Ltix.OAuth.ClientCredentials do
     }
   end
 
-  # [Core §6.2.1](https://www.imsglobal.org/spec/lti/v1p3/#deployment-id)
+  # [Core, Deployment ID](https://standards.1edtech.org/lti/specifications/core/lti-spec#deployment-id)
   defp required_claims(%Registration{} = registration, %Deployment{deployment_id: deployment_id}) do
     Map.put(required_claims(registration, nil), @deployment_claim, deployment_id)
   end

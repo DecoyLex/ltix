@@ -33,7 +33,7 @@ defmodule Ltix.Deployment do
       #=> {:error, %Ltix.Errors.Invalid.InvalidField{field: :deployment_id, value: ""}}
 
   """
-  # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+  # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
   @spec new(String.t() | nil) :: {:ok, t()} | {:error, Exception.t()}
   def new(nil) do
     {:error, InvalidField.required(__MODULE__, :deployment_id)}

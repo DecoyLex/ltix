@@ -5,12 +5,12 @@ launch that includes the NRPS claim, the tool can query the platform's
 membership endpoint to retrieve context (course) memberships.
 
 **Spec references**:
-- `[NRPS §X]` → LTI Names and Role Provisioning Services v2.0
-  (https://www.imsglobal.org/spec/lti-nrps/v2p0/)
+- `[NRPS, Section title]` → LTI Names and Role Provisioning Services v2.0
+  (https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec)
 - `[Sec §X]` → 1EdTech Security Framework v1.0
   (https://www.imsglobal.org/spec/security/v1p0/)
-- `[Core §X]` → LTI Core Specification v1.3
-  (https://www.imsglobal.org/spec/lti/v1p3/)
+- `[Core, Section title]` → LTI Core Specification v1.3
+  (https://standards.1edtech.org/lti/specifications/core/lti-spec)
 
 **Prerequisites**: LTI 1.3 Core launch flow (already implemented). The NRPS
 endpoint claim (`Ltix.LaunchClaims.MembershipsEndpoint`) is already parsed
@@ -53,11 +53,11 @@ future Advantage services will also use it.
 | Claim | Value | Spec |
 |---|---|---|
 | `iss` | Unique identifier for the tool (typically `client_id`) | [Sec §4.1.1] "A unique identifier for the entity that issued the JWT" |
-| `sub` | Tool's `client_id` | [Sec §4.1.1] "client_id of the OAuth Consumer" |
+| `sub` | Tool's `client_id` | [Sec §4.1.1] ""client_id" of the OAuth Consumer" |
 | `aud` | Platform's `token_endpoint` | [Sec §4.1.1] "The authorization server MAY instruct the Consumer to use the token endpoint URL" |
 | `iat` | Current time | [Sec §4.1.1] |
 | `exp` | Current time + short TTL (e.g. 300s) | [Sec §4.1.1] |
-| `jti` | Unique ID (UUID) | [Sec §4.1.1] "Unique token identifier" |
+| `jti` | Unique ID (UUID) | [Sec §4.1.1] "A unique (potentially reusable) identifier for the token" |
 
 **JOSE header**: `{"typ": "JWT", "alg": "RS256", "kid": "<key_id>"}`.
 The `kid` identifies the signing key per [Sec §6.3]. The algorithm MUST be
@@ -181,20 +181,22 @@ defstruct [
 
 ### 2.1 `Ltix.MembershipsService.Member` — Individual Membership
 
-**Spec basis**: [NRPS §2.1] Membership container media type;
-[NRPS §2.2] Sharing of personal data.
+**Spec basis**: [NRPS, Membership container media type];
+[NRPS, Sharing of personal data].
 
 A struct representing a single member in the roster response.
 
-> [NRPS §2.2]: "At a minimum, the member must contain: `user_id` (as
-> communicated in the LtiResourceLinkRequest under `sub`) and `roles` (an
-> array of roles with values as defined in [LTI-13])."
+> [NRPS, Sharing of personal data]: "At a minimum, the member must contain:
+>
+> - `user_id`: as communicated in the LtiResourceLinkRequest under `sub`
+> - `roles`: an array of roles with values as defined in IMS Global Learning
+>   Tools Interoperability® Core Specification v1.3"
 
 ```elixir
 defstruct [
-  :user_id,              # REQUIRED [NRPS §2.2] — matches `sub` in launch JWT
-  :status,               # :active | :inactive | :deleted (mapped from "Active", "Inactive", "Deleted") [NRPS §2.3]
-  :name,                 # Optional PII — requires platform consent [NRPS §2.2]
+  :user_id,              # REQUIRED [NRPS, Sharing of personal data] — matches `sub` in launch JWT
+  :status,               # :active | :inactive | :deleted (mapped from "Active", "Inactive", "Deleted") [NRPS, Membership status]
+  :name,                 # Optional PII — requires platform consent [NRPS, Sharing of personal data]
   :picture,              # Optional PII
   :given_name,           # Optional PII
   :family_name,          # Optional PII
@@ -202,8 +204,8 @@ defstruct [
   :email,                # Optional PII
   :lis_person_sourcedid, # Optional SIS identifier
   :lti11_legacy_user_id, # Optional LTI 1.1 backward compat
-  :message,              # Optional [LaunchClaims.t()], present for resource link queries [NRPS §3.2]
-  roles: []              # REQUIRED [NRPS §2.2] — parsed into %Role{} structs
+  :message,              # Optional [LaunchClaims.t()], present for resource link queries [NRPS, Message section]
+  roles: []              # REQUIRED [NRPS, Sharing of personal data] — parsed into %Role{} structs
 ]
 ```
 
@@ -211,11 +213,12 @@ defstruct [
 to convert role URI strings into `%Role{}` structs, consistent with how
 launch claims handle roles.
 
-**Status** [NRPS §2.3]:
+**Status** [NRPS, Membership status]:
 > "Each membership has a status of either `Active` or `Inactive`. If the
 > status is not specified then a status of `Active` must be assumed."
 >
-> "When reporting differences a membership may have a status of `Deleted`."
+> "When reporting differences a membership (see below) may have a status of
+> `Deleted` which means that the membership no longer exists."
 
 **Decision**: Use an Elixir atom for `status` (`:active`, `:inactive`, `:deleted`) for easier pattern matching in client code.
 
@@ -224,14 +227,14 @@ launch claims handle roles.
 - Parse member with only required fields (user_id, roles)
 - Missing `user_id` returns error
 - Missing `roles` returns error
-- Status defaults to `:active` when not specified [NRPS §2.3]
+- Status defaults to `:active` when not specified [NRPS, Membership status]
 - Roles parsed into `%Role{}` structs (reuses existing parser)
 - Unrecognized role URIs preserved (via `Role.parse_all/1` return tuple)
-- Optional PII fields default to `nil` [NRPS §2.2]
+- Optional PII fields default to `nil` [NRPS, Sharing of personal data]
 
 ### 2.2 `Ltix.MembershipsService.MembershipContainer` — Response Envelope
 
-**Spec basis**: [NRPS §2.1] Membership container media type.
+**Spec basis**: [NRPS, Membership container media type].
 
 The top-level response structure from a membership query.
 
@@ -265,7 +268,7 @@ roster
 Enum.count(roster)
 ```
 
-> [NRPS §2.2]: "A context parameter must be present that must contain:
+> [NRPS, Sharing of personal data]: "A context parameter must be present that must contain:
 > `id`: id of the context."
 
 **Context**: Reuse `Ltix.LaunchClaims.Context.from_json/1` for parsing the
@@ -280,7 +283,7 @@ context block, which already enforces that `id` is required.
 
 **Tests**:
 - Parse full membership container response
-- Context `id` is required [NRPS §2.2]
+- Context `id` is required [NRPS, Sharing of personal data]
 - Members list parsed into `%Member{}` structs
 - Empty members list is valid
 
@@ -567,10 +570,10 @@ end
 
 #### 4.1.1 `Ltix.MembershipsService.authenticate/2` — Shorthand
 
-**Spec basis**: [NRPS §3.6.1] LTI 1.3 integration; [Sec §4.1] OAuth 2.0
+**Spec basis**: [NRPS, LTI 1.3 integration]; [Sec §4.1] OAuth 2.0
 Client Credentials.
 
-> [NRPS §3.6.1.2]: Scope for access:
+> [NRPS, Scope and Service security]: Scope for access:
 > `https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly`
 
 A convenience that pattern-matches on the first argument to support both
@@ -631,15 +634,15 @@ result in a `%MembershipContainer{}`.
     Filter by role. Accepts a role atom (e.g., `:learner`), URI string, `%Role{}` struct, or
     short name string (e.g., `"Learner"`). Atoms are resolved
     to URI strings via `Role.to_uri/1`.
-    """ # [NRPS §2.4.1]
+    """ # [NRPS, Role query parameter]
   ],
   resource_link_id: [
     type: :string,
-    doc: "Query resource link membership." # [NRPS §3]
+    doc: "Query resource link membership." # [NRPS, Resource Link Membership Service]
   ],
   limit: [
     type: :pos_integer,
-    doc: "Page size hint. The platform may return more or fewer than requested." # [NRPS §2.4.2]
+    doc: "Page size hint. The platform may return more or fewer than requested." # [NRPS, Limit query parameter]
   ]
 ]
 
@@ -722,7 +725,7 @@ end
 
 #### 4.1.4 Request Construction
 
-**Headers** [NRPS §2.4]:
+**Headers** [NRPS, Using the service]:
 - `Accept: application/vnd.ims.lti-nrps.v2.membershipcontainer+json`
 - `Authorization: Bearer <access_token>` [Sec §4.1]
 
@@ -733,18 +736,18 @@ end
   and comparing case-insensitively, per standard HTTP semantics.
 
 **Query parameters**:
-- `role` — URL-encoded role URI [NRPS §2.4.1]
-  > "A query parameter of `role=Learner` will filter the memberships to just
-  > those which have a Learner role."
+- `role` — URL-encoded role URI [NRPS, Role query parameter]
+  > "this may be limited to only those memberships with a specified role by
+  > passing its URI in a query parameter named 'role'."
   > Short names follow the same rule as the `roles` parameter in launch messages.
-- `limit` — integer [NRPS §2.4.2]
+- `limit` — integer [NRPS, Limit query parameter]
   > "The Tool may specify a maximum number of members to be returned."
   > The platform may return more or fewer than requested.
-- `rlid` — resource link ID [NRPS §3]
+- `rlid` — resource link ID [NRPS, Resource Link Membership Service]
   > "The tool needs to append an additional query parameter `rlid` with a
   > value of the Resource Link id."
 
-#### 4.1.5 Pagination [NRPS §2.4.2]
+#### 4.1.5 Pagination [NRPS, Limit query parameter]
 
 > "If the response from a Platform does not comprise all of the members a
 > `rel="next"` header link will be included to indicate how to request the
@@ -759,7 +762,7 @@ Pagination uses the shared `Ltix.Pagination` module (see §6.1). The
   then lazily follows subsequent pages via `Stream.resource/3`
 - Both use the client's token for all pages
 
-#### 4.1.6 Differences URL [NRPS §2.4.3] — Not Implemented
+#### 4.1.6 Differences URL [NRPS, Membership differences] — Not Implemented
 
 > "A response by the Names and Role Provisioning Services may include a
 > `rel="differences"` header link."
@@ -777,33 +780,33 @@ no `rel="differences"` parsing. If a platform ever ships this, it can be
 added without breaking changes. Tools that need incremental roster sync
 today can periodically fetch the full membership list and diff locally.
 
-#### 4.1.7 Resource Link Membership [NRPS §3]
+#### 4.1.7 Resource Link Membership [NRPS, Resource Link Membership Service]
 
-> [NRPS §3]: "Optionally, a platform may offer a Resource Link level
+> [NRPS, Resource Link Membership Service]: "Optionally, a platform may offer a Resource Link level
 > membership service."
 
-> [NRPS §3.1]: "A platform must deny access to this request if the Resource
+> [NRPS, Access restriction]: "A platform must deny access to this request if the Resource
 > Link is not owned by the Tool making the request or the resource link is
 > not present in the Context."
 
-> [NRPS §3.2]: "When queried in the context of a Resource Link, an
+> [NRPS, Message section]: "When queried in the context of a Resource Link, an
 > additional message section is added per member."
 
-> [NRPS §3.3]: "A platform may return a subset of the context memberships,
+> [NRPS, Membership filtered]: "A platform may return a subset of the context memberships,
 > reflecting which members can actually access the Resource Link."
 
 The `message` field on `%Member{}` holds per-member LTI message parameters
 when querying by resource link. This includes custom parameters and
-Basic Outcome claims [NRPS §3.4]. Substitution parameters [NRPS §3.5] are
+Basic Outcome claims [NRPS, Basic Outcome]. Substitution parameters [NRPS, Substitution parameters] are
 resolved platform-side and arrive already substituted.
 
 **Tests** (§4.1 `Ltix.MembershipsService`):
-- `authenticate/2` from LaunchContext acquires token with correct scope [NRPS §3.6.1]
+- `authenticate/2` from LaunchContext acquires token with correct scope [NRPS, Scope and Service security]
 - `authenticate/2` from LaunchContext errors when no NRPS claim in launch
 - `authenticate/2` from Registration with `endpoint:` acquires token
 - `authenticate/2` from Registration without `endpoint:` errors
 - `authenticate/2` validates `service_versions` includes `"2.0"`
-- `get_members/2` sends correct Accept header [NRPS §2.4]
+- `get_members/2` sends correct Accept header [NRPS, Using the service]
 - `get_members/2` sends correct Authorization header with Bearer token [Sec §4.1]
 - `get_members/2` follows all `rel="next"` links and returns complete roster
 - `get_members/2` returns error when `max_members` exceeded
@@ -812,13 +815,13 @@ resolved platform-side and arrive already substituted.
 - `stream_members/2` lazily follows `rel="next"` links across pages
 - Multiple calls on same client reuse the same token
 - Expired client returns `AccessTokenExpired` error (caller must `Client.refresh/1`)
-- Role filter accepts atoms, URI strings, and short names [NRPS §2.4.1]
-- Resource link ID appended as `rlid` parameter [NRPS §3]
-- Limit hint passed as query parameter [NRPS §2.4.2]
+- Role filter accepts atoms, URI strings, and short names [NRPS, Role query parameter]
+- Resource link ID appended as `rlid` parameter [NRPS, Resource Link Membership Service]
+- Limit hint passed as query parameter [NRPS, Limit query parameter]
 - Response Content-Type validated
 - HTTP error responses return `{:error, reason}`
 - Members parsed with roles into `%Role{}` structs
-- Resource link query includes message section per member [NRPS §3.2]
+- Resource link query includes message section per member [NRPS, Message section]
 
 ---
 
@@ -834,7 +837,7 @@ the launch claims (e.g., no NRPS claim in the JWT).
 ```elixir
 use Splode.Error, fields: [:service, :spec_ref], class: :invalid
 
-# spec_ref: "[NRPS §3.6.1.1] Claim for inclusion in LTI messages"
+# spec_ref: "[NRPS, Claim for inclusion in LTI messages]"
 def message(%{service: service}) do
   "Service not available: #{service} — no endpoint claim in launch"
 end
@@ -880,7 +883,7 @@ body that doesn't match the expected membership container schema.
 ```elixir
 use Splode.Error, fields: [:service, :reason, :spec_ref], class: :invalid
 
-# spec_ref: "[NRPS §2.1] Membership container media type"
+# spec_ref: "[NRPS, Membership container media type]"
 def message(%{service: service, reason: reason}) do
   "Malformed response from #{service}: #{reason}"
 end
@@ -911,7 +914,7 @@ claim validation during the launch flow.
 ```elixir
 use Splode.Error, fields: [:expires_at, :spec_ref], class: :security
 
-# spec_ref: "[Sec §7.1] Access Token Management"
+# spec_ref: "[Sec §7.1.1] Expires_In Values and Renewing the Access Token"
 def message(%{expires_at: expires_at}) do
   "OAuth access token expired at #{expires_at}; call Client.refresh/1 to re-acquire"
 end
@@ -940,7 +943,7 @@ than at the point of use.
 ```elixir
 use Splode.Error, fields: [:service, :spec_ref], class: :invalid
 
-# spec_ref: "[Core §6.1] Services exposed as additional claims"
+# spec_ref: "[Core, Services exposed as additional claims]"
 def message(%{service: service}) do
   "Invalid endpoint for #{inspect(service)}"
 end
@@ -1236,16 +1239,16 @@ leave the library in a working, testable state.
 
 **Acceptance criteria**:
 - [X] `Member.from_json/1` returns error when `user_id` or `roles` is
-  missing — these are the only MUST fields [NRPS §2.2]
-- [X] `from_json/1` defaults missing `status` to `:active` [NRPS §2.3]
+  missing — these are the only MUST fields [NRPS, Sharing of personal data]
+- [X] `from_json/1` defaults missing `status` to `:active` [NRPS, Membership status]
 - [X] `from_json/1` maps status strings to atoms: `"Active"` → `:active`,
-  `"Inactive"` → `:inactive`, `"Deleted"` → `:deleted` [NRPS §2.3]
+  `"Inactive"` → `:inactive`, `"Deleted"` → `:deleted` [NRPS, Membership status]
 - [X] `from_json/1` parses `roles` via `Role.parse_all/1` per the LTI-13
-  role vocabulary [NRPS §2.2]
+  role vocabulary [NRPS, Sharing of personal data]
 - [X] All PII fields default to `nil` — the platform controls what it
-  shares [NRPS §2.2]
+  shares [NRPS, Sharing of personal data]
 - [X] `MembershipContainer.from_json/2` returns error when `context` is
-  missing or `context.id` is absent [NRPS §2.2]
+  missing or `context.id` is absent [NRPS, Sharing of personal data]
 - [X] All error types carry a `spec_ref` field
 
 ### Phase 2: OAuth Infrastructure
@@ -1289,7 +1292,7 @@ leave the library in a working, testable state.
 - [X] `aud` set to the platform's `token_endpoint` URL [Sec §4.1.1]
 - [X] `exp` set to an absolute time, short-lived (e.g., 5 min) [Sec §4.1.1]
 - [X] JWT signed with the tool's private key; JOSE header includes `alg`
-  (RS256) and `kid` [Sec §5.4, §6.3]
+  (RS256) and `kid` [Sec §4.1.1, §6.3]
 - [X] JOSE header omits `x5u`, `x5c`, `jku`, `jwk` fields [Sec §5.4]
 - [X] Scopes derived from endpoints via `AdvantageService.scopes/1`,
   space-separated in the token request [Sec §4.1]
@@ -1307,7 +1310,7 @@ leave the library in a working, testable state.
 - [X] `OAuth.authenticate/2` validates endpoints via
   `validate_endpoint/1` before requesting a token
 - [X] `Pagination.stream/3` parses RFC 8288 `rel="next"` Link headers
-  [NRPS §2.4.2]; absence of `rel="next"` halts the stream
+  [NRPS, Limit query parameter]; absence of `rel="next"` halts the stream
 - [X] First page fetched eagerly (surfaces auth/HTTP errors); subsequent
   pages fetched lazily via `Stream.resource/3`
 
@@ -1329,22 +1332,22 @@ leave the library in a working, testable state.
 **Acceptance criteria**:
 - [X] `authenticate/2` from `LaunchContext` extracts the NRPS endpoint
   from claims and requests scope
-  `contextmembership.readonly` [NRPS §3.6.1]
+  `contextmembership.readonly` [NRPS, LTI 1.3 integration]
 - [X] `authenticate/2` from `Registration` requires caller-supplied
   `endpoint:` option
 - [X] `authenticate/2` rejects endpoints where `service_versions` does
-  not include `"2.0"` [NRPS §3.6.1]
+  not include `"2.0"` [NRPS, Claim for inclusion in LTI messages]
 - [X] `stream_members/2` sends `Authorization: Bearer <token>` [Sec §4.1]
   and `Accept: application/vnd.ims.lti-nrps.v2.membershipcontainer+json`
-  [NRPS §2.4]
+  [NRPS, Using the service]
 - [X] `stream_members/2` checks `Client.require_scope/2` before making
-  any HTTP request [NRPS §3.6.1]
+  any HTTP request [NRPS, Scope and Service security]
 - [X] Role filter resolves atoms and short names to URI strings per
-  the LTI-13 role vocabulary [NRPS §2.4.1]
-- [X] `limit` passed as query parameter when provided [NRPS §2.4.2]
-- [X] Resource link queries append `rlid` query parameter [NRPS §3]
+  the LTI-13 role vocabulary [NRPS, Role query parameter]
+- [X] `limit` passed as query parameter when provided [NRPS, Limit query parameter]
+- [X] Resource link queries append `rlid` query parameter [NRPS, Resource Link Membership Service]
 - [X] Resource link responses parsed with `message` section using
-  `LaunchClaims.from_json/1` (LTI 1.3 claims format) [NRPS §3.2]
+  `LaunchClaims.from_json/1` (LTI 1.3 claims format) [NRPS, Message section]
 - [X] `get_members/2` delegates to `stream_members/2`, consumes all
   pages, and wraps in `MembershipContainer`
 - [X] `get_members/2` enforces `max_members` safety limit
@@ -1445,7 +1448,7 @@ includes `tool_jwk` in the registration automatically.
 ## 12. Resolved Questions
 
 1. **`message` field parsing**: The `message` section in resource link
-   membership responses uses "the LTI 1.3 claims format" [NRPS §3.2].
+   membership responses uses "the LTI 1.3 claims format" [NRPS, Message section].
    These are the same namespaced claim keys that `LaunchClaims.from_json/1`
    already parses.
 

@@ -339,9 +339,9 @@ Still document functions with `@doc` if the module is complex enough that *devel
 
 ## Spec references (ltix-specific)
 
-Spec references belong in **code comments next to the implementing code**, NOT in user-facing docs. Use the anchor mappings in `spec-anchors.md`.
+Spec references belong in **code comments next to the implementing code**, NOT in user-facing docs. Follow the label format in "Spec References" in `AGENTS.md`.
 
-Format: `# [Core §5.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti-domain-model)`
+Format: `# [Core, LTI Domain Model](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-domain-model)`
 
 Modules where the spec is directly relevant to the library consumer, such as `StorageAdapter`, may include spec refs in `@moduledoc`/`@doc`.
 

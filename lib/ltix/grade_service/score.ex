@@ -45,7 +45,7 @@ defmodule Ltix.GradeService.Score do
 
   alias Ltix.Errors.Invalid.InvalidField
 
-  # [AGS §3.4.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#activityprogress)
+  # [AGS, activityProgress](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#activity-progress)
   @activity_progress_values [
     initialized: "initialized",
     started: "started",
@@ -54,7 +54,7 @@ defmodule Ltix.GradeService.Score do
     completed: "completed"
   ]
 
-  # [AGS §3.4.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#gradingprogress)
+  # [AGS, gradingProgress](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#grading-progress)
   @grading_progress_values [
     fully_graded: "fully_graded",
     pending: "pending",
@@ -63,7 +63,7 @@ defmodule Ltix.GradeService.Score do
     not_ready: "not_ready"
   ]
 
-  # [AGS §3.4.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#score-service-media-type-and-schema)
+  # [AGS, Score service Media type and schema](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#score-service-media-type-and-schema)
   use Ltix.Type,
     json_keys: :camel_case,
     fields: [
@@ -192,13 +192,13 @@ defmodule Ltix.GradeService.Score do
 
   # --- Private ---
 
-  # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
+  # [AGS, timestamp](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#timestamp)
   defp validate_timestamp(%__MODULE__{timestamp: nil}),
     do: {:error, InvalidField.required(__MODULE__, :timestamp)}
 
   defp validate_timestamp(%__MODULE__{}), do: :ok
 
-  # [AGS §3.4.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoregiven-and-scoremaximum)
+  # [AGS, scoreGiven and scoreMaximum](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#score-given-and-score-maximum)
   defp validate_score_pair(%__MODULE__{score_given: given, score_maximum: nil})
        when not is_nil(given) do
     {:error, InvalidField.required(__MODULE__, :score_maximum)}
@@ -206,7 +206,7 @@ defmodule Ltix.GradeService.Score do
 
   defp validate_score_pair(%__MODULE__{}), do: :ok
 
-  # [AGS §3.4.10.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#submittedat-optional)
+  # [AGS, submittedAt (Optional)](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#submitted-at-optional)
   defp validate_submission_order(%{started_at: started_at, submitted_at: submitted_at}) do
     if DateTime.compare(submitted_at, started_at) == :lt do
       {:error,
@@ -227,8 +227,8 @@ defmodule Ltix.GradeService.Score do
   @doc false
   def grading_progress_to_json(progress), do: Recase.to_pascal(Atom.to_string(progress))
 
-  # [AGS §3.4.9](https://www.imsglobal.org/spec/lti-ags/v2p0/#timestamp)
-  # [AGS §3.4.10](https://www.imsglobal.org/spec/lti-ags/v2p0/#submission-optional)
+  # [AGS, timestamp](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#timestamp)
+  # [AGS, submission (Optional)](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#submission-optional)
   @doc false
   def timestamp_to_json(%DateTime{} = date_time) do
     microseconds = DateTime.to_unix(date_time, :microsecond)

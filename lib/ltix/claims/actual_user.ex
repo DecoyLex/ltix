@@ -8,7 +8,7 @@ defmodule Ltix.Claims.ActualUser do
   user being viewed.
   """
 
-  # [Core 1.3.0 §5.3.6.2](https://standards.1edtech.org/lti/specifications/core/lti-spec#impersonation-launch-case)
+  # [Core, Impersonation launch case](https://standards.1edtech.org/lti/specifications/core/lti-spec#impersonation-launch-case)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/actual_user",
     name: :actual_user,

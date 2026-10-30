@@ -7,7 +7,7 @@ defmodule Ltix.Claims.ToolPlatform do
   `nil` and the launch continues.
   """
 
-  # [Core §5.4.2](https://www.imsglobal.org/spec/lti/v1p3/#platform-instance-claim)
+  # [Core, Platform instance claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#platform-instance-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/tool_platform",
     name: :tool_platform,

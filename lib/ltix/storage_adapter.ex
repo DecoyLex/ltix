@@ -110,7 +110,7 @@ defmodule Ltix.StorageAdapter do
   or launch returns `Ltix.Errors.Invalid.RegistrationNotFound`.
   """
   # [Sec §5.1.1.1](https://www.imsglobal.org/spec/security/v1p0/#step-1-third-party-initiated-login)
-  # [Core §4.1.3](https://www.imsglobal.org/spec/lti/v1p3/#client_id-login-parameter)
+  # [Core, client_id login parameter](https://standards.1edtech.org/lti/specifications/core/lti-spec#client-id-login-parameter)
   @callback get_registration(
               issuer :: String.t(),
               client_id :: String.t() | nil,
@@ -131,7 +131,7 @@ defmodule Ltix.StorageAdapter do
   Return `{:error, :not_found}` when no deployment matches, and the launch
   returns `Ltix.Errors.Invalid.DeploymentNotFound`.
   """
-  # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)
+  # [Core, Tool Deployment](https://standards.1edtech.org/lti/specifications/core/lti-spec#tool-deployment)
   @callback get_deployment(
               registration :: Registerable.t(),
               deployment_id :: String.t(),
@@ -182,7 +182,8 @@ defmodule Ltix.StorageAdapter do
   Sign with the key whose ID is `key_id`, and return `{:error, reason}` for a key
   ID you can't sign with.
   """
-  # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
+  # [Sec §4.1.1](https://www.imsglobal.org/spec/security/v1p0/#using-json-web-tokens-with-oauth-2-0-client-credentials-grant)
+  # [Sec §5.2](https://www.imsglobal.org/spec/security/v1p0/#tool-originating-messages)
   @callback sign(
               registration :: Registerable.t(),
               key_id :: String.t(),
@@ -241,7 +242,7 @@ defmodule Ltix.StorageAdapter do
     end
   end
 
-  # [Core §5.3.3](https://www.imsglobal.org/spec/lti/v1p3/#lti-deployment-id-claim)
+  # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
   defp check_deployment_id(deployment, deployment_id) do
     case convert(:get_deployment, deployment, :deployment) do
       {:ok, %Deployment{deployment_id: ^deployment_id} = resolved} ->

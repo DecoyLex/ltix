@@ -4,7 +4,7 @@ defmodule Ltix.JWT.Token do
 
   Implements the
   [Authentication Response Validation](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-  steps from the IMS Security Framework. The module verifies the JWT signature
+  steps from the 1EdTech Security Framework. The module verifies the JWT signature
   using the platform's public key (fetched via `Ltix.JWT.KeySet`), enforces
   RS256-only signing, and validates all required claims.
 
@@ -171,7 +171,7 @@ defmodule Ltix.JWT.Token do
 
   # Only RS256 is permitted.
   # [Sec §5.1.3 step 6](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-  # [Cert §4.2](https://www.imsglobal.org/spec/lti/v1p3/cert/#general-requirements-for-certification-testing-setup)
+  # [Cert, General Requirements for Certification Testing Setup](https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide#general-requirements-for-certification-testing-setup)
   defp validate_algorithm(%{"alg" => "RS256"}), do: :ok
 
   defp validate_algorithm(%{"alg" => alg}) do
@@ -249,7 +249,7 @@ defmodule Ltix.JWT.Token do
 
   defp invalid_json, do: InvalidJSON.exception()
 
-  # Validate claims per [Sec §5.1.3] steps 2-5, 7-9.
+  # Validate claims per [Sec §5.1.3 steps 2-5, 7-9](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation).
   defp validate_claims(claims, registration, opts) do
     now = Keyword.get(opts, :now, System.system_time(:second))
     latest_start = now + Keyword.get(opts, :clock_skew, @default_clock_skew)

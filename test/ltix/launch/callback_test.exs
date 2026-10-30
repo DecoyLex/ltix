@@ -26,7 +26,7 @@ defmodule Ltix.Launch.CallbackTest do
   defp callback(claims, ctx), do: LaunchFlow.callback_with_claims(ctx.platform, claims, ctx.state)
 
   # [Sec §5.1.1.5](https://www.imsglobal.org/spec/security/v1p0/#authentication-error-response)
-  describe "error responses [Sec §5.1.1.5]" do
+  describe "error responses" do
     test "platform error response returns AuthenticationFailed", ctx do
       params = %{
         "error" => "login_required",
@@ -49,8 +49,9 @@ defmodule Ltix.Launch.CallbackTest do
     end
   end
 
-  # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
-  describe "LTI claim validation [Cert §6.1.1]" do
+  # [Core, Required message claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#required-message-claims)
+  # [Cert, Known "Bad" Payloads](https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide#known-bad-payloads)
+  describe "LTI claim validation" do
     test "missing target_link_uri", ctx do
       assert {:error, %MissingClaim{claim: "target_link_uri"}} =
                callback(Map.delete(ctx.claims, @lti <> "target_link_uri"), ctx)
@@ -69,8 +70,8 @@ defmodule Ltix.Launch.CallbackTest do
     end
   end
 
-  # [Core §3.1.3](https://www.imsglobal.org/spec/lti/v1p3/#tool-deployment)
-  describe "deployment validation [Core §3.1.3]" do
+  # [Core, Tool Deployment](https://standards.1edtech.org/lti/specifications/core/lti-spec#tool-deployment)
+  describe "deployment validation" do
     test "unknown deployment_id returns DeploymentNotFound", ctx do
       assert {:error, %DeploymentNotFound{deployment_id: "unknown-deployment"}} =
                callback(Map.put(ctx.claims, @lti <> "deployment_id", "unknown-deployment"), ctx)

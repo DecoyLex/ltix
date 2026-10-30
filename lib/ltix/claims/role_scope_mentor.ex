@@ -8,14 +8,14 @@ defmodule Ltix.Claims.RoleScopeMentor do
   here without the Mentor role (see `Ltix.Role.mentor?/1`).
   """
 
-  # [Core §5.4.3](https://www.imsglobal.org/spec/lti/v1p3/#role-scope-mentor-claim)
+  # [Core, Role-scope mentor claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-scope-mentor-claims)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/role_scope_mentor",
     name: :role_scope_mentor,
     schema: Zoi.list(Zoi.string()),
     strict: false
 
-  # [Core §5.4.3](https://www.imsglobal.org/spec/lti/v1p3/#role-scope-mentor-claim)
+  # [Core, Role-scope mentor claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-scope-mentor-claims)
   @impl Ltix.Claim
   def check([], _claims), do: :ok
 

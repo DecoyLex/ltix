@@ -7,7 +7,7 @@ defmodule Ltix.Claims.Organization do
   `nil` and the launch continues.
   """
 
-  # [Core 1.3.0 §5.4.2](https://standards.1edtech.org/lti/specifications/core/lti-spec#organization-claim)
+  # [Core, Organization claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#organization-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/organization",
     name: :organization,

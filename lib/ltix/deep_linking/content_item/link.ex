@@ -20,7 +20,7 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
       "Ltix.DeepLinking.ContentItem.Link field :url is required"
   """
 
-  # [DL §3.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#link)
+  # [DL, Link](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#link)
   use Ltix.DeepLinking.ContentItemType,
     type: "link",
     fields: [

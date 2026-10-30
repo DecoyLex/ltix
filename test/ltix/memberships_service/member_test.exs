@@ -44,7 +44,8 @@ defmodule Ltix.MembershipsService.MemberTest do
            }
   end
 
-  test "reads a status in any case and with surrounding spaces [NRPS §2.3]", %{client: client} do
+  # [NRPS, Membership status](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#membership-status)
+  test "reads a status in any case and with surrounding spaces", %{client: client} do
     statuses = ["Active", "Inactive", "Deleted", " active ", "ACTIVE", "inactive", "DELETED"]
     members = for status <- statuses, do: Map.put(member("user-1"), "status", status)
 
@@ -54,7 +55,8 @@ defmodule Ltix.MembershipsService.MemberTest do
              [:active, :inactive, :deleted, :active, :active, :inactive, :deleted]
   end
 
-  test "reports a missing user_id or roles [NRPS §2.2]", %{client: client} do
+  # [NRPS, Sharing of personal data](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#sharing-of-personal-data)
+  test "reports a missing user_id or roles", %{client: client} do
     for {json, claim} <- [
           {%{"roles" => []}, "member.user_id"},
           {%{"user_id" => "user-1"}, "member.roles"},

@@ -6,7 +6,7 @@ defmodule Ltix.Claims.Context do
   and the launch continues.
   """
 
-  # [Core §5.4.1](https://www.imsglobal.org/spec/lti/v1p3/#context-claim)
+  # [Core, Context claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#context-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/context",
     name: :context,

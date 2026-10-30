@@ -8,7 +8,7 @@ defmodule Ltix.Errors.Invalid.LineItemNotAccepted do
   """
   use Ltix.Errors, fields: [:index], class: :invalid
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   def message(%{index: index}) do
     "Content item at index #{index} includes a line_item " <>
       "but the platform does not accept line items"

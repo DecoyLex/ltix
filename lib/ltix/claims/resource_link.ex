@@ -6,7 +6,7 @@ defmodule Ltix.Claims.ResourceLink do
   one.
   """
 
-  # [Core §5.3.5](https://www.imsglobal.org/spec/lti/v1p3/#resource-link-claim)
+  # [Core, Resource link claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#resource-link-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/resource_link",
     name: :resource_link,

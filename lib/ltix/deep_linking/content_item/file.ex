@@ -23,7 +23,7 @@ defmodule Ltix.DeepLinking.ContentItem.File do
   alias Ltix.DeepLinking.Settings
   alias Ltix.Errors.Invalid.MediaTypeNotAccepted
 
-  # [DL §3.3](https://www.imsglobal.org/spec/lti-dl/v2p0/#file)
+  # [DL, File](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#file)
   use Ltix.DeepLinking.ContentItemType,
     type: "file",
     fields: [
@@ -39,7 +39,7 @@ defmodule Ltix.DeepLinking.ContentItem.File do
     ]
 
   # `accept_media_types` only applies to files.
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   @impl Ltix.DeepLinking.ContentItemType
   def check(%__MODULE__{media_type: media_type}, %Settings{accept_media_types: accepted}) do
     if accepted?(media_type, accepted) do

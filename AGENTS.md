@@ -59,9 +59,17 @@ Object claims (in `lib/ltix/claims/`) and other types, such as line items and me
 
 ## Spec References
 
-Always link spec annotations to the relevant section of the online spec, in this format.
+Always link spec annotations to the relevant section of the online spec. Label each one the way the linked page shows the section.
+
+Pages on standards.1edtech.org show section titles. Cite them by title, as the page writes it.
+
+`[Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)`
+
+The Security Framework, on imsglobal.org, shows section numbers. Cite it by number.
 
 `[Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)`
+
+Use the prefixes Core, AGS, DL, NRPS, Cert, and Sec. Write several citations as separate labels, such as `[AGS, Result service endpoint], [AGS, Service endpoint]`.
 
 <!-- usage-rules-start -->
 <!-- usage_rules-start -->

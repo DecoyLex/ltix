@@ -8,7 +8,7 @@ defmodule Ltix.Errors.Invalid.MediaTypeNotAccepted do
   """
   use Ltix.Errors, fields: [:index, :media_type, :accept_media_types], class: :invalid
 
-  # [DL §4.4.1](https://www.imsglobal.org/spec/lti-dl/v2p0/#deep-linking-settings)
+  # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   def message(%{index: index, media_type: media_type, accept_media_types: accepted}) do
     "Content item at index #{index} has media type #{inspect(media_type)}, " <>
       "which the platform does not accept. Accepted media types are #{inspect(accepted)}"

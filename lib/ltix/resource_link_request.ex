@@ -10,8 +10,8 @@ defmodule Ltix.ResourceLinkRequest do
   `Ltix.Launch.MessageType.Requirements`.
   """
 
-  # [Core §5.3](https://www.imsglobal.org/spec/lti/v1p3/#required-message-claims)
-  # [Core §5.3.6.1](https://www.imsglobal.org/spec/lti/v1p3/#anonymous-launch-case)
+  # [Core, Required message claims](https://standards.1edtech.org/lti/specifications/core/lti-spec#required-message-claims)
+  # [Core, Anonymous launch case](https://standards.1edtech.org/lti/specifications/core/lti-spec#anonymous-launch-case)
   use Ltix.Launch.MessageType
 
   @impl Ltix.Launch.MessageType

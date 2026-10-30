@@ -36,8 +36,8 @@ defmodule Ltix.GradeService.LineItem do
 
   alias Ltix.Errors.Invalid.InvalidField
 
-  # [AGS §3.2.12](https://www.imsglobal.org/spec/lti-ags/v2p0/#startdatetime)
-  # [AGS §3.2.13](https://www.imsglobal.org/spec/lti-ags/v2p0/#enddatetime)
+  # [AGS, startDateTime](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#start-date-time)
+  # [AGS, endDateTime](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#end-date-time)
   @date_time_schema Zoi.datetime(
                       metadata: [
                         from_json: &__MODULE__.parse_date_time/1,
@@ -45,7 +45,7 @@ defmodule Ltix.GradeService.LineItem do
                       ]
                     )
 
-  # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
+  # [AGS, Line item service scope and allowed http methods](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#line-item-service-scope-and-allowed-http-methods)
   use Ltix.Type,
     json_keys: :camel_case,
     fields: [
@@ -60,11 +60,11 @@ defmodule Ltix.GradeService.LineItem do
       grades_released: Zoi.boolean() |> Zoi.optional()
     ]
 
-  # [AGS §3.2.7](https://www.imsglobal.org/spec/lti-ags/v2p0/#label)
+  # [AGS, Label](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#label)
   @label_schema Zoi.string(description: "Label for the line item.")
                 |> Zoi.refine({__MODULE__, :validate_label, []})
 
-  # [AGS §3.2.8](https://www.imsglobal.org/spec/lti-ags/v2p0/#scoremaximum)
+  # [AGS, scoreMaximum](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#score-maximum)
   @score_maximum_schema Zoi.number(description: "Maximum score, greater than 0.")
                         |> Zoi.positive()
 
@@ -118,7 +118,7 @@ defmodule Ltix.GradeService.LineItem do
     if String.trim(label) == "", do: {:error, "must not be blank"}, else: :ok
   end
 
-  # [AGS §4.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#datetime-values)
+  # [AGS, Datetime values](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#datetime-values)
   @doc false
   @spec date_time_to_json(DateTime.t()) :: String.t()
   def date_time_to_json(date_time),

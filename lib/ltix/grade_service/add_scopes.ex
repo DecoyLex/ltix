@@ -5,7 +5,7 @@ defmodule Ltix.GradeService.AddScopes do
   alias Ltix.GradeService.Endpoint
 
   @impl Ltix.Step
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   def call(%{endpoints: %{Ltix.GradeService => %Endpoint{scopes: scopes}}} = assertion, _opts),
     do: {:ok, update_in(assertion.scopes, &(&1 ++ List.wrap(scopes)))}
 

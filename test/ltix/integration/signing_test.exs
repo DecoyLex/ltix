@@ -102,7 +102,7 @@ defmodule Ltix.Integration.SigningTest do
       end
     end
 
-    # [Core §6.2.1](https://www.imsglobal.org/spec/lti/v1p3/#deployment-id)
+    # [Core, Deployment ID](https://standards.1edtech.org/lti/specifications/core/lti-spec#deployment-id)
     test "sends the deployment ID of a launch, and again on refresh", ctx do
       launch =
         Ltix.Test.build_launch(ctx.platform,

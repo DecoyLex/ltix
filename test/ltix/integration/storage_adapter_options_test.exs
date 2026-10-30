@@ -104,7 +104,7 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
       assert_received {:get_deployment, []}
     end
 
-    # [Core §4.1.2](https://www.imsglobal.org/spec/lti/v1p3/#lti_deployment_id-login-parameter)
+    # [Core, lti_deployment_id login parameter](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-login-parameter)
     test "give the registration lookup the platform's deployment ID", ctx do
       assert {:ok, login} =
                login(ctx, %{"lti_deployment_id" => "deployment-001"}, ctx.adapter)

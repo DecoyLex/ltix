@@ -10,7 +10,7 @@ defmodule Ltix.MembershipsService.Endpoint do
   example.
   """
 
-  # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#claim-for-inclusion-in-lti-messages)
+  # [NRPS, Claim for inclusion in LTI messages](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#claim-for-inclusion-in-lti-messages)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice",
     name: :memberships_endpoint,
@@ -71,7 +71,7 @@ defmodule Ltix.MembershipsService.Endpoint do
   @spec new(String.t() | nil | keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(url_or_fields)
 
-  # [NRPS §3.6.1.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#claim-for-inclusion-in-lti-messages)
+  # [NRPS, Claim for inclusion in LTI messages](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#claim-for-inclusion-in-lti-messages)
   def new(url) when url in [nil, ""],
     do: {:error, InvalidField.required(__MODULE__, :context_memberships_url)}
 
@@ -97,7 +97,7 @@ defmodule Ltix.MembershipsService.Endpoint do
     end
   end
 
-  # [NRPS §3.6.1](https://www.imsglobal.org/spec/lti-nrps/v2p0/#lti-1-3-integration)
+  # [NRPS, LTI 1.3 integration](https://standards.1edtech.org/lti/specifications/services/names_roles/names-role-provisioning-spec#lti-1-3-integration)
   defp require_url(url) when url in [nil, ""],
     do: not_available("The endpoint has no context memberships URL")
 

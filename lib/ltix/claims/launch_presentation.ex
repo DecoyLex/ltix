@@ -6,7 +6,7 @@ defmodule Ltix.Claims.LaunchPresentation do
   it's `nil` and the launch continues.
   """
 
-  # [Core §5.4.4](https://www.imsglobal.org/spec/lti/v1p3/#launch-presentation-claim)
+  # [Core, Launch presentation claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#launch-presentation-claim)
   use Ltix.Claim,
     claim: "https://purl.imsglobal.org/spec/lti/claim/launch_presentation",
     name: :launch_presentation,

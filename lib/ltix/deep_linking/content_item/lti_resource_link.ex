@@ -50,7 +50,7 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
     end_date_time: Zoi.datetime(description: "End of the window.") |> Zoi.optional()
   }
 
-  # [DL §3.2](https://www.imsglobal.org/spec/lti-dl/v2p0/#lti-resource-link)
+  # [DL, LTI Resource Link](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#lti-resource-link)
   use Ltix.DeepLinking.ContentItemType,
     type: "ltiResourceLink",
     fields: [

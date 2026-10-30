@@ -78,7 +78,7 @@ defmodule Ltix.RegistrationTest do
 
     # [Sec §5.1.2](https://www.imsglobal.org/spec/security/v1p0/#id-token)
     # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-    # [Sec §7.2](https://www.imsglobal.org/spec/security/v1p0/#h_key-management)
+    # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
     test "reports an invalid field with its value" do
       for {field, value, reason} <- [
             {:issuer, "http://platform.example.com", "must be an absolute HTTPS URL"},

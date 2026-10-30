@@ -2,7 +2,7 @@ defmodule Ltix.GradeService do
   @moduledoc """
   Manage line items, post scores, and read results from a platform's
   gradebook using the
-  [Assignment and Grade Services (AGS) v2.0](https://www.imsglobal.org/spec/lti-ags/v2p0/).
+  [Assignment and Grade Services (AGS) v2.0](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec).
 
   AGS has two workflows depending on the launch claim.
 
@@ -205,7 +205,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@list_line_items_schema)}
   """
-  # [AGS §3.2.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#container-request-filters)
+  # [AGS, Container Request Filters](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#container-request-filters)
   @spec list_line_items(Client.t(), keyword()) ::
           {:ok, [LineItem.t()]} | {:error, Exception.t()}
   def list_line_items(%Client{} = client, opts \\ []) do
@@ -243,7 +243,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@stream_line_items_schema)}
   """
-  # [AGS §3.2.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#container-request-filters)
+  # [AGS, Container Request Filters](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#container-request-filters)
   @spec stream_line_items(Client.t(), keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_line_items(%Client{} = client, opts \\ []) do
@@ -297,7 +297,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@get_line_item_schema)}
   """
-  # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
+  # [AGS, Line Item id REST Endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#line-item-id-rest-endpoint)
   @spec get_line_item(Client.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def get_line_item(%Client{} = client, opts \\ []) do
@@ -385,7 +385,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@create_line_item_schema)}
   """
-  # [AGS §3.2.5](https://www.imsglobal.org/spec/lti-ags/v2p0/#creating-a-new-line-item)
+  # [AGS, Creating a new line item](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#creating-a-new-line-item)
   @spec create_line_item(Client.t(), LineItem.t() | keyword(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def create_line_item(client, line_item_or_fields, opts \\ [])
@@ -441,7 +441,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@update_line_item_schema)}
   """
-  # [AGS §3.2.6](https://www.imsglobal.org/spec/lti-ags/v2p0/#updating-a-line-item)
+  # [AGS, Updating a line item](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#updating-a-line-item)
   @spec update_line_item(Client.t(), LineItem.t(), keyword()) ::
           {:ok, LineItem.t()} | {:error, Exception.t()}
   def update_line_item(%Client{} = client, %LineItem{} = item, opts \\ []) do
@@ -506,7 +506,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@delete_line_item_schema)}
   """
-  # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
+  # [AGS, Line Item id REST Endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#line-item-id-rest-endpoint)
   @spec delete_line_item(Client.t(), keyword()) :: :ok | {:error, Exception.t()}
   def delete_line_item(%Client{} = client, opts \\ []) do
     opts = Options.parse!(opts, @delete_line_item_schema)
@@ -551,7 +551,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@post_score_schema)}
   """
-  # [AGS §3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#score-publish-service)
+  # [AGS, Score publish service](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#score-publish-service)
   @spec post_score(Client.t(), Score.t(), keyword()) ::
           :ok | {:error, Exception.t()}
   def post_score(%Client{} = client, %Score{} = score, opts \\ []) do
@@ -608,7 +608,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@list_results_schema)}
   """
-  # [AGS §3.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
+  # [AGS, Result Service](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#result-service)
   @spec list_results(Client.t(), keyword()) ::
           {:ok, [Result.t()]} | {:error, Exception.t()}
   def list_results(%Client{} = client, opts \\ []) do
@@ -646,7 +646,7 @@ defmodule Ltix.GradeService do
 
   #{Zoi.describe(@stream_results_schema)}
   """
-  # [AGS §3.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service)
+  # [AGS, Result Service](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#result-service)
   @spec stream_results(Client.t(), keyword()) ::
           {:ok, Enumerable.t()} | {:error, Exception.t()}
   def stream_results(%Client{} = client, opts \\ []) do
@@ -741,7 +741,7 @@ defmodule Ltix.GradeService do
     Keyword.get_lazy(opts, :endpoint, fn -> Client.get_endpoint(client, __MODULE__) end)
   end
 
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   defp line_items_url(%Endpoint{line_items: url}) when is_binary(url), do: {:ok, url}
 
   defp line_items_url(%Endpoint{}), do: not_available("The endpoint has no line items URL")
@@ -751,7 +751,7 @@ defmodule Ltix.GradeService do
     line_item_url(Keyword.get(opts, :line_item), endpoint)
   end
 
-  # [AGS §3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#assignment-and-grade-service-claim)
+  # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   defp line_item_url(nil, %Endpoint{line_item: url}) when is_binary(url), do: {:ok, url}
 
   defp line_item_url(nil, %Endpoint{}) do
@@ -760,7 +760,7 @@ defmodule Ltix.GradeService do
 
   defp line_item_url(nil, nil), do: not_available(@no_endpoint)
 
-  # [AGS §3.2.3](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-id-rest-endpoint)
+  # [AGS, Line Item id REST Endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#line-item-id-rest-endpoint)
   defp line_item_url(%LineItem{id: nil} = item, _endpoint) do
     {:error, MissingLineItemId.exception(line_item: item)}
   end
@@ -772,8 +772,8 @@ defmodule Ltix.GradeService do
     {:error, ServiceNotAvailable.exception(service: __MODULE__, reason: reason)}
   end
 
-  # [AGS §3.3.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#result-service-endpoint)
-  # [AGS §3.4.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#service-endpoint)
+  # [AGS, Result service endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#result-service-endpoint)
+  # [AGS, Service endpoint](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#service-endpoint)
   defp derive_url({:ok, url}, suffix) do
     with {:ok, uri} <- HTTP.validate_url(url) do
       path = String.trim_trailing(uri.path || "", "/") <> "/" <> suffix
@@ -783,7 +783,7 @@ defmodule Ltix.GradeService do
 
   defp derive_url({:error, _error} = error, _suffix), do: error
 
-  # [AGS §3.2](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-scope-and-allowed-http-methods)
+  # [AGS, Coupled vs decoupled line items](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#coupled-vs-decoupled-line-items)
   defp check_coupled_guard(%Endpoint{line_item: url}, url, false) do
     {:error, CoupledLineItem.exception(line_item_url: url)}
   end
@@ -860,8 +860,8 @@ defmodule Ltix.GradeService do
     {:error, malformed_response("expected JSON object in collection")}
   end
 
-  # [AGS §3.2.1](https://www.imsglobal.org/spec/lti-ags/v2p0/#line-item-service-media-types-and-schemas)
-  # [AGS §3.3.4](https://www.imsglobal.org/spec/lti-ags/v2p0/#media-type-and-schema)
+  # [AGS, Line item service Media types and schemas](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#line-item-service-media-types-and-schemas)
+  # [AGS, Media type and schema](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#media-type-and-schema)
   defp parse(type, json, plugins) do
     Ltix.Type.from_json(type, json, plugins: plugins, name: name(type))
   end

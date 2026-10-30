@@ -70,8 +70,8 @@ defmodule Ltix.Integration.CertificationTest do
     }
   end
 
-  # [Cert §6.1.1](https://www.imsglobal.org/spec/lti/v1p3/cert/#known-bad-payloads)
-  describe "Known Bad Payloads [Cert §6.1.1]" do
+  # [Cert, Known "Bad" Payloads](https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide#known-bad-payloads)
+  describe "Known Bad Payloads" do
     test "No KID Sent in JWT header", ctx do
       id_token = Ltix.Test.sign_id_token(ctx.claims, ctx.platform_jwk, kid: nil)
       params = %{"id_token" => id_token, "state" => ctx.state}
@@ -176,8 +176,8 @@ defmodule Ltix.Integration.CertificationTest do
     end
   end
 
-  # [Cert §6.1.2](https://www.imsglobal.org/spec/lti/v1p3/cert/#valid-teacher-launches)
-  describe "Valid Teacher Launches [Cert §6.1.2]" do
+  # [Cert, Valid Teacher Launches](https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide#valid-teacher-launches)
+  describe "Valid Teacher Launches" do
     test "Valid Instructor Launch", ctx do
       claims =
         ctx.claims
@@ -308,8 +308,8 @@ defmodule Ltix.Integration.CertificationTest do
     end
   end
 
-  # [Cert §6.1.3](https://www.imsglobal.org/spec/lti/v1p3/cert/#valid-student-launches)
-  describe "Valid Student Launches [Cert §6.1.3]" do
+  # [Cert, Valid Student Launches](https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide#valid-student-launches)
+  describe "Valid Student Launches" do
     test "Valid Student Launch", ctx do
       claims =
         ctx.claims
