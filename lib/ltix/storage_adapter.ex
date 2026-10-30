@@ -26,12 +26,14 @@ defmodule Ltix.StorageAdapter do
   that calls your adapter, such as `Ltix.handle_login/3`, and `[]` when you
   pass none. Use it for values your lookups need, such as a tenant.
 
-      Ltix.handle_login(params, launch_url, storage_adapter_options: [tenant: tenant])
+  ```elixir
+  Ltix.handle_login(params, launch_url, storage_adapter_options: [tenant: tenant])
 
-      @impl true
-      def get_registration(issuer, client_id, opts) do
-        MyApp.Lti.get_registration(opts[:tenant], issuer, client_id)
-      end
+  @impl true
+  def get_registration(issuer, client_id, opts) do
+    MyApp.Lti.get_registration(opts[:tenant], issuer, client_id)
+  end
+  ```
 
   Ltix stores nothing between login and launch, so pass the same options to
   `Ltix.handle_callback/3`.
@@ -54,18 +56,20 @@ defmodule Ltix.StorageAdapter do
   stays wherever you keep it. `Ltix.JWK.sign/2` signs with a key held in
   your application.
 
-      @impl true
-      def key_id(registration, _opts) do
-        {:ok, MyApp.Lti.signing_key(registration).kid}
-      end
+  ```elixir
+  @impl true
+  def key_id(registration, _opts) do
+    {:ok, MyApp.Lti.signing_key(registration).kid}
+  end
 
-      @impl true
-      def sign(_registration, key_id, message, _opts) do
-        case MyApp.Lti.get_key(key_id) do
-          nil -> {:error, :unknown_key}
-          jwk -> Ltix.JWK.sign(jwk, message)
-        end
-      end
+  @impl true
+  def sign(_registration, key_id, message, _opts) do
+    case MyApp.Lti.get_key(key_id) do
+      nil -> {:error, :unknown_key}
+      jwk -> Ltix.JWK.sign(jwk, message)
+    end
+  end
+  ```
 
   ## Failures
 

@@ -5,27 +5,31 @@ defmodule Ltix.Claims.Check do
   A check that needs only a function is an anonymous check, which a plugin adds
   with `add/2`.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Claims.Check.add(
-        claim: "https://purl.imsglobal.org/spec/lti/claim/context",
-        message_types: ["LtiDeepLinkingRequest"],
-        check: fn context, _claims ->
-          if context.title, do: :ok, else: {:error, "must have a title"}
-        end
-      )
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Claims.Check.add(
+    claim: "https://purl.imsglobal.org/spec/lti/claim/context",
+    message_types: ["LtiDeepLinkingRequest"],
+    check: fn context, _claims ->
+      if context.title, do: :ok, else: {:error, "must have a title"}
+    end
+  )
+  ```
 
   A check that other plugins [override](`Ltix.Claims.Override`) is a module
   that implements `c:check/2`. Add it to a plugin with `Ltix.Plugin.add/2`.
 
-      defmodule MyLibrary.ContextTitle do
-        use Ltix.Claims.Check,
-          claim: "https://purl.imsglobal.org/spec/lti/claim/context",
-          message_types: ["LtiDeepLinkingRequest"]
+  ```elixir
+  defmodule MyLibrary.ContextTitle do
+    use Ltix.Claims.Check,
+      claim: "https://purl.imsglobal.org/spec/lti/claim/context",
+      message_types: ["LtiDeepLinkingRequest"]
 
-        @impl Ltix.Claims.Check
-        def check(%{title: nil}, _claims), do: {:error, "must have a title"}
-        def check(_context, _claims), do: :ok
-      end
+    @impl Ltix.Claims.Check
+    def check(%{title: nil}, _claims), do: {:error, "must have a title"}
+    def check(_context, _claims), do: :ok
+  end
+  ```
 
   It runs along with the claim's other [checks](`m:Ltix.Claim#module-checks`).
 
@@ -81,26 +85,28 @@ defmodule Ltix.Claims.Check do
 
   ## Examples
 
-      iex> titled = fn context, _claims ->
-      ...>   if context.title, do: :ok, else: {:error, "must have a title"}
-      ...> end
-      iex> Ltix.Claims.Check.add(
-      ...>   Ltix.Plugin.new(),
-      ...>   claim: "https://purl.imsglobal.org/spec/lti/claim/context",
-      ...>   check: titled
-      ...> )
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{
-            module: Ltix.Claims.Check,
-            opts: [
-              claim: "https://purl.imsglobal.org/spec/lti/claim/context",
-              message_types: :all,
-              check: titled
-            ]
-          }
+  ```elixir
+  iex> titled = fn context, _claims ->
+  ...>   if context.title, do: :ok, else: {:error, "must have a title"}
+  ...> end
+  iex> Ltix.Claims.Check.add(
+  ...>   Ltix.Plugin.new(),
+  ...>   claim: "https://purl.imsglobal.org/spec/lti/claim/context",
+  ...>   check: titled
+  ...> )
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{
+        module: Ltix.Claims.Check,
+        opts: [
+          claim: "https://purl.imsglobal.org/spec/lti/claim/context",
+          message_types: :all,
+          check: titled
         ]
       }
+    ]
+  }
+  ```
   """
   @spec add(Plugin.t(), keyword()) :: Plugin.t()
   def add(%Plugin{} = plugin, opts) do

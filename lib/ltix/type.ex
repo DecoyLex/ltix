@@ -6,13 +6,15 @@ defmodule Ltix.Type do
   are types. Convert any of them with `from_json/3` and `to_json/3`, and define
   your own type with `use Ltix.Type`.
 
-      defmodule MyLibrary.Badge do
-        use Ltix.Type,
-          fields: [
-            id: Zoi.string(description: "The badge's ID."),
-            label: Zoi.string(description: "The badge's label.") |> Zoi.optional()
-          ]
-      end
+  ```elixir
+  defmodule MyLibrary.Badge do
+    use Ltix.Type,
+      fields: [
+        id: Zoi.string(description: "The badge's ID."),
+        label: Zoi.string(description: "The badge's label.") |> Zoi.optional()
+      ]
+  end
+  ```
 
   `use Ltix.Type` defines the struct and its `t` type. A field is optional when
   its schema has `Zoi.optional/1` or `Zoi.default/2`, and every other field is
@@ -40,7 +42,9 @@ defmodule Ltix.Type do
   for `score_maximum`. With `json_keys: :camel_case`, it's the camelCase form,
   such as `"scoreMaximum"`. Set another JSON name with `json_key:` metadata.
 
-      line_items: Zoi.string(metadata: [json_key: "lineitems"]) |> Zoi.optional()
+  ```elixir
+  line_items: Zoi.string(metadata: [json_key: "lineitems"]) |> Zoi.optional()
+  ```
 
   The same rules apply to the keys of a nested map schema with declared fields,
   such as `Zoi.map(%{target_name: Zoi.string()})`, including one inside
@@ -55,9 +59,11 @@ defmodule Ltix.Type do
   When a field's JSON differs from its value in the struct, such as a date in an
   ISO 8601 string, give its schema `from_json:` and `to_json:` metadata.
 
-      awarded_on:
-        Zoi.date(metadata: [from_json: &Date.from_iso8601/1, to_json: &Date.to_iso8601/1])
-        |> Zoi.optional()
+  ```elixir
+  awarded_on:
+    Zoi.date(metadata: [from_json: &Date.from_iso8601/1, to_json: &Date.to_iso8601/1])
+    |> Zoi.optional()
+  ```
 
     * `:from_json` - a function that returns `{:ok, value}` or
       `{:error, reason}`. With arity 1 it takes the JSON value. With arity 2 it
@@ -71,13 +77,17 @@ defmodule Ltix.Type do
   returns an error for any other missing or malformed field. When an optional
   field has `strict: true` metadata, a malformed value is an error.
 
-      grade: Zoi.integer(metadata: [strict: true]) |> Zoi.optional()
+  ```elixir
+  grade: Zoi.integer(metadata: [strict: true]) |> Zoi.optional()
+  ```
 
   ## Properties
 
   Plugins can add properties to a type that also calls `use Ltix.Provider`.
 
-      use Ltix.Provider, hook: [Ltix.Property]
+  ```elixir
+  use Ltix.Provider, hook: [Ltix.Property]
+  ```
 
   Pass a property to `new/3` by its name, and read it from `extensions`, such as
   `badge.extensions.color`.
@@ -250,8 +260,10 @@ defmodule Ltix.Type do
   Returns a type's standard fields as a keyword list of Zoi schemas, in
   declaration order.
 
-      iex> Keyword.keys(Ltix.Type.fields(Ltix.DeepLinking.LineItem))
-      [:score_maximum, :label, :resource_id, :tag, :grades_released]
+  ```elixir
+  iex> Keyword.keys(Ltix.Type.fields(Ltix.DeepLinking.LineItem))
+  [:score_maximum, :label, :resource_id, :tag, :grades_released]
+  ```
   """
   @spec fields(module()) :: keyword(Zoi.schema())
   def fields(type) do
@@ -267,12 +279,14 @@ defmodule Ltix.Type do
   that type's JSON. Zoi options, such as `description:`, are passed to the
   schema.
 
-      grade: Ltix.Type.schema(MyLibrary.Grade, description: "The grade.") |> Zoi.optional()
+  ```elixir
+  grade: Ltix.Type.schema(MyLibrary.Grade, description: "The grade.") |> Zoi.optional()
 
-      iex> schema = Ltix.Type.schema(Ltix.DeepLinking.LineItem)
-      iex> {:ok, line_item} = Zoi.parse(schema, %{label: "Quiz 1", score_maximum: 10})
-      iex> line_item.label
-      "Quiz 1"
+  iex> schema = Ltix.Type.schema(Ltix.DeepLinking.LineItem)
+  iex> {:ok, line_item} = Zoi.parse(schema, %{label: "Quiz 1", score_maximum: 10})
+  iex> line_item.label
+  "Quiz 1"
+  ```
   """
   @spec schema(module(), keyword()) :: Zoi.schema()
   def schema(type, zoi_options \\ []),
@@ -285,9 +299,11 @@ defmodule Ltix.Type do
   The schema rejects unknown keys, and treats a key whose value is `nil` as
   omitted. Wrap it in `Zoi.optional/1` to make the field optional.
 
-      iex> reviewer = Ltix.Type.object(%{name: Zoi.string()})
-      iex> Zoi.parse(reviewer, %{name: "Ada"})
-      {:ok, %{name: "Ada"}}
+  ```elixir
+  iex> reviewer = Ltix.Type.object(%{name: Zoi.string()})
+  iex> Zoi.parse(reviewer, %{name: "Ada"})
+  {:ok, %{name: "Ada"}}
+  ```
   """
   @spec object(map(), keyword()) :: Zoi.schema()
   def object(fields, zoi_options \\ []) do
@@ -314,25 +330,29 @@ defmodule Ltix.Type do
   `:plugins` key, as a list such as `[MyPlugin]` or an `Ltix.PluginSet`.
   Without that key, `new/3` uses the configured plugins.
 
-      {:ok, link} =
-        Ltix.Type.new(Ltix.DeepLinking.ContentItem.LTIResourceLink,
-          url: "https://tool.example.com/quizzes/7",
-          weight: 2,
-          plugins: [MyLibrary]
-        )
+  ```elixir
+  {:ok, link} =
+    Ltix.Type.new(Ltix.DeepLinking.ContentItem.LTIResourceLink,
+      url: "https://tool.example.com/quizzes/7",
+      weight: 2,
+      plugins: [MyLibrary]
+    )
 
-      link.extensions.weight
-      #=> 2
+  link.extensions.weight
+  #=> 2
+  ```
 
   Returns `Ltix.Errors.Invalid.InvalidField` for a missing required field, a
   name that's neither a field nor a property, or an invalid value. With
   several errors, it returns an `Ltix.Errors.Invalid` with one for each. Returns
   `Ltix.Errors.Unknown.InvalidPluginSet` when the plugins conflict.
 
-      iex> {:ok, line_item} =
-      ...>   Ltix.Type.new(Ltix.DeepLinking.LineItem, label: "Quiz 1", score_maximum: 10)
-      iex> {line_item.label, line_item.score_maximum}
-      {"Quiz 1", 10}
+  ```elixir
+  iex> {:ok, line_item} =
+  ...>   Ltix.Type.new(Ltix.DeepLinking.LineItem, label: "Quiz 1", score_maximum: 10)
+  iex> {line_item.label, line_item.score_maximum}
+  {"Quiz 1", 10}
+  ```
 
   ## Options
 
@@ -425,14 +445,16 @@ defmodule Ltix.Type do
   [conflict](writing-plugins.md#fix-a-plugin-set-that-fails-to-resolve).
   Raises `ArgumentError` when `:plugins` has a module that isn't a plugin.
 
-      iex> {:ok, line_item} =
-      ...>   Ltix.Type.from_json(Ltix.DeepLinking.LineItem, %{
-      ...>     "label" => "Quiz 1",
-      ...>     "scoreMaximum" => 10,
-      ...>     "https://lms.example.com/weight" => 2
-      ...>   })
-      iex> {line_item.label, line_item.unrecognized}
-      {"Quiz 1", %{"https://lms.example.com/weight" => 2}}
+  ```elixir
+  iex> {:ok, line_item} =
+  ...>   Ltix.Type.from_json(Ltix.DeepLinking.LineItem, %{
+  ...>     "label" => "Quiz 1",
+  ...>     "scoreMaximum" => 10,
+  ...>     "https://lms.example.com/weight" => 2
+  ...>   })
+  iex> {line_item.label, line_item.unrecognized}
+  {"Quiz 1", %{"https://lms.example.com/weight" => 2}}
+  ```
 
   ## Options
 
@@ -548,10 +570,12 @@ defmodule Ltix.Type do
   [conflict](writing-plugins.md#fix-a-plugin-set-that-fails-to-resolve), and
   `ArgumentError` when `plugins` has a module that isn't a plugin.
 
-      iex> {:ok, line_item} =
-      ...>   Ltix.Type.new(Ltix.DeepLinking.LineItem, label: "Quiz 1", score_maximum: 10)
-      iex> Ltix.Type.to_json(line_item)
-      %{"label" => "Quiz 1", "scoreMaximum" => 10}
+  ```elixir
+  iex> {:ok, line_item} =
+  ...>   Ltix.Type.new(Ltix.DeepLinking.LineItem, label: "Quiz 1", score_maximum: 10)
+  iex> Ltix.Type.to_json(line_item)
+  %{"label" => "Quiz 1", "scoreMaximum" => 10}
+  ```
   """
   @spec to_json(
           struct(),

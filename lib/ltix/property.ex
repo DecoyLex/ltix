@@ -7,12 +7,14 @@ defmodule Ltix.Property do
   writes it back. A plugin adds a property to a type with the type's
   `add_property/2`.
 
-      Ltix.Plugin.new(name: "Polls")
-      |> Ltix.DeepLinking.ContentItem.LTIResourceLink.add_property(
-        property: "https://polls.example.com/weight",
-        name: :poll_weight,
-        schema: Zoi.integer()
-      )
+  ```elixir
+  Ltix.Plugin.new(name: "Polls")
+  |> Ltix.DeepLinking.ContentItem.LTIResourceLink.add_property(
+    property: "https://polls.example.com/weight",
+    name: :poll_weight,
+    schema: Zoi.integer()
+  )
+  ```
 
   Applications pass a property by its name wherever they build the type, and
   read it from the type's `extensions`, such as `link.extensions.poll_weight`.
@@ -24,14 +26,16 @@ defmodule Ltix.Property do
   A property module calls `use` with the type's module and implements
   `c:parse/2` or `c:serialize/2`. Both receive the property's options.
 
-      defmodule Polls.Weight do
-        use Ltix.DeepLinking.ContentItem.LTIResourceLink,
-          property: "https://polls.example.com/weight",
-          name: :poll_weight
+  ```elixir
+  defmodule Polls.Weight do
+    use Ltix.DeepLinking.ContentItem.LTIResourceLink,
+      property: "https://polls.example.com/weight",
+      name: :poll_weight
 
-        @impl Ltix.Property
-        def serialize(weight, _opts), do: %{"value" => weight, "unit" => "points"}
-      end
+    @impl Ltix.Property
+    def serialize(weight, _opts), do: %{"value" => weight, "unit" => "points"}
+  end
+  ```
 
   For a value it can't parse, `c:parse/2` returns `{:error, reason}`, with a
   message, an exception, or the errors of `Zoi.parse/2` as the reason.
@@ -175,7 +179,9 @@ defmodule Ltix.Property do
   A type that plugins add properties to calls it from a function of its own,
   such as `Ltix.DeepLinking.ContentItem.Link.add_property/2`.
 
-      def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
+  ```elixir
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
+  ```
 
   Raises `ArgumentError` when `type` isn't a type that takes properties, or for
   a missing, unknown, or invalid option.
@@ -186,25 +192,27 @@ defmodule Ltix.Property do
 
   ## Examples
 
-      iex> Ltix.Property.add(
-      ...>   Ltix.Plugin.new(),
-      ...>   Ltix.DeepLinking.ContentItem.Link,
-      ...>   property: "https://polls.example.com/weight",
-      ...>   name: :poll_weight
-      ...> )
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{
-            module: Ltix.Property,
-            opts: [
-              to: Ltix.DeepLinking.ContentItem.Link,
-              property: "https://polls.example.com/weight",
-              name: :poll_weight,
-              writes: [:create, :update]
-            ]
-          }
+  ```elixir
+  iex> Ltix.Property.add(
+  ...>   Ltix.Plugin.new(),
+  ...>   Ltix.DeepLinking.ContentItem.Link,
+  ...>   property: "https://polls.example.com/weight",
+  ...>   name: :poll_weight
+  ...> )
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{
+        module: Ltix.Property,
+        opts: [
+          to: Ltix.DeepLinking.ContentItem.Link,
+          property: "https://polls.example.com/weight",
+          name: :poll_weight,
+          writes: [:create, :update]
         ]
       }
+    ]
+  }
+  ```
   """
   @spec add(Plugin.t(), module(), keyword()) :: Plugin.t()
   def add(%Plugin{} = plugin, type, opts) do
@@ -260,9 +268,11 @@ defmodule Ltix.Property do
   that plugins add properties to. A type that overrides `resolve/1` without
   calling `super/1` must call this function itself.
 
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
-      iex> Ltix.Property.conflicts(plugins, Ltix.GradeService.LineItem)
-      []
+  ```elixir
+  iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+  iex> Ltix.Property.conflicts(plugins, Ltix.GradeService.LineItem)
+  []
+  ```
   """
   @spec conflicts(PluginSet.t(), module()) :: [Conflict.t()]
   def conflicts(%PluginSet{} = plugins, type) do

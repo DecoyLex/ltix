@@ -8,30 +8,36 @@ defmodule Ltix.MembershipsService do
 
   ## From a launch
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(launch)
-      {:ok, roster} = Ltix.MembershipsService.list_members(client)
+  ```elixir
+  {:ok, client} = Ltix.MembershipsService.authenticate(launch)
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
-      Enum.each(roster, fn member ->
-        IO.puts("\#{member.name}: \#{inspect(member.roles)}")
-      end)
+  Enum.each(roster, fn member ->
+    IO.puts("\#{member.name}: \#{inspect(member.roles)}")
+  end)
+  ```
 
   ## From a registration
 
-      alias Ltix.MembershipsService.Endpoint
+  ```elixir
+  alias Ltix.MembershipsService.Endpoint
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-        endpoint: Endpoint.new!("https://lms.example.com/memberships")
-      )
+  {:ok, client} = Ltix.MembershipsService.authenticate(registration,
+    endpoint: Endpoint.new!("https://lms.example.com/memberships")
+  )
 
-      {:ok, roster} = Ltix.MembershipsService.list_members(client, role: Ltix.Role.context_learner())
+  {:ok, roster} = Ltix.MembershipsService.list_members(client, role: Ltix.Role.context_learner())
+  ```
 
   ## Streaming large rosters
 
-      {:ok, stream} = Ltix.MembershipsService.stream_members(client)
+  ```elixir
+  {:ok, stream} = Ltix.MembershipsService.stream_members(client)
 
-      stream
-      |> Stream.filter(&(&1.status == :active))
-      |> Enum.each(&process_member/1)
+  stream
+  |> Stream.filter(&(&1.status == :active))
+  |> Enum.each(&process_member/1)
+  ```
   """
 
   @behaviour Ltix.Plugin
@@ -94,13 +100,17 @@ defmodule Ltix.MembershipsService do
 
   ## From a launch
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(launch)
+  ```elixir
+  {:ok, client} = Ltix.MembershipsService.authenticate(launch)
+  ```
 
   ## From a registration
 
-      {:ok, client} = Ltix.MembershipsService.authenticate(registration,
-        endpoint: Ltix.MembershipsService.Endpoint.new!("https://lms.example.com/memberships")
-      )
+  ```elixir
+  {:ok, client} = Ltix.MembershipsService.authenticate(registration,
+    endpoint: Ltix.MembershipsService.Endpoint.new!("https://lms.example.com/memberships")
+  )
+  ```
 
   ## Options
 

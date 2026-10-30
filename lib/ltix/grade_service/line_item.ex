@@ -8,8 +8,10 @@ defmodule Ltix.GradeService.LineItem do
 
   ## Examples
 
-      item = %Ltix.GradeService.LineItem{label: "Chapter 5 Test", score_maximum: 60}
-      {:ok, item} = Ltix.GradeService.create_line_item(client, item)
+  ```elixir
+  item = %Ltix.GradeService.LineItem{label: "Chapter 5 Test", score_maximum: 60}
+  {:ok, item} = Ltix.GradeService.create_line_item(client, item)
+  ```
 
   ## Properties
 
@@ -17,15 +19,17 @@ defmodule Ltix.GradeService.LineItem do
   with `Ltix.Property`. Pass a property by its name, and read it from
   `extensions`.
 
-      {:ok, item} =
-        Ltix.GradeService.create_line_item(client,
-          label: "Essay",
-          score_maximum: 10,
-          canvas_submission_type: %{type: "external_tool"}
-        )
+  ```elixir
+  {:ok, item} =
+    Ltix.GradeService.create_line_item(client,
+      label: "Essay",
+      score_maximum: 10,
+      canvas_submission_type: %{type: "external_tool"}
+    )
 
-      item.extensions.canvas_submission_type.type
-      #=> "external_tool"
+  item.extensions.canvas_submission_type.type
+  #=> "external_tool"
+  ```
 
   A property's [`:writes`](`m:Ltix.Property#module-options`) option lists the
   operations that send it, `:create` for `Ltix.GradeService.create_line_item/3`
@@ -87,14 +91,16 @@ defmodule Ltix.GradeService.LineItem do
 
   ## Examples
 
-      iex> item = %Ltix.GradeService.LineItem{label: "Quiz 1", score_maximum: 100}
-      iex> Ltix.GradeService.LineItem.validate(item)
-      :ok
+  ```elixir
+  iex> item = %Ltix.GradeService.LineItem{label: "Quiz 1", score_maximum: 100}
+  iex> Ltix.GradeService.LineItem.validate(item)
+  :ok
 
-      iex> item = %Ltix.GradeService.LineItem{label: nil, score_maximum: 100}
-      iex> {:error, error} = Ltix.GradeService.LineItem.validate(item)
-      iex> Exception.message(error)
-      "Ltix.GradeService.LineItem field :label is required"
+  iex> item = %Ltix.GradeService.LineItem{label: nil, score_maximum: 100}
+  iex> {:error, error} = Ltix.GradeService.LineItem.validate(item)
+  iex> Exception.message(error)
+  "Ltix.GradeService.LineItem field :label is required"
+  ```
   """
   @spec validate(t()) :: :ok | {:error, Exception.t()}
   def validate(%__MODULE__{} = item) do

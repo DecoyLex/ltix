@@ -3,11 +3,13 @@ defmodule Ltix.Provider do
   Lets other plugins add steps, properties, or callbacks to a module of your
   plugin.
 
-      defmodule MyLibrary.Report do
-        use Ltix.Provider, hook: [Ltix.Step, Ltix.Ordered]
+  ```elixir
+  defmodule MyLibrary.Report do
+    use Ltix.Provider, hook: [Ltix.Step, Ltix.Ordered]
 
-        defstruct params: %{}, private: %{}, errors: [], plugins: nil
-      end
+    defstruct params: %{}, private: %{}, errors: [], plugins: nil
+  end
+  ```
 
   Other plugins add steps to it with `use MyLibrary.Report`, and your library
   runs them with `Ltix.Step.run/1`. Define callbacks of your own with
@@ -35,10 +37,12 @@ defmodule Ltix.Provider do
   in `:hook` find, such as two modules that declare the same property. To return
   data, override it and call `super/1` first.
 
-      @impl Ltix.Provider
-      def resolve(plugins) do
-        with {:ok, nil} <- super(plugins), do: {:ok, columns(plugins)}
-      end
+  ```elixir
+  @impl Ltix.Provider
+  def resolve(plugins) do
+    with {:ok, nil} <- super(plugins), do: {:ok, columns(plugins)}
+  end
+  ```
   """
   @callback resolve(PluginSet.t()) :: {:ok, term()} | {:error, [PluginSet.Conflict.t(), ...]}
 

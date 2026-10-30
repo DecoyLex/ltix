@@ -67,16 +67,18 @@ defmodule Ltix.GradeService.Endpoint do
 
   ## Examples
 
-      iex> {:ok, endpoint} = Ltix.GradeService.Endpoint.new(
-      ...>   line_item: "https://lms.example.com/lineitems/1",
-      ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
-      ...> )
-      iex> endpoint.line_item
-      "https://lms.example.com/lineitems/1"
+  ```elixir
+  iex> {:ok, endpoint} = Ltix.GradeService.Endpoint.new(
+  ...>   line_item: "https://lms.example.com/lineitems/1",
+  ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+  ...> )
+  iex> endpoint.line_item
+  "https://lms.example.com/lineitems/1"
 
-      iex> {:error, error} = Ltix.GradeService.Endpoint.new(line_item: "https://lms.example.com/lineitems/1")
-      iex> Exception.message(error)
-      "Ltix.GradeService.Endpoint field :scopes is required"
+  iex> {:error, error} = Ltix.GradeService.Endpoint.new(line_item: "https://lms.example.com/lineitems/1")
+  iex> Exception.message(error)
+  "Ltix.GradeService.Endpoint field :scopes is required"
+  ```
   """
   @impl Ltix.Claim
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}

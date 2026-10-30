@@ -20,7 +20,9 @@ defmodule Ltix.OAuth.Client do
 
   ## Refreshing
 
-      client = Ltix.OAuth.Client.refresh!(client)
+  ```elixir
+  client = Ltix.OAuth.Client.refresh!(client)
+  ```
 
   ## Reusing tokens across contexts
 
@@ -28,17 +30,21 @@ defmodule Ltix.OAuth.Client do
   registration. A platform may also limit it to the deployment it was
   requested for. Reuse a cached token with different endpoints.
 
-      {:ok, client_b} = Ltix.OAuth.Client.with_endpoints(client, %{
-        Ltix.MembershipsService => course_b_endpoint
-      })
+  ```elixir
+  {:ok, client_b} = Ltix.OAuth.Client.with_endpoints(client, %{
+    Ltix.MembershipsService => course_b_endpoint
+  })
+  ```
 
   Or cache `client.token` and build a client from it later.
 
-      {:ok, client} = Ltix.OAuth.Client.from_access_token(cached_token,
-        registration: registration,
-        deployment: deployment,
-        endpoints: %{Ltix.MembershipsService => endpoint}
-      )
+  ```elixir
+  {:ok, client} = Ltix.OAuth.Client.from_access_token(cached_token,
+    registration: registration,
+    deployment: deployment,
+    endpoints: %{Ltix.MembershipsService => endpoint}
+  )
+  ```
   """
 
   alias Ltix.Claims
@@ -159,9 +165,11 @@ defmodule Ltix.OAuth.Client do
 
   ## Examples
 
-      iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
-      iex> Ltix.OAuth.Client.expired?(%Ltix.OAuth.Client{token: token})
-      false
+  ```elixir
+  iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+  iex> Ltix.OAuth.Client.expired?(%Ltix.OAuth.Client{token: token})
+  false
+  ```
   """
   # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec expired?(t()) :: boolean()
@@ -172,12 +180,14 @@ defmodule Ltix.OAuth.Client do
 
   ## Examples
 
-      iex> token = %Ltix.OAuth.AccessToken{granted_scopes: MapSet.new(["scope:read"])}
-      iex> client = %Ltix.OAuth.Client{token: token}
-      iex> Ltix.OAuth.Client.has_scope?(client, "scope:read")
-      true
-      iex> Ltix.OAuth.Client.has_scope?(client, "scope:write")
-      false
+  ```elixir
+  iex> token = %Ltix.OAuth.AccessToken{granted_scopes: MapSet.new(["scope:read"])}
+  iex> client = %Ltix.OAuth.Client{token: token}
+  iex> Ltix.OAuth.Client.has_scope?(client, "scope:read")
+  true
+  iex> Ltix.OAuth.Client.has_scope?(client, "scope:write")
+  false
+  ```
   """
   @spec has_scope?(t(), String.t()) :: boolean()
   def has_scope?(%__MODULE__{token: token}, scope) do
@@ -190,9 +200,11 @@ defmodule Ltix.OAuth.Client do
 
   ## Examples
 
-      iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
-      iex> Ltix.OAuth.Client.require_unexpired(%Ltix.OAuth.Client{token: token})
-      :ok
+  ```elixir
+  iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+  iex> Ltix.OAuth.Client.require_unexpired(%Ltix.OAuth.Client{token: token})
+  :ok
+  ```
   """
   # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec require_unexpired(t()) :: :ok | {:error, Exception.t()}
@@ -235,18 +247,20 @@ defmodule Ltix.OAuth.Client do
   Returns the endpoint of `service` that the client has, or `nil` when the
   client has none.
 
-      iex> endpoint = %Ltix.GradeService.Endpoint{
-      ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
-      ...>   line_item: "https://lms.example.com/line_items/1"
-      ...> }
-      iex> client = %Ltix.OAuth.Client{endpoints: %{Ltix.GradeService => endpoint}}
-      iex> Ltix.OAuth.Client.get_endpoint(client, Ltix.GradeService)
-      %Ltix.GradeService.Endpoint{
-        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
-        line_item: "https://lms.example.com/line_items/1"
-      }
-      iex> Ltix.OAuth.Client.get_endpoint(client, Ltix.MembershipsService)
-      nil
+  ```elixir
+  iex> endpoint = %Ltix.GradeService.Endpoint{
+  ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+  ...>   line_item: "https://lms.example.com/line_items/1"
+  ...> }
+  iex> client = %Ltix.OAuth.Client{endpoints: %{Ltix.GradeService => endpoint}}
+  iex> Ltix.OAuth.Client.get_endpoint(client, Ltix.GradeService)
+  %Ltix.GradeService.Endpoint{
+    scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+    line_item: "https://lms.example.com/line_items/1"
+  }
+  iex> Ltix.OAuth.Client.get_endpoint(client, Ltix.MembershipsService)
+  nil
+  ```
   """
   @spec get_endpoint(t(), module()) :: term() | nil
   def get_endpoint(%__MODULE__{endpoints: endpoints}, service), do: Map.get(endpoints, service)
@@ -268,11 +282,13 @@ defmodule Ltix.OAuth.Client do
 
   ## Examples
 
-      {:ok, %Req.Response{body: body}} =
-        Ltix.OAuth.Client.request(client, MyApp.AttendanceService,
-          url: endpoint.attendance_url,
-          headers: [{"accept", "application/json"}]
-        )
+  ```elixir
+  {:ok, %Req.Response{body: body}} =
+    Ltix.OAuth.Client.request(client, MyApp.AttendanceService,
+      url: endpoint.attendance_url,
+      headers: [{"accept", "application/json"}]
+    )
+  ```
   """
   # [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750#section-2.1)
   @spec request(t(), module(), keyword()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
@@ -303,13 +319,15 @@ defmodule Ltix.OAuth.Client do
 
   ## Examples
 
-      {:ok, pages} =
-        Ltix.OAuth.Client.request_pages(client, MyApp.AttendanceService,
-          url: endpoint.attendance_url,
-          params: [limit: 50]
-        )
+  ```elixir
+  {:ok, pages} =
+    Ltix.OAuth.Client.request_pages(client, MyApp.AttendanceService,
+      url: endpoint.attendance_url,
+      params: [limit: 50]
+    )
 
-      Enum.flat_map(pages, fn {:ok, body} -> body["records"] end)
+  Enum.flat_map(pages, fn {:ok, body} -> body["records"] end)
+  ```
   """
   @spec request_pages(t(), module(), keyword()) :: {:ok, Enumerable.t()} | {:error, Exception.t()}
   def request_pages(%__MODULE__{} = client, service, req_options)

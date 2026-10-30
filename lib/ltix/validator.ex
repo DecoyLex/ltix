@@ -6,10 +6,12 @@ defmodule Ltix.Validator do
   Message types build validators (see `Ltix.Launch.MessageType`). Requirements
   refer to claims by short name.
 
-      new("LtiResourceLinkRequest")
-      |> required(:resource_link)
-      |> required(:roles)
-      |> required(:subject, unless: option(:allow_anonymous))
+  ```elixir
+  new("LtiResourceLinkRequest")
+  |> required(:resource_link)
+  |> required(:roles)
+  |> required(:subject, unless: option(:allow_anonymous))
+  ```
 
   ## Combining requirements
 
@@ -76,8 +78,10 @@ defmodule Ltix.Validator do
   @doc """
   Returns a validator with no requirements for a message type.
 
-      iex> Ltix.Validator.new("LtiResourceLinkRequest").message_type
-      "LtiResourceLinkRequest"
+  ```elixir
+  iex> Ltix.Validator.new("LtiResourceLinkRequest").message_type
+  "LtiResourceLinkRequest"
+  ```
   """
   @spec new(String.t()) :: t()
   def new(message_type) when is_binary(message_type), do: %__MODULE__{message_type: message_type}
@@ -101,14 +105,16 @@ defmodule Ltix.Validator do
   @doc """
   States that a message must have `claim`.
 
-      iex> validator =
-      ...>   Ltix.Validator.new("LtiResourceLinkRequest")
-      ...>   |> Ltix.Validator.required(:roles)
-      ...>   |> Ltix.Validator.required(:subject, unless: Ltix.Validator.option(:allow_anonymous))
-      iex> Ltix.Validator.missing(validator, %{roles: []}, allow_anonymous: false)
-      [:subject]
-      iex> Ltix.Validator.missing(validator, %{roles: []}, allow_anonymous: true)
-      []
+  ```elixir
+  iex> validator =
+  ...>   Ltix.Validator.new("LtiResourceLinkRequest")
+  ...>   |> Ltix.Validator.required(:roles)
+  ...>   |> Ltix.Validator.required(:subject, unless: Ltix.Validator.option(:allow_anonymous))
+  iex> Ltix.Validator.missing(validator, %{roles: []}, allow_anonymous: false)
+  [:subject]
+  iex> Ltix.Validator.missing(validator, %{roles: []}, allow_anonymous: true)
+  []
+  ```
 
   ## Options
 
@@ -123,15 +129,17 @@ defmodule Ltix.Validator do
   @doc """
   States that a message may have `claim`.
 
-      iex> Ltix.Validator.new("LtiDeepLinkingRequest")
-      ...> |> Ltix.Validator.optional(:roles)
-      ...> |> Ltix.Validator.missing(%{}, [])
-      []
-      iex> Ltix.Validator.new("LtiDeepLinkingRequest")
-      ...> |> Ltix.Validator.optional(:roles)
-      ...> |> Ltix.Validator.required(:roles)
-      ...> |> Ltix.Validator.missing(%{}, [])
-      [:roles]
+  ```elixir
+  iex> Ltix.Validator.new("LtiDeepLinkingRequest")
+  ...> |> Ltix.Validator.optional(:roles)
+  ...> |> Ltix.Validator.missing(%{}, [])
+  []
+  iex> Ltix.Validator.new("LtiDeepLinkingRequest")
+  ...> |> Ltix.Validator.optional(:roles)
+  ...> |> Ltix.Validator.required(:roles)
+  ...> |> Ltix.Validator.missing(%{}, [])
+  [:roles]
+  ```
 
   ## Options
 
@@ -150,11 +158,13 @@ defmodule Ltix.Validator do
   Two modules that override the same claim in one message type are a
   [conflict](`m:Ltix.Launch.MessageType#module-conflicts`).
 
-      iex> Ltix.Validator.new("LtiResourceLinkRequest")
-      ...> |> Ltix.Validator.required(:roles)
-      ...> |> Ltix.Validator.override(:roles, :optional)
-      ...> |> Ltix.Validator.missing(%{}, [])
-      []
+  ```elixir
+  iex> Ltix.Validator.new("LtiResourceLinkRequest")
+  ...> |> Ltix.Validator.required(:roles)
+  ...> |> Ltix.Validator.override(:roles, :optional)
+  ...> |> Ltix.Validator.missing(%{}, [])
+  []
+  ```
   """
   @spec override(validator :: t(), claim :: claim(), presence :: presence()) :: t()
   def override(%__MODULE__{} = validator, claim, presence)
@@ -167,11 +177,13 @@ defmodule Ltix.Validator do
   It's the same as `required/3` for each claim in `required:`, and `optional/3`
   for each claim in `optional:`, without conditions.
 
-      iex> Ltix.Validator.new("LtiResourceLinkRequest")
-      ...> |> Ltix.Validator.optional(:context)
-      ...> |> Ltix.Validator.defaults(required: [:context, :tool_platform])
-      ...> |> Ltix.Validator.missing(%{}, [])
-      [:context, :tool_platform]
+  ```elixir
+  iex> Ltix.Validator.new("LtiResourceLinkRequest")
+  ...> |> Ltix.Validator.optional(:context)
+  ...> |> Ltix.Validator.defaults(required: [:context, :tool_platform])
+  ...> |> Ltix.Validator.missing(%{}, [])
+  [:context, :tool_platform]
+  ```
   """
   @spec defaults(t(), required: [claim()], optional: [claim()]) :: t()
   def defaults(%__MODULE__{} = validator, defaults) when is_list(defaults) do
@@ -187,10 +199,12 @@ defmodule Ltix.Validator do
   Returns a condition that is met when the `Ltix.handle_callback/3` option
   `key` is `true`, such as `allow_anonymous: true`.
 
-      iex> Ltix.Validator.new("LtiResourceLinkRequest")
-      ...> |> Ltix.Validator.required(:subject, unless: Ltix.Validator.option(:allow_anonymous))
-      ...> |> Ltix.Validator.missing(%{}, allow_anonymous: true)
-      []
+  ```elixir
+  iex> Ltix.Validator.new("LtiResourceLinkRequest")
+  ...> |> Ltix.Validator.required(:subject, unless: Ltix.Validator.option(:allow_anonymous))
+  ...> |> Ltix.Validator.missing(%{}, allow_anonymous: true)
+  []
+  ```
   """
   @spec option(key :: atom()) :: condition()
   def option(key) when is_atom(key), do: {Option, [key]}
@@ -199,15 +213,17 @@ defmodule Ltix.Validator do
   Returns a condition that is met when `field` of the object claim `claim` is
   `value`, or is a list that includes it.
 
-      iex> validator =
-      ...>   Ltix.Validator.new("LtiDeepLinkingRequest")
-      ...>   |> Ltix.Validator.required(:context,
-      ...>     when: Ltix.Validator.includes(:deep_linking_settings, :accept_types, "file")
-      ...>   )
-      iex> Ltix.Validator.missing(validator, %{deep_linking_settings: %{accept_types: ["file"]}}, [])
-      [:context]
-      iex> Ltix.Validator.missing(validator, %{deep_linking_settings: %{accept_types: ["link"]}}, [])
-      []
+  ```elixir
+  iex> validator =
+  ...>   Ltix.Validator.new("LtiDeepLinkingRequest")
+  ...>   |> Ltix.Validator.required(:context,
+  ...>     when: Ltix.Validator.includes(:deep_linking_settings, :accept_types, "file")
+  ...>   )
+  iex> Ltix.Validator.missing(validator, %{deep_linking_settings: %{accept_types: ["file"]}}, [])
+  [:context]
+  iex> Ltix.Validator.missing(validator, %{deep_linking_settings: %{accept_types: ["link"]}}, [])
+  []
+  ```
   """
   @spec includes(claim :: claim(), field :: atom(), value :: term()) :: condition()
   def includes(claim, field, value) when is_atom(claim) and is_atom(field),
@@ -221,11 +237,13 @@ defmodule Ltix.Validator do
   `Ltix.handle_callback/3`, which `option/1` conditions test. A claim is missing
   when it's `nil` or isn't a key in `claims`.
 
-      iex> Ltix.Validator.new("LtiResourceLinkRequest")
-      ...> |> Ltix.Validator.required(:resource_link)
-      ...> |> Ltix.Validator.required(:roles)
-      ...> |> Ltix.Validator.missing(%{resource_link: nil, roles: []}, [])
-      [:resource_link]
+  ```elixir
+  iex> Ltix.Validator.new("LtiResourceLinkRequest")
+  ...> |> Ltix.Validator.required(:resource_link)
+  ...> |> Ltix.Validator.required(:roles)
+  ...> |> Ltix.Validator.missing(%{resource_link: nil, roles: []}, [])
+  [:resource_link]
+  ```
   """
   @spec missing(validator :: t(), claims :: %{atom() => term()}, callback_options :: keyword()) ::
           [claim()]
@@ -256,18 +274,20 @@ defmodule Ltix.Validator do
   A validator from a resolved plugin set has a column for the module that
   stated each requirement.
 
-      iex> Ltix.Validator.new("LtiResourceLinkRequest")
-      ...> |> Ltix.Validator.required(:roles)
-      ...> |> Ltix.Validator.required(:subject, unless: Ltix.Validator.option(:allow_anonymous))
-      ...> |> Ltix.Validator.optional(:context)
-      ...> |> Ltix.Validator.describe()
-      \"\"\"
-      | Claim | Requirement |
-      |---|---|
-      | `roles` | Required |
-      | `subject` | Required unless the `:allow_anonymous` option is set |
-      | `context` | Optional |
-      \"\"\"
+  ```elixir
+  iex> Ltix.Validator.new("LtiResourceLinkRequest")
+  ...> |> Ltix.Validator.required(:roles)
+  ...> |> Ltix.Validator.required(:subject, unless: Ltix.Validator.option(:allow_anonymous))
+  ...> |> Ltix.Validator.optional(:context)
+  ...> |> Ltix.Validator.describe()
+  \"\"\"
+  | Claim | Requirement |
+  |---|---|
+  | `roles` | Required |
+  | `subject` | Required unless the `:allow_anonymous` option is set |
+  | `context` | Optional |
+  \"\"\"
+  ```
   """
   @spec describe(t()) :: String.t()
   def describe(%__MODULE__{requirements: requirements}) do

@@ -12,17 +12,19 @@ defmodule Ltix.Step do
   `Ltix.handle_login/3` and the other calls that run steps return an error when
   the struct has recorded errors.
 
-      defmodule MyApp.LoginTenant do
-        use Ltix.Login
+  ```elixir
+  defmodule MyApp.LoginTenant do
+    use Ltix.Login
 
-        @impl Ltix.Step
-        def init(opts), do: Keyword.fetch!(opts, :tenant)
+    @impl Ltix.Step
+    def init(opts), do: Keyword.fetch!(opts, :tenant)
 
-        @impl Ltix.Step
-        def call(login, tenant) do
-          {:ok, put_in(login.private[:my_app_tenant], tenant)}
-        end
-      end
+    @impl Ltix.Step
+    def call(login, tenant) do
+      {:ok, put_in(login.private[:my_app_tenant], tenant)}
+    end
+  end
+  ```
 
   ## Options
 
@@ -76,8 +78,10 @@ defmodule Ltix.Step do
   from the function your library's users call, and check `errors` on the
   result.
 
-      {:ok, plugins} = Ltix.PluginSet.resolve(opts[:plugins])
-      report = Ltix.Step.run(%MyLibrary.Report{plugins: plugins})
+  ```elixir
+  {:ok, plugins} = Ltix.PluginSet.resolve(opts[:plugins])
+  report = Ltix.Step.run(%MyLibrary.Report{plugins: plugins})
+  ```
   """
   @spec run(struct) :: struct when struct: struct()
   def run(%provider{plugins: plugins} = struct),
@@ -110,20 +114,24 @@ defmodule Ltix.Step do
   whose `:hook` includes `Ltix.Step` calls it from a function of its own, such
   as `Ltix.Login.add_step/2`.
 
-      def add_step(plugin, fun), do: Ltix.Step.add(plugin, __MODULE__, fun)
+  ```elixir
+  def add_step(plugin, fun), do: Ltix.Step.add(plugin, __MODULE__, fun)
+  ```
 
   Raises `ArgumentError` when `provider` doesn't take steps, or when `fun`
   doesn't take one argument.
 
   ## Examples
 
-      iex> check_tenant = fn login -> {:ok, login} end
-      iex> Ltix.Step.add(Ltix.Plugin.new(), Ltix.Login, check_tenant)
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{module: Ltix.Step, opts: [to: Ltix.Login, call: check_tenant]}
-        ]
-      }
+  ```elixir
+  iex> check_tenant = fn login -> {:ok, login} end
+  iex> Ltix.Step.add(Ltix.Plugin.new(), Ltix.Login, check_tenant)
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{module: Ltix.Step, opts: [to: Ltix.Login, call: check_tenant]}
+    ]
+  }
+  ```
   """
   @spec add(Plugin.t(), module(), (struct() ->
                                      {:ok, struct()}

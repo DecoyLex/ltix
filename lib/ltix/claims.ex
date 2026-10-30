@@ -213,17 +213,19 @@ defmodule Ltix.Claims do
   [`strict: false`](`m:Ltix.Claim#module-options`), a malformed value is its
   `:default` and has no error.
 
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
-      iex> {:ok, claims, _endpoints} =
-      ...>   Ltix.Claims.parse(
-      ...>     %{
-      ...>       "https://purl.imsglobal.org/spec/lti/claim/version" => "1.3.0",
-      ...>       "https://lms.example.com/claim/unknown" => true
-      ...>     },
-      ...>     plugins
-      ...>   )
-      iex> {claims.version, claims.context, claims.roles}
-      {"1.3.0", nil, []}
+  ```elixir
+  iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+  iex> {:ok, claims, _endpoints} =
+  ...>   Ltix.Claims.parse(
+  ...>     %{
+  ...>       "https://purl.imsglobal.org/spec/lti/claim/version" => "1.3.0",
+  ...>       "https://lms.example.com/claim/unknown" => true
+  ...>     },
+  ...>     plugins
+  ...>   )
+  iex> {claims.version, claims.context, claims.roles}
+  {"1.3.0", nil, []}
+  ```
   """
   @spec parse(map(), PluginSet.t()) ::
           {:ok, claims, endpoints} | {:error, Exception.t(), claims, endpoints}
@@ -293,12 +295,14 @@ defmodule Ltix.Claims do
   message type. Returns `:ok`, or one error with the errors of every failed
   check.
 
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
-      iex> Ltix.Claims.check(%{version: "1.3.0"}, "LtiResourceLinkRequest", plugins)
-      :ok
-      iex> {:error, error} = Ltix.Claims.check(%{version: "1.2.0"}, "LtiResourceLinkRequest", plugins)
-      iex> Exception.message(error)
-      "Invalid LTI claim version: unrecognized LTI version (got \\"1.2.0\\")"
+  ```elixir
+  iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+  iex> Ltix.Claims.check(%{version: "1.3.0"}, "LtiResourceLinkRequest", plugins)
+  :ok
+  iex> {:error, error} = Ltix.Claims.check(%{version: "1.2.0"}, "LtiResourceLinkRequest", plugins)
+  iex> Exception.message(error)
+  "Invalid LTI claim version: unrecognized LTI version (got \\"1.2.0\\")"
+  ```
   """
   @spec check(%{atom() => term()}, String.t() | nil, PluginSet.t()) ::
           :ok | {:error, Exception.t()}

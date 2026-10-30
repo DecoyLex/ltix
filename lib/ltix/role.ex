@@ -6,12 +6,16 @@ defmodule Ltix.Role do
   `member.roles`. Core defines the standard roles in its
   [role vocabularies](https://standards.1edtech.org/lti/specifications/core/lti-spec#role-vocabularies).
 
-      Ltix.Role.instructor?(launch.claims.roles)
-      Ltix.Role.learner?(member.roles)
+  ```elixir
+  Ltix.Role.instructor?(launch.claims.roles)
+  Ltix.Role.learner?(member.roles)
+  ```
 
   Use `has?/2` with a constant to check for one role.
 
-      Ltix.Role.has?(launch.claims.roles, Ltix.Role.system_test_user())
+  ```elixir
+  Ltix.Role.has?(launch.claims.roles, Ltix.Role.system_test_user())
+  ```
 
   [Working with Roles](working-with-roles.md) covers authorization and how
   platforms differ.
@@ -53,21 +57,25 @@ defmodule Ltix.Role do
   checks, the filters, and `has?/2` match each deprecated form as the role it
   stands for.
 
-      iex> Ltix.Role.instructor?(["Instructor"])
-      true
+  ```elixir
+  iex> Ltix.Role.instructor?(["Instructor"])
+  true
 
-      iex> Ltix.Role.has?([Ltix.Role.person_faculty()], Ltix.Role.institution_faculty())
-      true
+  iex> Ltix.Role.has?([Ltix.Role.person_faculty()], Ltix.Role.institution_faculty())
+  true
+  ```
 
   `person#Administrator` and `person#None` stand for both the institution
   role and the system role of that name. `institution_roles/1` and
   `system_roles/1` both keep them.
 
-      iex> Ltix.Role.institution_roles([Ltix.Role.person_administrator()])
-      ["http://purl.imsglobal.org/vocab/lis/v2/person#Administrator"]
+  ```elixir
+  iex> Ltix.Role.institution_roles([Ltix.Role.person_administrator()])
+  ["http://purl.imsglobal.org/vocab/lis/v2/person#Administrator"]
 
-      iex> Ltix.Role.system_roles([Ltix.Role.person_administrator()])
-      ["http://purl.imsglobal.org/vocab/lis/v2/person#Administrator"]
+  iex> Ltix.Role.system_roles([Ltix.Role.person_administrator()])
+  ["http://purl.imsglobal.org/vocab/lis/v2/person#Administrator"]
+  ```
   """
   @moduledoc groups: [
                %{title: "Checks", description: "Check a list of role URIs."},
@@ -194,14 +202,16 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.has?([Ltix.Role.system_test_user()], Ltix.Role.system_test_user())
-      true
+  ```elixir
+  iex> Ltix.Role.has?([Ltix.Role.system_test_user()], Ltix.Role.system_test_user())
+  true
 
-      iex> Ltix.Role.has?(["Learner"], Ltix.Role.context_learner())
-      true
+  iex> Ltix.Role.has?(["Learner"], Ltix.Role.context_learner())
+  true
 
-      iex> Ltix.Role.has?([Ltix.Role.instructor_grader()], Ltix.Role.context_instructor())
-      false
+  iex> Ltix.Role.has?([Ltix.Role.instructor_grader()], Ltix.Role.context_instructor())
+  false
+  ```
   """
   @spec has?([String.t()], String.t()) :: boolean()
   def has?(roles, role) do
@@ -215,12 +225,14 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.context_roles([
-      ...>   Ltix.Role.context_instructor(),
-      ...>   Ltix.Role.institution_faculty(),
-      ...>   "Learner"
-      ...> ])
-      ["http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor", "Learner"]
+  ```elixir
+  iex> Ltix.Role.context_roles([
+  ...>   Ltix.Role.context_instructor(),
+  ...>   Ltix.Role.institution_faculty(),
+  ...>   "Learner"
+  ...> ])
+  ["http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor", "Learner"]
+  ```
   """
   @spec context_roles([String.t()]) :: [String.t()]
   def context_roles(roles), do: of_kind(roles, :context)
@@ -231,15 +243,17 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.institution_roles([
-      ...>   Ltix.Role.institution_faculty(),
-      ...>   Ltix.Role.context_instructor(),
-      ...>   Ltix.Role.person_student()
-      ...> ])
-      [
-        "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty",
-        "http://purl.imsglobal.org/vocab/lis/v2/person#Student"
-      ]
+  ```elixir
+  iex> Ltix.Role.institution_roles([
+  ...>   Ltix.Role.institution_faculty(),
+  ...>   Ltix.Role.context_instructor(),
+  ...>   Ltix.Role.person_student()
+  ...> ])
+  [
+    "http://purl.imsglobal.org/vocab/lis/v2/institution/person#Faculty",
+    "http://purl.imsglobal.org/vocab/lis/v2/person#Student"
+  ]
+  ```
   """
   @spec institution_roles([String.t()]) :: [String.t()]
   def institution_roles(roles), do: of_kind(roles, :institution)
@@ -250,15 +264,17 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.system_roles([
-      ...>   Ltix.Role.context_learner(),
-      ...>   Ltix.Role.system_test_user(),
-      ...>   Ltix.Role.person_sys_admin()
-      ...> ])
-      [
-        "http://purl.imsglobal.org/vocab/lti/system/person#TestUser",
-        "http://purl.imsglobal.org/vocab/lis/v2/person#SysAdmin"
-      ]
+  ```elixir
+  iex> Ltix.Role.system_roles([
+  ...>   Ltix.Role.context_learner(),
+  ...>   Ltix.Role.system_test_user(),
+  ...>   Ltix.Role.person_sys_admin()
+  ...> ])
+  [
+    "http://purl.imsglobal.org/vocab/lti/system/person#TestUser",
+    "http://purl.imsglobal.org/vocab/lis/v2/person#SysAdmin"
+  ]
+  ```
   """
   @spec system_roles([String.t()]) :: [String.t()]
   def system_roles(roles), do: of_kind(roles, :system)
@@ -269,17 +285,19 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.instructor?([Ltix.Role.context_instructor()])
-      true
+  ```elixir
+  iex> Ltix.Role.instructor?([Ltix.Role.context_instructor()])
+  true
 
-      iex> Ltix.Role.instructor?([Ltix.Role.instructor_teaching_assistant()])
-      true
+  iex> Ltix.Role.instructor?([Ltix.Role.instructor_teaching_assistant()])
+  true
 
-      iex> Ltix.Role.instructor?(["Instructor"])
-      true
+  iex> Ltix.Role.instructor?(["Instructor"])
+  true
 
-      iex> Ltix.Role.instructor?([Ltix.Role.institution_instructor()])
-      false
+  iex> Ltix.Role.instructor?([Ltix.Role.institution_instructor()])
+  false
+  ```
   """
   @spec instructor?([String.t()]) :: boolean()
   def instructor?(roles), do: context_role?(roles, "Instructor")
@@ -290,17 +308,19 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.learner?([Ltix.Role.context_learner()])
-      true
+  ```elixir
+  iex> Ltix.Role.learner?([Ltix.Role.context_learner()])
+  true
 
-      iex> Ltix.Role.learner?([Ltix.Role.learner_guest_learner()])
-      true
+  iex> Ltix.Role.learner?([Ltix.Role.learner_guest_learner()])
+  true
 
-      iex> Ltix.Role.learner?(["Learner"])
-      true
+  iex> Ltix.Role.learner?(["Learner"])
+  true
 
-      iex> Ltix.Role.learner?([Ltix.Role.institution_student()])
-      false
+  iex> Ltix.Role.learner?([Ltix.Role.institution_student()])
+  false
+  ```
   """
   @spec learner?([String.t()]) :: boolean()
   def learner?(roles), do: context_role?(roles, "Learner")
@@ -311,17 +331,19 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.mentor?([Ltix.Role.context_mentor()])
-      true
+  ```elixir
+  iex> Ltix.Role.mentor?([Ltix.Role.context_mentor()])
+  true
 
-      iex> Ltix.Role.mentor?([Ltix.Role.mentor_advisor()])
-      true
+  iex> Ltix.Role.mentor?([Ltix.Role.mentor_advisor()])
+  true
 
-      iex> Ltix.Role.mentor?(["Mentor"])
-      true
+  iex> Ltix.Role.mentor?(["Mentor"])
+  true
 
-      iex> Ltix.Role.mentor?([Ltix.Role.institution_mentor()])
-      false
+  iex> Ltix.Role.mentor?([Ltix.Role.institution_mentor()])
+  false
+  ```
   """
   @spec mentor?([String.t()]) :: boolean()
   def mentor?(roles), do: context_role?(roles, "Mentor")
@@ -332,17 +354,19 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.content_developer?([Ltix.Role.context_content_developer()])
-      true
+  ```elixir
+  iex> Ltix.Role.content_developer?([Ltix.Role.context_content_developer()])
+  true
 
-      iex> Ltix.Role.content_developer?([Ltix.Role.content_developer_librarian()])
-      true
+  iex> Ltix.Role.content_developer?([Ltix.Role.content_developer_librarian()])
+  true
 
-      iex> Ltix.Role.content_developer?(["ContentDeveloper"])
-      true
+  iex> Ltix.Role.content_developer?(["ContentDeveloper"])
+  true
 
-      iex> Ltix.Role.content_developer?([Ltix.Role.context_instructor()])
-      false
+  iex> Ltix.Role.content_developer?([Ltix.Role.context_instructor()])
+  false
+  ```
   """
   @spec content_developer?([String.t()]) :: boolean()
   def content_developer?(roles), do: context_role?(roles, "ContentDeveloper")
@@ -355,17 +379,19 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.context_administrator?([Ltix.Role.context_administrator()])
-      true
+  ```elixir
+  iex> Ltix.Role.context_administrator?([Ltix.Role.context_administrator()])
+  true
 
-      iex> Ltix.Role.context_administrator?([Ltix.Role.administrator_support()])
-      true
+  iex> Ltix.Role.context_administrator?([Ltix.Role.administrator_support()])
+  true
 
-      iex> Ltix.Role.context_administrator?(["Administrator"])
-      true
+  iex> Ltix.Role.context_administrator?(["Administrator"])
+  true
 
-      iex> Ltix.Role.context_administrator?([Ltix.Role.institution_administrator()])
-      false
+  iex> Ltix.Role.context_administrator?([Ltix.Role.institution_administrator()])
+  false
+  ```
   """
   @spec context_administrator?([String.t()]) :: boolean()
   def context_administrator?(roles), do: context_role?(roles, "Administrator")
@@ -378,17 +404,19 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.administrator?([Ltix.Role.institution_administrator()])
-      true
+  ```elixir
+  iex> Ltix.Role.administrator?([Ltix.Role.institution_administrator()])
+  true
 
-      iex> Ltix.Role.administrator?([Ltix.Role.person_administrator()])
-      true
+  iex> Ltix.Role.administrator?([Ltix.Role.person_administrator()])
+  true
 
-      iex> Ltix.Role.administrator?([Ltix.Role.context_administrator()])
-      false
+  iex> Ltix.Role.administrator?([Ltix.Role.context_administrator()])
+  false
 
-      iex> Ltix.Role.administrator?([Ltix.Role.system_administrator()])
-      false
+  iex> Ltix.Role.administrator?([Ltix.Role.system_administrator()])
+  false
+  ```
   """
   @spec administrator?([String.t()]) :: boolean()
   def administrator?(roles), do: has?(roles, institution_administrator())
@@ -399,11 +427,13 @@ defmodule Ltix.Role do
 
   ## Examples
 
-      iex> Ltix.Role.teaching_assistant?([Ltix.Role.instructor_teaching_assistant()])
-      true
+  ```elixir
+  iex> Ltix.Role.teaching_assistant?([Ltix.Role.instructor_teaching_assistant()])
+  true
 
-      iex> Ltix.Role.teaching_assistant?([Ltix.Role.context_instructor()])
-      false
+  iex> Ltix.Role.teaching_assistant?([Ltix.Role.context_instructor()])
+  false
+  ```
   """
   @spec teaching_assistant?([String.t()]) :: boolean()
   def teaching_assistant?(roles), do: has?(roles, instructor_teaching_assistant())
@@ -415,8 +445,10 @@ defmodule Ltix.Role do
 
     ## Examples
 
-        iex> Ltix.Role.#{function}()
-        "#{uri}"
+    ```elixir
+    iex> Ltix.Role.#{function}()
+    "#{uri}"
+    ```
     """
     @spec unquote(function)() :: String.t()
     def unquote(function)(), do: unquote(uri)

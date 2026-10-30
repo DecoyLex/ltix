@@ -10,11 +10,13 @@ defmodule Ltix.DeepLinking.LineItem do
   [Line items](`m:Ltix.DeepLinking.ContentItem.LTIResourceLink#module-line-items`)
   lists the forms the link's `line_item` takes.
 
-      {:ok, link} =
-        Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-          url: "https://tool.example.com/essays/7",
-          line_item: [label: "Essay 7", score_maximum: 100]
-        )
+  ```elixir
+  {:ok, link} =
+    Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+      url: "https://tool.example.com/essays/7",
+      line_item: [label: "Essay 7", score_maximum: 100]
+    )
+  ```
 
   ## Properties
 
@@ -22,18 +24,20 @@ defmodule Ltix.DeepLinking.LineItem do
   review, with `Ltix.Property`. Pass a property by its name with the line
   item's fields, and read it from `extensions`.
 
-      {:ok, link} =
-        Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-          url: "https://tool.example.com/essays/7",
-          line_item: [
-            label: "Essay 7",
-            score_maximum: 100,
-            submission_review: %Review.SubmissionReview{reviewable_status: ["Submitted"]}
-          ]
-        )
+  ```elixir
+  {:ok, link} =
+    Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+      url: "https://tool.example.com/essays/7",
+      line_item: [
+        label: "Essay 7",
+        score_maximum: 100,
+        submission_review: %Review.SubmissionReview{reviewable_status: ["Submitted"]}
+      ]
+    )
 
-      link.line_item.extensions.submission_review.reviewable_status
-      #=> ["Submitted"]
+  link.line_item.extensions.submission_review.reviewable_status
+  #=> ["Submitted"]
+  ```
 
   [Add a property to Deep Linking line items](writing-deep-linking-plugins.md#add-a-property-to-deep-linking-line-items)
   shows the Submission Review property.

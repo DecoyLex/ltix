@@ -3,22 +3,26 @@ defmodule Ltix.Plugin do
   A group of modules, such as login steps and claims, that an application
   enables together.
 
-      defmodule MyLibrary do
-        @behaviour Ltix.Plugin
+  ```elixir
+  defmodule MyLibrary do
+    @behaviour Ltix.Plugin
 
-        @impl Ltix.Plugin
-        def plugin(opts) do
-          Ltix.Plugin.new(name: "My Library", version: "1.0.0")
-          |> Ltix.Plugin.add(MyLibrary.Report)
-          |> Ltix.Plugin.add({MyLibrary.LoginTenant, tenant: opts[:tenant]})
-          |> Ltix.Plugin.depend_on(OtherLibrary)
-        end
-      end
+    @impl Ltix.Plugin
+    def plugin(opts) do
+      Ltix.Plugin.new(name: "My Library", version: "1.0.0")
+      |> Ltix.Plugin.add(MyLibrary.Report)
+      |> Ltix.Plugin.add({MyLibrary.LoginTenant, tenant: opts[:tenant]})
+      |> Ltix.Plugin.depend_on(OtherLibrary)
+    end
+  end
+  ```
 
   An application enables plugins in its configuration or with a call's
   `plugins:` option.
 
-      config :ltix, plugins: [{MyLibrary, tenant: "acme"}]
+  ```elixir
+  config :ltix, plugins: [{MyLibrary, tenant: "acme"}]
+  ```
 
   [Writing Plugins](writing-plugins.md) shows how to write a plugin.
 
@@ -75,8 +79,10 @@ defmodule Ltix.Plugin do
 
   ## Examples
 
-      iex> Ltix.Plugin.new(name: "My Library", version: "1.0.0")
-      %Ltix.Plugin{name: "My Library", version: "1.0.0"}
+  ```elixir
+  iex> Ltix.Plugin.new(name: "My Library", version: "1.0.0")
+  %Ltix.Plugin{name: "My Library", version: "1.0.0"}
+  ```
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []), do: struct!(__MODULE__, Options.parse!(opts, @new_schema))
@@ -101,13 +107,15 @@ defmodule Ltix.Plugin do
 
   ## Examples
 
-      iex> Ltix.Plugin.new()
-      ...> |> Ltix.Plugin.add(Ltix.Login)
-      ...> |> Ltix.Plugin.add(Ltix.Login.RegistrationFound)
-      %Ltix.Plugin{
-        providers: [Ltix.Login],
-        entries: [%Ltix.PluginSet.Entry{module: Ltix.Login.RegistrationFound}]
-      }
+  ```elixir
+  iex> Ltix.Plugin.new()
+  ...> |> Ltix.Plugin.add(Ltix.Login)
+  ...> |> Ltix.Plugin.add(Ltix.Login.RegistrationFound)
+  %Ltix.Plugin{
+    providers: [Ltix.Login],
+    entries: [%Ltix.PluginSet.Entry{module: Ltix.Login.RegistrationFound}]
+  }
+  ```
   """
   @spec add(t(), module() | {module(), term()}) :: t()
   def add(%__MODULE__{} = plugin, {module, opts}) when is_atom(module) do
@@ -189,15 +197,17 @@ defmodule Ltix.Plugin do
 
   ## Examples
 
-      iex> defmodule Blocklist do
-      ...>   @behaviour Ltix.Plugin
-      ...>   def plugin(_opts), do: Ltix.Plugin.new(name: "Blocklist")
-      ...> end
-      iex> plugin =
-      ...>   Ltix.Plugin.new(name: "My Profile")
-      ...>   |> Ltix.Plugin.depend_on(Blocklist)
-      iex> plugin.dependencies
-      [Blocklist]
+  ```elixir
+  iex> defmodule Blocklist do
+  ...>   @behaviour Ltix.Plugin
+  ...>   def plugin(_opts), do: Ltix.Plugin.new(name: "Blocklist")
+  ...> end
+  iex> plugin =
+  ...>   Ltix.Plugin.new(name: "My Profile")
+  ...>   |> Ltix.Plugin.depend_on(Blocklist)
+  iex> plugin.dependencies
+  [Blocklist]
+  ```
   """
   @spec depend_on(t(), module()) :: t()
   def depend_on(%__MODULE__{} = plugin, dependency) when is_atom(dependency) do

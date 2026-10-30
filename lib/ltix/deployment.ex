@@ -26,11 +26,13 @@ defmodule Ltix.Deployment do
 
   ## Examples
 
-      iex> Ltix.Deployment.new("deploy-001")
-      {:ok, %Ltix.Deployment{deployment_id: "deploy-001"}}
+  ```elixir
+  iex> Ltix.Deployment.new("deploy-001")
+  {:ok, %Ltix.Deployment{deployment_id: "deploy-001"}}
 
-      Ltix.Deployment.new("")
-      #=> {:error, %Ltix.Errors.Invalid.InvalidField{field: :deployment_id, value: ""}}
+  Ltix.Deployment.new("")
+  #=> {:error, %Ltix.Errors.Invalid.InvalidField{field: :deployment_id, value: ""}}
+  ```
 
   """
   # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
@@ -62,8 +64,10 @@ defmodule Ltix.Deployment do
 
   ## Examples
 
-      iex> Ltix.Deployment.new!("deploy-001")
-      %Ltix.Deployment{deployment_id: "deploy-001"}
+  ```elixir
+  iex> Ltix.Deployment.new!("deploy-001")
+  %Ltix.Deployment{deployment_id: "deploy-001"}
+  ```
   """
   @spec new!(String.t() | nil) :: t()
   def new!(deployment_id) do

@@ -9,29 +9,33 @@ defmodule Ltix.Launch.MessageType.Requirements do
   The builders of `Ltix.Validator`, such as `Ltix.Validator.required/3`, are
   imported.
 
-      defmodule MyLibrary.RequireContext do
-        use Ltix.ResourceLinkRequest
+  ```elixir
+  defmodule MyLibrary.RequireContext do
+    use Ltix.ResourceLinkRequest
 
-        @impl Ltix.Launch.MessageType.Requirements
-        def validator(validator), do: required(validator, :context)
-      end
+    @impl Ltix.Launch.MessageType.Requirements
+    def validator(validator), do: required(validator, :context)
+  end
+  ```
 
   A plugin adds the module with `Ltix.Plugin.add/2`. A module that changes a
   message type that isn't in the plugin set does nothing.
 
   A module that changes several message types matches on each one.
 
-      defmodule MyLibrary.Context do
-        use Ltix.ResourceLinkRequest
-        use Ltix.DeepLinkingRequest
+  ```elixir
+  defmodule MyLibrary.Context do
+    use Ltix.ResourceLinkRequest
+    use Ltix.DeepLinkingRequest
 
-        @impl Ltix.Launch.MessageType.Requirements
-        def validator(%{message_type: "LtiResourceLinkRequest"} = validator),
-          do: required(validator, :context)
+    @impl Ltix.Launch.MessageType.Requirements
+    def validator(%{message_type: "LtiResourceLinkRequest"} = validator),
+      do: required(validator, :context)
 
-        def validator(%{message_type: "LtiDeepLinkingRequest"} = validator),
-          do: optional(validator, :context)
-      end
+    def validator(%{message_type: "LtiDeepLinkingRequest"} = validator),
+      do: optional(validator, :context)
+  end
+  ```
   """
 
   @doc """

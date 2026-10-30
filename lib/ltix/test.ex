@@ -9,23 +9,27 @@ defmodule Ltix.Test do
   services. [Testing LTI Launches](testing-lti-launches.md) shows controller,
   business logic, and service tests.
 
-      setup do
-        %{platform: Ltix.Test.setup_platform!()}
-      end
+  ```elixir
+  setup do
+    %{platform: Ltix.Test.setup_platform!()}
+  end
 
-      test "instructors can manage grades", %{platform: platform} do
-        launch = Ltix.Test.build_launch(platform, roles: [Ltix.Role.context_instructor()])
+  test "instructors can manage grades", %{platform: platform} do
+    launch = Ltix.Test.build_launch(platform, roles: [Ltix.Role.context_instructor()])
 
-        assert MyApp.Permissions.can_manage_grades?(launch)
-      end
+    assert MyApp.Permissions.can_manage_grades?(launch)
+  end
+  ```
 
   ## Setup
 
     * Route Ltix's requests through `Req.Test` in your test configuration.
       With `retry: false`, a stubbed failure returns at once.
 
-          # config/test.exs
-          config :ltix, req_options: [plug: {Req.Test, :ltix}, retry: false]
+      ```elixir
+      # config/test.exs
+      config :ltix, req_options: [plug: {Req.Test, :ltix}, retry: false]
+      ```
 
     * Start `Ltix.JWT.KeySet` in your supervision tree, as in production.
     * For a full launch with `launch_params/2`, make your storage adapter find
@@ -40,13 +44,15 @@ defmodule Ltix.Test do
   responds to access token requests. Stubbing an operation again replaces its
   stub. A service request without a stub fails the test.
 
-      Ltix.Test.stub_token_response()
-      Ltix.Test.stub_post_score()
+  ```elixir
+  Ltix.Test.stub_token_response()
+  Ltix.Test.stub_post_score()
 
-      launch =
-        Ltix.Test.build_launch(platform, ags_endpoint: %{line_item: line_item, scopes: scopes})
-      {:ok, client} = Ltix.GradeService.authenticate(launch)
-      assert :ok = Ltix.GradeService.post_score(client, score)
+  launch =
+    Ltix.Test.build_launch(platform, ags_endpoint: %{line_item: line_item, scopes: scopes})
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
+  assert :ok = Ltix.GradeService.post_score(client, score)
+  ```
 
   List stubs, such as `stub_list_members/2`, split results into pages of the
   call's `:per_page` size.
@@ -487,10 +493,12 @@ defmodule Ltix.Test do
   already stubs. Pass options to test how your application handles a failing
   key set. `Ltix.handle_callback/3` then returns the error in the table below.
 
-      Ltix.Test.stub_key_set(platform, status: 503)
+  ```elixir
+  Ltix.Test.stub_key_set(platform, status: 503)
 
-      {:error, %Ltix.Errors.Unknown.TransportError{status: 503}} =
-        Ltix.handle_callback(params, state)
+  {:error, %Ltix.Errors.Unknown.TransportError{status: 503}} =
+    Ltix.handle_callback(params, state)
+  ```
 
   | Options | Launch error |
   |---|---|
@@ -572,9 +580,11 @@ defmodule Ltix.Test do
   any other process, such as one your application supervises, before it
   handles a launch or sends requests to the test platform.
 
-      Ltix.Test.stub_token_response()
-      Ltix.Test.stub_post_score()
-      Ltix.Test.allow_stubs(Process.whereis(MyApp.GradeSync))
+  ```elixir
+  Ltix.Test.stub_token_response()
+  Ltix.Test.stub_post_score()
+  Ltix.Test.allow_stubs(Process.whereis(MyApp.GradeSync))
+  ```
 
   `pid` can be a function that returns the process. Allow the stubs of your own
   services with `Req.Test.allow/3`.
@@ -660,12 +670,14 @@ defmodule Ltix.Test do
   They're `%{"id_token" => id_token, "state" => state}`, with the ID token
   signed by the platform's key.
 
-      params =
-        Ltix.Test.launch_params(platform,
-          nonce: nonce,
-          state: state,
-          roles: [Ltix.Role.context_learner()]
-        )
+  ```elixir
+  params =
+    Ltix.Test.launch_params(platform,
+      nonce: nonce,
+      state: state,
+      roles: [Ltix.Role.context_learner()]
+    )
+  ```
 
   ## Options
 
@@ -691,8 +703,10 @@ defmodule Ltix.Test do
   @doc """
   Extract the nonce from a login redirect URI.
 
-      {:ok, result} = Ltix.handle_login(params, redirect_uri)
-      nonce = Ltix.Test.extract_nonce(result.redirect_uri)
+  ```elixir
+  {:ok, result} = Ltix.handle_login(params, redirect_uri)
+  nonce = Ltix.Test.extract_nonce(result.redirect_uri)
+  ```
   """
   @spec extract_nonce(String.t()) :: String.t()
   def extract_nonce(redirect_uri) do
@@ -716,18 +730,22 @@ defmodule Ltix.Test do
   run too. Raises the failing step's error, such as
   `Ltix.Errors.Invalid.MissingClaim`.
 
-      launch = Ltix.Test.build_launch(platform,
-        roles: [Ltix.Role.context_instructor(), Ltix.Role.instructor_teaching_assistant()],
-        name: "Jane Smith",
-        context: %{id: "course-1", title: "Elixir 101"}
-      )
+  ```elixir
+  launch = Ltix.Test.build_launch(platform,
+    roles: [Ltix.Role.context_instructor(), Ltix.Role.instructor_teaching_assistant()],
+    name: "Jane Smith",
+    context: %{id: "course-1", title: "Elixir 101"}
+  )
+  ```
 
   This builds a Deep Linking launch.
 
-      launch = Ltix.Test.build_launch(platform,
-        message_type: :deep_linking,
-        deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
-      )
+  ```elixir
+  launch = Ltix.Test.build_launch(platform,
+    message_type: :deep_linking,
+    deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
+  )
+  ```
 
   ## Options
 
@@ -789,18 +807,22 @@ defmodule Ltix.Test do
   it before a service's `authenticate/2`, such as
   `Ltix.GradeService.authenticate/2`.
 
-      Ltix.Test.stub_token_response(scopes: [
-        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-        "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-      ])
+  ```elixir
+  Ltix.Test.stub_token_response(scopes: [
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+  ])
+  ```
 
   To test a failed authentication, stub the response the platform would send.
   `authenticate/2` then returns the error in the table below.
 
-      Ltix.Test.stub_token_response(status: 400, body: %{"error" => "invalid_scope"})
+  ```elixir
+  Ltix.Test.stub_token_response(status: 400, body: %{"error" => "invalid_scope"})
 
-      {:error, %Ltix.Errors.Invalid.TokenRequestFailed{error: "invalid_scope"}} =
-        Ltix.GradeService.authenticate(launch)
+  {:error, %Ltix.Errors.Invalid.TokenRequestFailed{error: "invalid_scope"}} =
+    Ltix.GradeService.authenticate(launch)
+  ```
 
   | Options | Authentication error |
   |---|---|
@@ -841,12 +863,14 @@ defmodule Ltix.Test do
   Stubs `Ltix.GradeService.list_line_items/2` and
   `Ltix.GradeService.stream_line_items/2` to return the given line items.
 
-      alias Ltix.GradeService.LineItem
+  ```elixir
+  alias Ltix.GradeService.LineItem
 
-      Ltix.Test.stub_list_line_items([
-        %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
-        %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
-      ])
+  Ltix.Test.stub_list_line_items([
+    %LineItem{id: "https://lms.example.com/lineitems/1", label: "Quiz 1", score_maximum: 100},
+    %LineItem{id: "https://lms.example.com/lineitems/2", label: "Quiz 2", score_maximum: 50}
+  ])
+  ```
 
   ## Options
 
@@ -866,11 +890,13 @@ defmodule Ltix.Test do
   @doc """
   Stubs `Ltix.GradeService.get_line_item/2` to return the given line item.
 
-      Ltix.Test.stub_get_line_item(%Ltix.GradeService.LineItem{
-        id: "https://lms.example.com/lineitems/1",
-        label: "Quiz 1",
-        score_maximum: 100
-      })
+  ```elixir
+  Ltix.Test.stub_get_line_item(%Ltix.GradeService.LineItem{
+    id: "https://lms.example.com/lineitems/1",
+    label: "Quiz 1",
+    score_maximum: 100
+  })
+  ```
 
   ## Options
 
@@ -890,11 +916,13 @@ defmodule Ltix.Test do
   Pass the line item the platform would return. That's usually the fields your
   code sends, plus the `:id` the platform assigns.
 
-      Ltix.Test.stub_create_line_item(%Ltix.GradeService.LineItem{
-        id: "https://lms.example.com/lineitems/new",
-        label: "Quiz 1",
-        score_maximum: 100
-      })
+  ```elixir
+  Ltix.Test.stub_create_line_item(%Ltix.GradeService.LineItem{
+    id: "https://lms.example.com/lineitems/new",
+    label: "Quiz 1",
+    score_maximum: 100
+  })
+  ```
 
   ## Options
 
@@ -919,11 +947,13 @@ defmodule Ltix.Test do
   @doc """
   Stubs `Ltix.GradeService.update_line_item/3` to return the given line item.
 
-      Ltix.Test.stub_update_line_item(%Ltix.GradeService.LineItem{
-        id: "https://lms.example.com/lineitems/1",
-        label: "Updated Quiz",
-        score_maximum: 100
-      })
+  ```elixir
+  Ltix.Test.stub_update_line_item(%Ltix.GradeService.LineItem{
+    id: "https://lms.example.com/lineitems/1",
+    label: "Updated Quiz",
+    score_maximum: 100
+  })
+  ```
 
   ## Options
 
@@ -949,7 +979,9 @@ defmodule Ltix.Test do
   @doc """
   Stub `delete_line_item/2` to succeed.
 
-      Ltix.Test.stub_delete_line_item()
+  ```elixir
+  Ltix.Test.stub_delete_line_item()
+  ```
 
   ## Options
 
@@ -965,7 +997,9 @@ defmodule Ltix.Test do
   @doc """
   Stub `post_score/3` to succeed.
 
-      Ltix.Test.stub_post_score()
+  ```elixir
+  Ltix.Test.stub_post_score()
+  ```
 
   ## Options
 
@@ -982,12 +1016,14 @@ defmodule Ltix.Test do
   Stubs `Ltix.GradeService.list_results/2` and
   `Ltix.GradeService.stream_results/2` to return the given results.
 
-      alias Ltix.GradeService.Result
+  ```elixir
+  alias Ltix.GradeService.Result
 
-      Ltix.Test.stub_list_results([
-        %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
-        %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
-      ])
+  Ltix.Test.stub_list_results([
+    %Result{user_id: "student-1", result_score: 0.85, result_maximum: 1},
+    %Result{user_id: "student-2", result_score: 0.92, result_maximum: 1}
+  ])
+  ```
 
   ## Options
 
@@ -1028,25 +1064,29 @@ defmodule Ltix.Test do
   `Ltix.MembershipsService.stream_members/2` to return the given members or
   membership container.
 
-      alias Ltix.MembershipsService.Member
+  ```elixir
+  alias Ltix.MembershipsService.Member
 
-      members = [
-        %Member{user_id: "student-1", roles: [Ltix.Role.context_learner()], name: "Alice"},
-        %Member{user_id: "teacher-1", roles: [Ltix.Role.context_instructor()], name: "Bob"}
-      ]
+  members = [
+    %Member{user_id: "student-1", roles: [Ltix.Role.context_learner()], name: "Alice"},
+    %Member{user_id: "teacher-1", roles: [Ltix.Role.context_instructor()], name: "Bob"}
+  ]
 
-      Ltix.Test.stub_list_members(members)
+  Ltix.Test.stub_list_members(members)
+  ```
 
   Pass an `Ltix.MembershipsService.MembershipContainer` to return its `id`,
   `context`, and extensions too. With a container, passing `:context` or `:id`
   raises `ArgumentError`.
 
-      roster = %Ltix.MembershipsService.MembershipContainer{
-        context: %Ltix.Claims.Context{id: "course-42"},
-        members: members
-      }
+  ```elixir
+  roster = %Ltix.MembershipsService.MembershipContainer{
+    context: %Ltix.Claims.Context{id: "course-42"},
+    members: members
+  }
 
-      Ltix.Test.stub_list_members(roster)
+  Ltix.Test.stub_list_members(roster)
+  ```
 
   A member's `:message` is a list of messages, each a map of claims keyed by
   [short name](`m:Ltix.Core#module-claims`), such as
@@ -1143,10 +1183,12 @@ defmodule Ltix.Test do
   Returns `Ltix.Errors.Security.SignatureInvalid` when the token is
   malformed or was not signed with the tool's key.
 
-      {:ok, response} = Ltix.DeepLinking.build_response(launch, items)
-      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
-      assert claims["https://purl.imsglobal.org/spec/lti/claim/message_type"] ==
-               "LtiDeepLinkingResponse"
+  ```elixir
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, items)
+  {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+  assert claims["https://purl.imsglobal.org/spec/lti/claim/message_type"] ==
+           "LtiDeepLinkingResponse"
+  ```
   """
   @spec verify_deep_linking_response(Platform.t(), String.t()) ::
           {:ok, map()} | {:error, Exception.t()}
@@ -1171,8 +1213,10 @@ defmodule Ltix.Test do
 
   Use it to build launch tokens by hand, such as a token missing a claim.
 
-      claims = Map.delete(Ltix.Test.valid_lti_claims(platform), "sub")
-      id_token = Ltix.Test.sign_id_token(claims, platform.jwk)
+  ```elixir
+  claims = Map.delete(Ltix.Test.valid_lti_claims(platform), "sub")
+  id_token = Ltix.Test.sign_id_token(claims, platform.jwk)
+  ```
 
   ## Options
 
@@ -1201,8 +1245,10 @@ defmodule Ltix.Test do
   The issuer, audience, and deployment ID are the platform's. Caller
   can override individual claims via the `overrides` map.
 
-      claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
-      id_token = Ltix.Test.sign_id_token(claims, platform.jwk)
+  ```elixir
+  claims = Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce})
+  id_token = Ltix.Test.sign_id_token(claims, platform.jwk)
+  ```
   """
   @spec valid_lti_claims(Platform.t(), map()) :: map()
   def valid_lti_claims(%Platform{} = platform, overrides \\ %{}) do

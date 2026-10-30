@@ -6,24 +6,28 @@ defmodule Ltix.Claims.Override do
   An override that needs only a function is an anonymous override, which a
   plugin adds with `add/2`.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Claims.Override.add(
-        check: Ltix.Claims.RoleScopeMentor,
-        message_types: ["LtiSubmissionReviewRequest"],
-        with: fn _subjects, _claims -> :ok end
-      )
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Claims.Override.add(
+    check: Ltix.Claims.RoleScopeMentor,
+    message_types: ["LtiSubmissionReviewRequest"],
+    with: fn _subjects, _claims -> :ok end
+  )
+  ```
 
   An override can also be a module that implements `c:check/2`. Add it to a
   plugin with `Ltix.Plugin.add/2`.
 
-      defmodule MyLibrary.MentorWithoutRole do
-        use Ltix.Claims.Override,
-          check: Ltix.Claims.RoleScopeMentor,
-          message_types: ["LtiSubmissionReviewRequest"]
+  ```elixir
+  defmodule MyLibrary.MentorWithoutRole do
+    use Ltix.Claims.Override,
+      check: Ltix.Claims.RoleScopeMentor,
+      message_types: ["LtiSubmissionReviewRequest"]
 
-        @impl Ltix.Claims.Override
-        def check(_subjects, _claims), do: :ok
-      end
+    @impl Ltix.Claims.Override
+    def check(_subjects, _claims), do: :ok
+  end
+  ```
 
   The check still runs in every other message type. An override of a check that
   isn't in the plugin set does nothing. Only a check that is a module can be
@@ -87,25 +91,27 @@ defmodule Ltix.Claims.Override do
 
   ## Examples
 
-      iex> allow_any = fn _subjects, _claims -> :ok end
-      iex> Ltix.Claims.Override.add(
-      ...>   Ltix.Plugin.new(),
-      ...>   check: Ltix.Claims.RoleScopeMentor,
-      ...>   message_types: ["LtiSubmissionReviewRequest"],
-      ...>   with: allow_any
-      ...> )
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{
-            module: Ltix.Claims.Override,
-            opts: [
-              check: Ltix.Claims.RoleScopeMentor,
-              message_types: ["LtiSubmissionReviewRequest"],
-              with: allow_any
-            ]
-          }
+  ```elixir
+  iex> allow_any = fn _subjects, _claims -> :ok end
+  iex> Ltix.Claims.Override.add(
+  ...>   Ltix.Plugin.new(),
+  ...>   check: Ltix.Claims.RoleScopeMentor,
+  ...>   message_types: ["LtiSubmissionReviewRequest"],
+  ...>   with: allow_any
+  ...> )
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{
+        module: Ltix.Claims.Override,
+        opts: [
+          check: Ltix.Claims.RoleScopeMentor,
+          message_types: ["LtiSubmissionReviewRequest"],
+          with: allow_any
         ]
       }
+    ]
+  }
+  ```
   """
   @spec add(Plugin.t(), keyword()) :: Plugin.t()
   def add(%Plugin{} = plugin, opts) do

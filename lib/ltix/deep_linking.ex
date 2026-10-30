@@ -148,11 +148,15 @@ defmodule Ltix.DeepLinking do
 
   ## Examples
 
-      {:ok, response} = Ltix.DeepLinking.build_response(launch, [link], message: "Added Quiz 7")
+  ```elixir
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, [link], message: "Added Quiz 7")
+  ```
 
   When the user cancels, return no content items.
 
-      {:ok, response} = Ltix.DeepLinking.build_response(launch, [], message: "Nothing was added")
+  ```elixir
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, [], message: "Nothing was added")
+  ```
   """
   @spec build_response(Launch.t(), list(), keyword()) ::
           {:ok, Response.t()} | {:error, Exception.t()}
@@ -177,7 +181,9 @@ defmodule Ltix.DeepLinking do
 
   ## Examples
 
-      response = Ltix.DeepLinking.build_response!(launch, [link], message: "Selected 1 item")
+  ```elixir
+  response = Ltix.DeepLinking.build_response!(launch, [link], message: "Selected 1 item")
+  ```
   """
   @spec build_response!(Launch.t(), list(), keyword()) :: Response.t()
   def build_response!(launch, items \\ [], opts \\ []) do

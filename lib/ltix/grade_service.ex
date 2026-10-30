@@ -9,18 +9,22 @@ defmodule Ltix.GradeService do
   **Coupled.** The platform creates a single line item for the resource
   link. The tool posts scores against that line item directly.
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch)
-      :ok = Ltix.GradeService.post_score(client, score)
+  ```elixir
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
+  :ok = Ltix.GradeService.post_score(client, score)
+  ```
 
   **Programmatic.** The tool manages its own line items and can create,
   update, or delete them.
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch)
-      {:ok, items} = Ltix.GradeService.list_line_items(client)
-      {:ok, item} = Ltix.GradeService.create_line_item(client,
-        label: "Quiz 1", score_maximum: 100
-      )
-      :ok = Ltix.GradeService.post_score(client, score, line_item: item)
+  ```elixir
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
+  {:ok, items} = Ltix.GradeService.list_line_items(client)
+  {:ok, item} = Ltix.GradeService.create_line_item(client,
+    label: "Quiz 1", score_maximum: 100
+  )
+  :ok = Ltix.GradeService.post_score(client, score, line_item: item)
+  ```
   """
 
   @behaviour Ltix.Plugin
@@ -125,17 +129,21 @@ defmodule Ltix.GradeService do
 
   ## From a launch
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch)
+  ```elixir
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
+  ```
 
   ## From a registration
 
-      {:ok, client} = Ltix.GradeService.authenticate(registration,
-        endpoint:
-          Ltix.GradeService.Endpoint.new!(
-            line_items: "https://lms.example.com/lineitems",
-            scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
-          )
+  ```elixir
+  {:ok, client} = Ltix.GradeService.authenticate(registration,
+    endpoint:
+      Ltix.GradeService.Endpoint.new!(
+        line_items: "https://lms.example.com/lineitems",
+        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
       )
+  )
+  ```
 
   ## Options
 
@@ -379,7 +387,9 @@ defmodule Ltix.GradeService do
 
   ## Examples
 
-      {:ok, item} = Ltix.GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
+  ```elixir
+  {:ok, item} = Ltix.GradeService.create_line_item(client, label: "Quiz 1", score_maximum: 100)
+  ```
 
   ## Options
 

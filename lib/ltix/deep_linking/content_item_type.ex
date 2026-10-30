@@ -2,17 +2,19 @@ defmodule Ltix.DeepLinking.ContentItemType do
   @moduledoc """
   Declares a content item type.
 
-      defmodule MyLibrary.Poll do
-        @moduledoc "A poll the platform shows to learners."
+  ```elixir
+  defmodule MyLibrary.Poll do
+    @moduledoc "A poll the platform shows to learners."
 
-        use Ltix.DeepLinking.ContentItemType,
-          type: "https://lms.example.com/poll",
-          fields: [
-            question: Zoi.string(description: "The question to ask."),
-            title: title(),
-            closes_at: Zoi.datetime(description: "When the poll closes.") |> Zoi.optional()
-          ]
-      end
+    use Ltix.DeepLinking.ContentItemType,
+      type: "https://lms.example.com/poll",
+      fields: [
+        question: Zoi.string(description: "The question to ask."),
+        title: title(),
+        closes_at: Zoi.datetime(description: "When the poll closes.") |> Zoi.optional()
+      ]
+  end
+  ```
 
   Build an item with `new/1` or `new!/1`, from its fields as a keyword list or
   map. Shared fields such as `title/1` come from
@@ -51,14 +53,16 @@ defmodule Ltix.DeepLinking.ContentItemType do
   Plugins add properties to content item types, as `Ltix.Property` describes.
   Pass a property to `new/1` by its name, and read it from `extensions`.
 
-      {:ok, link} =
-        Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-          url: "https://tool.example.com/quizzes/7",
-          weight: 2
-        )
+  ```elixir
+  {:ok, link} =
+    Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+      url: "https://tool.example.com/quizzes/7",
+      weight: 2
+    )
 
-      link.extensions.weight
-      #=> 2
+  link.extensions.weight
+  #=> 2
+  ```
 
   [Add a property to a content item type](writing-deep-linking-plugins.md#add-a-property-to-a-content-item-type)
   shows an example.
@@ -82,13 +86,15 @@ defmodule Ltix.DeepLinking.ContentItemType do
   accept. When your exception has an `:index` field set to `nil`, Ltix sets
   it to the item's position in the response.
 
-      # A poll only works in an iframe.
-      @impl Ltix.DeepLinking.ContentItemType
-      def check(_poll, %Ltix.DeepLinking.Settings{accept_presentation_document_targets: targets}) do
-        if "iframe" in targets,
-          do: :ok,
-          else: {:error, MyLibrary.IframeRequired.exception(index: nil)}
-      end
+  ```elixir
+  # A poll only works in an iframe.
+  @impl Ltix.DeepLinking.ContentItemType
+  def check(_poll, %Ltix.DeepLinking.Settings{accept_presentation_document_targets: targets}) do
+    if "iframe" in targets,
+      do: :ok,
+      else: {:error, MyLibrary.IframeRequired.exception(index: nil)}
+  end
+  ```
   """
   @callback check(item :: struct(), settings :: Settings.t()) :: :ok | {:error, Exception.t()}
 
@@ -99,8 +105,10 @@ defmodule Ltix.DeepLinking.ContentItemType do
 
   ## Examples
 
-      iex> Ltix.DeepLinking.ContentItemType.type(Ltix.DeepLinking.ContentItem.LTIResourceLink)
-      "ltiResourceLink"
+  ```elixir
+  iex> Ltix.DeepLinking.ContentItemType.type(Ltix.DeepLinking.ContentItem.LTIResourceLink)
+  "ltiResourceLink"
+  ```
   """
   @spec type(module()) :: String.t()
   def type(content_item_type) do
@@ -114,8 +122,10 @@ defmodule Ltix.DeepLinking.ContentItemType do
 
   ## Examples
 
-      iex> Keyword.keys(Ltix.DeepLinking.ContentItemType.fields(Ltix.DeepLinking.ContentItem.HTMLFragment))
-      [:html, :title, :text]
+  ```elixir
+  iex> Keyword.keys(Ltix.DeepLinking.ContentItemType.fields(Ltix.DeepLinking.ContentItem.HTMLFragment))
+  [:html, :title, :text]
+  ```
   """
   @spec fields(module()) :: keyword(Zoi.schema())
   defdelegate fields(content_item_type), to: Ltix.Type

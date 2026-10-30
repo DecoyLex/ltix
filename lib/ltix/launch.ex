@@ -2,11 +2,13 @@ defmodule Ltix.Launch do
   @moduledoc """
   The verified launch that `Ltix.handle_callback/3` returns.
 
-      {:ok, launch} = Ltix.handle_callback(params, state)
+  ```elixir
+  {:ok, launch} = Ltix.handle_callback(params, state)
 
-      if Ltix.Role.instructor?(launch.claims.roles),
-        do: render(conn, :grading, link: launch.claims.resource_link),
-        else: render(conn, :quiz, link: launch.claims.resource_link)
+  if Ltix.Role.instructor?(launch.claims.roles),
+    do: render(conn, :grading, link: launch.claims.resource_link),
+    else: render(conn, :quiz, link: launch.claims.resource_link)
+  ```
 
   ## Fields
 
@@ -32,18 +34,20 @@ defmodule Ltix.Launch do
   step with `use Ltix.Launch`. A plugin adds it with `Ltix.Plugin.add/2`, or
   adds a function as a step with `add_step/2`.
 
-      defmodule MyApp.LaunchTenant do
-        use Ltix.Launch
+  ```elixir
+  defmodule MyApp.LaunchTenant do
+    use Ltix.Launch
 
-        @impl Ltix.Step
-        def call(launch, _opts) do
-          {:ok, put_in(launch.private[:my_app_tenant], launch.claims.context)}
-        end
+    @impl Ltix.Step
+    def call(launch, _opts) do
+      {:ok, put_in(launch.private[:my_app_tenant], launch.claims.context)}
+    end
 
-        @impl Ltix.Ordered
-        def after?(Ltix.Launch.ClaimsParsed), do: true
-        def after?(_module), do: false
-      end
+    @impl Ltix.Ordered
+    def after?(Ltix.Launch.ClaimsParsed), do: true
+    def after?(_module), do: false
+  end
+  ```
 
   Steps also use these fields.
 
@@ -119,18 +123,20 @@ defmodule Ltix.Launch do
   Returns the endpoint of `service` that the launch has, or `nil` when the
   platform didn't grant that service.
 
-      iex> endpoint = %Ltix.GradeService.Endpoint{
-      ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
-      ...>   line_item: "https://lms.example.com/line_items/1"
-      ...> }
-      iex> launch = %Ltix.Launch{endpoints: %{Ltix.GradeService => endpoint}}
-      iex> Ltix.Launch.get_endpoint(launch, Ltix.GradeService)
-      %Ltix.GradeService.Endpoint{
-        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
-        line_item: "https://lms.example.com/line_items/1"
-      }
-      iex> Ltix.Launch.get_endpoint(launch, Ltix.MembershipsService)
-      nil
+  ```elixir
+  iex> endpoint = %Ltix.GradeService.Endpoint{
+  ...>   scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+  ...>   line_item: "https://lms.example.com/line_items/1"
+  ...> }
+  iex> launch = %Ltix.Launch{endpoints: %{Ltix.GradeService => endpoint}}
+  iex> Ltix.Launch.get_endpoint(launch, Ltix.GradeService)
+  %Ltix.GradeService.Endpoint{
+    scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+    line_item: "https://lms.example.com/line_items/1"
+  }
+  iex> Ltix.Launch.get_endpoint(launch, Ltix.MembershipsService)
+  nil
+  ```
   """
   @spec get_endpoint(t(), module()) :: term() | nil
   def get_endpoint(%__MODULE__{endpoints: endpoints}, service), do: Map.get(endpoints, service)
@@ -139,10 +145,12 @@ defmodule Ltix.Launch do
   Adds an anonymous launch step to a plugin, a function that receives the
   launch and returns what `c:Ltix.Step.call/2` returns.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Launch.run_after(Ltix.Launch.ClaimsParsed, fn plugin ->
-        Ltix.Launch.add_step(plugin, &MyLibrary.record_context/1)
-      end)
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Launch.run_after(Ltix.Launch.ClaimsParsed, fn plugin ->
+    Ltix.Launch.add_step(plugin, &MyLibrary.record_context/1)
+  end)
+  ```
 
   Raises `ArgumentError` when `fun` doesn't take one argument.
   """

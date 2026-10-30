@@ -52,20 +52,22 @@ defmodule Ltix.MembershipsService.Endpoint do
 
   ## Examples
 
-      iex> {:ok, endpoint} = Ltix.MembershipsService.Endpoint.new("https://lms.example.com/memberships")
-      iex> endpoint.context_memberships_url
-      "https://lms.example.com/memberships"
+  ```elixir
+  iex> {:ok, endpoint} = Ltix.MembershipsService.Endpoint.new("https://lms.example.com/memberships")
+  iex> endpoint.context_memberships_url
+  "https://lms.example.com/memberships"
 
-      iex> {:ok, endpoint} = Ltix.MembershipsService.Endpoint.new(
-      ...>   context_memberships_url: "https://lms.example.com/memberships",
-      ...>   service_versions: ["2.0"]
-      ...> )
-      iex> endpoint.service_versions
-      ["2.0"]
+  iex> {:ok, endpoint} = Ltix.MembershipsService.Endpoint.new(
+  ...>   context_memberships_url: "https://lms.example.com/memberships",
+  ...>   service_versions: ["2.0"]
+  ...> )
+  iex> endpoint.service_versions
+  ["2.0"]
 
-      iex> {:error, error} = Ltix.MembershipsService.Endpoint.new("http://lms.example.com/memberships")
-      iex> error.field
-      :context_memberships_url
+  iex> {:error, error} = Ltix.MembershipsService.Endpoint.new("http://lms.example.com/memberships")
+  iex> error.field
+  :context_memberships_url
+  ```
   """
   @impl Ltix.Claim
   @spec new(String.t() | nil | keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}

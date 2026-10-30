@@ -14,10 +14,12 @@ defmodule Ltix.GradeService.Result do
 
   ## Examples
 
-      {:ok, [result | _]} = Ltix.GradeService.list_results(client, line_item: item)
+  ```elixir
+  {:ok, [result | _]} = Ltix.GradeService.list_results(client, line_item: item)
 
-      result.result_score
-      #=> 0.83
+  result.result_score
+  #=> 0.83
+  ```
   """
 
   use Ltix.Provider, hook: [Ltix.Property]

@@ -6,13 +6,15 @@ defmodule Ltix.DeepLinking.ContentItem.HTMLFragment do
 
   ## Examples
 
-      iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
-      iex> fragment.html
-      "<p>Hello</p>"
+  ```elixir
+  iex> {:ok, fragment} = Ltix.DeepLinking.ContentItem.HTMLFragment.new(html: "<p>Hello</p>")
+  iex> fragment.html
+  "<p>Hello</p>"
 
-      iex> {:error, error} = Ltix.DeepLinking.ContentItem.HTMLFragment.new([])
-      iex> Exception.message(error)
-      "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required"
+  iex> {:error, error} = Ltix.DeepLinking.ContentItem.HTMLFragment.new([])
+  iex> Exception.message(error)
+  "Ltix.DeepLinking.ContentItem.HTMLFragment field :html is required"
+  ```
   """
 
   # [DL, HTML fragment](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#html-fragment)

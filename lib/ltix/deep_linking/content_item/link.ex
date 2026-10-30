@@ -8,16 +8,18 @@ defmodule Ltix.DeepLinking.ContentItem.Link do
 
   ## Examples
 
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
-      ...>   url: "https://example.com/article",
-      ...>   window: [target_name: "articles"]
-      ...> )
-      iex> link.window
-      %{target_name: "articles"}
+  ```elixir
+  iex> {:ok, link} = Ltix.DeepLinking.ContentItem.Link.new(
+  ...>   url: "https://example.com/article",
+  ...>   window: [target_name: "articles"]
+  ...> )
+  iex> link.window
+  %{target_name: "articles"}
 
-      iex> {:error, error} = Ltix.DeepLinking.ContentItem.Link.new([])
-      iex> Exception.message(error)
-      "Ltix.DeepLinking.ContentItem.Link field :url is required"
+  iex> {:error, error} = Ltix.DeepLinking.ContentItem.Link.new([])
+  iex> Exception.message(error)
+  "Ltix.DeepLinking.ContentItem.Link field :url is required"
+  ```
   """
 
   # [DL, Link](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#link)

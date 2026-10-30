@@ -6,19 +6,21 @@ defmodule Ltix.Launch.MessageType do
   A message type's module calls `use Ltix.Launch.MessageType` and builds its
   validator in `c:validator/0` with the imported functions of `Ltix.Validator`.
 
-      defmodule MyLibrary.ReviewRequest do
-        @moduledoc "A user opens a submission for review."
+  ```elixir
+  defmodule MyLibrary.ReviewRequest do
+    @moduledoc "A user opens a submission for review."
 
-        use Ltix.Launch.MessageType
+    use Ltix.Launch.MessageType
 
-        @impl Ltix.Launch.MessageType
-        def validator do
-          new("LtiSubmissionReviewRequest")
-          |> required(:resource_link)
-          |> required(:for_user)
-          |> optional(:roles)
-        end
-      end
+    @impl Ltix.Launch.MessageType
+    def validator do
+      new("LtiSubmissionReviewRequest")
+      |> required(:resource_link)
+      |> required(:for_user)
+      |> optional(:roles)
+    end
+  end
+  ```
 
   A plugin adds the module with `Ltix.Plugin.add/2`. In this example,
   the plugin would also declare `for_user` (see `Ltix.Claim`), and Core declares
@@ -49,9 +51,11 @@ defmodule Ltix.Launch.MessageType do
   requirements every plugin adds. `:undeclared` has the validator for message
   types no plugin declares. Every plugin set includes Core's message types.
 
-      {:ok, plugins} = Ltix.PluginSet.resolve([])
-      %{message_types: validators} = Ltix.PluginSet.data(plugins, Ltix.Launch.MessageType)
-      Ltix.Validator.describe(validators["LtiResourceLinkRequest"])
+  ```elixir
+  {:ok, plugins} = Ltix.PluginSet.resolve([])
+  %{message_types: validators} = Ltix.PluginSet.data(plugins, Ltix.Launch.MessageType)
+  Ltix.Validator.describe(validators["LtiResourceLinkRequest"])
+  ```
   """
   use Ltix.Provider, hook: [Ltix.Launch.MessageType.Definition]
 

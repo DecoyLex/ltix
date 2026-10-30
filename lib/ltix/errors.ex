@@ -15,21 +15,23 @@ defmodule Ltix.Errors do
   Match on `:class` to handle a whole class, and on an error's module to handle
   one error.
 
-      case Ltix.handle_callback(params, state) do
-        {:ok, launch} ->
-          {:ok, launch}
+  ```elixir
+  case Ltix.handle_callback(params, state) do
+    {:ok, launch} ->
+      {:ok, launch}
 
-        {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: deployment_id}} ->
-          {:unknown_deployment, deployment_id}
+    {:error, %Ltix.Errors.Invalid.DeploymentNotFound{deployment_id: deployment_id}} ->
+      {:unknown_deployment, deployment_id}
 
-        {:error, %{class: :security} = error} ->
-          Logger.warning("LTI launch rejected: " <> Exception.message(error))
-          :rejected
+    {:error, %{class: :security} = error} ->
+      Logger.warning("LTI launch rejected: " <> Exception.message(error))
+      :rejected
 
-        {:error, error} ->
-          Logger.error("LTI launch failed: " <> Exception.message(error))
-          :failed
-      end
+    {:error, error} ->
+      Logger.error("LTI launch failed: " <> Exception.message(error))
+      :failed
+  end
+  ```
 
   A plugin can return an exception that isn't an Ltix error and has no `:class`.
   Keep a last clause for any other error. [Error Handling](error-handling.md)
@@ -313,15 +315,17 @@ defmodule Ltix.Errors do
 
   ## Examples
 
-      iex> error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub")
-      iex> Ltix.Errors.status_code(error)
-      400
+  ```elixir
+  iex> error = Ltix.Errors.Invalid.MissingClaim.exception(claim: "sub")
+  iex> Ltix.Errors.status_code(error)
+  400
 
-      iex> Ltix.Errors.status_code(%Ltix.Errors.Security.NonceReused{})
-      401
+  iex> Ltix.Errors.status_code(%Ltix.Errors.Security.NonceReused{})
+  401
 
-      iex> Ltix.Errors.status_code(RuntimeError.exception("boom"))
-      500
+  iex> Ltix.Errors.status_code(RuntimeError.exception("boom"))
+  500
+  ```
   """
   @spec status_code(Exception.t()) :: pos_integer()
   def status_code(%module{} = error) do

@@ -8,10 +8,12 @@ defmodule Ltix.Test.StorageAdapter do
 
   ## Manual usage
 
-      {:ok, pid} = Ltix.Test.StorageAdapter.start_link(
-        platforms: [platform]
-      )
-      Ltix.Test.StorageAdapter.set_pid(pid)
+  ```elixir
+  {:ok, pid} = Ltix.Test.StorageAdapter.start_link(
+    platforms: [platform]
+  )
+  Ltix.Test.StorageAdapter.set_pid(pid)
+  ```
   """
 
   @behaviour Ltix.StorageAdapter

@@ -18,11 +18,13 @@ defmodule Ltix.MembershipsService.Member do
   claims the platform would send in the member's launches of that resource
   link.
 
-      {:ok, roster} = Ltix.MembershipsService.list_members(client, resource_link_id: "rl-42")
+  ```elixir
+  {:ok, roster} = Ltix.MembershipsService.list_members(client, resource_link_id: "rl-42")
 
-      for member <- roster, message <- member.message || [] do
-        {member.user_id, message.custom}
-      end
+  for member <- roster, message <- member.message || [] do
+    {member.user_id, message.custom}
+  end
+  ```
 
   A message can leave out claims that a launch requires. Ltix checks the claims
   it has the same way as in a launch.

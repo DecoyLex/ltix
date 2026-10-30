@@ -14,7 +14,9 @@ defmodule Ltix.JWT.Token do
 
   ## Examples
 
-      {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
+  ```elixir
+  {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
+  ```
 
   ## Validation Steps
 

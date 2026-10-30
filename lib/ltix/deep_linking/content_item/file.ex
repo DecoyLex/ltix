@@ -8,16 +8,18 @@ defmodule Ltix.DeepLinking.ContentItem.File do
 
   ## Examples
 
-      iex> {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(
-      ...>   url: "https://example.com/syllabus.pdf",
-      ...>   media_type: "application/pdf"
-      ...> )
-      iex> file.media_type
-      "application/pdf"
+  ```elixir
+  iex> {:ok, file} = Ltix.DeepLinking.ContentItem.File.new(
+  ...>   url: "https://example.com/syllabus.pdf",
+  ...>   media_type: "application/pdf"
+  ...> )
+  iex> file.media_type
+  "application/pdf"
 
-      iex> {:error, error} = Ltix.DeepLinking.ContentItem.File.new([])
-      iex> Exception.message(error)
-      "Ltix.DeepLinking.ContentItem.File field :url is required"
+  iex> {:error, error} = Ltix.DeepLinking.ContentItem.File.new([])
+  iex> Exception.message(error)
+  "Ltix.DeepLinking.ContentItem.File field :url is required"
+  ```
   """
 
   alias Ltix.DeepLinking.Settings

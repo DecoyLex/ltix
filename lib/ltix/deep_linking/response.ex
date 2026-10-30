@@ -5,13 +5,15 @@ defmodule Ltix.DeepLinking.Response do
   Send it by posting `jwt` to `return_url` from a form that submits itself, as
   in this HEEx template.
 
-      <form id="deep-link-response" method="post" action={@response.return_url}>
-        <input type="hidden" name="JWT" value={@response.jwt} />
-        <noscript>
-          <button type="submit">Return to platform</button>
-        </noscript>
-      </form>
-      <script>document.getElementById("deep-link-response").submit();</script>
+  ```heex
+  <form id="deep-link-response" method="post" action={@response.return_url}>
+    <input type="hidden" name="JWT" value={@response.jwt} />
+    <noscript>
+      <button type="submit">Return to platform</button>
+    </noscript>
+  </form>
+  <script>document.getElementById("deep-link-response").submit();</script>
+  ```
 
   ## Fields
 
@@ -25,14 +27,16 @@ defmodule Ltix.DeepLinking.Response do
   `use Ltix.DeepLinking.Response`. A plugin adds it with `Ltix.Plugin.add/2`,
   or adds a function as a step with `add_step/2`.
 
-      defmodule MyApp.SelectionClaim do
-        use Ltix.DeepLinking.Response
+  ```elixir
+  defmodule MyApp.SelectionClaim do
+    use Ltix.DeepLinking.Response
 
-        @impl Ltix.Step
-        def call(response, _opts) do
-          {:ok, put_in(response.claims["https://tool.example.com/claim/selected_by"], "tool")}
-        end
-      end
+    @impl Ltix.Step
+    def call(response, _opts) do
+      {:ok, put_in(response.claims["https://tool.example.com/claim/selected_by"], "tool")}
+    end
+  end
+  ```
 
   A step can change any claim, including the ones Ltix builds. When a step
   returns `{:error, exception}` or `{:halt, exception}`, the response isn't
@@ -65,10 +69,12 @@ defmodule Ltix.DeepLinking.Response do
   Adds an anonymous response step to a plugin, a function that receives the
   response and returns what `c:Ltix.Step.call/2` returns.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.DeepLinking.Response.add_step(fn response ->
-        {:ok, put_in(response.claims["https://tool.example.com/claim/selected_by"], "tool")}
-      end)
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.DeepLinking.Response.add_step(fn response ->
+    {:ok, put_in(response.claims["https://tool.example.com/claim/selected_by"], "tool")}
+  end)
+  ```
 
   Raises `ArgumentError` when `fun` doesn't take one argument.
   """

@@ -8,18 +8,20 @@ defmodule Ltix.Validator.Condition do
   `unless:`, or pass `{module, args}` to give its callbacks a list of
   arguments. Without arguments, they receive `[]`.
 
-      defmodule MyLibrary.Graded do
-        @behaviour Ltix.Validator.Condition
+  ```elixir
+  defmodule MyLibrary.Graded do
+    @behaviour Ltix.Validator.Condition
 
-        @impl Ltix.Validator.Condition
-        def met?(_args, claims, _opts), do: claims.ags_endpoint != nil
+    @impl Ltix.Validator.Condition
+    def met?(_args, claims, _opts), do: claims.ags_endpoint != nil
 
-        @impl Ltix.Validator.Condition
-        def describe(_args), do: "the launch has a grade service endpoint"
-      end
+    @impl Ltix.Validator.Condition
+    def describe(_args), do: "the launch has a grade service endpoint"
+  end
 
-      new("LtiSubmissionReviewRequest")
-      |> required(:context, when: MyLibrary.Graded)
+  new("LtiSubmissionReviewRequest")
+  |> required(:context, when: MyLibrary.Graded)
+  ```
   """
 
   @doc """

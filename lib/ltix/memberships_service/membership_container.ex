@@ -11,16 +11,18 @@ defmodule Ltix.MembershipsService.MembershipContainer do
 
   ## Examples
 
-      {:ok, roster} = Ltix.MembershipsService.list_members(client)
+  ```elixir
+  {:ok, roster} = Ltix.MembershipsService.list_members(client)
 
-      roster.context.id
-      #=> "course-123"
+  roster.context.id
+  #=> "course-123"
 
-      roster
-      |> Enum.filter(&(&1.status == :active))
-      |> Enum.map(& &1.email)
+  roster
+  |> Enum.filter(&(&1.status == :active))
+  |> Enum.map(& &1.email)
 
-      Enum.count(roster)
+  Enum.count(roster)
+  ```
   """
 
   use Ltix.Provider, hook: [Ltix.Property]

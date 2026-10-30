@@ -55,19 +55,23 @@ defmodule Ltix.PluginSet do
   `{:error, %Ltix.Errors.Unknown.InvalidPluginSet{}}`. A plugin set passed in is
   returned unchanged.
 
-      {:ok, plugins} = Ltix.PluginSet.resolve([{MyLibrary, tenant: "acme"}])
+  ```elixir
+  {:ok, plugins} = Ltix.PluginSet.resolve([{MyLibrary, tenant: "acme"}])
+  ```
 
   An empty list gives a plugin set with only the default plugins.
 
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
-      iex> Enum.map(plugins.plugins, fn {module, _plugin} -> module end)
-      [
-        Ltix.Core,
-        Ltix.DeepLinking,
-        Ltix.GradeService,
-        Ltix.MembershipsService,
-        Ltix.DefaultPlugins
-      ]
+  ```elixir
+  iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+  iex> Enum.map(plugins.plugins, fn {module, _plugin} -> module end)
+  [
+    Ltix.Core,
+    Ltix.DeepLinking,
+    Ltix.GradeService,
+    Ltix.MembershipsService,
+    Ltix.DefaultPlugins
+  ]
+  ```
 
   Raises `ArgumentError` when the list includes a module that isn't a plugin,
   or when a plugin's `c:Ltix.Plugin.plugin/1` doesn't return an
@@ -99,36 +103,38 @@ defmodule Ltix.PluginSet do
   they implement `Ltix.Ordered`. Returns `[]` when no plugin in the set
   provides `module`.
 
-      iex> defmodule MyLibrary.Report do
-      ...>   use Ltix.Provider, hook: [Ltix.Step]
-      ...>   defstruct plugins: nil, errors: []
-      ...> end
-      iex> defmodule MyLibrary.CountRows do
-      ...>   use MyLibrary.Report
-      ...>   def call(report, _opts), do: {:ok, report}
-      ...> end
-      iex> defmodule MyLibrary do
-      ...>   @behaviour Ltix.Plugin
-      ...>   def plugin(_opts) do
-      ...>     Ltix.Plugin.new(name: "My Library")
-      ...>     |> Ltix.Plugin.add(MyLibrary.Report)
-      ...>     |> Ltix.Plugin.add(MyLibrary.CountRows)
-      ...>   end
-      ...> end
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([MyLibrary])
-      iex> Ltix.PluginSet.entries(plugins, MyLibrary.Report)
-      [
-        %Ltix.PluginSet.Entry{
-          module: MyLibrary.CountRows,
-          plugin:
-            {MyLibrary,
-             %Ltix.Plugin{
-               name: "My Library",
-               providers: [MyLibrary.Report],
-               entries: [%Ltix.PluginSet.Entry{module: MyLibrary.CountRows}]
-             }}
-        }
-      ]
+  ```elixir
+  iex> defmodule MyLibrary.Report do
+  ...>   use Ltix.Provider, hook: [Ltix.Step]
+  ...>   defstruct plugins: nil, errors: []
+  ...> end
+  iex> defmodule MyLibrary.CountRows do
+  ...>   use MyLibrary.Report
+  ...>   def call(report, _opts), do: {:ok, report}
+  ...> end
+  iex> defmodule MyLibrary do
+  ...>   @behaviour Ltix.Plugin
+  ...>   def plugin(_opts) do
+  ...>     Ltix.Plugin.new(name: "My Library")
+  ...>     |> Ltix.Plugin.add(MyLibrary.Report)
+  ...>     |> Ltix.Plugin.add(MyLibrary.CountRows)
+  ...>   end
+  ...> end
+  iex> {:ok, plugins} = Ltix.PluginSet.resolve([MyLibrary])
+  iex> Ltix.PluginSet.entries(plugins, MyLibrary.Report)
+  [
+    %Ltix.PluginSet.Entry{
+      module: MyLibrary.CountRows,
+      plugin:
+        {MyLibrary,
+         %Ltix.Plugin{
+           name: "My Library",
+           providers: [MyLibrary.Report],
+           entries: [%Ltix.PluginSet.Entry{module: MyLibrary.CountRows}]
+         }}
+    }
+  ]
+  ```
   """
   @spec entries(t(), module()) :: [Entry.t()]
   def entries(%__MODULE__{entries: entries}, module), do: Map.get(entries, module, [])
@@ -137,9 +143,11 @@ defmodule Ltix.PluginSet do
   Returns the data `module`'s `c:Ltix.Provider.resolve/1` returned, or `nil`
   when it has no data or isn't in the set.
 
-      iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
-      iex> Ltix.PluginSet.data(plugins, Ltix.Login)
-      nil
+  ```elixir
+  iex> {:ok, plugins} = Ltix.PluginSet.resolve([])
+  iex> Ltix.PluginSet.data(plugins, Ltix.Login)
+  nil
+  ```
   """
   @spec data(t(), module()) :: term()
   def data(%__MODULE__{data: data}, module), do: Map.get(data, module)

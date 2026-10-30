@@ -7,11 +7,13 @@ defmodule Ltix.DeepLinking.Settings do
   malformed one fails the launch. An optional field the platform leaves out is
   `nil`.
 
-      settings = launch.claims.deep_linking_settings
-      render(conn, :picker,
-        types: settings.accept_types,
-        multiple: settings.accept_multiple
-      )
+  ```elixir
+  settings = launch.claims.deep_linking_settings
+  render(conn, :picker,
+    types: settings.accept_types,
+    multiple: settings.accept_multiple
+  )
+  ```
   """
 
   # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)

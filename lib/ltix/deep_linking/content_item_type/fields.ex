@@ -3,10 +3,12 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   Schemas for fields that content item types share, such as `title` and
   `window`. `use Ltix.DeepLinking.ContentItemType` imports these functions.
 
-      fields: [
-        question: Zoi.string(description: "The question to ask."),
-        title: title(description: "Title of the poll.")
-      ]
+  ```elixir
+  fields: [
+    question: Zoi.string(description: "The question to ask."),
+    title: title(description: "Title of the poll.")
+  ]
+  ```
 
   Each function returns an optional field's schema, and takes Zoi options,
   such as `description:`, that replace its defaults.
@@ -46,8 +48,10 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   @doc """
   Returns a schema for the content item's plain-text title.
 
-      iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.title(), "Quiz 1")
-      {:ok, "Quiz 1"}
+  ```elixir
+  iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.title(), "Quiz 1")
+  {:ok, "Quiz 1"}
+  ```
   """
   @spec title(keyword()) :: Zoi.schema()
   def title(zoi_options \\ []),
@@ -56,8 +60,10 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   @doc """
   Returns a schema for a plain-text description of the content item.
 
-      iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.text(), "Ten questions")
-      {:ok, "Ten questions"}
+  ```elixir
+  iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.text(), "Ten questions")
+  {:ok, "Ten questions"}
+  ```
   """
   @spec text(keyword()) :: Zoi.schema()
   def text(zoi_options \\ []),
@@ -67,11 +73,13 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   Returns a schema for an icon the platform shows with the content item, with
   `url` and optional `width` and `height`.
 
-      iex> Zoi.parse(
-      ...>   Ltix.DeepLinking.ContentItemType.Fields.icon(),
-      ...>   %{url: "https://tool.example.com/icon.png", width: 32}
-      ...> )
-      {:ok, %{url: "https://tool.example.com/icon.png", width: 32}}
+  ```elixir
+  iex> Zoi.parse(
+  ...>   Ltix.DeepLinking.ContentItemType.Fields.icon(),
+  ...>   %{url: "https://tool.example.com/icon.png", width: 32}
+  ...> )
+  {:ok, %{url: "https://tool.example.com/icon.png", width: 32}}
+  ```
   """
   @spec icon(keyword()) :: Zoi.schema()
   def icon(zoi_options \\ []),
@@ -87,11 +95,13 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   Returns a schema for a thumbnail the platform shows as a link to the content
   item, with `url` and optional `width` and `height`.
 
-      iex> Zoi.parse(
-      ...>   Ltix.DeepLinking.ContentItemType.Fields.thumbnail(),
-      ...>   %{url: "https://tool.example.com/thumbnail.png"}
-      ...> )
-      {:ok, %{url: "https://tool.example.com/thumbnail.png"}}
+  ```elixir
+  iex> Zoi.parse(
+  ...>   Ltix.DeepLinking.ContentItemType.Fields.thumbnail(),
+  ...>   %{url: "https://tool.example.com/thumbnail.png"}
+  ...> )
+  {:ok, %{url: "https://tool.example.com/thumbnail.png"}}
+  ```
   """
   @spec thumbnail(keyword()) :: Zoi.schema()
   def thumbnail(zoi_options \\ []),
@@ -107,8 +117,10 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   Returns a schema for how to open the content item in a new window or tab,
   with optional `target_name`, `width`, `height`, and `window_features`.
 
-      iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.window(), %{target_name: "quiz"})
-      {:ok, %{target_name: "quiz"}}
+  ```elixir
+  iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.window(), %{target_name: "quiz"})
+  {:ok, %{target_name: "quiz"}}
+  ```
   """
   @spec window(keyword()) :: Zoi.schema()
   def window(zoi_options \\ []) do
@@ -133,8 +145,10 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   Returns a schema for how to show the content item in an iframe, with
   optional `width` and `height`. With `src: true`, it also requires a `src`.
 
-      iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.iframe(), %{width: 800})
-      {:ok, %{width: 800}}
+  ```elixir
+  iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.iframe(), %{width: 800})
+  {:ok, %{width: 800}}
+  ```
 
   ## Options
 
@@ -171,8 +185,10 @@ defmodule Ltix.DeepLinking.ContentItemType.Fields do
   Returns a schema for HTML that embeds the content item, with a required
   `html` key.
 
-      iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.embed(), %{html: "<p>Poll</p>"})
-      {:ok, %{html: "<p>Poll</p>"}}
+  ```elixir
+  iex> Zoi.parse(Ltix.DeepLinking.ContentItemType.Fields.embed(), %{html: "<p>Poll</p>"})
+  {:ok, %{html: "<p>Poll</p>"}}
+  ```
   """
   @spec embed(keyword()) :: Zoi.schema()
   def embed(zoi_options \\ []) do

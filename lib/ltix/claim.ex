@@ -11,12 +11,14 @@ defmodule Ltix.Claim do
   A claim whose value needs only a Zoi schema is an anonymous claim, which a
   plugin adds with `add/2`.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Claim.add(
-        claim: "https://lms.example.com/claim/tenant",
-        name: :tenant,
-        schema: Zoi.string()
-      )
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Claim.add(
+    claim: "https://lms.example.com/claim/tenant",
+    name: :tenant,
+    schema: Zoi.string()
+  )
+  ```
 
   Without `:schema`, the claim's value is its JSON value.
 
@@ -25,17 +27,19 @@ defmodule Ltix.Claim do
   A claim whose value is a JSON object lists its fields as Zoi schemas, and
   `use Ltix.Claim` defines a struct with those fields.
 
-      defmodule MyLibrary.Session do
-        @moduledoc "A platform's session for the launch."
+  ```elixir
+  defmodule MyLibrary.Session do
+    @moduledoc "A platform's session for the launch."
 
-        use Ltix.Claim,
-          claim: "https://lms.example.com/claim/session",
-          name: :session,
-          fields: [
-            id: Zoi.string(description: "The session's ID."),
-            started_at: Zoi.integer(description: "When the session started.") |> Zoi.optional()
-          ]
-      end
+    use Ltix.Claim,
+      claim: "https://lms.example.com/claim/session",
+      name: :session,
+      fields: [
+        id: Zoi.string(description: "The session's ID."),
+        started_at: Zoi.integer(description: "When the session started.") |> Zoi.optional()
+      ]
+  end
+  ```
 
   `Ltix.Type.from_json/3` parses the fields, and a field error makes the claim
   malformed.
@@ -45,16 +49,18 @@ defmodule Ltix.Claim do
   A claim module can implement `c:Ltix.Property.parse/2` to convert the value
   beyond what a Zoi schema does. `parse/2` receives the claim's options.
 
-      defmodule MyLibrary.Tenant do
-        use Ltix.Claim,
-          claim: "https://lms.example.com/claim/tenant",
-          name: :tenant
+  ```elixir
+  defmodule MyLibrary.Tenant do
+    use Ltix.Claim,
+      claim: "https://lms.example.com/claim/tenant",
+      name: :tenant
 
-        @impl Ltix.Property
-        def parse(value, _opts) do
-          with {:ok, id} <- Zoi.parse(Zoi.string(), value), do: MyLibrary.Tenants.fetch(id)
-        end
-      end
+    @impl Ltix.Property
+    def parse(value, _opts) do
+      with {:ok, id} <- Zoi.parse(Zoi.string(), value), do: MyLibrary.Tenants.fetch(id)
+    end
+  end
+  ```
 
   ## Options
 
@@ -81,8 +87,10 @@ defmodule Ltix.Claim do
   as with `Ltix.Claims.LaunchPresentation.add_property/2`. Read a property from
   the claim's `extensions` by its name.
 
-      launch.claims.launch_presentation.extensions.placement
-      #=> ["ContentArea"]
+  ```elixir
+  launch.claims.launch_presentation.extensions.placement
+  #=> ["ContentArea"]
+  ```
 
   [Add a property to a claim](writing-claim-and-launch-plugins.md#add-a-property-to-a-claim)
   shows an example.
@@ -95,12 +103,14 @@ defmodule Ltix.Claim do
   claims. Checks run after every claim is parsed. Other claims are keyed by
   short name, such as `:issued_at` for `iat` (see `Ltix.Core`).
 
-      @impl Ltix.Claim
-      def check(%MyLibrary.Session{started_at: started_at}, %{issued_at: issued_at})
-          when is_integer(started_at) and started_at > issued_at,
-          do: {:error, "must not be after the message was issued"}
+  ```elixir
+  @impl Ltix.Claim
+  def check(%MyLibrary.Session{started_at: started_at}, %{issued_at: issued_at})
+      when is_integer(started_at) and started_at > issued_at,
+      do: {:error, "must not be after the message was issued"}
 
-      def check(_session, _claims), do: :ok
+  def check(_session, _claims), do: :ok
+  ```
 
   Other plugins add checks with `Ltix.Claims.Check`, and replace a check in the
   message types they list with `Ltix.Claims.Override`. A malformed claim isn't
@@ -113,16 +123,18 @@ defmodule Ltix.Claim do
   launch's endpoint for the service, which `Ltix.Launch.get_endpoint/2`
   returns.
 
-      defmodule MyLibrary.AttendanceEndpoint do
-        use Ltix.Claim,
-          claim: "https://lms.example.com/claim/attendance",
-          name: :attendance_endpoint,
-          service: MyLibrary.AttendanceService,
-          fields: [url: Zoi.string()]
+  ```elixir
+  defmodule MyLibrary.AttendanceEndpoint do
+    use Ltix.Claim,
+      claim: "https://lms.example.com/claim/attendance",
+      name: :attendance_endpoint,
+      service: MyLibrary.AttendanceService,
+      fields: [url: Zoi.string()]
 
-        @impl Ltix.Claim
-        def new(attributes), do: Ltix.Type.new(__MODULE__, attributes)
-      end
+    @impl Ltix.Claim
+    def new(attributes), do: Ltix.Type.new(__MODULE__, attributes)
+  end
+  ```
 
   ## Conflicts
 
@@ -215,19 +227,21 @@ defmodule Ltix.Claim do
 
   ## Examples
 
-      iex> Ltix.Claim.add(
-      ...>   Ltix.Plugin.new(),
-      ...>   claim: "https://lms.example.com/claim/tenant",
-      ...>   name: :tenant
-      ...> )
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{
-            module: Ltix.Claim,
-            opts: [claim: "https://lms.example.com/claim/tenant", name: :tenant, strict: true]
-          }
-        ]
+  ```elixir
+  iex> Ltix.Claim.add(
+  ...>   Ltix.Plugin.new(),
+  ...>   claim: "https://lms.example.com/claim/tenant",
+  ...>   name: :tenant
+  ...> )
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{
+        module: Ltix.Claim,
+        opts: [claim: "https://lms.example.com/claim/tenant", name: :tenant, strict: true]
       }
+    ]
+  }
+  ```
   """
   @spec add(Plugin.t(), keyword()) :: Plugin.t()
   def add(%Plugin{} = plugin, opts) do

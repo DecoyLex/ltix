@@ -11,16 +11,18 @@ defmodule Ltix.Ordered do
   including anonymous steps, as
   [Order the steps a plugin adds](#module-order-the-steps-a-plugin-adds) shows.
 
-      defmodule MyApp.LoginTenant do
-        use Ltix.Login
+  ```elixir
+  defmodule MyApp.LoginTenant do
+    use Ltix.Login
 
-        @impl Ltix.Step
-        def call(login, _opts), do: {:ok, login}
+    @impl Ltix.Step
+    def call(login, _opts), do: {:ok, login}
 
-        @impl Ltix.Ordered
-        def after?(Ltix.Login.RegistrationFound), do: true
-        def after?(_module), do: false
-      end
+    @impl Ltix.Ordered
+    def after?(Ltix.Login.RegistrationFound), do: true
+    def after?(_module), do: false
+  end
+  ```
 
   ## Order
 
@@ -49,12 +51,14 @@ defmodule Ltix.Ordered do
   step the function adds after or before a module. An anonymous step has no
   `c:before?/1` or `c:after?/1`, so this is how a plugin orders one.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Login.run_after(Ltix.Login.RegistrationFound, fn plugin ->
-        plugin
-        |> Ltix.Login.add_step(&MyLibrary.check_tenant/1)
-        |> Ltix.Plugin.add(MyLibrary.AuditLogin)
-      end)
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Login.run_after(Ltix.Login.RegistrationFound, fn plugin ->
+    plugin
+    |> Ltix.Login.add_step(&MyLibrary.check_tenant/1)
+    |> Ltix.Plugin.add(MyLibrary.AuditLogin)
+  end)
+  ```
 
     * The order applies along with the orders a step module declares.
     * The calls nest. A `run_before/3` inside a `run_after/3` places steps
@@ -89,30 +93,34 @@ defmodule Ltix.Ordered do
   A provider whose `:hook` includes `Ltix.Ordered` calls it from a function of
   its own, such as `Ltix.Login.run_after/3`.
 
-      def run_after(plugin, module, fun),
-        do: Ltix.Ordered.run_after(plugin, __MODULE__, module, fun)
+  ```elixir
+  def run_after(plugin, module, fun),
+    do: Ltix.Ordered.run_after(plugin, __MODULE__, module, fun)
+  ```
 
   Raises `ArgumentError` when `fun` doesn't return the plugin it receives with
   only steps of `provider` added.
 
   ## Examples
 
-      iex> check_tenant = fn login -> {:ok, login} end
-      iex> Ltix.Ordered.run_after(
-      ...>   Ltix.Plugin.new(),
-      ...>   Ltix.Login,
-      ...>   Ltix.Login.RegistrationFound,
-      ...>   &Ltix.Login.add_step(&1, check_tenant)
-      ...> )
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{
-            module: Ltix.Step,
-            opts: [to: Ltix.Login, call: check_tenant],
-            orders: [after: Ltix.Login.RegistrationFound]
-          }
-        ]
+  ```elixir
+  iex> check_tenant = fn login -> {:ok, login} end
+  iex> Ltix.Ordered.run_after(
+  ...>   Ltix.Plugin.new(),
+  ...>   Ltix.Login,
+  ...>   Ltix.Login.RegistrationFound,
+  ...>   &Ltix.Login.add_step(&1, check_tenant)
+  ...> )
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{
+        module: Ltix.Step,
+        opts: [to: Ltix.Login, call: check_tenant],
+        orders: [after: Ltix.Login.RegistrationFound]
       }
+    ]
+  }
+  ```
   """
   @spec run_after(Plugin.t(), module(), module(), (Plugin.t() -> Plugin.t())) :: Plugin.t()
   def run_after(plugin, provider, module, fun),
@@ -126,22 +134,24 @@ defmodule Ltix.Ordered do
 
   ## Examples
 
-      iex> check_tenant = fn login -> {:ok, login} end
-      iex> Ltix.Ordered.run_before(
-      ...>   Ltix.Plugin.new(),
-      ...>   Ltix.Login,
-      ...>   Ltix.Login.RegistrationFound,
-      ...>   &Ltix.Login.add_step(&1, check_tenant)
-      ...> )
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{
-            module: Ltix.Step,
-            opts: [to: Ltix.Login, call: check_tenant],
-            orders: [before: Ltix.Login.RegistrationFound]
-          }
-        ]
+  ```elixir
+  iex> check_tenant = fn login -> {:ok, login} end
+  iex> Ltix.Ordered.run_before(
+  ...>   Ltix.Plugin.new(),
+  ...>   Ltix.Login,
+  ...>   Ltix.Login.RegistrationFound,
+  ...>   &Ltix.Login.add_step(&1, check_tenant)
+  ...> )
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{
+        module: Ltix.Step,
+        opts: [to: Ltix.Login, call: check_tenant],
+        orders: [before: Ltix.Login.RegistrationFound]
       }
+    ]
+  }
+  ```
   """
   @spec run_before(Plugin.t(), module(), module(), (Plugin.t() -> Plugin.t())) :: Plugin.t()
   def run_before(plugin, provider, module, fun),

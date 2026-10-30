@@ -12,16 +12,18 @@ defmodule Ltix.GradeService.Score do
 
   ## Examples
 
-      {:ok, score} = Ltix.GradeService.Score.new(
-        user_id: "12345",
-        score_given: 85,
-        score_maximum: 100,
-        activity_progress: :completed,
-        grading_progress: :fully_graded
-      )
+  ```elixir
+  {:ok, score} = Ltix.GradeService.Score.new(
+    user_id: "12345",
+    score_given: 85,
+    score_maximum: 100,
+    activity_progress: :completed,
+    grading_progress: :fully_graded
+  )
 
-      score.score_given
-      #=> 85
+  score.score_given
+  #=> 85
+  ```
 
   ## Properties
 
@@ -29,16 +31,18 @@ defmodule Ltix.GradeService.Score do
   `Ltix.Property`. Pass a property to `new/1` by its name, and read it from
   `extensions`.
 
-      {:ok, score} =
-        Ltix.GradeService.Score.new(
-          user_id: "12345",
-          activity_progress: :completed,
-          grading_progress: :fully_graded,
-          canvas_submission: %{new_submission: true, submission_type: "online_url"}
-        )
+  ```elixir
+  {:ok, score} =
+    Ltix.GradeService.Score.new(
+      user_id: "12345",
+      activity_progress: :completed,
+      grading_progress: :fully_graded,
+      canvas_submission: %{new_submission: true, submission_type: "online_url"}
+    )
 
-      score.extensions.canvas_submission
-      #=> %{new_submission: true, submission_type: "online_url"}
+  score.extensions.canvas_submission
+  #=> %{new_submission: true, submission_type: "online_url"}
+  ```
   """
 
   use Ltix.Provider, hook: [Ltix.Property]
@@ -136,16 +140,20 @@ defmodule Ltix.GradeService.Score do
 
   ## Examples
 
-      iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
-      iex> score.user_id
-      "u1"
+  ```elixir
+  iex> {:ok, score} = Ltix.GradeService.Score.new(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+  iex> score.user_id
+  "u1"
+  ```
 
   Strings are also accepted for `activity_progress` and `grading_progress`,
   which is convenient when values come from form params.
 
-      iex> {:ok, score} = Ltix.GradeService.Score.new(%{user_id: "u1", activity_progress: "completed", grading_progress: "fully_graded"})
-      iex> score.activity_progress
-      :completed
+  ```elixir
+  iex> {:ok, score} = Ltix.GradeService.Score.new(%{user_id: "u1", activity_progress: "completed", grading_progress: "fully_graded"})
+  iex> score.activity_progress
+  :completed
+  ```
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(attributes) when is_list(attributes) or is_map(attributes) do
@@ -177,12 +185,14 @@ defmodule Ltix.GradeService.Score do
 
   ## Examples
 
-      iex> score = Ltix.GradeService.Score.new!(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
-      iex> Ltix.GradeService.Score.validate(score)
-      :ok
-      iex> {:error, error} = Ltix.GradeService.Score.validate(%{score | user_id: nil})
-      iex> error.field
-      :user_id
+  ```elixir
+  iex> score = Ltix.GradeService.Score.new!(user_id: "u1", activity_progress: :completed, grading_progress: :fully_graded)
+  iex> Ltix.GradeService.Score.validate(score)
+  :ok
+  iex> {:error, error} = Ltix.GradeService.Score.validate(%{score | user_id: nil})
+  iex> error.field
+  :user_id
+  ```
   """
   @spec validate(t()) :: :ok | {:error, Exception.t()}
   def validate(%__MODULE__{} = score) do

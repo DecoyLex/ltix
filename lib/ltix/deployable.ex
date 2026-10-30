@@ -5,15 +5,17 @@ defprotocol Ltix.Deployable do
   Implement it for your deployment struct, and your storage adapter can
   return that struct. An `Ltix.Launch` has your struct in `source_deployment`.
 
-      defmodule MyApp.ToolDeployment do
-        defstruct [:id, :registration_id, :deployment_id, :label]
+  ```elixir
+  defmodule MyApp.ToolDeployment do
+    defstruct [:id, :registration_id, :deployment_id, :label]
 
-        defimpl Ltix.Deployable do
-          def to_deployment(dep) do
-            Ltix.Deployment.new(dep.deployment_id)
-          end
-        end
+    defimpl Ltix.Deployable do
+      def to_deployment(dep) do
+        Ltix.Deployment.new(dep.deployment_id)
       end
+    end
+  end
+  ```
 
   `Ltix.Deployment` implements this protocol, so your storage adapter can
   also return a `%Deployment{}`. A launch returns the same error as

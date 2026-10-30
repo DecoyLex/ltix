@@ -5,10 +5,12 @@ defmodule Ltix.PluginSet.Conflict do
   `c:Ltix.Provider.resolve/1` returns conflicts, with the entries that
   `Ltix.PluginSet.entries/2` returned as the parties.
 
-      %Ltix.PluginSet.Conflict{
-        parties: [tenant_entry, other_tenant_entry],
-        reason: "both declare the tenant claim"
-      }
+  ```elixir
+  %Ltix.PluginSet.Conflict{
+    parties: [tenant_entry, other_tenant_entry],
+    reason: "both declare the tenant claim"
+  }
+  ```
 
   The message of `Ltix.Errors.Unknown.InvalidPluginSet` lists each party's
   module and plugin, or what an anonymous party is and its plugin, such as
@@ -39,25 +41,27 @@ defmodule Ltix.PluginSet.Conflict do
 
   ## Examples
 
-      iex> entries = [
-      ...>   %Ltix.PluginSet.Entry{module: MyLibrary.Tenant, opts: [key: :tenant]},
-      ...>   %Ltix.PluginSet.Entry{module: OtherLibrary.Tenant, opts: [key: :tenant]},
-      ...>   %Ltix.PluginSet.Entry{module: MyLibrary.Tenant, opts: [key: :tenant]}
-      ...> ]
-      iex> Ltix.PluginSet.Conflict.duplicates(
-      ...>   entries,
-      ...>   & &1.opts[:key],
-      ...>   &"both declare the key #{inspect(&1)}"
-      ...> )
-      [
-        %Ltix.PluginSet.Conflict{
-          parties: [
-            %Ltix.PluginSet.Entry{module: MyLibrary.Tenant, opts: [key: :tenant]},
-            %Ltix.PluginSet.Entry{module: OtherLibrary.Tenant, opts: [key: :tenant]}
-          ],
-          reason: "both declare the key :tenant"
-        }
-      ]
+  ```elixir
+  iex> entries = [
+  ...>   %Ltix.PluginSet.Entry{module: MyLibrary.Tenant, opts: [key: :tenant]},
+  ...>   %Ltix.PluginSet.Entry{module: OtherLibrary.Tenant, opts: [key: :tenant]},
+  ...>   %Ltix.PluginSet.Entry{module: MyLibrary.Tenant, opts: [key: :tenant]}
+  ...> ]
+  iex> Ltix.PluginSet.Conflict.duplicates(
+  ...>   entries,
+  ...>   & &1.opts[:key],
+  ...>   &"both declare the key #{inspect(&1)}"
+  ...> )
+  [
+    %Ltix.PluginSet.Conflict{
+      parties: [
+        %Ltix.PluginSet.Entry{module: MyLibrary.Tenant, opts: [key: :tenant]},
+        %Ltix.PluginSet.Entry{module: OtherLibrary.Tenant, opts: [key: :tenant]}
+      ],
+      reason: "both declare the key :tenant"
+    }
+  ]
+  ```
   """
   @spec duplicates([Ltix.PluginSet.Entry.t()], (Ltix.PluginSet.Entry.t() -> term()), (term() ->
                                                                                         String.t())) ::

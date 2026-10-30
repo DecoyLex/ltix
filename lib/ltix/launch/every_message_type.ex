@@ -7,12 +7,14 @@ defmodule Ltix.Launch.EveryMessageType do
   `validator/1` receives the validator of each message type in the plugin set,
   and the validator for undeclared message types.
 
-      defmodule MyLibrary.Baseline do
-        use Ltix.Launch.EveryMessageType
+  ```elixir
+  defmodule MyLibrary.Baseline do
+    use Ltix.Launch.EveryMessageType
 
-        @impl Ltix.Launch.MessageType.Requirements
-        def validator(validator), do: required(validator, :context)
-      end
+    @impl Ltix.Launch.MessageType.Requirements
+    def validator(validator), do: required(validator, :context)
+  end
+  ```
 
   Core's `Ltix.Core.RequiredClaims` requires `version`, `deployment_id`, and
   `target_link_uri`.

@@ -8,22 +8,24 @@ defmodule Ltix.Login do
   `use Ltix.Login`. A plugin adds it with `Ltix.Plugin.add/2`, or adds a
   function as a step with `add_step/2`.
 
-      defmodule MyApp.RejectSuspendedTenant do
-        use Ltix.Login
+  ```elixir
+  defmodule MyApp.RejectSuspendedTenant do
+    use Ltix.Login
 
-        @impl Ltix.Step
-        def call(login, _opts) do
-          tenant_id = login.source_registration.tenant_id
+    @impl Ltix.Step
+    def call(login, _opts) do
+      tenant_id = login.source_registration.tenant_id
 
-          if MyApp.Tenants.suspended?(tenant_id),
-            do: {:halt, MyApp.TenantSuspended.exception(tenant_id: tenant_id)},
-            else: {:ok, login}
-        end
+      if MyApp.Tenants.suspended?(tenant_id),
+        do: {:halt, MyApp.TenantSuspended.exception(tenant_id: tenant_id)},
+        else: {:ok, login}
+    end
 
-        @impl Ltix.Ordered
-        def after?(Ltix.Login.RegistrationFound), do: true
-        def after?(_module), do: false
-      end
+    @impl Ltix.Ordered
+    def after?(Ltix.Login.RegistrationFound), do: true
+    def after?(_module), do: false
+  end
+  ```
 
   ## Fields
 
@@ -74,22 +76,26 @@ defmodule Ltix.Login do
   Adds an anonymous login step to a plugin, a function that receives the login
   and returns what `c:Ltix.Step.call/2` returns.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Login.add_step(fn login ->
-        {:ok, put_in(login.private[:my_library_started_at], DateTime.utc_now())}
-      end)
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Login.add_step(fn login ->
+    {:ok, put_in(login.private[:my_library_started_at], DateTime.utc_now())}
+  end)
+  ```
 
   Raises `ArgumentError` when `fun` doesn't take one argument.
 
   ## Examples
 
-      iex> check_tenant = fn login -> {:ok, login} end
-      iex> Ltix.Login.add_step(Ltix.Plugin.new(), check_tenant)
-      %Ltix.Plugin{
-        entries: [
-          %Ltix.PluginSet.Entry{module: Ltix.Step, opts: [to: Ltix.Login, call: check_tenant]}
-        ]
-      }
+  ```elixir
+  iex> check_tenant = fn login -> {:ok, login} end
+  iex> Ltix.Login.add_step(Ltix.Plugin.new(), check_tenant)
+  %Ltix.Plugin{
+    entries: [
+      %Ltix.PluginSet.Entry{module: Ltix.Step, opts: [to: Ltix.Login, call: check_tenant]}
+    ]
+  }
+  ```
   """
   @spec add_step(Ltix.Plugin.t(), (t() ->
                                      {:ok, t()} | {:error, Exception.t()} | {:halt, Exception.t()})) ::
@@ -100,10 +106,12 @@ defmodule Ltix.Login do
   Calls `fun` with a plugin, and orders each login step that `fun` adds after
   `module`, such as a phase.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.Login.run_after(Ltix.Login.RegistrationFound, fn plugin ->
-        Ltix.Login.add_step(plugin, &MyLibrary.reject_suspended_tenant/1)
-      end)
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.Login.run_after(Ltix.Login.RegistrationFound, fn plugin ->
+    Ltix.Login.add_step(plugin, &MyLibrary.reject_suspended_tenant/1)
+  end)
+  ```
 
   [Order the steps a plugin adds](`m:Ltix.Ordered#module-order-the-steps-a-plugin-adds`)
   explains how the order applies.

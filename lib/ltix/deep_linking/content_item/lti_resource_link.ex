@@ -12,12 +12,14 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
 
   ## Examples
 
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-      ...>   url: "https://tool.example.com/quizzes/7",
-      ...>   line_item: [score_maximum: 100]
-      ...> )
-      iex> link.line_item
-      %Ltix.DeepLinking.LineItem{score_maximum: 100}
+  ```elixir
+  iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+  ...>   url: "https://tool.example.com/quizzes/7",
+  ...>   line_item: [score_maximum: 100]
+  ...> )
+  iex> link.line_item
+  %Ltix.DeepLinking.LineItem{score_maximum: 100}
+  ```
 
   ## Line items
 
@@ -28,10 +30,12 @@ defmodule Ltix.DeepLinking.ContentItem.LTIResourceLink do
   `Ltix.Errors.Invalid.InvalidField` error, as is a property that no enabled
   plugin adds to Deep Linking line items.
 
-      iex> line_item = %Ltix.GradeService.LineItem{label: "Quiz 7", score_maximum: 100}
-      iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(line_item: line_item)
-      iex> link.line_item
-      %Ltix.DeepLinking.LineItem{label: "Quiz 7", score_maximum: 100}
+  ```elixir
+  iex> line_item = %Ltix.GradeService.LineItem{label: "Quiz 7", score_maximum: 100}
+  iex> {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(line_item: line_item)
+  iex> link.line_item
+  %Ltix.DeepLinking.LineItem{label: "Quiz 7", score_maximum: 100}
+  ```
   """
 
   alias Ltix.DeepLinking.LineItem

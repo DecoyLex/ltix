@@ -8,7 +8,9 @@ defmodule Ltix.JWK do
 
   ## Generating a key
 
-      jwk = Ltix.JWK.generate()
+  ```elixir
+  jwk = Ltix.JWK.generate()
+  ```
 
   Store `kid`, `public_key_pem`, and `private_key_pem`, and encrypt the
   private key.
@@ -18,21 +20,27 @@ defmodule Ltix.JWK do
   Load the private key and sign in your storage adapter's
   `c:Ltix.StorageAdapter.sign/4` callback.
 
-      {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: kid)
-      Ltix.JWK.sign(jwk, message)
+  ```elixir
+  {:ok, jwk} = Ltix.JWK.new(private_key_pem: pem, kid: kid)
+  Ltix.JWK.sign(jwk, message)
+  ```
 
   ## Serving your key set endpoint
 
   Load the public keys and return them with `to_jwks/1`. The endpoint needs
   no private key.
 
-      def jwks(conn, _params) do
-        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
-      end
+  ```elixir
+  def jwks(conn, _params) do
+    json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
+  end
+  ```
 
   Here `list_public_jwks/0` builds each JWK from what you stored.
 
-      Ltix.JWK.new!(public_key_pem: pem, kid: kid)
+  ```elixir
+  Ltix.JWK.new!(public_key_pem: pem, kid: kid)
+  ```
 
   During a rotation, include the new key and the old one so platforms can
   verify with either.
@@ -107,8 +115,10 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      jwk = Ltix.JWK.generate()
-      jwk = Ltix.JWK.generate(key_size: 3072)
+  ```elixir
+  jwk = Ltix.JWK.generate()
+  jwk = Ltix.JWK.generate(key_size: 3072)
+  ```
 
   ## Options
 
@@ -159,12 +169,14 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      {:ok, jwk} = Ltix.JWK.new(private_key_pem: private_key_pem, kid: "2026-10-key")
-      {:ok, jwk} = Ltix.JWK.new(public_key_pem: public_key_pem, kid: "2026-10-key")
+  ```elixir
+  {:ok, jwk} = Ltix.JWK.new(private_key_pem: private_key_pem, kid: "2026-10-key")
+  {:ok, jwk} = Ltix.JWK.new(public_key_pem: public_key_pem, kid: "2026-10-key")
 
-      iex> {:error, error} = Ltix.JWK.new(public_key_pem: "not a key", kid: "2026-10-key")
-      iex> Exception.message(error)
-      "Ltix.JWK field :public_key_pem must be a PEM (got \\"[redacted]\\")"
+  iex> {:error, error} = Ltix.JWK.new(public_key_pem: "not a key", kid: "2026-10-key")
+  iex> Exception.message(error)
+  "Ltix.JWK field :public_key_pem must be a PEM (got \\"[redacted]\\")"
+  ```
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
   def new(attrs) when is_list(attrs), do: new(Map.new(attrs))
@@ -197,7 +209,9 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      jwk = Ltix.JWK.new!(private_key_pem: pem, kid: "my-key-id")
+  ```elixir
+  jwk = Ltix.JWK.new!(private_key_pem: pem, kid: "my-key-id")
+  ```
   """
   @spec new!(keyword() | map()) :: t()
   def new!(attrs) do
@@ -215,9 +229,11 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      def jwks(conn, _params) do
-        json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
-      end
+  ```elixir
+  def jwks(conn, _params) do
+    json(conn, Ltix.JWK.to_jwks(MyApp.Lti.list_public_jwks()))
+  end
+  ```
   """
   # [Sec §6.3](https://www.imsglobal.org/spec/security/v1p0/#h_key-set-url)
   @spec to_jwks(t() | [t()]) :: map()
@@ -240,8 +256,10 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      jwk = Ltix.JWK.generate()
-      public_pem = Ltix.JWK.to_public_key(jwk)
+  ```elixir
+  jwk = Ltix.JWK.generate()
+  public_pem = Ltix.JWK.to_public_key(jwk)
+  ```
   """
   @spec to_public_key(t()) :: String.t()
   def to_public_key(%__MODULE__{public_key_pem: pem}), do: pem
@@ -253,10 +271,12 @@ defmodule Ltix.JWK do
 
   ## Examples
 
-      iex> jwk = Ltix.JWK.generate(key_size: 2048)
-      iex> {:ok, signature} = Ltix.JWK.sign(jwk, "message")
-      iex> byte_size(signature)
-      256
+  ```elixir
+  iex> jwk = Ltix.JWK.generate(key_size: 2048)
+  iex> {:ok, signature} = Ltix.JWK.sign(jwk, "message")
+  iex> byte_size(signature)
+  256
+  ```
   """
   # [Sec §6.1](https://www.imsglobal.org/spec/security/v1p0/#rsa-key)
   @spec sign(t(), binary()) :: {:ok, binary()} | {:error, Exception.t()}

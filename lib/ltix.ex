@@ -11,36 +11,40 @@ defmodule Ltix do
   `handle_login/3`, keeps the state in the session, and redirects the browser to
   the platform.
 
-      def login(conn, params) do
-        launch_url = url(conn, ~p"/lti/launch")
+  ```elixir
+  def login(conn, params) do
+    launch_url = url(conn, ~p"/lti/launch")
 
-        case Ltix.handle_login(params, launch_url) do
-          {:ok, %{redirect_uri: redirect_uri, state: state}} ->
-            conn
-            |> put_session(:lti_state, state)
-            |> redirect(external: redirect_uri)
+    case Ltix.handle_login(params, launch_url) do
+      {:ok, %{redirect_uri: redirect_uri, state: state}} ->
+        conn
+        |> put_session(:lti_state, state)
+        |> redirect(external: redirect_uri)
 
-          {:error, error} ->
-            send_resp(conn, Ltix.Errors.status_code(error), "The launch could not be completed.")
-        end
-      end
+      {:error, error} ->
+        send_resp(conn, Ltix.Errors.status_code(error), "The launch could not be completed.")
+    end
+  end
+  ```
 
   The platform then posts an ID token to the launch endpoint, which calls
   `handle_callback/3` with that state.
 
-      def launch(conn, params) do
-        state = get_session(conn, :lti_state)
+  ```elixir
+  def launch(conn, params) do
+    state = get_session(conn, :lti_state)
 
-        case Ltix.handle_callback(params, state) do
-          {:ok, launch} ->
-            conn
-            |> delete_session(:lti_state)
-            |> render(:launch, launch: launch)
+    case Ltix.handle_callback(params, state) do
+      {:ok, launch} ->
+        conn
+        |> delete_session(:lti_state)
+        |> render(:launch, launch: launch)
 
-          {:error, error} ->
-            send_resp(conn, Ltix.Errors.status_code(error), "The launch could not be completed.")
-        end
-      end
+      {:error, error} ->
+        send_resp(conn, Ltix.Errors.status_code(error), "The launch could not be completed.")
+    end
+  end
+  ```
 
   The browser sends the session cookie with the platform's cross-site post only
   when the cookie has `SameSite=None`. [Getting Started](getting-started.md)
@@ -55,18 +59,20 @@ defmodule Ltix do
 
   Authenticate with a service using the launch, then call it.
 
-      {:ok, client} = Ltix.GradeService.authenticate(launch)
+  ```elixir
+  {:ok, client} = Ltix.GradeService.authenticate(launch)
 
-      {:ok, score} =
-        Ltix.GradeService.Score.new(
-          user_id: launch.claims.subject,
-          score_given: 85,
-          score_maximum: 100,
-          activity_progress: :completed,
-          grading_progress: :fully_graded
-        )
+  {:ok, score} =
+    Ltix.GradeService.Score.new(
+      user_id: launch.claims.subject,
+      score_given: 85,
+      score_maximum: 100,
+      activity_progress: :completed,
+      grading_progress: :fully_graded
+    )
 
-      :ok = Ltix.GradeService.post_score(client, score)
+  :ok = Ltix.GradeService.post_score(client, score)
+  ```
 
   See [Advantage Services](advantage-services.md). To call a service later, such
   as from a background job, see [Persisting Service
@@ -77,22 +83,24 @@ defmodule Ltix do
   A Deep Linking request is a launch with the message type
   `"LtiDeepLinkingRequest"`. Respond with the content items the user picks.
 
-      case launch.claims.message_type do
-        "LtiDeepLinkingRequest" ->
-          {:ok, link} =
-            Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
-              url: "https://tool.example.com/activity/1",
-              title: "Quiz 1"
-            )
+  ```elixir
+  case launch.claims.message_type do
+    "LtiDeepLinkingRequest" ->
+      {:ok, link} =
+        Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
+          url: "https://tool.example.com/activity/1",
+          title: "Quiz 1"
+        )
 
-          {:ok, response} = Ltix.DeepLinking.build_response(launch, [link])
+      {:ok, response} = Ltix.DeepLinking.build_response(launch, [link])
 
-          # The template has a form that posts response.jwt to response.return_url, in a field named JWT
-          render(conn, :deep_linking_response, response: response)
+      # The template has a form that posts response.jwt to response.return_url, in a field named JWT
+      render(conn, :deep_linking_response, response: response)
 
-        "LtiResourceLinkRequest" ->
-          render(conn, :launch, launch: launch)
-      end
+    "LtiResourceLinkRequest" ->
+      render(conn, :launch, launch: launch)
+  end
+  ```
 
   See [Deep Linking](deep-linking.md).
 
@@ -115,7 +123,9 @@ defmodule Ltix do
 
   Set defaults in your application configuration.
 
-      config :ltix, storage_adapter: MyApp.LtiStorage
+  ```elixir
+  config :ltix, storage_adapter: MyApp.LtiStorage
+  ```
 
   An option passed to a call overrides the configured value for that call, and
   `:req_options` passed to a call are merged over the configured ones.
@@ -137,7 +147,9 @@ defmodule Ltix do
     * `:req_options` - options for `Req.request/2` on every platform request,
       such as timeouts, Req steps, or a `Req.Test` plug
 
-          config :ltix, req_options: [receive_timeout: 10_000]
+      ```elixir
+      config :ltix, req_options: [receive_timeout: 10_000]
+      ```
 
     * `:key_set` - the name of the `Ltix.JWT.KeySet` cache you start in your
       supervision tree (defaults to `Ltix.JWT.KeySet`)
@@ -148,7 +160,9 @@ defmodule Ltix do
       `{MyPlugin, opts}` (defaults to `[]`). See
       [Writing Plugins](writing-plugins.md).
 
-          config :ltix, plugins: [{MyPlugin, tenant: "acme"}]
+      ```elixir
+      config :ltix, plugins: [{MyPlugin, tenant: "acme"}]
+      ```
 
   Pass these options to a call. They can't be configured.
 
@@ -227,7 +241,9 @@ defmodule Ltix do
   launch URL, and must be one of the redirect URIs the platform has for your
   tool.
 
-      {:ok, %{redirect_uri: redirect_uri, state: state}} = Ltix.handle_login(params, launch_url)
+  ```elixir
+  {:ok, %{redirect_uri: redirect_uri, state: state}} = Ltix.handle_login(params, launch_url)
+  ```
 
   Keep `state` in the user's session for `handle_callback/3`, and redirect the
   browser to the returned `redirect_uri`, the platform's authentication URL.
@@ -284,7 +300,9 @@ defmodule Ltix do
   @doc """
   Same as `handle_login/3` but raises on error.
 
-      %{redirect_uri: url, state: state} = Ltix.handle_login!(params, launch_url)
+  ```elixir
+  %{redirect_uri: url, state: state} = Ltix.handle_login!(params, launch_url)
+  ```
   """
   @spec handle_login!(params :: map(), redirect_uri :: String.t(), opts :: keyword()) ::
           %{redirect_uri: String.t(), state: String.t()}
@@ -302,7 +320,9 @@ defmodule Ltix do
   `params` are the parameters the platform posted to your launch URL. `state` is
   the state `handle_login/3` returned.
 
-      {:ok, launch} = Ltix.handle_callback(params, get_session(conn, :lti_state))
+  ```elixir
+  {:ok, launch} = Ltix.handle_callback(params, get_session(conn, :lti_state))
+  ```
 
   ## Errors
 
@@ -365,7 +385,9 @@ defmodule Ltix do
   @doc """
   Same as `handle_callback/3` but raises on error.
 
-      launch = Ltix.handle_callback!(params, state)
+  ```elixir
+  launch = Ltix.handle_callback!(params, state)
+  ```
   """
   @spec handle_callback!(params :: map(), state :: String.t(), opts :: keyword()) :: Launch.t()
   def handle_callback!(params, state, opts \\ []) do

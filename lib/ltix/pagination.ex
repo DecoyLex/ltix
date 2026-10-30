@@ -194,14 +194,16 @@ defmodule Ltix.Pagination do
   with an `anchor` parameter. Use `parse_next_link/2` to resolve relative
   targets.
 
-      iex> Ltix.Pagination.parse_next_link(%{"link" => ["<https://example.com/p2>; rel=\\"next\\""]})
-      "https://example.com/p2"
+  ```elixir
+  iex> Ltix.Pagination.parse_next_link(%{"link" => ["<https://example.com/p2>; rel=\\"next\\""]})
+  "https://example.com/p2"
 
-      iex> Ltix.Pagination.parse_next_link(%{"link" => ["<?page=2>; rel=next"]})
-      "?page=2"
+  iex> Ltix.Pagination.parse_next_link(%{"link" => ["<?page=2>; rel=next"]})
+  "?page=2"
 
-      iex> Ltix.Pagination.parse_next_link(%{})
-      nil
+  iex> Ltix.Pagination.parse_next_link(%{})
+  nil
+  ```
   """
   @spec parse_next_link(%{String.t() => [String.t()]}) :: String.t() | nil
   def parse_next_link(headers) do
@@ -219,11 +221,13 @@ defmodule Ltix.Pagination do
   Pass the URL of the response that has the headers. Returns `nil` if no
   next link is present. Ignores links with an `anchor` parameter.
 
-      iex> Ltix.Pagination.parse_next_link(
-      ...>   %{"link" => ["<../three>; rel=next"]},
-      ...>   "https://example.com/pages/two"
-      ...> )
-      "https://example.com/three"
+  ```elixir
+  iex> Ltix.Pagination.parse_next_link(
+  ...>   %{"link" => ["<../three>; rel=next"]},
+  ...>   "https://example.com/pages/two"
+  ...> )
+  "https://example.com/three"
+  ```
   """
   @spec parse_next_link(%{String.t() => [String.t()]}, String.t()) :: String.t() | nil
   def parse_next_link(headers, response_url) do

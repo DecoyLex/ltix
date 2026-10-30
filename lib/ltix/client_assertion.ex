@@ -12,18 +12,20 @@ defmodule Ltix.ClientAssertion do
   plugin adds it with `Ltix.Plugin.add/2`, or adds a function as a step with
   `add_step/2`.
 
-      defmodule MyApp.AttendanceScope do
-        use Ltix.ClientAssertion
+  ```elixir
+  defmodule MyApp.AttendanceScope do
+    use Ltix.ClientAssertion
 
-        @scope "https://lms.example.com/scope/attendance.readonly"
+    @scope "https://lms.example.com/scope/attendance.readonly"
 
-        @impl Ltix.Step
-        def call(%{endpoints: %{MyApp.AttendanceService => _endpoint}} = assertion, _opts) do
-          {:ok, update_in(assertion.scopes, &(&1 ++ [@scope]))}
-        end
+    @impl Ltix.Step
+    def call(%{endpoints: %{MyApp.AttendanceService => _endpoint}} = assertion, _opts) do
+      {:ok, update_in(assertion.scopes, &(&1 ++ [@scope]))}
+    end
 
-        def call(assertion, _opts), do: {:ok, assertion}
-      end
+    def call(assertion, _opts), do: {:ok, assertion}
+  end
+  ```
 
   ## Fields
 
@@ -56,10 +58,12 @@ defmodule Ltix.ClientAssertion do
   Adds an anonymous client assertion step to a plugin, a function that
   receives the client assertion and returns what `c:Ltix.Step.call/2` returns.
 
-      Ltix.Plugin.new(name: "My Library")
-      |> Ltix.ClientAssertion.add_step(fn assertion ->
-        {:ok, put_in(assertion.claims["https://lms.example.com/claim/tenant"], "acme")}
-      end)
+  ```elixir
+  Ltix.Plugin.new(name: "My Library")
+  |> Ltix.ClientAssertion.add_step(fn assertion ->
+    {:ok, put_in(assertion.claims["https://lms.example.com/claim/tenant"], "acme")}
+  end)
+  ```
 
   Raises `ArgumentError` when `fun` doesn't take one argument.
   """

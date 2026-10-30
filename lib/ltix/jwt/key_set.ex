@@ -10,23 +10,29 @@ defmodule Ltix.JWT.KeySet do
 
   Add a key set cache to your application's supervision tree.
 
-      # lib/my_app/application.ex
-      children = [
-        Ltix.JWT.KeySet
-      ]
+  ```elixir
+  # lib/my_app/application.ex
+  children = [
+    Ltix.JWT.KeySet
+  ]
+  ```
 
   To run more than one, or to choose the name, pass `:name` and set the
   name in your config.
 
-      children = [
-        {Ltix.JWT.KeySet, name: MyApp.LtiKeys}
-      ]
+  ```elixir
+  children = [
+    {Ltix.JWT.KeySet, name: MyApp.LtiKeys}
+  ]
 
-      config :ltix, key_set: MyApp.LtiKeys
+  config :ltix, key_set: MyApp.LtiKeys
+  ```
 
   You can also choose the key set cache for one call.
 
-      Ltix.handle_callback(params, state, key_set: MyApp.LtiKeys)
+  ```elixir
+  Ltix.handle_callback(params, state, key_set: MyApp.LtiKeys)
+  ```
 
   ## Keys
 

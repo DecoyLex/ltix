@@ -21,13 +21,15 @@ defmodule Ltix.Registration do
 
   ## Examples
 
-      {:ok, reg} = Ltix.Registration.new(%{
-        issuer: "https://canvas.example.edu",
-        client_id: "10000000000042",
-        auth_endpoint: "https://canvas.example.edu/api/lti/authorize_redirect",
-        jwks_uri: "https://canvas.example.edu/api/lti/security/jwks",
-        token_endpoint: "https://canvas.example.edu/login/oauth2/token"
-      })
+  ```elixir
+  {:ok, reg} = Ltix.Registration.new(%{
+    issuer: "https://canvas.example.edu",
+    client_id: "10000000000042",
+    auth_endpoint: "https://canvas.example.edu/api/lti/authorize_redirect",
+    jwks_uri: "https://canvas.example.edu/api/lti/security/jwks",
+    token_endpoint: "https://canvas.example.edu/login/oauth2/token"
+  })
+  ```
   """
 
   alias Ltix.Errors
@@ -67,14 +69,16 @@ defmodule Ltix.Registration do
 
   ## Examples
 
-      iex> {:ok, reg} = Ltix.Registration.new(%{
-      ...>   issuer: "https://platform.example.com",
-      ...>   client_id: "tool-123",
-      ...>   auth_endpoint: "https://platform.example.com/auth",
-      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
-      ...> })
-      iex> reg.issuer
-      "https://platform.example.com"
+  ```elixir
+  iex> {:ok, reg} = Ltix.Registration.new(%{
+  ...>   issuer: "https://platform.example.com",
+  ...>   client_id: "tool-123",
+  ...>   auth_endpoint: "https://platform.example.com/auth",
+  ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+  ...> })
+  iex> reg.issuer
+  "https://platform.example.com"
+  ```
 
   """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, Exception.t()}
@@ -103,14 +107,16 @@ defmodule Ltix.Registration do
 
   ## Examples
 
-      iex> registration = Ltix.Registration.new!(
-      ...>   issuer: "https://platform.example.com",
-      ...>   client_id: "tool-123",
-      ...>   auth_endpoint: "https://platform.example.com/auth",
-      ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
-      ...> )
-      iex> registration.client_id
-      "tool-123"
+  ```elixir
+  iex> registration = Ltix.Registration.new!(
+  ...>   issuer: "https://platform.example.com",
+  ...>   client_id: "tool-123",
+  ...>   auth_endpoint: "https://platform.example.com/auth",
+  ...>   jwks_uri: "https://platform.example.com/.well-known/jwks.json"
+  ...> )
+  iex> registration.client_id
+  "tool-123"
+  ```
   """
   @spec new!(keyword() | map()) :: t()
   def new!(attrs) do

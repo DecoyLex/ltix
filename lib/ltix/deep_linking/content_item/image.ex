@@ -8,16 +8,18 @@ defmodule Ltix.DeepLinking.ContentItem.Image do
 
   ## Examples
 
-      iex> {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(
-      ...>   url: "https://example.com/diagram.png",
-      ...>   width: 800
-      ...> )
-      iex> image.width
-      800
+  ```elixir
+  iex> {:ok, image} = Ltix.DeepLinking.ContentItem.Image.new(
+  ...>   url: "https://example.com/diagram.png",
+  ...>   width: 800
+  ...> )
+  iex> image.width
+  800
 
-      iex> {:error, error} = Ltix.DeepLinking.ContentItem.Image.new([])
-      iex> Exception.message(error)
-      "Ltix.DeepLinking.ContentItem.Image field :url is required"
+  iex> {:error, error} = Ltix.DeepLinking.ContentItem.Image.new([])
+  iex> Exception.message(error)
+  "Ltix.DeepLinking.ContentItem.Image field :url is required"
+  ```
   """
 
   # [DL, Image](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#image)

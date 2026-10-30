@@ -9,23 +9,25 @@ defmodule Ltix.OAuth.AccessToken do
 
   ## Examples
 
-      iex> {:ok, token} = Ltix.OAuth.AccessToken.from_response(
-      ...>   %{
-      ...>     "access_token" => "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
-      ...>     "token_type" => "Bearer",
-      ...>     "expires_in" => 3600,
-      ...>     "scope" => "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
-      ...>   },
-      ...>   now: ~U[2025-01-01 00:00:00Z]
-      ...> )
-      iex> token.access_token
-      "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9"
-      iex> token.token_type
-      "bearer"
-      iex> token.granted_scopes
-      MapSet.new(["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"])
-      iex> token.expires_at
-      ~U[2025-01-01 01:00:00Z]
+  ```elixir
+  iex> {:ok, token} = Ltix.OAuth.AccessToken.from_response(
+  ...>   %{
+  ...>     "access_token" => "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
+  ...>     "token_type" => "Bearer",
+  ...>     "expires_in" => 3600,
+  ...>     "scope" => "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+  ...>   },
+  ...>   now: ~U[2025-01-01 00:00:00Z]
+  ...> )
+  iex> token.access_token
+  "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9"
+  iex> token.token_type
+  "bearer"
+  iex> token.granted_scopes
+  MapSet.new(["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"])
+  iex> token.expires_at
+  ~U[2025-01-01 01:00:00Z]
+  ```
   """
 
   alias Ltix.Errors
@@ -89,9 +91,11 @@ defmodule Ltix.OAuth.AccessToken do
 
   ## Examples
 
-      iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
-      iex> Ltix.OAuth.AccessToken.expired?(token)
-      false
+  ```elixir
+  iex> token = %Ltix.OAuth.AccessToken{expires_at: DateTime.add(DateTime.utc_now(), 3600)}
+  iex> Ltix.OAuth.AccessToken.expired?(token)
+  false
+  ```
   """
   # [Sec §7.1.1](https://www.imsglobal.org/spec/security/v1p0/#expires_in-values-and-renewing-the-access-token)
   @spec expired?(t()) :: boolean()
@@ -112,18 +116,20 @@ defmodule Ltix.OAuth.AccessToken do
 
   ## Examples
 
-      iex> token = %Ltix.OAuth.AccessToken{
-      ...>   access_token: "tok",
-      ...>   token_type: "bearer",
-      ...>   granted_scopes: MapSet.new(["scope:write", "scope:read"]),
-      ...>   expires_at: ~U[2025-01-01 01:00:00Z]
-      ...> }
-      iex> Ltix.OAuth.AccessToken.to_map(token)
-      %{
-        "access_token" => "tok",
-        "scope" => "scope:read scope:write",
-        "expires_at" => "2025-01-01T01:00:00Z"
-      }
+  ```elixir
+  iex> token = %Ltix.OAuth.AccessToken{
+  ...>   access_token: "tok",
+  ...>   token_type: "bearer",
+  ...>   granted_scopes: MapSet.new(["scope:write", "scope:read"]),
+  ...>   expires_at: ~U[2025-01-01 01:00:00Z]
+  ...> }
+  iex> Ltix.OAuth.AccessToken.to_map(token)
+  %{
+    "access_token" => "tok",
+    "scope" => "scope:read scope:write",
+    "expires_at" => "2025-01-01T01:00:00Z"
+  }
+  ```
   """
   @spec to_map(t()) :: %{String.t() => String.t()}
   def to_map(%__MODULE__{} = token) do
@@ -146,13 +152,15 @@ defmodule Ltix.OAuth.AccessToken do
 
   ## Examples
 
-      iex> {:ok, token} = Ltix.OAuth.AccessToken.from_map(%{
-      ...>   "access_token" => "tok",
-      ...>   "scope" => "scope:read",
-      ...>   "expires_at" => "2025-01-01T01:00:00Z"
-      ...> })
-      iex> {token.access_token, token.granted_scopes, token.expires_at}
-      {"tok", MapSet.new(["scope:read"]), ~U[2025-01-01 01:00:00Z]}
+  ```elixir
+  iex> {:ok, token} = Ltix.OAuth.AccessToken.from_map(%{
+  ...>   "access_token" => "tok",
+  ...>   "scope" => "scope:read",
+  ...>   "expires_at" => "2025-01-01T01:00:00Z"
+  ...> })
+  iex> {token.access_token, token.granted_scopes, token.expires_at}
+  {"tok", MapSet.new(["scope:read"]), ~U[2025-01-01 01:00:00Z]}
+  ```
   """
   @spec from_map(map()) :: {:ok, t()} | {:error, Exception.t()}
   def from_map(map) when is_map(map) do

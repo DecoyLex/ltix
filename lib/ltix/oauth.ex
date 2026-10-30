@@ -48,25 +48,31 @@ defmodule Ltix.OAuth do
 
   ## From a launch
 
-      {:ok, client} = Ltix.OAuth.authenticate(launch,
-        services: [Ltix.MembershipsService, MyApp.AttendanceService]
-      )
+  ```elixir
+  {:ok, client} = Ltix.OAuth.authenticate(launch,
+    services: [Ltix.MembershipsService, MyApp.AttendanceService]
+  )
+  ```
 
   ## From a registration
 
-      {:ok, client} = Ltix.OAuth.authenticate(registration,
-        endpoints: %{
-          Ltix.MembershipsService => memberships_endpoint,
-          Ltix.GradeService => ags_endpoint
-        }
-      )
+  ```elixir
+  {:ok, client} = Ltix.OAuth.authenticate(registration,
+    endpoints: %{
+      Ltix.MembershipsService => memberships_endpoint,
+      Ltix.GradeService => ags_endpoint
+    }
+  )
+  ```
 
   A token request from a launch includes the launch's deployment ID. With a registration, pass `:deployment` to include one. A platform may require it before it issues a token.
 
-      {:ok, client} = Ltix.OAuth.authenticate(registration,
-        endpoints: %{Ltix.GradeService => ags_endpoint},
-        deployment: deployment
-      )
+  ```elixir
+  {:ok, client} = Ltix.OAuth.authenticate(registration,
+    endpoints: %{Ltix.GradeService => ags_endpoint},
+    deployment: deployment
+  )
+  ```
 
   The platform may grant only some of the scopes the endpoints need. Each service operation returns a `Ltix.Errors.Invalid.ScopeMismatch` error when its scope was not granted. Pass `require_all_scopes: true` to get that error from `authenticate/2`.
   """
