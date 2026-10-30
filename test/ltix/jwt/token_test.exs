@@ -160,7 +160,8 @@ defmodule Ltix.JWT.TokenTest do
       |> Base.url_encode64(padding: false)
 
     payload =
-      Ltix.Test.valid_lti_claims(ctx.platform)
+      ctx.platform
+      |> Ltix.Test.valid_lti_claims()
       |> Jason.encode!()
       |> Base.url_encode64(padding: false)
 

@@ -151,11 +151,13 @@ defmodule Ltix.Plugins.ClaimsTest do
 
     test "Ltix.Claims.Check.add/2 raises for missing or invalid options" do
       assert_raise ArgumentError, ~r/:check/, fn ->
-        Check.add(Ltix.Plugin.new(), claim: @context)
+        Ltix.Plugin.new()
+        |> Check.add(claim: @context)
       end
 
       assert_raise ArgumentError, ~r/:check/, fn ->
-        Check.add(Ltix.Plugin.new(), claim: @context, check: fn _value -> :ok end)
+        Ltix.Plugin.new()
+        |> Check.add(claim: @context, check: fn _value -> :ok end)
       end
     end
 

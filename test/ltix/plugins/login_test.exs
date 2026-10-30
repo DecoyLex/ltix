@@ -274,7 +274,10 @@ defmodule Ltix.Plugins.LoginTest do
     test "that a function of another arity can't be added" do
       assert_raise ArgumentError,
                    ~r/^an anonymous step must be a function of one argument/,
-                   fn -> Ltix.Login.add_step(Ltix.Plugin.new(), fn _login, _opts -> :ok end) end
+                   fn ->
+                     Ltix.Plugin.new()
+                     |> Ltix.Login.add_step(fn _login, _opts -> :ok end)
+                   end
     end
   end
 
@@ -339,8 +342,8 @@ defmodule Ltix.Plugins.LoginTest do
       assert_raise ArgumentError,
                    "the function given to run_after or run_before can add only steps of Ltix.Login, and it added TestPlugins.TenantKey",
                    fn ->
-                     Ltix.Login.run_after(
-                       Ltix.Plugin.new(),
+                     Ltix.Plugin.new()
+                     |> Ltix.Login.run_after(
                        Ltix.Login.RegistrationFound,
                        &Ltix.Plugin.add(&1, TenantKey)
                      )
@@ -349,8 +352,8 @@ defmodule Ltix.Plugins.LoginTest do
       assert_raise ArgumentError,
                    ~r/^the function given to run_after or run_before must return the plugin it receives/,
                    fn ->
-                     Ltix.Login.run_after(
-                       Ltix.Plugin.new(),
+                     Ltix.Plugin.new()
+                     |> Ltix.Login.run_after(
                        Ltix.Login.RegistrationFound,
                        fn _plugin -> :ok end
                      )
@@ -361,7 +364,8 @@ defmodule Ltix.Plugins.LoginTest do
       assert_raise ArgumentError,
                    ~r/^run_after and run_before order steps against a step module/,
                    fn ->
-                     Ltix.Login.run_after(Ltix.Plugin.new(), Ltix.Step, & &1)
+                     Ltix.Plugin.new()
+                     |> Ltix.Login.run_after(Ltix.Step, & &1)
                    end
     end
   end
@@ -482,7 +486,10 @@ defmodule Ltix.Plugins.LoginTest do
     test "an entry can't set an option the module's use sets" do
       assert_raise ArgumentError,
                    "TestPlugins.TenantKey sets :key with `use`, so a plugin can't add it with :key",
-                   fn -> Ltix.Plugin.add(Ltix.Plugin.new(), {TenantKey, key: :other}) end
+                   fn ->
+                     Ltix.Plugin.new()
+                     |> Ltix.Plugin.add({TenantKey, key: :other})
+                   end
     end
   end
 end

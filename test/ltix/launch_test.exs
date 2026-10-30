@@ -588,11 +588,13 @@ defmodule Ltix.LaunchTest do
 
     test "Ltix.Claim.add/2 raises for missing or invalid options" do
       assert_raise ArgumentError, ~r/:name/, fn ->
-        Ltix.Claim.add(Ltix.Plugin.new(), claim: @tenant)
+        Ltix.Plugin.new()
+        |> Ltix.Claim.add(claim: @tenant)
       end
 
       assert_raise ArgumentError, ~r/must be a Zoi schema/, fn ->
-        Ltix.Claim.add(Ltix.Plugin.new(), claim: @tenant, name: :tenant, schema: :string)
+        Ltix.Plugin.new()
+        |> Ltix.Claim.add(claim: @tenant, name: :tenant, schema: :string)
       end
     end
 

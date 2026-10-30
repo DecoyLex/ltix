@@ -461,11 +461,13 @@ defmodule Ltix.DeepLinkingTest do
 
     test "add_property/2 raises for missing or invalid options, and Ltix.Property.add/3 for a module that isn't a type with properties" do
       assert_raise ArgumentError, ~r/:property/, fn ->
-        LTIResourceLink.add_property(Ltix.Plugin.new(), name: :difficulty)
+        Ltix.Plugin.new()
+        |> LTIResourceLink.add_property(name: :difficulty)
       end
 
       assert_raise ArgumentError, ~r/:writes/, fn ->
-        LTIResourceLink.add_property(Ltix.Plugin.new(),
+        Ltix.Plugin.new()
+        |> LTIResourceLink.add_property(
           property: "https://vendor.example.com/difficulty",
           name: :difficulty,
           writes: [:delete]
@@ -473,11 +475,13 @@ defmodule Ltix.DeepLinkingTest do
       end
 
       assert_raise ArgumentError, ~r/^Ltix.Launch doesn't take properties/, fn ->
-        Ltix.Property.add(Ltix.Plugin.new(), Ltix.Launch, property: "x", name: :x)
+        Ltix.Plugin.new()
+        |> Ltix.Property.add(Ltix.Launch, property: "x", name: :x)
       end
 
       assert_raise ArgumentError, ~r/^Ltix.Claim doesn't take properties/, fn ->
-        Ltix.Property.add(Ltix.Plugin.new(), Ltix.Claim, property: "x", name: :x)
+        Ltix.Plugin.new()
+        |> Ltix.Property.add(Ltix.Claim, property: "x", name: :x)
       end
     end
 
