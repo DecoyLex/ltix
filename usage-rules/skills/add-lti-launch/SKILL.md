@@ -12,15 +12,15 @@ This skill describes how to set up LTI 1.3 launch endpoints in a Phoenix applica
 - Ltix is installed as a dependency
 - A storage adapter is implemented (see the `implement-storage-adapter` skill)
 - `config :ltix, storage_adapter: MyApp.Lti.StorageAdapter` is set
-- `Ltix.JWT.KeySet` is started in the supervision tree (see Step 1)
+- `Ltix.JWT.KeySet` is started in the supervision tree (see step 1)
 
-## Before You Start, Survey the User
+## Before you start, survey the user
 
 These decisions are application-specific and affect security, UX, and architecture. **Enter plan mode** (or use a tool that asks the user questions) to gather answers before writing any code. Explore the codebase first to pre-fill what you can infer (existing router structure, session configuration, endpoint setup), then ask about the rest.
 
-1. **Route paths.** Where should the LTI endpoints be? (e.g., `/lti/login` and `/lti/launch`, or nested under an existing scope?) Check the existing router for conventions.
+1. **Route paths.** Where should the LTI endpoints be? For example, `/lti/login` and `/lti/launch`, or nested under an existing scope. Check the existing router for conventions.
 
-2. **CSRF strategy.** Phoenix's default CSRF protection blocks cross-origin POSTs. The LTI spec uses nonces for replay protection instead. The recommended approach is two pipelines.
+2. **CSRF strategy.** Phoenix's default CSRF protection blocks cross-origin POST requests. The LTI spec uses nonces for replay protection instead. The recommended approach is two pipelines.
    - `:lti_launch` - no CSRF protection, for the login and launch POST endpoints
    - `:lti` - with CSRF protection, for post-launch routes that need it
 
@@ -41,7 +41,7 @@ These decisions are application-specific and affect security, UX, and architectu
 
 6. **Error rendering.** Should launch errors render a user-friendly error page, return JSON, or something else?
 
-## Step 1: Supervision Tree
+## 1. Supervision tree
 
 Ltix verifies launches with each platform's public keys, which it gets from a key set cache. The key set cache must be started in your supervision tree.
 
@@ -53,9 +53,9 @@ children = [
 ]
 ```
 
-## Step 2: HTTPS & Session Configuration
+## 2. HTTPS and session configuration
 
-LTI launches are cross-origin POSTs inside an iframe. Session cookies must be configured for this.
+LTI launches are cross-origin POST requests inside an iframe. Session cookies must be configured for this.
 
 **Confirm with the user** before modifying the endpoint session configuration, because this change affects all routes.
 
@@ -90,7 +90,7 @@ You can generate self-signed certs with `mix phx.gen.cert`.
 
 **Dev tip.** Have the user visit `https://localhost:4001` and accept the self-signed certificate warning before attempting LTI launches. The platform's redirect will fail if the cert is not trusted by the browser.
 
-## Step 3: Routes
+## 3. Routes
 
 Two pipelines handle the different security requirements. `:lti_launch` omits CSRF protection for the platform-to-tool POST endpoints. `:lti` adds CSRF protection for post-launch routes where the user is interacting with the tool directly.
 
@@ -153,7 +153,7 @@ Note two things.
 - `protect_from_forgery` is omitted in `:lti_launch` because platforms POST directly to your tool. The LTI specification provides CSRF protection through `state` and `nonce` parameters, which Ltix validates for you.
 - `put_secure_browser_headers` overrides the default CSP to set `frame-ancestors 'self' https:`, allowing any HTTPS origin to embed the tool. Phoenix defaults to `frame-ancestors 'self'`, which blocks iframe embedding.
 
-## Step 4: Controller
+## 4. Controller
 
 The login action needs few application-specific changes. The launch action's success path implements the application-specific decisions from "Before You Start".
 
@@ -235,11 +235,11 @@ These are the key points about the controller.
 - **`launch.source_registration`** is whatever your `get_registration/3` callback returned, such as your Ecto schema, so read your own fields directly, such as `launch.source_registration.id`.
 - **`launch.source_deployment`** is your original struct from `get_deployment/3`.
 - **Delete `lti_state` from session** after a successful launch to prevent replay.
-- **Never store `%Ltix.Launch{}` in the session.** It has the user's identity and context data, and session cookies are signed, not encrypted. Store only the fields you need (e.g., the subject).
+- **Never store `%Ltix.Launch{}` in the session.** It has the user's identity and context data, and session cookies are signed, not encrypted. Store only the fields you need, such as the subject.
 - **The key set endpoint** serves the public key PEM stored with each signing key, so it never reads a private key. Private keys are encrypted at rest and only read to sign.
 - **Don't render Ltix error messages to users.** They can include URLs and claim values. Log them and show a general message.
 
-## Step 5: Test Setup
+## 5. Test setup
 
 ```elixir
 # config/test.exs
@@ -289,7 +289,7 @@ defmodule MyAppWeb.LtiControllerTest do
 end
 ```
 
-## Technical Constraints
+## Technical constraints
 
 These are requirements from the LTI spec.
 

@@ -15,7 +15,7 @@ config :ltix,
 
 With this plug, Ltix sends its requests to the stubs `Ltix.Test` sets up. With `retry: false`, a stubbed failure returns at once.
 
-Then create a test platform in your setup block. Pass a `:registration` function to create matching records in your own persistence layer. The function receives an `Ltix.Registration` with the registration details (issuer, client_id, endpoints) and returns your application's struct.
+Then create a test platform in your setup block. Pass a `:registration` function to create matching records in your own persistence layer. The function receives an `Ltix.Registration` with the registration details (issuer, client ID, endpoints) and returns your application's struct.
 
 ```elixir
 defmodule MyAppWeb.LtiControllerTest do
@@ -195,7 +195,7 @@ Ltix.Test.build_launch(platform,
 
 Both options also take the `%Ltix.Claims.Context{}` and `%Ltix.Claims.ResourceLink{}` structs.
 
-### Deep linking
+### Deep Linking
 
 Pass `message_type: :deep_linking`. Settings you leave out accept the five standard content types, every presentation target, and multiple items.
 

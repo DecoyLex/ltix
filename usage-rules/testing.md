@@ -2,7 +2,7 @@
 
 Rules for testing applications that use Ltix.
 
-## Test Configuration
+## Test configuration
 
 Add this to `config/test.exs`.
 
@@ -16,7 +16,7 @@ config :ltix,
 - The `plug` option sends Ltix's requests to the `Ltix.Test` stubs. Stub platform responses with `Ltix.Test` functions. A `Req.Test.stub(:ltix, ...)` stub has no effect.
 - Keep `retry: false` so a stubbed failure returns at once.
 
-## Platform Failures
+## Platform failures
 
 To test how your application handles a failing platform, call `Ltix.Test.stub_token_response/1` or `Ltix.Test.stub_key_set/2` with one of these options.
 
@@ -40,7 +40,7 @@ To test how your application handles a failing platform, call `Ltix.Test.stub_to
 - When you pass `setup_platform!/1` a `:registration` struct, give each test's registration its own `jwks_uri`. Async tests that share a key set URL can receive each other's responses.
 - For a grade or memberships service error, see the custom response rule in Testing Advantage Services.
 
-## Platform Setup
+## Platform setup
 
 Set up the platform in your test's `setup` block.
 
@@ -82,9 +82,9 @@ Without a storage adapter of your own, configure the in-memory `Ltix.Test.Storag
 Ltix.Test.StorageAdapter.set_pid(pid)
 ```
 
-## Three Test Patterns
+## Three test patterns
 
-### 1. Full OIDC Flow (Controller Tests)
+### 1. Full OIDC flow (controller tests)
 
 Simulate the complete platform-initiated launch through your routes.
 
@@ -112,7 +112,7 @@ test "launch renders dashboard", %{conn: conn, platform: platform} do
 end
 ```
 
-### 2. Direct Launch Construction (Unit Tests)
+### 2. Direct launch construction (unit tests)
 
 Skip the OIDC flow entirely for business logic tests.
 
@@ -127,7 +127,7 @@ test "instructors can manage grades", %{platform: platform} do
 end
 ```
 
-### 3. Deep Linking Response Verification
+### 3. Deep Linking response verification
 
 Verify signed response JWTs from your tool.
 
@@ -148,7 +148,7 @@ test "content selection returns valid JWT", %{platform: platform} do
 end
 ```
 
-## Claim Customization
+## Claim customization
 
 `launch_params/2` and `build_launch/2` take the same options for building claims, with the same defaults. Unknown options, including unknown keys in nested maps, raise `ArgumentError`.
 
@@ -168,7 +168,7 @@ A launch with subject identifiers in the `role_scope_mentor` claim fails unless 
 
 `launch_params/2` also requires `:nonce` and `:state`, and takes `:plugins`, the plugins to send the properties of claim structs with. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It takes the registration and deployment from the platform, skips the security checks and the storage adapter, runs the other launch steps, including every plugin's, and raises when the launch fails.
 
-## Hand-Built Tokens
+## Hand-built tokens
 
 For a token `launch_params/2` doesn't build, such as one missing a claim, start from `valid_lti_claims/2` and sign it with the platform key using `sign_id_token/3`. The platform key is `platform.jwk`, an `%Ltix.JWK{}`.
 
@@ -177,7 +177,7 @@ claims = Map.delete(Ltix.Test.valid_lti_claims(platform, %{"nonce" => nonce}), "
 params = %{"id_token" => Ltix.Test.sign_id_token(claims, platform.jwk), "state" => state}
 ```
 
-## Testing Advantage Services
+## Testing Advantage services
 
 When testing code that uses `Ltix.GradeService` or `Ltix.MembershipsService`, stub both the OAuth token endpoint and the service endpoint.
 

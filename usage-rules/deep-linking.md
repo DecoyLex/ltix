@@ -2,7 +2,7 @@
 
 Rules for implementing LTI Deep Linking flows, covering content selection, item construction, and response delivery.
 
-## Launch Type Detection
+## Launch type detection
 
 The same `handle_callback/3` handles both launch types. Branch on message type.
 
@@ -15,7 +15,7 @@ case launch.claims.message_type do
 end
 ```
 
-## Content Item Types
+## Content item types
 
 Build items with `ContentItem.*.new/1`, which takes a keyword list or map, or with the raising `new!/1`. Unknown or invalid fields return `Ltix.Errors.Invalid.InvalidField`.
 
@@ -30,7 +30,7 @@ Date and time fields, such as `File`'s `expires_at` and a resource link's `avail
 - **Never** pass a plain map to `build_response/3`. For another kind of content, follow [Custom content item type](https://ltix.hexdocs.pm/building-content-items.md#custom-content-item-type).
 - **Never** pass `extensions:` to a content item's `new/1`. Pass a vendor property by its `:name`. [Vendor property](https://ltix.hexdocs.pm/building-content-items.md#vendor-property) has an example. A plugin in `config :ltix, plugins:` must declare it.
 
-## Platform Constraints
+## Platform constraints
 
 Before building items, check what the platform accepts.
 
@@ -45,7 +45,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 
 `build_response/3` validates items against these constraints and returns an error for each violation (see Errors below). Several violations are grouped in `Ltix.Errors.Invalid`.
 
-## Building LTI Resource Links with Line Items
+## Building LTI resource links with line items
 
 ```elixir
 {:ok, link} = Ltix.DeepLinking.ContentItem.LTIResourceLink.new(
@@ -65,7 +65,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 - `link.line_item` is an `%Ltix.DeepLinking.LineItem{}`. `line_item` also accepts a map or a `%Ltix.GradeService.LineItem{}` without platform-assigned fields such as `id`.
 - Leave out `line_item` when `settings.accept_line_item` is `false`.
 
-## Building the Response
+## Building the response
 
 ```elixir
 {:ok, response} = Ltix.DeepLinking.build_response(launch, [link],
@@ -80,7 +80,7 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 - Returns `{:ok, %Ltix.DeepLinking.Response{}}` with the signed `jwt` and the platform's `return_url`.
 - To add a claim to the response, follow [Add claims to Deep Linking responses](https://ltix.hexdocs.pm/writing-deep-linking-plugins.md#add-claims-to-deep-linking-responses).
 
-## Delivering the Response
+## Delivering the response
 
 The platform requires a POST with the signed JWT. Use an auto-submit form rendered from a HEEx template. **Never** interpolate `return_url` into an HTML string.
 

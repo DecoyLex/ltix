@@ -1,5 +1,5 @@
 defmodule Ltix.Errors.Security.IssuerMismatch do
-  @moduledoc "JWT iss doesn't match registration."
+  @moduledoc "JWT `iss` doesn't match the registration."
   use Ltix.Errors, fields: [:expected, :actual], class: :security
 
   def message(%{expected: expected, actual: actual}) do

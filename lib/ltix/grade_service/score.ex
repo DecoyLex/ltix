@@ -2,7 +2,7 @@ defmodule Ltix.GradeService.Score do
   @moduledoc """
   A score to post to the platform's gradebook.
 
-  Scores are write-only. The tool constructs them and POSTs to the
+  Scores are write-only. The tool builds them and sends them to the
   platform. Use `new/1` to build a validated score, then pass it to
   `Ltix.GradeService.post_score/3`.
 

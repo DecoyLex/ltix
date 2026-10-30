@@ -233,7 +233,7 @@ Moodle is the **least granular** platform. It sends only two context roles.
 - `membership#Instructor` for anyone with the `moodle/course:manageactivities` capability (teachers, teaching assistants, course creators, and administrators alike)
 - `membership#Learner` for everyone else
 
-No sub-roles, no ContentDeveloper, no institution or system roles (site administrators may receive an institution Administrator in some configurations). This means teaching assistants, course designers, and instructors are all indistinguishable in the LTI launch. This is a [known limitation](https://tracker.moodle.org/browse/MDL-72066).
+No sub-roles, no ContentDeveloper, no institution or system roles (site administrators may receive an institution Administrator in some configurations). Teaching assistants, course designers, and instructors all look the same in the LTI launch. This is a [known limitation](https://tracker.moodle.org/browse/MDL-72066).
 
 Any tool that needs to work with Moodle cannot depend on sub-roles or on distinguishing teaching assistants from instructors via roles alone.
 

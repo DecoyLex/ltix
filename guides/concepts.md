@@ -33,7 +33,7 @@ sequenceDiagram
 
 2. **Authentication request** - the tool sends the browser to the platform's authentication endpoint with a nonce and state parameter. The platform authenticates the user and builds a signed JWT.
 
-3. **Launch** - the platform POSTs the signed JWT back to the tool. The tool validates the signature, checks the nonce, and extracts the launch data. Ltix handles this in `handle_callback/3`.
+3. **Launch** - the platform sends the signed JWT back to the tool in a POST request. The tool validates the signature, checks the nonce, and extracts the launch data. Ltix handles this in `handle_callback/3`.
 
 The state parameter (stored in the session between steps 1 and 3) provides CSRF protection. It proves the launch callback came from the same browser session that initiated the login.
 
@@ -45,18 +45,18 @@ A registration contains the following fields.
 
 | Field | What it is |
 |---|---|
-| `issuer` | The platform's identity URL (e.g. `https://canvas.instructure.com`) |
+| `issuer` | The platform's identity URL (for example, `https://canvas.instructure.com`) |
 | `client_id` | Your tool's OAuth2 client ID on that platform |
 | `auth_endpoint` | Where to redirect users for authentication |
 | `jwks_uri` | Where to fetch the platform's public keys |
 | `token_endpoint` | Where to request access tokens for service calls (optional) |
 | `audience` | The audience the platform expects in token requests, when it differs from the token endpoint (optional) |
 
-In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter` looks up registrations by issuer and client_id, both during login initiation and again during launch validation.
+In Ltix, this is `Ltix.Registration`. Your `Ltix.StorageAdapter` looks up registrations by issuer and client ID, both during login initiation and again during launch validation.
 
 ## Deployments
 
-A **deployment** is the set of contexts on a platform where your tool is available, such as one course or a whole institution. One registration, identified by issuer and client_id, can have many deployments, for example a tool installed in three different departments of the same university.
+A **deployment** is the set of contexts on a platform where your tool is available, such as one course or a whole institution. One registration, identified by issuer and client ID, can have many deployments, for example a tool installed in three different departments of the same university.
 
 A deployment has a single `deployment_id` assigned by the platform. It's immutable, case-sensitive, and guaranteed unique within the registration.
 

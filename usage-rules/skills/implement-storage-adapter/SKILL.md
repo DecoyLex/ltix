@@ -26,9 +26,9 @@ Two more callbacks are optional. Implement them when the tool calls Advantage se
 
 Return `{:error, reason}` from any callback when storage fails. Ltix returns it as `Ltix.Errors.Unknown.StorageError`.
 
-`get_registration/3` and `get_deployment/3` can return any struct that implements the `Ltix.Registerable` or `Ltix.Deployable` protocol. This means you return your own Ecto schemas directly and the library extracts what it needs via the protocol. A successful launch has your original structs in `source_registration` and `source_deployment`, so you can access your own fields (database IDs, tenant information, etc.) without an extra query.
+`get_registration/3` and `get_deployment/3` can return any struct that implements the `Ltix.Registerable` or `Ltix.Deployable` protocol. Return your own Ecto schemas, and Ltix reads what it needs through the protocol. A successful launch has your original structs in `source_registration` and `source_deployment`, so you can access your own fields (such as database IDs and tenant information) without an extra query.
 
-## Before You Start, Survey the User
+## Before you start, survey the user
 
 These decisions are application-specific. **Enter plan mode** (or use a tool that asks the user questions) to gather answers before writing any code. Explore the codebase first to pre-fill what you can infer (storage layer, naming conventions, existing schemas), then ask about the rest.
 
@@ -43,9 +43,9 @@ These decisions are application-specific. **Enter plan mode** (or use a tool tha
 
 3. **Existing schema.** Does the application already have tables for platforms, courses, or users? The LTI tables may need to relate to existing models.
 
-4. **Context module.** Phoenix applications typically group related functionality under a context module. Suggest `MyApp.Lti` as the context (with the storage adapter at `MyApp.Lti.StorageAdapter` and schemas at `MyApp.Lti.Registration`, etc.). Ask the user if this fits their project structure, or if they'd prefer a different grouping.
+4. **Context module.** Phoenix applications typically group related functionality under a context module. Suggest `MyApp.Lti` as the context (with the storage adapter at `MyApp.Lti.StorageAdapter` and schemas such as `MyApp.Lti.Registration`). Ask the user if this fits their project structure, or if they'd prefer a different grouping.
 
-5. **Table/module naming.** What naming convention does the project use? (e.g., `lti_registrations` vs `platforms`, `MyApp.Lti.Registration` vs `MyApp.LtiStorage`)
+5. **Table/module naming.** What naming convention does the project use? For example, `lti_registrations` or `platforms`, and `MyApp.Lti.Registration` or `MyApp.LtiStorage`.
 
 6. **JWK strategy.** One signing key shared across all registrations, or one per registration? Per-registration allows independent rotation but adds complexity. Either way, private keys are stored encrypted in `private_key_pem`, with the `kid` and the public key PEM next to them, and reconstructed into `%Ltix.JWK{}` structs via `Ltix.JWK.new/1` to sign. A key held in a key management service can sign from `sign/4` without ever being stored in the application.
 
@@ -53,7 +53,7 @@ These decisions are application-specific. **Enter plan mode** (or use a tool tha
 
 8. **Nonce cleanup.** Each launch records its nonce until the token expires. How should expired records be deleted, with a periodic Oban job, a database trigger, or manual pruning?
 
-## Step 1: Database Schema
+## 1. Database schema
 
 Present this to the user for review. Table names, column types, and indices depend on their answers above.
 
@@ -103,13 +103,13 @@ defmodule MyApp.Repo.Migrations.CreateLtiTables do
 end
 ```
 
-Adapt based on the user's schema decisions. They may want additional columns (e.g., `name` on registrations, foreign keys to their own `courses` or `organizations` tables).
+Adapt based on the user's schema decisions. They may want additional columns, such as `name` on registrations or foreign keys to their own `courses` or `organizations` tables).
 
-## Step 2: Ecto Schemas with Protocol Implementations
+## 2. Ecto schemas with protocol implementations
 
 Each Ecto schema implements the corresponding Ltix protocol so the storage adapter can return your structs directly. The library extracts the `Ltix.Registration` or `Ltix.Deployment` it needs via the protocol.
 
-### JWK Schema
+### JWK schema
 
 ```elixir
 # lib/my_app/lti/jwk.ex
@@ -145,7 +145,7 @@ def create_jwk! do
 end
 ```
 
-### Registration Schema
+### Registration schema
 
 ```elixir
 # lib/my_app/lti/registration.ex
@@ -179,7 +179,7 @@ end
 
 The `defimpl Ltix.Registerable` block defines how Ltix extracts a validated `Ltix.Registration` from your Ecto struct. The registration holds no key. Ltix calls the storage adapter's `key_id/2` and `sign/4` to sign.
 
-### Deployment Schema
+### Deployment schema
 
 ```elixir
 # lib/my_app/lti/deployment.ex
@@ -200,7 +200,7 @@ defimpl Ltix.Deployable, for: MyApp.Lti.Deployment do
 end
 ```
 
-### Nonce Schema
+### Nonce schema
 
 ```elixir
 # lib/my_app/lti/nonce.ex
@@ -214,7 +214,7 @@ defmodule MyApp.Lti.Nonce do
 end
 ```
 
-## Step 3: Context Module
+## 3. Context module
 
 The context module handles the actual database queries. The storage adapter delegates to these functions.
 
@@ -280,7 +280,7 @@ end
 
 Note that `get_deployment/3` receives the struct `get_registration/3` returned, so it pattern-matches on your Ecto schema. The nonce and signing callbacks receive it too.
 
-## Step 4: Storage Adapter Module
+## 4. Storage adapter module
 
 The storage adapter itself is a thin wrapper that delegates to the context module.
 
@@ -308,7 +308,7 @@ defmodule MyApp.Lti.StorageAdapter do
 end
 ```
 
-## Step 5: Configure
+## 5. Configure
 
 ```elixir
 # config/config.exs
@@ -332,7 +332,7 @@ setup do
 end
 ```
 
-## Technical Constraints
+## Technical constraints
 
 These are requirements from the LTI spec and library.
 
@@ -348,7 +348,7 @@ These are requirements from the LTI spec and library.
 
 - **`get_deployment/3`, `validate_nonce/4`, `key_id/2`, and `sign/4` receive your own registration struct**, the one `get_registration/3` returned or the one you passed to the function that needed a signature. `Ltix.OAuth.Client.registration` holds it too.
 
-## Optional Patterns (Discuss with User First)
+## Optional patterns (discuss with the user first)
 
 **Auto-creating deployments.** Upsert in `get_deployment/3`.
 
@@ -367,9 +367,9 @@ This is safe because `get_deployment/3` is called after JWT signature verificati
 Repo.delete_all(from n in MyApp.Lti.Nonce, where: n.expires_at < ^DateTime.utc_now())
 ```
 
-Ask the user how they want to schedule this (Oban, Quantum, manual GenServer, etc.).
+Ask the user how they want to schedule this, such as with Oban, Quantum, or a GenServer.
 
-## Step 6: Test the Callbacks
+## 6. Test the callbacks
 
 Run `Ltix.Test.assert_storage_adapter!/2` against the adapter first. It checks the whole contract, including concurrent launches and, with the `:jwks` option, that signatures verify against the published key set. See the [Storage Adapters](https://ltix.hexdocs.pm/storage-adapters.md#testing-your-adapter) guide.
 

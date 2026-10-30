@@ -195,7 +195,7 @@ defmodule Ltix.Pagination do
   targets.
 
   ```elixir
-  iex> Ltix.Pagination.parse_next_link(%{"link" => ["<https://example.com/p2>; rel=\\"next\\""]})
+  iex> Ltix.Pagination.parse_next_link(%{"link" => [~s(<https://example.com/p2>; rel="next")]})
   "https://example.com/p2"
 
   iex> Ltix.Pagination.parse_next_link(%{"link" => ["<?page=2>; rel=next"]})

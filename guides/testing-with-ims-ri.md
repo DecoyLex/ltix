@@ -7,15 +7,15 @@ Before starting, complete the [Getting Started](getting-started.md) guide so you
 ## Create a platform
 
 1. Go to [Manage Platforms](https://lti-ri.imsglobal.org/platforms) and click **Add Platform**
-2. Fill in a name, client ID (e.g. `my-tool`), and audience
+2. Fill in a name, client ID (for example, `my-tool`), and audience
 3. Generate keys at [Generate Keys](https://lti-ri.imsglobal.org/keygen) and paste the public and private keys into the platform form
 4. Save the platform
 
 ## Add a deployment
 
 1. View your platform and click **Platform Keys**
-2. Click **Add Platform Key**, give it a name and a deployment ID (e.g. `1`)
-3. Save and note the **well-known/jwks URL** on this page
+2. Click **Add Platform Key**, give it a name and a deployment ID (for example, `1`)
+3. Save and note the `well-known/jwks` URL on this page
 
 ## Configure your storage adapter
 
@@ -26,7 +26,7 @@ Copy the values from the RI platform page into your storage adapter. You need th
 | Issuer, `https://lti-ri.imsglobal.org/` with the trailing slash | `Registration` `:issuer` |
 | Client ID (what you entered) | `Registration` `:client_id` |
 | OIDC Auth URL | `Registration` `:auth_endpoint` |
-| well-known/jwks URL (from Platform Keys) | `Registration` `:jwks_uri` |
+| `well-known/jwks` URL (from Platform Keys) | `Registration` `:jwks_uri` |
 | Deployment ID (from Platform Keys) | `Deployment` `:deployment_id` |
 
 ## Add a course
@@ -38,8 +38,8 @@ Copy the values from the RI platform page into your storage adapter. You need th
 
 1. View your platform and click **Resource Links**
 2. Fill in the form with these values.
-   - **Tool link url** - `https://localhost:4000/lti/launch`
-   - **Login initiation url** - `https://localhost:4000/lti/login`
+   - **Tool link URL** - `https://localhost:4000/lti/launch`
+   - **Login initiation URL** - `https://localhost:4000/lti/login`
 3. Save
 
 ## Launch
@@ -56,7 +56,7 @@ If the launch fails without an error, check these common issues.
 
 - **Self-signed certificate not accepted.** Visit `https://localhost:4000` in your browser and accept the certificate warning before attempting a launch. Otherwise the platform's redirect will fail without an error.
 - **Session cookie not sent.** Make sure your endpoint uses `same_site: "None"`, `secure: true`, and `extra: "Partitioned"`. See [Getting Started](getting-started.md#iframe-strategy) for details.
-- **Mismatched issuer or client_id.** Double-check that the values in your storage adapter match the RI platform page exactly.
+- **Mismatched issuer or client ID.** Double-check that the values in your storage adapter match the RI platform page exactly.
 
 ## Known limitations of the reference implementation
 

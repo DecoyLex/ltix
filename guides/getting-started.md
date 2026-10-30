@@ -349,7 +349,7 @@ Where you draw tenant boundaries depends on your application. Two approaches are
 
 - **Tenant per registration** - each issuer and `client_id` pair is a tenant. This works well for cloud-hosted platforms like Canvas Cloud or Schoology, where many institutions share a common issuer URL but each institution gets its own `client_id`. The registration is your natural tenant boundary.
 
-- **Tenant per deployment** - a single registration can have multiple deployments (e.g., a tool installed across departments). If you need isolation within a single institution, use the deployment as your tenant boundary instead.
+- **Tenant per deployment** - a single registration can have multiple deployments (for example, a tool installed across departments). If you need isolation within a single institution, use the deployment as your tenant boundary instead.
 
 The examples in this guide tenant on registration for simplicity.
 
@@ -385,7 +385,7 @@ The storage adapter is a thin wrapper that delegates to your context module, whe
 
 `key_id/2` and `sign/4` are optional. Ltix calls them to sign access token requests for Advantage services and Deep Linking responses, so a tool that only handles launches can leave them out.
 
-> #### Nil client_id {: .tip}
+> #### Nil client ID {: .tip}
 >
 > Older versions of some platforms may omit `client_id` from the login request, in which case `get_registration/3` receives `nil` as the second argument. The issuer-only clause above handles that. See [Storage Adapters](storage-adapters.md) for details.
 
@@ -493,7 +493,7 @@ This is the simplest approach. Your entire application works in the iframe with 
 >
 > Without `same_site: "None"`, the browser silently drops the session cookie inside the iframe and your state check fails. This is the most common source of "launch just silently fails" issues.
 >
-> `SameSite=None` requires `secure: true`, which means HTTPS. You'll need HTTPS in development too (e.g., via `mix phx.gen.cert`). Also set the endpoint's `:url` to the HTTPS URL, because the controller builds the launch URL from it.
+> `SameSite=None` requires `secure: true`, which means HTTPS. You'll need HTTPS in development too (for example, with `mix phx.gen.cert`). Also set the endpoint's `:url` to the HTTPS URL, because the controller builds the launch URL from it.
 >
 > A partitioned cookie is only sent inside that platform's iframe. If your tool opens itself in a new tab after the launch, the tab starts without the session.
 
@@ -655,11 +655,11 @@ The create-on-launch pattern shown here is common. It extracts the user and cour
 
 This particular setup aligns with the platform-centric approach described in the [Best Practices for LTI Assessment Tools](https://standards.1edtech.org/lti/guides/assessment/assessment-guide#account-binding). If user accounts in your tool are separate from platform accounts (such as in a standalone SaaS product), you might instead use a join table to link platform users to your internal accounts. Use whatever account binding strategy works best for your application.
 
-For structured error matching (e.g., showing different messages for security errors vs. invalid configuration), see [Error Handling](error-handling.md).
+For structured error matching, such as showing different messages for security errors and invalid configuration, see [Error Handling](error-handling.md).
 
 ## Public key endpoint
 
-The `jwks` action in the controller above serves your tool's public keys as a key set. When you register your tool with a platform, give it this URL (e.g., `https://yourtool.com/lti/jwks`). The platform fetches your public keys from here to verify the access token requests your tool signs for Advantage service calls (grades, roster, etc.) and its Deep Linking responses.
+The `jwks` action in the controller above serves your tool's public keys as a key set. When you register your tool with a platform, give it this URL (for example, `https://yourtool.com/lti/jwks`). The platform fetches your public keys from here to verify the access token requests your tool signs for Advantage service calls, such as grades and rosters, and its Deep Linking responses.
 
 The endpoint serves the public keys stored with each signing key, so it never reads a private key. Include multiple keys during rotation so platforms can verify with either the current or previous key. See [JWK Management](jwk-management.md) for rotation strategies.
 
@@ -667,7 +667,7 @@ The endpoint serves the public keys stored with each signing key, so it never re
 
 You now have a working LTI launch. Here's what to do next before going to production.
 
-- **Nonce cleanup** - the nonces table grows with every launch. Add a periodic job (e.g., Oban) that deletes nonces past their `expires_at`. See [Storage Adapters](storage-adapters.md) for an example.
+- **Nonce cleanup** - the nonces table grows with every launch. Add a periodic job, for example with Oban, that deletes nonces past their `expires_at`. See [Storage Adapters](storage-adapters.md) for an example.
 
 - **Key rotation** - signing keys should be rotated periodically. Serve both the old and new key from your public key endpoint during the transition. See [JWK Management](jwk-management.md).
 

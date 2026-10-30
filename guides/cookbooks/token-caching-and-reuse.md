@@ -49,7 +49,7 @@ end
 
 ## Syncing multiple courses
 
-A token is scoped to a registration, identified by issuer and client\_id. If you sync several courses on the same platform in one job, authenticate once and swap endpoints with `with_endpoints!/3`.
+A token is scoped to a registration, identified by issuer and client ID. If you sync several courses on the same platform in one job, authenticate once and swap endpoints with `with_endpoints!/3`.
 
 ```elixir
 def perform(%{args: %{"registration_id" => registration_id}}) do
@@ -169,7 +169,7 @@ end
 
 > #### Race conditions {: .info}
 >
-> This ETS cache uses last-write-wins. Concurrent workers may both miss the cache and authenticate simultaneously, producing two valid tokens. This is harmless because the platform issues independent tokens, and one simply goes unused.
+> This ETS cache uses last-write-wins. Concurrent workers may both miss the cache and authenticate simultaneously, producing two valid tokens. This is harmless because the platform issues independent tokens, and one goes unused.
 
 ## Storing tokens outside ETS
 

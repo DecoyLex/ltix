@@ -42,8 +42,8 @@ defmodule Ltix.StorageAdapter do
 
   | Callback | Called during | Purpose |
   |---|---|---|
-  | `c:get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client_id |
-  | `c:get_deployment/3` | Launch validation | Look up a deployment by registration and deployment_id |
+  | `c:get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client ID |
+  | `c:get_deployment/3` | Launch validation | Look up a deployment by registration and deployment ID |
   | `c:validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
   | `c:key_id/2` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
   | `c:sign/4` | Service authentication and deep linking responses | Sign a message with that key |
@@ -93,10 +93,10 @@ defmodule Ltix.StorageAdapter do
   alias Ltix.Registration
 
   @doc """
-  Look up a registration by issuer and client_id.
+  Look up a registration by issuer and client ID.
 
   Called during login initiation with the login request's issuer and
-  client_id, and again during launch validation with the ID token's issuer
+  client ID, and again during launch validation with the ID token's issuer
   and audience. The `client_id` may be `nil` when the platform doesn't
   include it in the login request. Your adapter must handle both cases.
 
@@ -123,7 +123,7 @@ defmodule Ltix.StorageAdapter do
               {:ok, Registerable.t()} | {:error, :not_found | term()}
 
   @doc """
-  Look up a deployment by registration and deployment_id.
+  Look up a deployment by registration and deployment ID.
 
   The `deployment_id` is case-sensitive and assigned by the platform.
 

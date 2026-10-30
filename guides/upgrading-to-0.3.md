@@ -457,7 +457,7 @@ A `:tcp_module` or `:cb_info` transport option in `:req_options` needs `local_ne
 Update code that matches on error messages. Your tests show the new text.
 
 - The messages of `Ltix.Errors.Security.AuthenticationFailed`, `Ltix.Errors.Security.KidNotFound`, `Ltix.Errors.Unknown.KeySetNotStarted`, and `Ltix.Errors.Invalid.CoupledLineItem` changed.
-- An error about a claim a plugin declares refers to the claim by its short name, such as `session`, where a 0.2 claim parser's error used its URI.
+- An error about a claim a plugin declares refers to the claim by its short name, such as `session`, where an error from a 0.2 claim parser used its URI.
 - `Ltix.Errors.Invalid.InvalidField` reads as a sentence, such as `Ltix.Deployment field :deployment_id must be a non-empty string (got "")`. Its `reason` is the text after the field name.
 - Failed type and range checks in `InvalidField`, `Ltix.Errors.Invalid.InvalidClaim`, and invalid options read as sentences, such as `must be at least 2048`.
 

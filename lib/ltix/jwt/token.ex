@@ -18,7 +18,7 @@ defmodule Ltix.JWT.Token do
   {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
   ```
 
-  ## Validation Steps
+  ## Validation steps
 
   1. Decode the JWT header to extract `alg` and `kid`
   2. Reject any algorithm other than RS256
@@ -265,7 +265,7 @@ defmodule Ltix.JWT.Token do
     end
   end
 
-  # iss MUST match registration issuer.
+  # `iss` MUST match the registration's issuer.
   # [Sec §5.1.3 step 2](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_issuer(%{"iss" => iss}, %Registration{issuer: expected}) when iss == expected,
     do: :ok
@@ -279,9 +279,9 @@ defmodule Ltix.JWT.Token do
     {:error, MissingClaim.exception(claim: "iss")}
   end
 
-  # aud MUST contain client_id. The tool MUST reject tokens containing
-  # additional audiences not trusted by the tool. If azp present, SHOULD match
-  # client_id.
+  # `aud` MUST contain the client ID. The tool MUST reject tokens containing
+  # additional audiences not trusted by the tool. If `azp` is present, it
+  # SHOULD match the client ID.
   # [Sec §5.1.3 step 3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   # [Sec §5.1.3 step 5](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_audience(claims, %Registration{client_id: client_id}) do
@@ -293,7 +293,7 @@ defmodule Ltix.JWT.Token do
       is_binary(aud) && aud == client_id ->
         validate_azp(azp, client_id)
 
-      # Array audience. It must contain only client_id, no untrusted audiences
+      # Array audience. It must contain only the client ID, no untrusted audiences
       is_list(aud) && aud == [client_id] ->
         validate_azp(azp, client_id)
 
@@ -302,7 +302,7 @@ defmodule Ltix.JWT.Token do
     end
   end
 
-  # If azp is present, it SHOULD match client_id.
+  # If `azp` is present, it SHOULD match the client ID.
   # [Sec §5.1.3 step 5](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
   defp validate_azp(nil, _client_id), do: :ok
   defp validate_azp(azp, client_id) when azp == client_id, do: :ok

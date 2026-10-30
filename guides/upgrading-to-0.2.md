@@ -697,7 +697,7 @@ Check your adapter with `Ltix.Test.assert_storage_adapter!/2`. See [Testing LTI 
 
 #### Keep the old behavior
 
-To use the in-memory adapter, set `config :ltix, storage_adapter: Ltix.Test.StorageAdapter`, start it with `Ltix.Test.StorageAdapter.start_link(platforms: [platform])`, and pass the pid to `Ltix.Test.StorageAdapter.set_pid/1` in the test process.
+To use the in-memory adapter, set `config :ltix, storage_adapter: Ltix.Test.StorageAdapter`, start it with `Ltix.Test.StorageAdapter.start_link(platforms: [platform])`, and pass the PID to `Ltix.Test.StorageAdapter.set_pid/1` in the test process.
 
 ## Next steps
 

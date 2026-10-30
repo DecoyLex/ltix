@@ -34,7 +34,7 @@ end
 - `use` defines the struct, `new/1`, and `new!/1`. Override `new/1` to accept other input, and call `super/1` to build the item.
 - `use` imports the fields content item types share, such as `title()`, `window()`, and `iframe()`, from `Ltix.DeepLinking.ContentItemType.Fields`.
 - Fields are sent under the camelCase form of their names, such as `closesAt`. `json_key:` metadata sets another name. A field with `metadata: [json_key: "room_name"]` is sent under `room_name`.
-- The moduledoc gets a Fields section with each field's `description:`.
+- The `@moduledoc` gets a Fields section with each field's `description:`.
 
 `Ltix.DeepLinking.build_response/3` checks your items' `type` against `accept_types`, and their `window`, `iframe`, or `embed` against the accepted presentation targets. For a check of your own, implement `c:Ltix.DeepLinking.ContentItemType.check/2`. It receives the content item and the `Ltix.DeepLinking.Settings`. This one rejects a poll that opens a window when the platform creates content without asking the user.
 
@@ -51,7 +51,7 @@ When the returned exception has an `index` field set to `nil`, Ltix sets it to t
 
 ## Add a property to a content item type
 
-Add a property to one of Deep Linking's content item types with the type's `add_property/2`, passing the property's JSON name as `property:` and its name as `name:`.
+Add a property to one of the Deep Linking content item types with the type's `add_property/2`, passing the property's JSON name as `property:` and its name as `name:`.
 
 ```elixir
 def plugin(_opts) do
@@ -181,4 +181,4 @@ end
 ## Next steps
 
 - `Ltix.DeepLinking.ContentItemType` and `Ltix.DeepLinking.Response` for the full contracts
-- [Building Content Items](cookbooks/building-content-items.md) for Deep Linking's content item types and a complete custom one
+- [Building Content Items](cookbooks/building-content-items.md) for the Deep Linking content item types and a complete custom one

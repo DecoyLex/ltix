@@ -178,8 +178,8 @@ defmodule Ltix.Type do
     [schema, struct]
   end
 
-  # Adds a Fields section that describes each field to the moduledoc, unless
-  # the moduledoc is `false`. Object claims and content item types use it.
+  # Adds a Fields section that describes each field to the `@moduledoc`, unless
+  # the `@moduledoc` is `false`. Object claims and content item types use it.
   @doc false
   defmacro __before_compile__(env) do
     case Module.get_attribute(env.module, :moduledoc) do

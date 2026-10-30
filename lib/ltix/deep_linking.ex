@@ -4,7 +4,7 @@ defmodule Ltix.DeepLinking do
 
   When the platform sends an `LtiDeepLinkingRequest` launch, your tool
   presents a selection UI and calls `build_response/3` with the chosen
-  items. The response JWT is then POSTed back to the platform's return URL.
+  items. Your tool then sends the response JWT back to the platform's return URL in a POST request.
 
   Content items are built with these modules.
 

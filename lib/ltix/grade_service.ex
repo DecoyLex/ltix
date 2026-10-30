@@ -444,8 +444,8 @@ defmodule Ltix.GradeService do
   @doc """
   Update a line item.
 
-  PUTs the full line item to its `id` URL. Callers should GET first to
-  avoid overwriting fields they did not intend to change.
+  Sends the full line item to its `id` URL in a PUT request. Get the line
+  item first, so fields you don't mean to change keep their values.
 
   ## Options
 
@@ -554,7 +554,7 @@ defmodule Ltix.GradeService do
   @doc """
   Post a score for a user.
 
-  The score is POSTed to `{line_item}/scores`. When no `:line_item` option
+  Sends the score to `{line_item}/scores` in a POST request. When no `:line_item` option
   is given, uses the endpoint's `line_item` URL (coupled flow).
 
   ## Options
@@ -611,7 +611,7 @@ defmodule Ltix.GradeService do
   @doc """
   Fetch results for a line item.
 
-  GETs `{line_item}/results`. Follows all `rel="next"` pagination links
+  Requests `{line_item}/results`. Follows all `rel="next"` pagination links
   and returns a list of `%Result{}` structs.
 
   ## Options

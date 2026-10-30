@@ -2,7 +2,7 @@
 
 Deep linking lets a platform ask your tool to select content. The platform sends an `LtiDeepLinkingRequest` and your tool responds with one or more content items the platform should link to. This guide covers handling deep linking launches, building content items, and sending responses back to the platform.
 
-## Handling a deep linking launch
+## Handling a Deep Linking launch
 
 Deep linking requests use the same OIDC flow as regular launches. Your existing login and launch endpoints work without changes. The difference is in `message_type`.
 

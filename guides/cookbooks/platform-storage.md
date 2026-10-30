@@ -10,7 +10,7 @@ This cookbook adds platform storage to the controller from [Getting Started](../
 
 1. The platform adds `lti_storage_target` to the login request. It is the name of the frame that stores data.
 2. Your login endpoint renders a page that sends `lti.put_data` to that frame, then redirects to the platform.
-3. The platform POSTs the launch. Without a session, your launch endpoint renders a page that sends `lti.get_data`.
+3. The platform sends the launch. Without a session, your launch endpoint renders a page that sends `lti.get_data`.
 4. That page posts the state from the response, with the ID token, to a second endpoint on your tool.
 5. The second endpoint passes the stored state to `Ltix.handle_callback/3`.
 

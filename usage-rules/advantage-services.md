@@ -2,7 +2,7 @@
 
 Rules for working with LTI Advantage Services. Covers Grade Service (AGS), Memberships Service (NRPS), and OAuth token management.
 
-## Authenticate-Then-Call Pattern
+## Authenticate, then call
 
 All services follow the same pattern.
 
@@ -19,7 +19,7 @@ You can also authenticate from a `%Registration{}` directly (for background jobs
 {:ok, client} = Ltix.MembershipsService.authenticate(registration, endpoint: endpoint)
 ```
 
-## Service Availability
+## Service availability
 
 Services are optional per-launch. **Always** handle `ServiceNotAvailable`.
 
@@ -31,7 +31,7 @@ case Ltix.GradeService.authenticate(launch) do
 end
 ```
 
-## Token Lifecycle
+## Token lifecycle
 
 - Tokens typically last ~1 hour. Safe to ignore for single request handlers.
 - For background jobs, check expiry before each call.
@@ -40,12 +40,12 @@ end
 client = Ltix.OAuth.Client.refresh!(client)
 ```
 
-- Tokens are scoped to a registration (platform + client_id). Reuse across courses on the same platform with `Client.with_endpoints/3`.
+- Tokens are scoped to a registration (platform and client ID). Reuse across courses on the same platform with `Client.with_endpoints/3`.
 - Platforms may grant fewer scopes than requested. Authentication still succeeds. Service functions validate automatically and return `ScopeMismatch` if the required scope is missing. Pass `require_all_scopes: true` to fail at authentication instead.
 
-## Grade Service
+## Grade service
 
-### Posting Scores
+### Posting scores
 
 ```elixir
 {:ok, score} = Ltix.GradeService.Score.new(
@@ -65,7 +65,7 @@ client = Ltix.OAuth.Client.refresh!(client)
 - Activity progress enum values are `:initialized`, `:started`, `:in_progress`, `:submitted`, and `:completed`
 - Grading progress enum values are `:fully_graded`, `:pending`, `:pending_manual`, `:failed`, and `:not_ready`
 
-### Line Items
+### Line items
 
 **Coupled** (platform-created). The platform creates a line item for the resource link automatically. Post scores directly without specifying a line item.
 
@@ -82,7 +82,7 @@ client = Ltix.OAuth.Client.refresh!(client)
 - `list_line_items/2` and `list_results/2` stop at `max_line_items` and `max_results` (both default to 10,000) and return `CollectionTooLarge` beyond them. Use `stream_line_items/2` or `stream_results/2` for large collections.
 - Every operation has a raising variant, such as `post_score!/3`.
 
-### Coupled Line Item Deletion
+### Coupled line item deletion
 
 **Do not** delete coupled line items, because behavior varies by platform.
 - Canvas rejects deletion (HTTP 401)
@@ -91,7 +91,7 @@ client = Ltix.OAuth.Client.refresh!(client)
 
 Ltix blocks deletion of coupled line items by default. **Never** pass `force: true` without confirming with the user which platforms they target and that they understand the consequences.
 
-### Platform Properties
+### Platform properties
 
 **Never** pass `extensions:` to `create_line_item/3` or `Score.new/1`. Add the plugin that declares a vendor property to `config :ltix, plugins: [...]`. Pass the property by its `:name`, and read it from `item.extensions`.
 
@@ -116,9 +116,9 @@ item.extensions.canvas_submission_type
 - Undeclared properties are in `unrecognized`, keyed by JSON name.
 - To declare a property, follow [Add a property to line items, scores, or results](https://ltix.hexdocs.pm/writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results).
 
-## Memberships Service
+## Memberships service
 
-### Fetching Roster
+### Fetching the roster
 
 ```elixir
 {:ok, client} = Ltix.MembershipsService.authenticate(launch)
@@ -147,12 +147,12 @@ stream
 
 Only `user_id` and `roles` are guaranteed in roster responses. Name, email, and picture depend on platform privacy settings. **Always** handle `nil` for these fields.
 
-### Platform Properties and Messages
+### Platform properties and messages
 
 - Undeclared member properties are in `member.unrecognized`, keyed by JSON name. Read a declared property by its name, as in `member.extensions.student_number`. To declare one, follow [Add a property to members or membership containers](https://ltix.hexdocs.pm/writing-advantage-service-plugins.md#add-a-property-to-members-or-membership-containers).
 - In a roster filtered by resource link, `member.message` is `nil` or a list of claim maps like `launch.claims`. Read a claim from every message with `for message <- member.message || [], do: message.custom`.
 
-## Background Service Calls
+## Background service calls
 
 **Ask the user** before implementing background service patterns. These involve architectural decisions about where to store endpoint URLs, how to schedule jobs, and how to handle token caching. The pattern below is an example to adapt.
 
@@ -170,6 +170,6 @@ endpoint = Ltix.MembershipsService.Endpoint.new!(stored_url)
 
 If the application passes `plugins:` to `Ltix.handle_callback/3`, pass the same `plugins:` when authenticating from a registration.
 
-## Custom Services
+## Custom services
 
 A custom service is a plugin with an endpoint claim and an `Ltix.ClientAssertion` step that adds its scope. Follow the [Building a Custom Advantage Service](https://ltix.hexdocs.pm/custom-advantage-service.md) cookbook, then authenticate with `Ltix.OAuth.authenticate(launch, services: [MyService])` and send requests with `Ltix.OAuth.Client.request(client, MyService, url: url)`.

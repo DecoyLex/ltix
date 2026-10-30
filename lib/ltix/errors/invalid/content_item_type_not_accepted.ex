@@ -1,6 +1,6 @@
 defmodule Ltix.Errors.Invalid.ContentItemTypeNotAccepted do
   @moduledoc """
-  Content item type not in the platform's accept_types list.
+  Content item type not in the platform's `accept_types` list.
 
   The following fields of this exception are public and can be accessed freely.
 

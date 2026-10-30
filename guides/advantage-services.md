@@ -107,7 +107,7 @@ client = Ltix.OAuth.Client.refresh!(client)
 
 ## Reusing tokens across courses
 
-A token is scoped to a registration (platform + client_id) and works for every course on it. A platform may also limit a token to the deployment it was requested for. If your tool syncs multiple courses in the same deployment, you can reuse one token.
+A token is scoped to a registration (platform and client ID) and works for every course on it. A platform may also limit a token to the deployment it was requested for. If your tool syncs multiple courses in the same deployment, you can reuse one token.
 
 ```elixir
 # Authenticate once

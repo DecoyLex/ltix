@@ -34,7 +34,7 @@ defmodule Ltix.Login.LookUpRegistration do
   def after?(Ltix.Login.CheckParameters), do: true
   def after?(_module), do: false
 
-  # An empty client_id or lti_deployment_id is treated as absent.
+  # An empty `client_id` or `lti_deployment_id` is treated as absent.
   # [Core, lti_deployment_id login parameter](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-login-parameter)
   # [Core, client_id login parameter](https://standards.1edtech.org/lti/specifications/core/lti-spec#client-id-login-parameter)
   defp optional(params, parameter) do

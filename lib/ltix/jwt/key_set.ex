@@ -195,7 +195,7 @@ defmodule Ltix.JWT.KeySet do
       reraise KeySetNotStarted.exception(key_set: key_set), __STACKTRACE__
   end
 
-  # The fetch's outcome is reported to the key set cache even when it raises,
+  # The outcome of a fetch is reported to the key set cache even when it raises,
   # because callers waiting for it would otherwise wait forever.
   defp fetch_claimed(key_set, jwks_uri, opts) do
     result =

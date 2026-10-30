@@ -2,18 +2,18 @@
 
 Ltix is an Elixir library for building LTI 1.3 tool applications. It handles the OIDC launch flow, JWT verification, claim parsing, and Advantage Services (grading, roster, Deep Linking).
 
-## Two-Function API
+## Two-function API
 
 The entire OIDC launch flow is two functions.
 
 1. `Ltix.handle_login(params, redirect_uri, opts)` - called when the platform sends the user to your login endpoint. Returns `{:ok, %{redirect_uri: url, state: state}}`. Store `state` in the session, redirect the user to `redirect_uri`.
 
-2. `Ltix.handle_callback(params, state, opts)` - called when the platform POSTs back to your launch endpoint. Returns `{:ok, %Ltix.Launch{}}` with the parsed claims, the registration and deployment, your storage adapter's records in `source_registration` and `source_deployment`, and the service endpoints in `endpoints`. Read one with `Ltix.Launch.get_endpoint/2`.
+2. `Ltix.handle_callback(params, state, opts)` - called when the platform sends the launch to your launch endpoint. Returns `{:ok, %Ltix.Launch{}}` with the parsed claims, the registration and deployment, your storage adapter's records in `source_registration` and `source_deployment`, and the service endpoints in `endpoints`. Read one with `Ltix.Launch.get_endpoint/2`.
 
 - **Never** call internal OIDC modules directly (`Ltix.OIDC.*`, `Ltix.JWT.Token`). Use the two public functions, or their raising variants `handle_login!/3` and `handle_callback!/3`.
 - `handle_login/3` takes `:storage_adapter`, `:storage_adapter_options`, and `:plugins`. `handle_callback/3` takes `:storage_adapter`, `:storage_adapter_options`, `:allow_anonymous`, `:max_token_age`, `:local_network_access`, `:req_options`, `:key_set`, `:clock_skew`, and `:plugins`. Each option except `:storage_adapter_options` and `:clock_skew` overrides its application configuration for that call. Unknown or invalid options raise `ArgumentError`.
 
-## Required Configuration
+## Required configuration
 
 Every application must configure a storage adapter.
 
@@ -23,9 +23,9 @@ config :ltix, storage_adapter: MyApp.Lti.StorageAdapter
 
 The storage adapter module must implement the `Ltix.StorageAdapter` behaviour (3 required callbacks). **Never** use `Ltix.Test.StorageAdapter` outside of tests.
 
-Phoenix applications typically group LTI-related modules under a context module like `MyApp.Lti` (e.g., `MyApp.Lti.StorageAdapter`, `MyApp.Lti.Registration`). Ask the user about their preferred structure before creating modules.
+Phoenix applications typically group LTI-related modules under a context module like `MyApp.Lti`, such as `MyApp.Lti.StorageAdapter` and `MyApp.Lti.Registration`. Ask the user about their preferred structure before creating modules.
 
-## Registrations & Deployments
+## Registrations and deployments
 
 - Construct with `Registration.new/1` and `Deployment.new/1` (validated), or their raising variants `new!/1`. `Registration.new/1` takes a keyword list or map and returns `Ltix.Errors.Invalid.InvalidField` for unknown, missing, or invalid fields. **Never** build `%Registration{}` or `%Deployment{}` structs directly. Always use `new/1`.
 - Storage adapters return structs implementing `Ltix.Registerable` and `Ltix.Deployable` protocols. These can be your own Ecto schemas. The library extracts the `Registration` and `Deployment` it needs internally. `%Registration{}` and `%Deployment{}` implement both protocols, so returning them directly still works.
@@ -36,7 +36,7 @@ Phoenix applications typically group LTI-related modules under a context module 
 - `client_id` is a non-empty string.
 - `deployment_id` must be non-empty, at most 255 characters, ASCII-only, and is case-sensitive.
 
-## StorageAdapter Callbacks
+## `StorageAdapter` callbacks
 
 These are the 3 required callbacks.
 
@@ -58,9 +58,9 @@ Two optional callbacks sign for the tool. Implement them to call Advantage servi
 
 `Ltix.Registration` has no key field. Ltix never stores the tool's private key.
 
-**Nonce is used on callback.** `handle_callback/3` records the nonce as used as part of validation. If the callback fails for a non-security reason (e.g., `DeploymentNotFound`), you cannot retry `handle_callback/3` with the same params, because the nonce is already used. Handle recoverable errors (like auto-creating a deployment) in the storage adapter itself.
+**Nonce is used on callback.** `handle_callback/3` records the nonce as used as part of validation. If the callback fails for a non-security reason (for example, `DeploymentNotFound`), you cannot retry `handle_callback/3` with the same params, because the nonce is already used. Handle recoverable errors (like auto-creating a deployment) in the storage adapter itself.
 
-## Error Handling
+## Error handling
 
 Errors use the Splode framework with three classes.
 
@@ -97,14 +97,14 @@ end
 - For any other role, use `Ltix.Role.has?/2` with a constant, such as `Ltix.Role.has?(roles, Ltix.Role.system_test_user())`. Constant names start with `context_`, `institution_`, or `system_`, with the principal role for sub-roles (`instructor_teaching_assistant/0`), or with `person_` for deprecated institution and system URIs.
 - To tell context roles from institution or system roles, filter with `Ltix.Role.context_roles/1`, `institution_roles/1`, or `system_roles/1`. Each keeps deprecated forms and drops a platform's own roles. Both `institution_roles/1` and `system_roles/1` keep `Ltix.Role.person_administrator()` and `Ltix.Role.person_none()`.
 - Platform granularity varies.
-  - Canvas sends sub-roles (e.g., `Instructor#TeachingAssistant`)
+  - Canvas sends sub-roles, such as `Instructor#TeachingAssistant`
   - Moodle sends only `Instructor` or `Learner` (no sub-roles)
   - Others vary by administrator configuration
 - **Design for the roles every platform sends.** Only reliably expect Instructor vs Learner across all platforms.
 
-## Cross-Origin & Iframe Considerations
+## Cross-origin requests and iframes
 
-LTI launches are cross-origin POSTs (platform domain to tool domain), often inside an iframe.
+LTI launches are cross-origin POST requests (platform domain to tool domain), often inside an iframe.
 
 - Phoenix defaults to `SameSite=Lax`, which blocks cross-origin POST cookies. Set `same_site: "None"`, `secure: true`, and `extra: "Partitioned"` in your endpoint session config. `Partitioned` keeps the cookie working in browsers that block third-party cookies.
 - HTTPS is mandatory in both production and development (`mix phx.gen.cert` for dev certs).
@@ -112,7 +112,7 @@ LTI launches are cross-origin POSTs (platform domain to tool domain), often insi
 - The login endpoint should accept both GET and POST, because the LTI spec allows either.
 - **Never store `%Ltix.Launch{}` in the session.** It has the user's identity and context data, and session cookies are signed, not encrypted. Store only the fields you need, such as `subject`, `roles`, and `context.id`.
 
-## Service Availability
+## Service availability
 
 Advantage Service endpoints (grading, roster) are optional per-launch. The platform decides what to include based on tool configuration. **Always** check for `ServiceNotAvailable` before assuming a service is present.
 
@@ -124,7 +124,7 @@ case Ltix.GradeService.authenticate(launch) do
 end
 ```
 
-## Optional Configuration
+## Optional configuration
 
 - `:allow_anonymous` - allow launches without a `sub` claim (defaults to `false`)
 - `:json_library` - auto-detected (`JSON` on Elixir 1.18+/OTP 27+, else `Jason`)
@@ -146,7 +146,7 @@ These are the key event prefixes.
 
 See the [telemetry guide](https://ltix.hexdocs.pm/telemetry.md) for full metadata details.
 
-## Finding Documentation
+## Finding documentation
 
 Use the `usage_rules.docs` and `usage_rules.search_docs` mix tasks.
 
@@ -157,7 +157,7 @@ mix usage_rules.search_docs "line items" -p ltix
 mix usage_rules.search_docs "storage adapter" -p ltix
 ```
 
-Hexdocs can serve raw markdown, which is much easier to read than HTML. Fetch module docs and guides directly.
+HexDocs can serve raw markdown, which is much easier to read than HTML. Fetch module docs and guides directly.
 
 ```
 # Module docs

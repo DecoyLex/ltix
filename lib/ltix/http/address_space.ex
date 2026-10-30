@@ -85,7 +85,7 @@ defmodule Ltix.HTTP.AddressSpace do
     [cb_info: {Keyword.fetch!(@transports, access), :tcp, :tcp_closed, :tcp_error, :tcp_passive}]
   end
 
-  # [ssl cb_info](https://www.erlang.org/doc/apps/ssl/ssl.html#t:transport_option/0)
+  # [`:ssl` `cb_info`](https://www.erlang.org/doc/apps/ssl/ssl.html#t:transport_option/0)
   for {access, transport} <- @transports do
     defmodule transport do
       @moduledoc false

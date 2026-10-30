@@ -1,6 +1,6 @@
 defmodule Ltix.Errors.Invalid.LineItemNotAccepted do
   @moduledoc """
-  Content item includes a line_item but the platform does not accept line items.
+  Content item includes a `line_item` but the platform does not accept line items.
 
   The following fields of this exception are public and can be accessed freely.
 

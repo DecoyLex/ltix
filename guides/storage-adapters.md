@@ -6,8 +6,8 @@ Ltix doesn't assume your database, ORM, or persistence strategy. Your applicatio
 
 | Callback | When it's called | What it does |
 |---|---|---|
-| `get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client_id |
-| `get_deployment/3` | Launch validation | Look up a deployment by registration and deployment_id |
+| `get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client ID |
+| `get_deployment/3` | Launch validation | Look up a deployment by registration and deployment ID |
 | `validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
 | `key_id/2` | Service authentication and Deep Linking responses | Return the ID of the key that signs for a registration |
 | `sign/4` | Service authentication and Deep Linking responses | Sign a message with that key |
@@ -29,9 +29,9 @@ When storage fails, return `{:error, reason}` from any callback. The login or la
             {:ok, Registerable.t()} | {:error, :not_found | term()}
 ```
 
-Return any struct that implements `Ltix.Registerable`. The library extracts the `Ltix.Registration` it needs via the protocol, and a launch has your original struct in `source_registration`, so you can access your own fields (database IDs, tenant information, etc.) after a successful launch without an extra query.
+Return any struct that implements `Ltix.Registerable`. The library extracts the `Ltix.Registration` it needs via the protocol, and a launch has your original struct in `source_registration`, so you can access your own fields (such as database IDs and tenant information) after a successful launch without an extra query.
 
-Ltix calls `get_registration/3` during login initiation with the login request's issuer and client_id, and again during launch validation with the ID token's issuer and audience. The `client_id` may be `nil` because some platforms don't include it in the login initiation request. Your adapter must handle both cases.
+Ltix calls `get_registration/3` during login initiation with the login request's issuer and client ID, and again during launch validation with the ID token's issuer and audience. The `client_id` may be `nil` because some platforms don't include it in the login initiation request. Your adapter must handle both cases.
 
 ```elixir
 def get_registration(issuer, nil, _opts) do
@@ -67,7 +67,7 @@ end
 
 > #### Ambiguous issuer-only lookups {: .warning}
 >
-> If you support multiple registrations from the same issuer (different client_ids), an issuer-only lookup is ambiguous. A launch succeeds only for the registration the login found, so returning the first match fails launches for the others. Return `{:error, :not_found}` to require the platform to include `client_id`, as the example above does.
+> If you support multiple registrations from the same issuer (different client IDs), an issuer-only lookup is ambiguous. A launch succeeds only for the registration the login found, so returning the first match fails launches for the others. Return `{:error, :not_found}` to require the platform to include `client_id`, as the example above does.
 
 ## Deployment lookups
 

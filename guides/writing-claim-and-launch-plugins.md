@@ -65,7 +65,7 @@ launch.claims.proctoring_session
 - A malformed value for an optional field becomes `nil`. Give the field `strict: true` metadata to make it fail the claim, as in `Zoi.integer(metadata: [strict: true]) |> Zoi.min(0) |> Zoi.optional()`.
 - `json_key:` metadata sets a field's JSON name.
 - Properties no field declares are in `unrecognized`, under their JSON names.
-- The moduledoc gets a Fields section with each field's `description:`.
+- The `@moduledoc` gets a Fields section with each field's `description:`.
 
 ### Declare a claim that needs code
 

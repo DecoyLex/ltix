@@ -34,7 +34,7 @@ case Ltix.handle_callback(params, state) do
 end
 ```
 
-### Plug.Exception
+### `Plug.Exception`
 
 If your application depends on Plug, Ltix errors automatically implement the `Plug.Exception` protocol. Phoenix error views and `Plug.Debugger` use the correct status code without any extra work on your part.
 
@@ -136,7 +136,7 @@ These indicate problems with the incoming data or the calling code.
 | `InvalidField` | `struct`, `field`, `value`, `reason` | A constructor such as `Ltix.Registration.new/1`, `Ltix.GradeService.Score.new/1`, or `Ltix.DeepLinking.ContentItem.Link.new/1` got an unknown, missing, or invalid field, or a line item to create or update has an invalid field |
 | `InvalidJSON` | — | The ID token is not a JWT whose header and payload are JSON objects |
 | `RegistrationNotFound` | `issuer`, `client_id` | No registration matches the issuer |
-| `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment_id |
+| `DeploymentNotFound` | `deployment_id` | No deployment matches the JWT's deployment ID |
 
 ## Security errors
 
@@ -148,7 +148,7 @@ These indicate the launch failed a security check.
 | `TokenExpired` | — | JWT `exp` claim is in the past, or its `iat` claim is older than `:max_token_age` |
 | `TokenNotYetValid` | `claim` | JWT `iat` or `nbf` claim is in the future |
 | `IssuerMismatch` | `expected`, `actual` | JWT `iss` doesn't match the registration |
-| `AudienceMismatch` | `claim`, `expected`, `actual` | JWT `aud` is not the registration's client_id or a list containing only it, or `azp` is not the client_id |
+| `AudienceMismatch` | `claim`, `expected`, `actual` | JWT `aud` is not the registration's client ID or a list containing only it, or `azp` is not the client ID |
 | `AlgorithmNotAllowed` | `algorithm` | JWT uses something other than RS256 |
 | `StateMismatch` | — | OIDC state from callback doesn't match the session |
 | `NonceMissing` | — | JWT has no `nonce` claim |
@@ -188,7 +188,7 @@ These errors come from `Ltix.DeepLinking.build_response/3`. Content item constru
 
 ## Advantage service errors
 
-These errors apply to LTI Advantage service calls (memberships, AGS, etc.) and OAuth authentication.
+These errors apply to LTI Advantage service calls, such as memberships and grades, and to OAuth authentication.
 
 ### Invalid
 

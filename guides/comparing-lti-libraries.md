@@ -1,8 +1,8 @@
 # Comparing Elixir LTI Libraries
 
-Elixir's LTI ecosystem is small. If you need LTI 1.3 support, there are two real options, Ltix and `lti_1p3`. This guide compares their design philosophies so you can choose the right fit for your project.
+Two Elixir libraries support LTI 1.3, Ltix and `lti_1p3`. This guide compares their design philosophies so you can choose the right fit for your project.
 
-## Landscape
+## Elixir LTI libraries
 
 | Library | LTI version | Status | Hex downloads |
 |---|---|---|---|

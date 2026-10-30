@@ -37,7 +37,7 @@ defmodule Ltix.HTTP do
 
   1. `config :ltix, req_options: [...]` always applies.
   2. A single `plug: {Req.Test, :ltix}` config entry makes each
-     callsite use its own well-known stub name.
+     call site use its own well-known stub name.
   """
   @spec req_options(keyword(), module()) :: keyword()
   def req_options(caller_opts, stub_name) do
