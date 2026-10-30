@@ -13,7 +13,7 @@ Write or review documentation for $ARGUMENTS.
 1. Read the Documentation section of [CODING_STANDARDS.md](../../../CODING_STANDARDS.md). Done when you can name the reader it describes.
 2. For each page, write down what the reader came to do. A moduledoc's reader came to call the module, and a guide's reader came to finish a task.
 3. Write or review the page against every rule in the Documentation section. Done when each sentence serves the reader's task and follows every rule.
-4. Run `MIX_ENV=dev mix docs`. Done when it prints no warnings.
+4. Run `mix vale` and `MIX_ENV=dev mix docs`. Done when both pass with no alerts or warnings.
 
 ## ExDoc reference
 

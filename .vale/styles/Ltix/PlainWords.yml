@@ -1,0 +1,13 @@
+extends: substitution
+message: "Write '%s' for '%s'."
+level: error
+ignorecase: true
+swap:
+  leverage: use
+  leverages: uses
+  leveraging: using
+  utilize: use
+  utilizes: uses
+  utilizing: using
+  harness: use
+  harnesses: uses

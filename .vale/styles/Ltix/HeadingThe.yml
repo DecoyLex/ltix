@@ -1,0 +1,7 @@
+extends: existence
+message: "Start the heading with a word other than 'The'."
+level: error
+scope: heading
+nonword: true
+raw:
+  - '^The\b'

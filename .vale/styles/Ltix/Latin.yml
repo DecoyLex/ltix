@@ -1,0 +1,6 @@
+extends: existence
+message: "Write '%s' out in full."
+level: error
+nonword: true
+raw:
+  - '\b(e\.g\.|i\.e\.|etc\.)'

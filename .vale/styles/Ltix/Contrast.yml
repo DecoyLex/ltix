@@ -1,0 +1,7 @@
+extends: existence
+message: "State what's true, without the contrast clause '%s'."
+level: error
+ignorecase: true
+tokens:
+  - rather than
+  - instead of

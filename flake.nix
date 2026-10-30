@@ -30,8 +30,11 @@
             git
             nix-output-monitor
             cocogitto
+
+            # Prose linting
+            vale
           ]
-          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.inotify-tools];
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [pkgs.inotify-tools];
 
         shellHook = ''
           # Local tool state (gitignored)

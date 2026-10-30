@@ -37,7 +37,7 @@ mix precommit
 
 ## Coding standards
 
-Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before writing or reviewing code, docs, or tests. The Credo checks in `credo/` enforce its mechanical rules.
+Read [CODING_STANDARDS.md](CODING_STANDARDS.md) before writing or reviewing code, docs, or tests. The Credo checks in `credo/` and the Vale rules in `.vale.ini` enforce its mechanical rules. Run `mix vale` to check prose.
 
 <!-- usage-rules-start -->
 <!-- usage_rules-start -->

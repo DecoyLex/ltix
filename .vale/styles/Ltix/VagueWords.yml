@@ -1,0 +1,19 @@
+extends: existence
+message: "'%s' says nothing. Name the specific property, or cut it."
+level: error
+ignorecase: true
+tokens:
+  - robust
+  - seamless
+  - seamlessly
+  - streamline
+  - streamlines
+  - ecosystem
+  - landscape
+  - delve
+  - delves
+  - really
+  - simply
+  - actually
+  - fundamentally
+  - quietly

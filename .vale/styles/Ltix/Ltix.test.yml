@@ -1,0 +1,82 @@
+- name: flags an em dash in a sentence
+  rule: EmDash.yml
+  input: The launch fails — the nonce was used.
+  contains: Ltix.EmDash
+
+- name: accepts an em dash that stands alone in a table cell
+  rule: EmDash.yml
+  input: |
+    | Error | Field |
+    |---|---|
+    | `SignatureInvalid` | — |
+  absent: Ltix.EmDash
+
+- name: flags a contrast clause
+  rule: Contrast.yml
+  input: Ltix returns an error rather than raising, instead of logging it.
+  contains:
+    - "'rather than'"
+    - "'instead of'"
+
+- name: suggests use for leverage, utilize, and harness
+  rule: PlainWords.yml
+  input: Plugins leverage steps, utilize claims, and harness types.
+  contains:
+    - "'use'"
+    - "'leverage'"
+    - "'utilize'"
+    - "'harness'"
+
+- name: flags words that say nothing
+  rule: VagueWords.yml
+  input: A robust, seamless ecosystem that simply and actually works.
+  contains:
+    - "'robust'"
+    - "'seamless'"
+    - "'ecosystem'"
+    - "'simply'"
+    - "'actually'"
+
+- name: flags smart quotes and Unicode arrows
+  rule: Typography.yml
+  input: A “launch” → a ‘claim’.
+  contains:
+    - "'“'"
+    - "'→'"
+    - "'‘'"
+
+- name: flags Latin abbreviations
+  rule: Latin.yml
+  input: Pass options, e.g. the plugins, i.e. a list, etc.
+  contains:
+    - "'e.g.'"
+    - "'i.e.'"
+    - "'etc.'"
+
+- name: flags a heading in title case below the title
+  rule: Headings.yml
+  input: |
+    # Writing Plugins
+
+    ## Enable Plugins in Configuration
+  contains: "'Enable Plugins in Configuration'"
+
+- name: accepts a guide title in title case
+  rule: Headings.yml
+  input: |
+    # Writing Plugins
+
+    ## Enable plugins in configuration
+  absent: Ltix.Headings
+
+- name: flags a heading that starts with The
+  rule: HeadingThe.yml
+  input: |
+    ## The launch flow
+  contains: Ltix.HeadingThe
+
+- name: accepts The inside a heading
+  rule: HeadingThe.yml
+  input: |
+    ## Order steps against the phases
+  absent: Ltix.HeadingThe

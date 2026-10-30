@@ -1,6 +1,6 @@
 # Coding standards
 
-Every change to Ltix follows these standards, and every review checks against them. The checks in `credo/` enforce the mechanical rules on each `mix precommit`, so this file has the rules that take judgment.
+Every change to Ltix follows these standards, and every review checks against them. The Credo checks in `credo/` and the Vale rules in `.vale.ini` enforce the mechanical rules on each `mix precommit`, so this file has the rules that take judgment.
 
 ## Reviewing
 

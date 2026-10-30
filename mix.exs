@@ -50,9 +50,20 @@ defmodule Ltix.MixProject do
         "format --check-formatted",
         "compile --warnings-as-errors",
         "credo --strict",
+        "vale",
         "test"
+      ],
+      vale: [
+        &sync_vale_packages/1,
+        "cmd vale test .vale/styles/Ltix",
+        "cmd vale lib guides docs usage-rules usage-rules.md README.md GLOSSARY.md specs/README.md"
       ]
     ]
+  end
+
+  # Downloads the Vale packages `.vale.ini` lists, when they're missing.
+  defp sync_vale_packages(_args) do
+    if !File.dir?(".vale/styles/ai-tells"), do: Mix.Task.run("cmd", ["vale", "sync"])
   end
 
   # Run "mix help deps" to learn about dependencies.

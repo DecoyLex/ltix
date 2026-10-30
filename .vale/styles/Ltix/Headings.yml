@@ -1,0 +1,41 @@
+extends: capitalization
+message: "'%s' should be in sentence case. Only a guide's title is in title case."
+level: error
+scope:
+  - heading.h2
+  - heading.h3
+  - heading.h4
+  - heading.h5
+  - heading.h6
+match: $sentence
+exceptions:
+  - Advantage
+  - AGS
+  - API
+  - Blackboard
+  - Brightspace
+  - Canvas
+  - CSRF
+  - D2L
+  - Deep Linking
+  - Elixir
+  - ETS
+  - HTML
+  - HTTP
+  - IMS
+  - JSON
+  - JWK
+  - JWKs
+  - JWT
+  - LTI
+  - NRPS
+  - OAuth
+  - OIDC
+  - Phoenix
+  - PII
+  - Plug
+  - Req
+  - URI
+  - URIs
+  - URL
+  - URLs

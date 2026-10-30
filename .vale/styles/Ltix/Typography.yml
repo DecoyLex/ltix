@@ -1,0 +1,6 @@
+extends: existence
+message: "Type '%s' as a straight quote or '->'."
+level: error
+nonword: true
+raw:
+  - '[“”‘’→←⇒]'

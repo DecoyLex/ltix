@@ -1,0 +1,6 @@
+extends: existence
+message: "Write the sentence with a period or a comma. An em dash only stands alone, as a placeholder."
+level: error
+nonword: true
+raw:
+  - '\S\s*—|—\s*\S'

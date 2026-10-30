@@ -39,3 +39,7 @@ result
 /test.db
 /test.db-*
 .research
+
+# Vale packages, which `mix vale` downloads.
+/.vale/styles/ai-tells/
+/.vale/styles/config/templates/
