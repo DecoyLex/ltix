@@ -9,4 +9,6 @@ if Process.whereis(Credo.Supervisor) == nil,
 
 for check <- Path.wildcard("credo/*.ex"), do: Code.require_file(check)
 
-ExUnit.start()
+# A message a test waits for can arrive after ExUnit's default 100ms when
+# other test suites run on the machine at the same time.
+ExUnit.start(assert_receive_timeout: 1_000)
