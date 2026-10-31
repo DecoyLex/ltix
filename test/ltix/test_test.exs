@@ -338,6 +338,24 @@ defmodule Ltix.TestTest do
       assert launch.claims.tenant == "acme"
     end
 
+    test "build_launch skips plugin steps ordered before Ltix.Launch.Verified", %{
+      platform: platform
+    } do
+      reject = fn _launch -> {:halt, RuntimeError.exception("the signature is invalid")} end
+
+      plugins = [
+        {Modules,
+         build: fn plugin ->
+           Ltix.Launch.run_before(plugin, Ltix.Launch.Verified, &Ltix.Launch.add_step(&1, reject))
+         end}
+      ]
+
+      assert {:error, %RuntimeError{message: "the signature is invalid"}} =
+               LaunchFlow.launch(platform, [], plugins: plugins)
+
+      assert %Launch{} = Ltix.Test.build_launch(platform, plugins: plugins)
+    end
+
     test "build_launch sets the deployment after Ltix.Launch.Validated", %{platform: platform} do
       steps = [{TestPlugins.ReadVerified, pid: self()}, {TestPlugins.ReadLast, pid: self()}]
 

@@ -161,7 +161,7 @@ end
 
 A launch with subject identifiers in the `role_scope_mentor` claim fails unless `:roles` has the Mentor context role or one of its sub-roles, such as `Ltix.Role.context_mentor()` or `Ltix.Role.mentor_advisor()`.
 
-`launch_params/2` also requires `:nonce` and `:state`, and takes `:plugins`, the plugins to send the properties of claim structs with. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It takes the registration and deployment from the platform, skips the security checks and the storage adapter, runs the other launch steps, including every plugin's, and raises when the launch fails.
+`launch_params/2` also requires `:nonce` and `:state`, and takes `:plugins`, the plugins to send the properties of claim structs with. `build_launch/2` also takes `:allow_anonymous`, which a resource link launch without a subject needs, and `:plugins`, the plugins the launch runs with. It takes the registration and deployment from the platform, skips the storage adapter and the launch steps that run before `Ltix.Launch.Verified`, which verify the message, runs the other launch steps, including every plugin's, and raises when the launch fails.
 
 ## Hand-built tokens
 

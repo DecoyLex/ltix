@@ -104,20 +104,6 @@ defmodule Ltix.Core do
     Launch.DeploymentFound
   ]
 
-  # The launch steps that verify the message and look up its registration
-  # and deployment. `Ltix.Test.build_launch/2` leaves them out, and sets the
-  # test platform's deployment where Ltix looks it up.
-  @security_steps [
-    Launch.CheckErrorResponse,
-    Launch.ExtractIdToken,
-    Launch.VerifyState,
-    Launch.LookUpRegistration,
-    Launch.VerifyIdToken,
-    Launch.VerifyNonceBinding,
-    Launch.ValidateNonce,
-    Launch.LookUpDeployment
-  ]
-
   @lti "https://purl.imsglobal.org/spec/lti/claim/"
 
   # Core's claims that need only a Zoi schema.
@@ -177,10 +163,6 @@ defmodule Ltix.Core do
     |> add_launch_steps()
     |> add_claims()
   end
-
-  @doc false
-  @spec security_steps() :: [module()]
-  def security_steps, do: @security_steps
 
   defp add_login(plugin) do
     plugin

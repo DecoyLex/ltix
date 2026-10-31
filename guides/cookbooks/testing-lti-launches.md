@@ -260,7 +260,7 @@ Ltix.Test.launch_params(platform,
 
 ### Plugins
 
-`build_launch/2` runs the launch steps of your configured plugins. Pass `plugins:` to use others, such as the plugin under test.
+`build_launch/2` runs the launch steps of your configured plugins, except those that run before `Ltix.Launch.Verified` to verify the message. Pass `plugins:` to use others, such as the plugin under test.
 
 ### Hand-built tokens
 

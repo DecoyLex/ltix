@@ -681,10 +681,11 @@ defmodule Ltix.Test do
   Returns a launch from the test platform without the login flow, for testing
   code that takes an `Ltix.Launch`.
 
-  It skips the security checks and the storage adapter. Otherwise the launch
-  matches what `Ltix.handle_callback/3` returns for `launch_params/2` with the
-  same options, apart from Ltix's own data in `:private`. Plugins' launch steps
-  run too. Raises the failing step's error, such as
+  It skips the storage adapter, and every launch step ordered before
+  `Ltix.Launch.Verified`, the steps that verify the message. Otherwise the
+  launch matches what `Ltix.handle_callback/3` returns for `launch_params/2`
+  with the same options, apart from Ltix's own data in `:private`. Plugins'
+  other launch steps run too. Raises the failing step's error, such as
   `Ltix.Errors.Invalid.MissingClaim`.
 
   ```elixir
@@ -730,7 +731,12 @@ defmodule Ltix.Test do
 
     plugins = ok!(PluginSet.resolve(enabled))
 
-    steps = Enum.flat_map(PluginSet.entries(plugins, Launch), &build_launch_step(&1, platform))
+    # The steps before `Ltix.Launch.Verified` verify the message.
+    steps =
+      plugins
+      |> PluginSet.entries(Launch)
+      |> Enum.drop_while(&(&1.module != Launch.Verified))
+      |> Enum.map(&build_launch_step(&1, platform))
 
     launch = %Launch{
       registration: resolved_registration(platform),
@@ -749,21 +755,17 @@ defmodule Ltix.Test do
   end
 
   defp build_launch_step(%Entry{module: Launch.LookUpDeployment} = entry, platform) do
-    [
-      %{
-        entry
-        | module: SetDeployment,
-          opts: [
-            deployment: resolved_deployment(platform),
-            source_deployment: platform.deployment
-          ]
-      }
-    ]
+    %{
+      entry
+      | module: SetDeployment,
+        opts: [
+          deployment: resolved_deployment(platform),
+          source_deployment: platform.deployment
+        ]
+    }
   end
 
-  defp build_launch_step(%Entry{module: step} = entry, _platform) do
-    if step in Ltix.Core.security_steps(), do: [], else: [entry]
-  end
+  defp build_launch_step(entry, _platform), do: entry
 
   # --- Service Test Helpers ---
 

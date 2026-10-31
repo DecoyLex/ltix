@@ -10,6 +10,10 @@ defmodule Ltix.Launch.Verified do
 
   A launch that fails a check stops before this phase, and
   `Ltix.handle_callback/3` returns the check's error.
+
+  `Ltix.Test.build_launch/2` builds a launch without a signed message, and
+  skips the steps ordered before this phase. Order a step that verifies the
+  message before it.
   """
   use Ltix.Launch
 
