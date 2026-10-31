@@ -244,7 +244,7 @@ end
 
 Construct a `%Client{}` directly with a hardcoded token and `req_options: [plug: {Req.Test, AttendanceService}]`. `Ltix.OAuth.Client.request/3` sends your service's requests to the `Req.Test` stub registered under the service module, without calling the OAuth token endpoint.
 
-To test authentication itself, use `Ltix.Test.stub_token_response/1`. Pass the attendance claim to `Ltix.Test.build_launch/2` with `:claims`, and your plugin turns it into the endpoint struct.
+To test authentication itself, use `Ltix.Test.stub_token_response/1`. Pass the attendance endpoint to `Ltix.Test.build_launch/2` in `:claims` by its short name, and `MyApp.Lti.AttendanceEndpoint.new/1` checks it.
 
 ```elixir
 test "authenticate from launch", %{platform: platform} do
@@ -255,7 +255,7 @@ test "authenticate from launch", %{platform: platform} do
 
   launch =
     Ltix.Test.build_launch(platform,
-      claims: %{"https://lms.example.com/claim/attendance" => %{"attendance_url" => @attendance_url}}
+      claims: %{attendance_endpoint: %{attendance_url: @attendance_url}}
     )
 
   {:ok, client} = AttendanceService.authenticate(launch)

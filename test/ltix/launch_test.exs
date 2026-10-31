@@ -62,7 +62,12 @@ defmodule Ltix.LaunchTest do
     test "returns the launch", %{platform: platform} do
       {params, state} =
         launch_params(platform,
-          ags_endpoint: %{line_item: "https://platform.example.com/items/1", scopes: [@ags_scope]}
+          claims: %{
+            ags_endpoint: %{
+              line_item: "https://platform.example.com/items/1",
+              scopes: [@ags_scope]
+            }
+          }
         )
 
       assert {:ok, %Launch{} = launch} = callback(params, state)

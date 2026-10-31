@@ -107,7 +107,11 @@ defmodule Ltix.Integration.SigningTest do
     test "sends the deployment ID of a launch, and again on refresh", ctx do
       launch =
         Ltix.Test.build_launch(ctx.platform,
-          memberships_endpoint: "https://platform.example.com/members"
+          claims: %{
+            memberships_endpoint: %{
+              context_memberships_url: "https://platform.example.com/members"
+            }
+          }
         )
 
       opts =
@@ -157,7 +161,11 @@ defmodule Ltix.Integration.SigningTest do
 
       launch =
         Ltix.Test.build_launch(ctx.platform,
-          memberships_endpoint: "https://platform.example.com/members"
+          claims: %{
+            memberships_endpoint: %{
+              context_memberships_url: "https://platform.example.com/members"
+            }
+          }
         )
 
       assert_raise ArgumentError, "Option :deployment is unknown", fn ->

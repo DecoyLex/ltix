@@ -517,10 +517,14 @@ defmodule Ltix.OAuthTest do
       launch =
         build_launch(
           plugins: [],
-          memberships_endpoint: "https://platform.example.com/memberships",
-          ags_endpoint: %{
-            line_items: "https://platform.example.com/lineitems",
-            scopes: @ags_scopes
+          claims: %{
+            memberships_endpoint: %{
+              context_memberships_url: "https://platform.example.com/memberships"
+            },
+            ags_endpoint: %{
+              line_items: "https://platform.example.com/lineitems",
+              scopes: @ags_scopes
+            }
           }
         )
 
@@ -739,7 +743,15 @@ defmodule Ltix.OAuthTest do
 
     test "requests the memberships service's scope" do
       capture_token_requests()
-      launch = build_launch(memberships_endpoint: "https://platform.example.com/memberships")
+
+      launch =
+        build_launch(
+          claims: %{
+            memberships_endpoint: %{
+              context_memberships_url: "https://platform.example.com/memberships"
+            }
+          }
+        )
 
       assert {:ok, _client} = authenticate(launch, services: [Ltix.MembershipsService])
       assert_received {:token_request, [@nrps_scope], _claims}

@@ -344,8 +344,8 @@ defmodule Ltix.GradeService.PropertiesTest do
     test "a client authenticated from a launch parses the properties of the launch's plugins" do
       launch =
         Ltix.Test.build_launch(Ltix.Test.setup_platform!(),
-          ags_endpoint: endpoint(),
-          plugins: [{Modules, add: [LaunchUrl]}]
+          plugins: [{Modules, add: [LaunchUrl]}],
+          claims: %{ags_endpoint: endpoint()}
         )
 
       Ltix.Test.stub_token_response(scopes: scopes())

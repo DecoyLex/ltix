@@ -69,14 +69,20 @@ defmodule Ltix.Plugins.MessageTypesTest do
       assert {:error, %MissingClaim{claim: "lis"}} =
                launch(
                  platform,
-                 [message_type: :deep_linking, deep_linking_settings: %{accept_types: ["file"]}],
+                 [
+                   message_type: :deep_linking,
+                   claims: %{deep_linking_settings: %{accept_types: ["file"]}}
+                 ],
                  plugins: plugins
                )
 
       assert {:ok, _launch} =
                launch(
                  platform,
-                 [message_type: :deep_linking, deep_linking_settings: %{accept_types: ["link"]}],
+                 [
+                   message_type: :deep_linking,
+                   claims: %{deep_linking_settings: %{accept_types: ["link"]}}
+                 ],
                  plugins: plugins
                )
     end
@@ -86,7 +92,7 @@ defmodule Ltix.Plugins.MessageTypesTest do
       ags_endpoint = %{line_item: "https://platform.example.com/items/1", scopes: [@ags_scope]}
 
       assert {:error, %MissingClaim{claim: "context"}} =
-               launch(platform, [ags_endpoint: ags_endpoint, claims: %{@context => nil}],
+               launch(platform, [claims: %{@context => nil, ags_endpoint: ags_endpoint}],
                  plugins: plugins
                )
 

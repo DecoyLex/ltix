@@ -145,10 +145,12 @@ defmodule Ltix.GradeServiceTest do
 
       launch =
         Ltix.Test.build_launch(ctx.platform,
-          ags_endpoint: %GradeServiceEndpoint{
-            line_items: @line_items_url,
-            line_item: @line_item_url,
-            scopes: @all_scopes
+          claims: %{
+            ags_endpoint: %GradeServiceEndpoint{
+              line_items: @line_items_url,
+              line_item: @line_item_url,
+              scopes: @all_scopes
+            }
           }
         )
 
@@ -234,7 +236,7 @@ defmodule Ltix.GradeServiceTest do
         )
 
       req_options = [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-      launch = Ltix.Test.build_launch(ctx.platform, ags_endpoint: endpoint)
+      launch = Ltix.Test.build_launch(ctx.platform, claims: %{ags_endpoint: endpoint})
 
       assert {:ok, %Client{}} =
                GradeService.authenticate(ctx.platform.registration,

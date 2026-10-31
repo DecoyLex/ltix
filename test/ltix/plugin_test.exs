@@ -117,8 +117,8 @@ defmodule Ltix.PluginTest do
     launch =
       Ltix.Test.build_launch(platform,
         message_type: :deep_linking,
-        deep_linking_settings: %{accept_types: [@poll]},
-        plugins: plugins
+        plugins: plugins,
+        claims: %{deep_linking_settings: %{accept_types: [@poll]}}
       )
 
     DeepLinking.build_response(launch, [Poll.new!(question: "Ready?")])

@@ -155,14 +155,9 @@ end
 - `:roles` - list of role URIs, such as `Ltix.Role.context_learner()` and `Ltix.Role.instructor_teaching_assistant()` (defaults to an instructor). URIs are sent as given.
 - `:subject` - user identifier (defaults to `"user-12345"`), `nil` for an anonymous launch
 - `:name`, `:email`, `:given_name`, `:family_name` - user profile fields
-- `:context` - `%Ltix.Claims.Context{}` or map with `:id`, `:label`, `:title`, `:type` keys (the default id is `"context-001"`)
-- `:resource_link` - `%Ltix.Claims.ResourceLink{}` or map with `:id`, `:title`, `:description` keys
-- `:message_type` - `:resource_link` (default), `:deep_linking`, or a message type string, such as `"LtiSubmissionReviewRequest"`, whose launch has no resource link or Deep Linking settings
-- `:deep_linking_settings` - `%Ltix.DeepLinking.Settings{}` or map of its fields (defaults accept the five standard content types, every presentation target, and multiple items)
+- `:message_type` - `:resource_link` (default), `:deep_linking`, or a message type string, such as `"LtiSubmissionReviewRequest"`. `:resource_link` adds a resource link with id `"resource-link-001"`, and `:deep_linking` adds Deep Linking settings that accept the five standard content types, every presentation target, and multiple items. Every launch has a context with id `"context-001"`.
 - `:target_link_uri` - launch URL (defaults to `"https://tool.example.com/launch"`)
-- `:ags_endpoint` - `%Ltix.GradeService.Endpoint{}` or map with `:line_items`, `:line_item`, and the required `:scopes`
-- `:memberships_endpoint` - `%Ltix.MembershipsService.Endpoint{}`, URL string, or map with `:context_memberships_url` and `:service_versions`
-- `:claims` - raw claim map merged last (for advanced overrides)
+- `:claims` - claims keyed by short name or by name. A short name, such as `:context`, `:resource_link`, `:deep_linking_settings`, `:ags_endpoint`, `:memberships_endpoint`, or a plugin's claim, takes the claim's struct or a map of its fields and property names, merged over the defaults above. An endpoint claim checks the endpoint with its `new/1`, so `:ags_endpoint` needs `:scopes`, and `:memberships_endpoint` needs `:context_memberships_url`. A name, such as `"sub"` or a claim URI, takes the raw JSON, which replaces the built claim.
 
 A launch with subject identifiers in the `role_scope_mentor` claim fails unless `:roles` has the Mentor context role or one of its sub-roles, such as `Ltix.Role.context_mentor()` or `Ltix.Role.mentor_advisor()`.
 
@@ -190,9 +185,11 @@ test "posts a score after launch", %{platform: platform} do
   Ltix.Test.stub_post_score()
 
   launch = Ltix.Test.build_launch(platform,
-    ags_endpoint: %Ltix.GradeService.Endpoint{
-      line_item: "https://platform.example.com/lineitems/1",
-      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+    claims: %{
+      ags_endpoint: %Ltix.GradeService.Endpoint{
+        line_item: "https://platform.example.com/lineitems/1",
+        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+      }
     }
   )
 

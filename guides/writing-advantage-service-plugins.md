@@ -151,7 +151,7 @@ test "reads the integrity level", %{platform: platform} do
 
   launch =
     Ltix.Test.build_launch(platform,
-      ags_endpoint: %{line_item: url, scopes: [scope]},
+      claims: %{ags_endpoint: %{line_item: url, scopes: [scope]}},
       plugins: [Proctoring]
     )
 

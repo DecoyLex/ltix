@@ -160,7 +160,7 @@ defmodule Ltix.MembershipsServiceTest do
 
       launch =
         Ltix.Test.build_launch(ctx.platform,
-          memberships_endpoint: @memberships_url
+          claims: %{memberships_endpoint: %{context_memberships_url: @memberships_url}}
         )
 
       assert {:ok, %Client{} = client} =
@@ -182,14 +182,14 @@ defmodule Ltix.MembershipsServiceTest do
     end
 
     test "validates service_versions includes 2.0", ctx do
-      endpoint = %MembershipsServiceEndpoint{
-        context_memberships_url: @memberships_url,
-        service_versions: ["1.0"]
-      }
-
       launch =
         Ltix.Test.build_launch(ctx.platform,
-          memberships_endpoint: endpoint
+          claims: %{
+            "https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice" => %{
+              "context_memberships_url" => @memberships_url,
+              "service_versions" => ["1.0"]
+            }
+          }
         )
 
       assert {:error, %ServiceNotAvailable{} = error} =
@@ -251,7 +251,7 @@ defmodule Ltix.MembershipsServiceTest do
       Ltix.Test.stub_token_response(scopes: ["other:scope"])
       endpoint = MembershipsServiceEndpoint.new!(@memberships_url)
       req_options = [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]
-      launch = Ltix.Test.build_launch(ctx.platform, memberships_endpoint: endpoint)
+      launch = Ltix.Test.build_launch(ctx.platform, claims: %{memberships_endpoint: endpoint})
 
       assert {:ok, client} =
                MembershipsService.authenticate(ctx.platform.registration,

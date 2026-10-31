@@ -95,11 +95,13 @@ defmodule Ltix.TestTest do
     test "launch with context", %{platform: platform} do
       {:ok, launch} =
         LaunchFlow.launch(platform,
-          context: %{
-            id: "course-1",
-            label: "CS101",
-            title: "Intro to CS",
-            type: ["http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"]
+          claims: %{
+            context: %{
+              id: "course-1",
+              label: "CS101",
+              title: "Intro to CS",
+              type: ["http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"]
+            }
           }
         )
 
@@ -119,19 +121,42 @@ defmodule Ltix.TestTest do
     test "both helpers build the same claims", %{platform: platform} do
       for opts <- [
             [roles: [Role.context_learner(), @custom_role], subject: "student-1"],
-            [context: %{id: "course-1", label: "CS101", type: [@course_type]}],
-            [context: %Context{id: "course-2", title: "Elixir"}],
-            [resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}],
-            [message_type: :deep_linking, deep_linking_settings: %{accept_line_item: true}],
-            [ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}],
-            [memberships_endpoint: "https://lms.example.com/memberships"],
+            [claims: %{context: %{id: "course-1", label: "CS101", type: [@course_type]}}],
+            [claims: %{context: %Context{id: "course-2", title: "Elixir"}}],
+            [claims: %{resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}}],
             [
-              memberships_endpoint: %{
-                context_memberships_url: "https://lms.example.com/memberships",
-                service_versions: ["2.0"]
+              message_type: :deep_linking,
+              claims: %{deep_linking_settings: %{accept_line_item: true}}
+            ],
+            [
+              claims: %{
+                ags_endpoint: %{
+                  line_item: "https://lms.example.com/items/1",
+                  scopes: [@ags_scope]
+                }
               }
             ],
-            [claims: %{"https://purl.imsglobal.org/spec/lti/claim/custom" => %{"a" => "b"}}]
+            [
+              claims: %{
+                memberships_endpoint: %{
+                  context_memberships_url: "https://lms.example.com/memberships"
+                }
+              }
+            ],
+            [
+              claims: %{
+                memberships_endpoint: %{
+                  context_memberships_url: "https://lms.example.com/memberships",
+                  service_versions: ["2.0"]
+                }
+              }
+            ],
+            [
+              claims: %{
+                :email => "jane@example.com",
+                "https://purl.imsglobal.org/spec/lti/claim/custom" => %{"a" => "b"}
+              }
+            ]
           ] do
         assert comparable(launch(platform, opts)) ==
                  comparable(Ltix.Test.build_launch(platform, opts)),
@@ -145,19 +170,21 @@ defmodule Ltix.TestTest do
       ]
 
       resource_link_opts = [
-        context: %{id: "course-1", section: "A"},
-        resource_link: %{id: "link-1", color: "red"},
-        ags_endpoint: %{scopes: [@ags_scope], note: "n"},
-        memberships_endpoint: %{
-          context_memberships_url: "https://lms.example.com/memberships",
-          note: "n"
+        claims: %{
+          context: %{id: "course-1", section: "A"},
+          resource_link: %{id: "link-1", color: "red"},
+          ags_endpoint: %{scopes: [@ags_scope], note: "n"},
+          memberships_endpoint: %{
+            context_memberships_url: "https://lms.example.com/memberships",
+            note: "n"
+          }
         },
         plugins: plugins
       ]
 
       deep_linking_opts = [
         message_type: :deep_linking,
-        deep_linking_settings: %{note: "n"},
+        claims: %{deep_linking_settings: %{note: "n"}},
         plugins: plugins
       ]
 
@@ -195,7 +222,7 @@ defmodule Ltix.TestTest do
     test "take the context as a struct", %{platform: platform} do
       launch =
         Ltix.Test.build_launch(platform,
-          context: %Context{id: "course-2", title: "Elixir"}
+          claims: %{context: %Context{id: "course-2", title: "Elixir"}}
         )
 
       assert launch.claims.context.id == "course-2"
@@ -205,7 +232,7 @@ defmodule Ltix.TestTest do
     test "set the resource link", %{platform: platform} do
       launch =
         Ltix.Test.build_launch(platform,
-          resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}
+          claims: %{resource_link: %{id: "quiz-1", title: "Quiz", description: "First quiz"}}
         )
 
       assert launch.claims.resource_link.id == "quiz-1"
@@ -213,11 +240,38 @@ defmodule Ltix.TestTest do
       assert launch.claims.resource_link.description == "First quiz"
     end
 
+    test "merge a claim's fields over its defaults", %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
+          claims: %{context: %{title: "Biology"}, resource_link: %{title: "Quiz"}}
+        )
+
+      assert {launch.claims.context.id, launch.claims.context.title} == {"context-001", "Biology"}
+
+      assert {launch.claims.resource_link.id, launch.claims.resource_link.title} ==
+               {"resource-link-001", "Quiz"}
+    end
+
+    test "take a plugin's endpoint and scalar claims by short name", %{platform: platform} do
+      plugins = [TestPlugins.Records, {Modules, add: [TestPlugins.Traced]}]
+
+      launch =
+        Ltix.Test.build_launch(platform,
+          claims: %{records_endpoint: %{url: "https://lms.example.com/records"}, traced: "value"},
+          plugins: plugins
+        )
+
+      assert Launch.get_endpoint(launch, TestPlugins.Records).url ==
+               "https://lms.example.com/records"
+
+      assert launch.claims.traced == "value"
+    end
+
     test "set deep linking settings over the defaults", %{platform: platform} do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_line_item: true, accept_multiple: false}
+          claims: %{deep_linking_settings: %{accept_line_item: true, accept_multiple: false}}
         )
 
       assert launch.claims.deep_linking_settings.accept_line_item == true
@@ -227,7 +281,9 @@ defmodule Ltix.TestTest do
     test "set the grade service endpoint", %{platform: platform} do
       launch =
         Ltix.Test.build_launch(platform,
-          ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}
+          claims: %{
+            ags_endpoint: %{line_item: "https://lms.example.com/items/1", scopes: [@ags_scope]}
+          }
         )
 
       assert launch.claims.ags_endpoint.line_item == "https://lms.example.com/items/1"
@@ -237,9 +293,11 @@ defmodule Ltix.TestTest do
     test "take the memberships endpoint as a map", %{platform: platform} do
       launch =
         Ltix.Test.build_launch(platform,
-          memberships_endpoint: %{
-            context_memberships_url: "https://lms.example.com/memberships",
-            service_versions: ["1.0", "2.0"]
+          claims: %{
+            memberships_endpoint: %{
+              context_memberships_url: "https://lms.example.com/memberships",
+              service_versions: ["1.0", "2.0"]
+            }
           }
         )
 
@@ -315,8 +373,12 @@ defmodule Ltix.TestTest do
 
       launch =
         launch(platform,
-          ags_endpoint: %{line_items: "https://lms.example.com/items", scopes: [@ags_scope]},
-          memberships_endpoint: "https://lms.example.com/memberships"
+          claims: %{
+            ags_endpoint: %{line_items: "https://lms.example.com/items", scopes: [@ags_scope]},
+            memberships_endpoint: %{
+              context_memberships_url: "https://lms.example.com/memberships"
+            }
+          }
         )
 
       opts = [req_options: [plug: {Req.Test, Ltix.OAuth.ClientCredentials}]]
@@ -332,34 +394,66 @@ defmodule Ltix.TestTest do
                Client.get_endpoint(memberships_client, Ltix.MembershipsService)
     end
 
-    test "raise for endpoints the services would reject", %{platform: platform} do
-      for {opts, message} <- [
-            {[ags_endpoint: %{line_item: "https://lms.example.com/items/1"}], ~r"scopes"},
-            {[memberships_endpoint: "http://lms.example.com/memberships"], ~r"HTTPS"}
+    test "raise for endpoints their endpoint claims reject", %{platform: platform} do
+      for {claims, message} <- [
+            {%{ags_endpoint: %{line_item: "https://lms.example.com/items/1"}}, ~r"scopes"},
+            {%{
+               memberships_endpoint: %{
+                 context_memberships_url: "http://lms.example.com/memberships"
+               }
+             }, ~r"HTTPS"},
+            {%{records_endpoint: %{url: "http://lms.example.com/records"}}, ~r"HTTPS"}
           ] do
         assert_raise InvalidField, message, fn ->
-          Ltix.Test.build_launch(platform, opts)
+          Ltix.Test.build_launch(platform, claims: claims, plugins: [TestPlugins.Records])
         end
       end
     end
 
-    test "raise for unknown keys in nested options and roles that are not URIs", %{
+    test "raise for a claim's unrecognized keys", %{platform: platform} do
+      for {claims, key} <- [
+            {%{context: %{id: "c", name: "Course"}}, ":context has an unrecognized key, name"},
+            {%{resource_link: %{id: "r", url: "https://tool.example.com"}},
+             ":resource_link has an unrecognized key, url"},
+            {%{deep_linking_settings: %{accept_lineitem: true}},
+             ":deep_linking_settings has an unrecognized key, accept_lineitem"},
+            {%{
+               ags_endpoint: %{lineitem: "https://lms.example.com/items/1", scopes: [@ags_scope]}
+             }, ":ags_endpoint has an unrecognized key, lineitem"},
+            {%{memberships_endpoint: %{url: "https://lms.example.com/memberships"}},
+             ":memberships_endpoint has an unrecognized key, url"}
+          ] do
+        assert_raise ArgumentError, "Option :claims is invalid, #{key}", fn ->
+          Ltix.Test.build_launch(platform, claims: claims)
+        end
+      end
+    end
+
+    test "raise for a claim no plugin declares", %{platform: platform} do
+      assert_raise ArgumentError,
+                   "Option :claims is invalid, no plugin declares the claim :tenant",
+                   fn -> Ltix.Test.build_launch(platform, claims: %{tenant: "acme"}) end
+    end
+
+    test "raise for a claim value that isn't the claim's struct, keyword list, or map", %{
       platform: platform
     } do
-      for {key, value} <- [
-            context: %{id: "c", name: "Course"},
-            resource_link: %{id: "r", url: "https://tool.example.com"},
-            deep_linking_settings: %{accept_lineitem: true},
-            ags_endpoint: %{lineitem: "https://lms.example.com/items/1", scopes: [@ags_scope]},
-            memberships_endpoint: %{url: "https://lms.example.com/memberships"}
+      for {claims, claim} <- [
+            {%{context: 1}, ":context must be a Ltix.Claims.Context"},
+            {%{context: ["c"]}, ":context must be a Ltix.Claims.Context"},
+            {%{context: %Ltix.Claims.ResourceLink{id: "r"}},
+             ":context must be a Ltix.Claims.Context"},
+            {%{ags_endpoint: "https://lms.example.com/lineitems"},
+             ":ags_endpoint must be a Ltix.GradeService.Endpoint"}
           ] do
         assert_raise ArgumentError,
-                     ~r/^Option #{inspect(key)} is invalid, unrecognized key: /,
-                     fn ->
-                       Ltix.Test.build_launch(platform, [{key, value}])
-                     end
+                     "Option :claims is invalid, #{claim} struct, " <>
+                       "or a keyword list or map of the claim's fields and property names",
+                     fn -> Ltix.Test.build_launch(platform, claims: claims) end
       end
+    end
 
+    test "raise for roles that are not URIs", %{platform: platform} do
       assert_raise ArgumentError, ~r/Option :roles is invalid/, fn ->
         Ltix.Test.build_launch(platform, roles: [:instructor])
       end
@@ -590,7 +684,7 @@ defmodule Ltix.TestTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
+          claims: %{deep_linking_settings: %{accept_types: ["ltiResourceLink"]}}
         )
 
       assert launch.claims.message_type == "LtiDeepLinkingRequest"
@@ -866,8 +960,12 @@ defmodule Ltix.TestTest do
 
       launch =
         Ltix.Test.build_launch(platform,
-          ags_endpoint: @grade_endpoint,
-          memberships_endpoint: "https://lms.example.com/memberships"
+          claims: %{
+            ags_endpoint: @grade_endpoint,
+            memberships_endpoint: %{
+              context_memberships_url: "https://lms.example.com/memberships"
+            }
+          }
         )
 
       pid = start_outside_process()
@@ -884,7 +982,7 @@ defmodule Ltix.TestTest do
     end
 
     test "stubs set after allowing apply to the allowed process", %{platform: platform} do
-      launch = Ltix.Test.build_launch(platform, ags_endpoint: @grade_endpoint)
+      launch = Ltix.Test.build_launch(platform, claims: %{ags_endpoint: @grade_endpoint})
 
       pid = start_outside_process()
       Ltix.Test.allow_stubs(pid)
@@ -928,7 +1026,7 @@ defmodule Ltix.TestTest do
 
   describe "stub_token_response/1 failures" do
     setup %{platform: platform} do
-      %{launch: Ltix.Test.build_launch(platform, ags_endpoint: @grade_endpoint)}
+      %{launch: Ltix.Test.build_launch(platform, claims: %{ags_endpoint: @grade_endpoint})}
     end
 
     test "an error response fails authentication with the platform's error", %{launch: launch} do
@@ -1101,9 +1199,11 @@ defmodule Ltix.TestTest do
     end
 
     test "raises for unknown context keys" do
-      assert_raise ArgumentError, "Option :context is invalid, unrecognized key: name", fn ->
-        Ltix.Test.stub_list_members([], context: %{id: "c", name: "Course"})
-      end
+      assert_raise ArgumentError,
+                   "Option :context is invalid, :context has an unrecognized key, name",
+                   fn ->
+                     Ltix.Test.stub_list_members([], context: %{id: "c", name: "Course"})
+                   end
     end
 
     test "returns serialized members in a container", %{platform: platform} do

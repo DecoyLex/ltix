@@ -113,7 +113,7 @@ test "learner launch renders the assignment view", %{conn: conn, platform: platf
         nonce: nonce,
         state: state,
         roles: [Ltix.Role.context_learner()],
-        context: %{id: "course-1", title: "Elixir 101"}
+        claims: %{context: %{id: "course-1", title: "Elixir 101"}}
       )
     )
 
@@ -156,7 +156,7 @@ defmodule MyApp.PermissionsTest do
     launch = Ltix.Test.build_launch(platform,
       roles: [Ltix.Role.context_learner()],
       subject: "student-42",
-      context: %{id: "course-1"}
+      claims: %{context: %{id: "course-1"}}
     )
 
     submissions = MyApp.Submissions.list_for(launch)
@@ -178,22 +178,24 @@ roles: [Ltix.Role.context_instructor(), Ltix.Role.instructor_teaching_assistant(
 roles: ["Learner", "https://lms.example.com/roles#CourseDesigner"]
 ```
 
-### Context and resource link
+### Claims
+
+Pass claims in `:claims` by short name, such as `:context`, `:resource_link`, or a claim one of your plugins declares. An object claim takes its struct, such as `%Ltix.Claims.Context{}`, or a map of its fields and property names. A map is merged over the launch's default fields, so the context keeps its ID `"context-001"` unless you set one.
 
 ```elixir
 Ltix.Test.build_launch(platform,
   roles: [Ltix.Role.context_instructor()],
-  context: %{
-    id: "course-1",
-    label: "CS101",
-    title: "Intro to CS",
-    type: ["http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"]
-  },
-  resource_link: %{id: "assignment-1", title: "Quiz 1"}
+  claims: %{
+    context: %{
+      id: "course-1",
+      label: "CS101",
+      title: "Intro to CS",
+      type: ["http://purl.imsglobal.org/vocab/lis/v2/course#CourseOffering"]
+    },
+    resource_link: %{id: "assignment-1", title: "Quiz 1"}
+  }
 )
 ```
-
-Both options also take the `%Ltix.Claims.Context{}` and `%Ltix.Claims.ResourceLink{}` structs.
 
 ### Deep Linking
 
@@ -202,7 +204,7 @@ Pass `message_type: :deep_linking`. Settings you leave out accept the five stand
 ```elixir
 Ltix.Test.build_launch(platform,
   message_type: :deep_linking,
-  deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
+  claims: %{deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}}
 )
 ```
 
@@ -224,23 +226,25 @@ Ltix.handle_callback(params, state, allow_anonymous: true)
 
 ### Service endpoints
 
-Give the launch grade and memberships service endpoints as maps of the endpoint struct fields, or the structs themselves. The grade service endpoint needs its scopes, and the memberships endpoint can be just its URL.
+Pass service endpoints in `:claims` by their claims' short names, as maps of the endpoint struct fields or the structs themselves. Each endpoint claim checks the endpoint with its `new/1`, so the grade service endpoint needs its scopes, and the memberships endpoint needs its `context_memberships_url`. A plugin's endpoint claims work the same way.
 
 ```elixir
 Ltix.Test.launch_params(platform,
   nonce: nonce,
   state: state,
-  ags_endpoint: %{
-    line_items: "https://platform.example.com/lineitems",
-    scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
-  },
-  memberships_endpoint: "https://platform.example.com/memberships"
+  claims: %{
+    ags_endpoint: %{
+      line_items: "https://platform.example.com/lineitems",
+      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+    },
+    memberships_endpoint: %{context_memberships_url: "https://platform.example.com/memberships"}
+  }
 )
 ```
 
-### Raw claim overrides
+### Raw claims
 
-For claims not covered by the convenience options, use `:claims` to merge raw claims over the built ones.
+A claim keyed by its name in `:claims`, such as `"sub"` or a claim URI, is the raw JSON the platform sends, and replaces the built claim. Use it for a claim no plugin declares, or for a malformed claim.
 
 ```elixir
 Ltix.Test.launch_params(platform,
@@ -286,9 +290,11 @@ test "submits a score after launch", %{platform: platform} do
   Ltix.Test.stub_post_score()
 
   launch = Ltix.Test.build_launch(platform,
-    ags_endpoint: %{
-      line_item: "https://platform.example.com/lineitems/1",
-      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+    claims: %{
+      ags_endpoint: %{
+        line_item: "https://platform.example.com/lineitems/1",
+        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+      }
     }
   )
 
@@ -322,7 +328,7 @@ test "fetches roster", %{platform: platform} do
   )
 
   launch = Ltix.Test.build_launch(platform,
-    memberships_endpoint: "https://platform.example.com/memberships"
+    claims: %{memberships_endpoint: %{context_memberships_url: "https://platform.example.com/memberships"}}
   )
 
   {:ok, client} = Ltix.MembershipsService.authenticate(launch)
@@ -350,12 +356,14 @@ test "creates a line item and posts a score to it", %{platform: platform} do
   Ltix.Test.stub_post_score()
 
   launch = Ltix.Test.build_launch(platform,
-    ags_endpoint: %{
-      line_items: "https://lms.example.com/lineitems",
-      scopes: [
-        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-        "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-      ]
+    claims: %{
+      ags_endpoint: %{
+        line_items: "https://lms.example.com/lineitems",
+        scopes: [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ]
+      }
     }
   )
 
@@ -404,9 +412,11 @@ test "returns an error when the platform rejects the token request", %{platform:
   Ltix.Test.stub_token_response(status: 400, body: %{"error" => "invalid_client"})
 
   launch = Ltix.Test.build_launch(platform,
-    ags_endpoint: %{
-      line_item: "https://platform.example.com/lineitems/1",
-      scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+    claims: %{
+      ags_endpoint: %{
+        line_item: "https://platform.example.com/lineitems/1",
+        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/score"]
+      }
     }
   )
 

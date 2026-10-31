@@ -162,7 +162,11 @@ defmodule Ltix.Integration.StorageAdapterOptionsTest do
     test "passes the options from a launch", ctx do
       launch =
         Ltix.Test.build_launch(ctx.platform,
-          memberships_endpoint: "https://platform.example.com/members"
+          claims: %{
+            memberships_endpoint: %{
+              context_memberships_url: "https://platform.example.com/members"
+            }
+          }
         )
 
       assert {:ok, %Client{}} =

@@ -317,8 +317,8 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]},
-          plugins: [{Modules, add: [Poll]}]
+          plugins: [{Modules, add: [Poll]}],
+          claims: %{deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]}}
         )
 
       poll = Poll.new!(question: "Ready?", closes_at: ~U[2026-06-15 23:59:59Z])
@@ -337,8 +337,8 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]},
-          plugins: [{Modules, add: [Poll]}]
+          plugins: [{Modules, add: [Poll]}],
+          claims: %{deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]}}
         )
 
       poll =
@@ -365,11 +365,13 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{
-            accept_types: ["link"],
-            accept_presentation_document_targets: ["iframe"]
-          },
-          plugins: [{Modules, add: [Poll]}]
+          plugins: [{Modules, add: [Poll]}],
+          claims: %{
+            deep_linking_settings: %{
+              accept_types: ["link"],
+              accept_presentation_document_targets: ["iframe"]
+            }
+          }
         )
 
       poll = Poll.new!(question: "Ready?", window: [target_name: "poll"])
@@ -387,7 +389,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]}
+          claims: %{deep_linking_settings: %{accept_types: ["https://vendor.example.com/poll"]}}
         )
 
       poll = Poll.new!(question: "Ready?")
@@ -743,7 +745,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{data: "echo-me"}
+          claims: %{deep_linking_settings: %{data: "echo-me"}}
         )
 
       {:ok, %Response{jwt: jwt}} = DeepLinking.build_response(launch)
@@ -823,7 +825,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
+          claims: %{deep_linking_settings: %{accept_types: ["ltiResourceLink"]}}
         )
 
       {:ok, link} = Link.new(url: "https://example.com")
@@ -842,7 +844,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["link"], accept_multiple: false}
+          claims: %{deep_linking_settings: %{accept_types: ["link"], accept_multiple: false}}
         )
 
       {:ok, first} = Link.new(url: "https://a.com")
@@ -859,7 +861,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["link"], accept_multiple: false}
+          claims: %{deep_linking_settings: %{accept_types: ["link"], accept_multiple: false}}
         )
 
       {:ok, link} = Link.new(url: "https://a.com")
@@ -871,7 +873,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["link"], accept_multiple: nil}
+          claims: %{deep_linking_settings: %{accept_types: ["link"], accept_multiple: nil}}
         )
 
       {:ok, first} = Link.new(url: "https://a.com")
@@ -886,7 +888,9 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
+          claims: %{
+            deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
+          }
         )
 
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
@@ -899,7 +903,9 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
+          claims: %{
+            deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: true}
+          }
         )
 
       {:ok, item} = LTIResourceLink.new(line_item: %{score_maximum: 100})
@@ -913,7 +919,9 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
+          claims: %{
+            deep_linking_settings: %{accept_types: ["ltiResourceLink"], accept_line_item: false}
+          }
         )
 
       {:ok, item} = LTIResourceLink.new(url: "https://tool.example.com")
@@ -929,7 +937,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_presentation_document_targets: ["iframe"]}
+          claims: %{deep_linking_settings: %{accept_presentation_document_targets: ["iframe"]}}
         )
 
       {:ok, link} =
@@ -962,7 +970,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_presentation_document_targets: []}
+          claims: %{deep_linking_settings: %{accept_presentation_document_targets: []}}
         )
 
       {:ok, link} = Link.new(url: "https://example.com")
@@ -976,7 +984,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_media_types: "image/*, text/html"}
+          claims: %{deep_linking_settings: %{accept_media_types: "image/*, text/html"}}
         )
 
       %{launch: launch}
@@ -998,7 +1006,7 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{accept_media_types: "*/*"}
+          claims: %{deep_linking_settings: %{accept_media_types: "*/*"}}
         )
 
       file = File.new!(url: "https://example.com/f.pdf", media_type: "application/pdf")
@@ -1066,10 +1074,12 @@ defmodule Ltix.DeepLinkingTest do
       launch =
         Ltix.Test.build_launch(platform,
           message_type: :deep_linking,
-          deep_linking_settings: %{
-            accept_types: ["ltiResourceLink"],
-            accept_multiple: false,
-            accept_line_item: false
+          claims: %{
+            deep_linking_settings: %{
+              accept_types: ["ltiResourceLink"],
+              accept_multiple: false,
+              accept_line_item: false
+            }
           }
         )
 

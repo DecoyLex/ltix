@@ -241,7 +241,7 @@ When testing code that builds content items from your app's data, skip the OIDC 
 test "builds quiz items from selected activities", %{platform: platform} do
   launch = Ltix.Test.build_launch(platform,
     message_type: :deep_linking,
-    deep_linking_settings: %{accept_types: ["ltiResourceLink"]}
+    claims: %{deep_linking_settings: %{accept_types: ["ltiResourceLink"]}}
   )
 
   activities = [

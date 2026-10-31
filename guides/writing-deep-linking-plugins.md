@@ -166,7 +166,7 @@ test "sends a poll", %{platform: platform} do
   launch =
     Ltix.Test.build_launch(platform,
       message_type: :deep_linking,
-      deep_linking_settings: %{accept_types: ["https://polls.example.com/poll"]},
+      claims: %{deep_linking_settings: %{accept_types: ["https://polls.example.com/poll"]}},
       plugins: [Polls]
     )
 

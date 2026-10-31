@@ -119,6 +119,36 @@ Ltix.Test.build_launch(platform,
 
 `build_launch/2` also runs claim checks and requires the message type's claims. It raises when a check fails or a required claim is missing. Pass `allow_anonymous: true` where you build a resource link launch with `subject: nil`.
 
+### `Ltix.Test` takes claims by short name
+
+`launch_params/2` and `build_launch/2` take any declared claim in `:claims` by its short name, as its struct or a map of its fields and property names, and drop the options in the table below. A map is merged over the launch's default fields. An endpoint claim checks the endpoint with its `new/1`, as `ags_endpoint:` and `memberships_endpoint:` did.
+
+```elixir
+# 0.2
+Ltix.Test.build_launch_context(platform,
+  context: %{id: "course-1"},
+  ags_endpoint: %{line_item: line_item, scopes: scopes}
+)
+
+# 0.3
+Ltix.Test.build_launch(platform,
+  claims: %{
+    context: %{id: "course-1"},
+    ags_endpoint: %{line_item: line_item, scopes: scopes}
+  }
+)
+```
+
+| 0.2 | 0.3 |
+|---|---|
+| `context:` | `claims: %{context: ...}` |
+| `resource_link:` | `claims: %{resource_link: ...}` |
+| `deep_linking_settings:` | `claims: %{deep_linking_settings: ...}` |
+| `ags_endpoint:` | `claims: %{ags_endpoint: ...}` |
+| `memberships_endpoint:` | `claims: %{memberships_endpoint: ...}` |
+
+Pass a memberships endpoint's URL in a map, such as `claims: %{memberships_endpoint: %{context_memberships_url: url}}`. A memberships endpoint is no longer sent with `service_versions: ["2.0"]` unless you set it. To launch with an endpoint its `new/1` rejects, such as one without version 2.0, pass the raw claim by its URI.
+
 ### `Ltix.Test.StorageAdapter` needs Plug
 
 Add `:plug` to your test dependencies if you use `Ltix.Test.StorageAdapter` without the other `Ltix.Test` helpers.
