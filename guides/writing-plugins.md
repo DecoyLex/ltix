@@ -286,7 +286,7 @@ end
 
 `Ltix.PluginSet.entries/2` returns each module a plugin added, with its options. The options of the module's `use`, such as `name: "total"`, come first, and a plugin can't add the module with them again. Modules that extend a provider also implement each `@callback` it defines, such as `value/1` in `Reports.Column`.
 
-A provider whose `hook:` includes `Ltix.Property` takes [properties](writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results) from other plugins, and its default `resolve/1` returns their conflicts. To define your own `resolve/1`, call `super(plugins)` first. Return its `{:error, conflicts}` unchanged, and return your own result when it returns `{:ok, nil}`.
+A provider whose `hook:` includes `Ltix.Property` takes [properties](writing-advantage-service-plugins.md#add-a-property-to-line-items-scores-or-results) from other plugins, and its default `resolve/1` returns their conflicts. Give it an `add_property/2` that calls `Ltix.Property.add/3`, and list the options in its docs with `Ltix.Property.options_schema/0`. To define your own `resolve/1`, call `super(plugins)` first. Return its `{:error, conflicts}` unchanged, and return your own result when it returns `{:ok, nil}`.
 
 ## Fix a plugin set that fails to resolve
 

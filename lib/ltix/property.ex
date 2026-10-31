@@ -226,8 +226,23 @@ defmodule Ltix.Property do
     Plugin.add_entry(plugin, %Entry{module: __MODULE__, opts: [to: type] ++ opts})
   end
 
-  # Returns the schema of `add/3`'s options, for the `add_property/2` docs of types.
-  @doc false
+  @doc ~S'''
+  Returns the Zoi schema of `add/3`'s options.
+
+  A type that plugins add properties to lists the options in its
+  `add_property/2` docs with `Zoi.describe/1`.
+
+  ```elixir
+  @doc """
+  Adds an anonymous property of polls to a plugin.
+
+  ## Options
+
+  #{Zoi.describe(Ltix.Property.options_schema())}
+  """
+  def add_property(plugin, opts), do: Ltix.Property.add(plugin, __MODULE__, opts)
+  ```
+  '''
   @spec options_schema() :: Zoi.schema()
   def options_schema, do: @options_schema
 
