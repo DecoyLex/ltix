@@ -172,4 +172,4 @@ If the application passes `plugins:` to `Ltix.handle_callback/3`, pass the same 
 
 ## Custom services
 
-A custom service is a plugin with an endpoint claim and an `Ltix.ClientAssertion` step that adds its scope. Follow the [Building a Custom Advantage Service](https://ltix.hexdocs.pm/custom-advantage-service.md) cookbook, then authenticate with `Ltix.OAuth.authenticate(launch, services: [MyService])` and send requests with `Ltix.OAuth.Client.request(client, MyService, url: url)`.
+A custom service is a plugin with an endpoint claim and an `Ltix.ClientAssertion` step that adds its scope. Follow the [Building a Custom Advantage Service](https://ltix.hexdocs.pm/custom-advantage-service.md) cookbook, then authenticate with `MyService.authenticate(launch)`, an `authenticate/2` that calls `Ltix.OAuth.authenticate(launch_or_registerable, MyService, oauth_options)`, and send requests with `Ltix.OAuth.Client.request(client, MyService, url: url)`.

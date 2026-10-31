@@ -819,6 +819,73 @@ defmodule Ltix.OAuthTest do
     end
   end
 
+  describe "authenticate/3" do
+    test "requests a token for one service from a launch" do
+      capture_token_requests()
+      launch = build_launch()
+
+      assert {:ok, %Client{} = client} =
+               OAuth.authenticate(launch, Records, plugins: @plugins, req_options: req_options())
+
+      assert_received {:token_request, [@records_scope], _claims}
+      assert client.endpoints == %{Records => records_endpoint()}
+      assert client.registration == launch.source_registration
+    end
+
+    test "requests a token for one service from a registration and its endpoint", ctx do
+      capture_token_requests()
+
+      assert {:ok, %Client{} = client} =
+               OAuth.authenticate(ctx.registration, Records,
+                 endpoint: records_endpoint(),
+                 plugins: @plugins,
+                 req_options: req_options()
+               )
+
+      assert_received {:token_request, [@records_scope], _claims}
+      assert client.endpoints == %{Records => records_endpoint()}
+    end
+
+    test "raises for the services or endpoints it sets, and without an endpoint for a registration",
+         ctx do
+      launch = build_launch()
+
+      for {subject, opts, message} <- [
+            {launch, [services: [Records]], "Option :services is unknown"},
+            {launch, [endpoint: records_endpoint()], "Option :endpoint is unknown"},
+            {ctx.registration, [], "Option :endpoint is required"},
+            {ctx.registration, [endpoint: records_endpoint(), endpoints: %{}],
+             "Option :endpoints is unknown"}
+          ] do
+        assert_raise ArgumentError, message, fn ->
+          OAuth.authenticate(subject, Records, [plugins: @plugins] ++ opts)
+        end
+      end
+    end
+  end
+
+  describe "authenticate!/3" do
+    test "returns unwrapped client on success", ctx do
+      Ltix.Test.stub_token_response(scopes: [@records_scope])
+
+      assert %Client{} =
+               OAuth.authenticate!(ctx.registration, Records,
+                 endpoint: records_endpoint(),
+                 plugins: @plugins,
+                 req_options: req_options()
+               )
+    end
+
+    test "raises on error", ctx do
+      assert_raise InvalidEndpoint, fn ->
+        OAuth.authenticate!(ctx.registration, Records,
+          endpoint: calendar_endpoint(),
+          plugins: @plugins
+        )
+      end
+    end
+  end
+
   describe "authenticate!/2" do
     test "returns unwrapped client on success", ctx do
       Ltix.Test.stub_token_response(scopes: [@records_scope])

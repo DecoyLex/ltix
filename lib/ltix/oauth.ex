@@ -32,6 +32,20 @@ defmodule Ltix.OAuth do
                    unrecognized_keys: :error
                  )
 
+  @service_launch_schema Zoi.keyword(Client.option_fields(), unrecognized_keys: :error)
+
+  @service_registration_schema Zoi.keyword(
+                                 [
+                                   endpoint:
+                                     Zoi.any(
+                                       description:
+                                         "The service's endpoint, such as one built with its endpoint claim's `new/1`."
+                                     )
+                                     |> Zoi.required()
+                                 ] ++ Client.registration_option_fields(),
+                                 unrecognized_keys: :error
+                               )
+
   @token_options [
     :storage_adapter,
     :storage_adapter_options,
@@ -132,16 +146,7 @@ defmodule Ltix.OAuth do
 
   def authenticate(%Launch{} = launch, opts) do
     {services, opts} = Keyword.pop!(Options.parse!(opts, @launch_schema), :services)
-
-    with {:ok, endpoints} <- launch_endpoints(launch, services) do
-      request_client(
-        launch.source_registration,
-        endpoints,
-        opts
-        |> Keyword.put_new(:plugins, launch.plugins)
-        |> Keyword.put(:deployment, launch.source_deployment)
-      )
-    end
+    authenticate_launch(launch, services, opts)
   end
 
   def authenticate(registerable, opts) do
@@ -157,6 +162,70 @@ defmodule Ltix.OAuth do
     case authenticate(launch_or_registerable, opts) do
       {:ok, client} -> client
       {:error, error} -> raise error
+    end
+  end
+
+  @doc """
+  Requests an access token for one service's endpoint and returns a client for
+  its calls.
+
+  From an `Ltix.Launch`, the endpoint is the launch's endpoint for `service`.
+  From an `Ltix.Registration`, or your own struct that implements
+  `Ltix.Registerable`, pass a saved endpoint in `:endpoint`. It returns the
+  errors `authenticate/2` returns.
+
+  A service module calls it from an `authenticate/2` of its own, such as
+  `Ltix.GradeService.authenticate/2`.
+
+  ```elixir
+  def authenticate(launch_or_registerable, oauth_options) do
+    Ltix.OAuth.authenticate(launch_or_registerable, __MODULE__, oauth_options)
+  end
+  ```
+
+  ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  ### From a launch
+
+  #{Zoi.describe(@service_launch_schema)}
+
+  ### From a registration
+
+  #{Zoi.describe(@service_registration_schema)}
+  """
+  @spec authenticate(Launch.t() | Registerable.t(), module(), keyword()) ::
+          {:ok, Client.t()} | {:error, Exception.t()}
+  def authenticate(%Launch{} = launch, service, opts) when is_atom(service),
+    do: authenticate_launch(launch, [service], Options.parse!(opts, @service_launch_schema))
+
+  def authenticate(registerable, service, opts) when is_atom(service) do
+    {endpoint, opts} = Keyword.pop!(Options.parse!(opts, @service_registration_schema), :endpoint)
+    request_client(registerable, %{service => endpoint}, opts)
+  end
+
+  @doc """
+  Same as `authenticate/3` but raises on error.
+  """
+  @spec authenticate!(Launch.t() | Registerable.t(), module(), keyword()) :: Client.t()
+  def authenticate!(launch_or_registerable, service, opts) do
+    case authenticate(launch_or_registerable, service, opts) do
+      {:ok, client} -> client
+      {:error, error} -> raise error
+    end
+  end
+
+  defp authenticate_launch(launch, services, opts) do
+    with {:ok, endpoints} <- launch_endpoints(launch, services) do
+      request_client(
+        launch.source_registration,
+        endpoints,
+        opts
+        |> Keyword.put_new(:plugins, launch.plugins)
+        |> Keyword.put(:deployment, launch.source_deployment)
+      )
     end
   end
 

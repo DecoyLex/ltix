@@ -47,6 +47,13 @@ end
 
 `Ltix.OAuth.authenticate/2` checks every endpoint with `new/1` before it requests a token, including endpoints your application stored.
 
+Give your service module an `authenticate/2` that calls `Ltix.OAuth.authenticate/3`, so applications authenticate it the same way as `Ltix.GradeService`.
+
+```elixir
+def authenticate(launch_or_registerable, oauth_options \\ []),
+  do: Ltix.OAuth.authenticate(launch_or_registerable, __MODULE__, oauth_options)
+```
+
 ### Add the service's scope to token requests
 
 A client assertion step adds the scopes a token request asks for, and any claims the platform requires in the client assertion.

@@ -79,25 +79,30 @@ Ltix.Launch.get_endpoint(launch, MyApp.Lti.AttendanceService)
 
 ## Authenticating
 
-From a launch, pass the service as `services:`. When the launch has no attendance claim, `authenticate/2` returns `Ltix.Errors.Invalid.ServiceNotAvailable`.
+Give the service module an `authenticate/2` that calls `Ltix.OAuth.authenticate/3`. It takes the same options as `Ltix.GradeService.authenticate/2`.
+
+```elixir
+# lib/my_app/lti/attendance_service.ex
+def authenticate(launch_or_registerable, oauth_options \\ []),
+  do: Ltix.OAuth.authenticate(launch_or_registerable, __MODULE__, oauth_options)
+```
+
+From a launch, pass the launch. When the launch has no attendance claim, `authenticate/2` returns `Ltix.Errors.Invalid.ServiceNotAvailable`.
 
 ```elixir
 alias MyApp.Lti.AttendanceService
 
-{:ok, client} = Ltix.OAuth.authenticate(launch, services: [AttendanceService])
+{:ok, client} = AttendanceService.authenticate(launch)
 {:ok, records} = AttendanceService.get_records(client)
 ```
 
-From a URL stored during a launch, rebuild the endpoint and pass your registration and deployment records.
+From a URL stored during a launch, rebuild the endpoint and pass it in `:endpoint` with your registration and deployment records.
 
 ```elixir
 {:ok, endpoint} = MyApp.Lti.AttendanceEndpoint.new(attendance_url: stored_url)
 
 {:ok, client} =
-  Ltix.OAuth.authenticate(registration,
-    endpoints: %{AttendanceService => endpoint},
-    deployment: deployment
-  )
+  AttendanceService.authenticate(registration, endpoint: endpoint, deployment: deployment)
 ```
 
 ## Making authenticated requests
@@ -113,6 +118,11 @@ defmodule MyApp.Lti.AttendanceService do
 
   @spec scope() :: String.t()
   def scope, do: @scope
+
+  @spec authenticate(Ltix.Launch.t() | Ltix.Registerable.t(), keyword()) ::
+          {:ok, Client.t()} | {:error, Exception.t()}
+  def authenticate(launch_or_registerable, oauth_options \\ []),
+    do: Ltix.OAuth.authenticate(launch_or_registerable, __MODULE__, oauth_options)
 
   @spec get_records(Client.t()) :: {:ok, [map()]} | {:error, Exception.t()}
   def get_records(%Client{} = client) do
@@ -248,7 +258,7 @@ test "authenticate from launch", %{platform: platform} do
       claims: %{"https://lms.example.com/claim/attendance" => %{"attendance_url" => @attendance_url}}
     )
 
-  {:ok, client} = Ltix.OAuth.authenticate(launch, services: [AttendanceService])
+  {:ok, client} = AttendanceService.authenticate(launch)
 
   assert client.token.access_token == "test-attendance-token"
 end

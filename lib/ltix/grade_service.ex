@@ -105,29 +105,15 @@ defmodule Ltix.GradeService do
     |> Plugin.add(AddScopes)
   end
 
-  @auth_fields Client.option_fields()
-
-  @launch_auth_schema Zoi.keyword(@auth_fields, unrecognized_keys: :error)
-
-  @registration_auth_schema Zoi.keyword(
-                              [
-                                endpoint:
-                                  Zoi.struct(Endpoint, description: "AGS endpoint struct.")
-                                  |> Zoi.required()
-                              ] ++ Client.registration_option_fields(),
-                              unrecognized_keys: :error
-                            )
-
   @doc """
-  Acquire an OAuth token for the grade service.
+  Requests an access token for the grade service and returns a client for its
+  calls.
 
-  Accepts a `%Ltix.Launch{}` or any struct implementing `Ltix.Registerable`
-  (including `Ltix.Registration`). With a launch, the endpoint and
-  scopes are extracted from the AGS claim. With a registration, pass the
-  endpoint via the `:endpoint` option, built with
-  `Ltix.GradeService.Endpoint.new/1`.
+  `oauth_options` are the options of `Ltix.OAuth.authenticate/3`.
 
   ## From a launch
+
+  The endpoint is the launch's grade service endpoint.
 
   ```elixir
   {:ok, client} = Ltix.GradeService.authenticate(launch)
@@ -135,55 +121,31 @@ defmodule Ltix.GradeService do
 
   ## From a registration
 
+  Pass a saved endpoint, built with `Ltix.GradeService.Endpoint.new/1`, in
+  `:endpoint`.
+
   ```elixir
-  {:ok, client} = Ltix.GradeService.authenticate(registration,
-    endpoint:
-      Ltix.GradeService.Endpoint.new!(
-        line_items: "https://lms.example.com/lineitems",
-        scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
-      )
-  )
+  {:ok, client} =
+    Ltix.GradeService.authenticate(registration,
+      endpoint:
+        Ltix.GradeService.Endpoint.new!(
+          line_items: "https://lms.example.com/lineitems",
+          scopes: ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem"]
+        )
+    )
   ```
-
-  ## Options
-
-  When you [configure](`m:Ltix#module-configuration`) an option, the configured
-  value is its default.
-
-  ### From a launch
-
-  #{Zoi.describe(@launch_auth_schema)}
-
-  ### From a registration
-
-  #{Zoi.describe(@registration_auth_schema)}
   """
   @spec authenticate(Launch.t() | Registerable.t(), keyword()) ::
           {:ok, Client.t()} | {:error, Exception.t()}
-  def authenticate(launch_or_registerable, opts \\ [])
-
-  def authenticate(%Launch{} = launch, opts) do
-    opts = Options.parse!(opts, @launch_auth_schema)
-
-    OAuth.authenticate(launch, Keyword.put(opts, :services, [__MODULE__]))
-  end
-
-  def authenticate(registerable, opts) do
-    opts = Options.parse!(opts, @registration_auth_schema)
-    {endpoint, opts} = Keyword.pop!(opts, :endpoint)
-    OAuth.authenticate(registerable, Keyword.put(opts, :endpoints, %{__MODULE__ => endpoint}))
-  end
+  def authenticate(launch_or_registerable, oauth_options \\ []),
+    do: OAuth.authenticate(launch_or_registerable, __MODULE__, oauth_options)
 
   @doc """
   Same as `authenticate/2` but raises on error.
   """
   @spec authenticate!(Launch.t() | Registerable.t(), keyword()) :: Client.t()
-  def authenticate!(launch_or_registerable, opts \\ []) do
-    case authenticate(launch_or_registerable, opts) do
-      {:ok, client} -> client
-      {:error, error} -> raise error
-    end
-  end
+  def authenticate!(launch_or_registerable, oauth_options \\ []),
+    do: OAuth.authenticate!(launch_or_registerable, __MODULE__, oauth_options)
 
   @line_items_query_fields [
     endpoint: @endpoint_option,
