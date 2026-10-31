@@ -87,7 +87,7 @@ The Security Framework, on imsglobal.org, shows section numbers. Cite it by numb
 | Cert | `https://standards.1edtech.org/lti/specifications/guides/conformance/conformance-guide` |
 | Sec | `https://www.imsglobal.org/spec/security/v1p0/` |
 
-Take each anchor from the live page. The local copies in `specs/` are for reading.
+Take each anchor from the live page.
 
 ## Documentation
 
