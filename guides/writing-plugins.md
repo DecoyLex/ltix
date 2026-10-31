@@ -6,6 +6,7 @@ A plugin can add a login step, a claim, a message type, an Advantage service, or
 |---|---|
 | Write and enable a first plugin | [Write a plugin](#write-a-plugin), [Enable plugins](#enable-plugins) |
 | Run code during login, launches, or token requests | [Add a step](#add-a-step) |
+| Send a signed message to a platform | [Sign a message](#sign-a-message) |
 | Read or check a claim, or accept a new kind of launch | [Writing Claim and Launch Plugins](writing-claim-and-launch-plugins.md) |
 | Add an Advantage service, or send a platform's own grade or roster properties | [Writing Advantage Service Plugins](writing-advantage-service-plugins.md) |
 | Return new kinds of content or properties from Deep Linking | [Writing Deep Linking Plugins](writing-deep-linking-plugins.md) |
@@ -174,6 +175,14 @@ end
 ```
 
 To run steps between two phases, call `run_before/3` inside `run_after/3`. When these calls order a step both before and after another, or put it in a cycle, the plugin set fails to resolve with `Ltix.Errors.Unknown.InvalidPluginSet`.
+
+## Sign a message
+
+`Ltix.JWT.Token.sign/3` signs claims with the application's storage adapter, the same way Ltix signs Deep Linking responses. Pass the registration your plugin received, such as a launch's `source_registration`, and add the claims the platform requires, such as `iss`, `aud`, `iat`, `exp`, and `nonce`.
+
+```elixir
+{:ok, jwt} = Ltix.JWT.Token.sign(claims, launch.source_registration)
+```
 
 ## Depend on another plugin
 

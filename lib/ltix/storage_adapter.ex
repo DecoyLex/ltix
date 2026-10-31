@@ -45,16 +45,16 @@ defmodule Ltix.StorageAdapter do
   | `c:get_registration/3` | Login initiation and launch validation | Look up a registration by issuer and optional client ID |
   | `c:get_deployment/3` | Launch validation | Look up a deployment by registration and deployment ID |
   | `c:validate_nonce/4` | Launch validation | Record a nonce as used, and reject one already used |
-  | `c:key_id/2` | Service authentication and deep linking responses | Return the ID of the key that signs for a registration |
-  | `c:sign/4` | Service authentication and deep linking responses | Sign a message with that key |
+  | `c:key_id/2` | Service authentication, Deep Linking responses, and `Ltix.JWT.Token.sign/3` | Return the ID of the key that signs for a registration |
+  | `c:sign/4` | Service authentication, Deep Linking responses, and `Ltix.JWT.Token.sign/3` | Sign a message with that key |
 
   ## Signing
 
   `c:key_id/2` and `c:sign/4` are optional. Implement them when your tool
-  calls Advantage services or builds deep linking responses. Ltix builds
-  each JWT and calls your adapter for the signature, so the private key
-  stays wherever you keep it. `Ltix.JWK.sign/2` signs with a key held in
-  your application.
+  calls Advantage services, builds Deep Linking responses, or uses a plugin
+  that signs its own messages. Ltix builds each JWT and calls your adapter for
+  the signature, so the private key stays wherever you keep it.
+  `Ltix.JWK.sign/2` signs with a key held in your application.
 
   ```elixir
   @impl true
@@ -331,7 +331,7 @@ defmodule Ltix.StorageAdapter do
          callback: :sign,
          reason:
            "is not implemented. #{inspect(adapter)} must implement key_id/2 and sign/4 " <>
-             "to call Advantage services or build deep linking responses"
+             "to sign JWTs, such as client assertions and Deep Linking responses"
        )}
     end
   end

@@ -5,6 +5,7 @@ defmodule Ltix.Integration.SigningTest do
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
+  alias Ltix.JWT.Token
   alias Ltix.MembershipsService
   alias Ltix.MembershipsService.Endpoint, as: MembershipsServiceEndpoint
   alias Ltix.OAuth
@@ -238,6 +239,43 @@ defmodule Ltix.Integration.SigningTest do
       end
 
       refute_received {:client_assertion, _assertion}
+    end
+  end
+
+  describe "JWTs a plugin signs" do
+    test "are signed with the storage adapter's key for the registration record", ctx do
+      record = CustomRegistration.from_registration(ctx.registration, id: 42)
+      claims = %{"iss" => "tool-client-id", "https://proctor.example.com/claim/session" => "s-1"}
+      key_id = ctx.signing_key.kid
+
+      assert {:ok, jwt} = Token.sign(claims, record, storage_adapter: KeyStorageAdapter)
+
+      assert_received {:key_id, ^record}
+      assert_received {:sign, ^record, ^key_id}
+      assert %{"alg" => "RS256", "typ" => "JWT", "kid" => ^key_id} = header(jwt)
+      assert verify(jwt, ctx.signing_key) == {:ok, claims}
+    end
+
+    test "use the configured storage adapter", ctx do
+      claims = %{"iss" => "tool-client-id"}
+
+      assert {:ok, jwt} = Token.sign(claims, ctx.registration)
+      assert Ltix.Test.verify_deep_linking_response(ctx.platform, jwt) == {:ok, claims}
+    end
+
+    test "return StorageError when the adapter can't sign", ctx do
+      assert {:error, %StorageError{callback: :sign}} =
+               Token.sign(%{}, ctx.registration, storage_adapter: LaunchStorageAdapter)
+    end
+
+    test "raise on unknown and invalid options", ctx do
+      assert_raise ArgumentError, "Option :key_id is unknown", fn ->
+        Token.sign(%{}, ctx.registration, key_id: "k")
+      end
+
+      assert_raise ArgumentError, ~r/Option :storage_adapter_options is invalid/, fn ->
+        Token.sign(%{}, ctx.registration, storage_adapter_options: "tenant")
+      end
     end
   end
 

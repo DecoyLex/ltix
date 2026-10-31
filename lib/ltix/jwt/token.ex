@@ -1,24 +1,33 @@
 defmodule Ltix.JWT.Token do
   @moduledoc """
-  Decodes and validates LTI ID tokens (JWTs).
+  Signs the JWTs your tool sends to platforms, and verifies the ID tokens
+  platforms send.
 
-  Implements the
+  `sign/3` signs claims with your storage adapter's key, the way Ltix signs
+  Deep Linking responses and client assertions. Use it for a message your
+  plugin sends to a platform.
+
+  ```elixir
+  {:ok, jwt} = Ltix.JWT.Token.sign(claims, launch.source_registration)
+  ```
+
+  ## Verifying tokens
+
+  `verify/3` implements the
   [Authentication Response Validation](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation)
-  steps from the 1EdTech Security Framework. The module verifies the JWT signature
+  steps from the 1EdTech Security Framework. It verifies the JWT signature
   using the platform's public key (fetched via `Ltix.JWT.KeySet`), enforces
   RS256-only signing, and validates all required claims.
-
-  Critical header extensions ([RFC 7515 §4.1.11][crit]) are not supported.
-
-  [crit]: https://www.rfc-editor.org/rfc/rfc7515#section-4.1.11
-
-  ## Examples
 
   ```elixir
   {:ok, claims} = Ltix.JWT.Token.verify(token_string, registration)
   ```
 
-  ## Validation steps
+  Critical header extensions ([RFC 7515 §4.1.11][crit]) are not supported.
+
+  [crit]: https://www.rfc-editor.org/rfc/rfc7515#section-4.1.11
+
+  ### Validation steps
 
   1. Decode the JWT header to extract `alg` and `kid`
   2. Reject any algorithm other than RS256
@@ -51,7 +60,9 @@ defmodule Ltix.JWT.Token do
   alias Ltix.JWK
   alias Ltix.JWT.KeySet
   alias Ltix.Options
+  alias Ltix.Registerable
   alias Ltix.Registration
+  alias Ltix.StorageAdapter
 
   @default_clock_skew 5
 
@@ -87,6 +98,68 @@ defmodule Ltix.JWT.Token do
                     ],
                     unrecognized_keys: :error
                   )
+
+  @sign_schema Zoi.keyword(
+                 [
+                   storage_adapter: Zoi.module(description: "The storage adapter that signs."),
+                   storage_adapter_options:
+                     Zoi.keyword(Zoi.any(),
+                       description: "Options passed to the storage adapter's signing callbacks."
+                     )
+                     |> Zoi.default([])
+                 ],
+                 unrecognized_keys: :error
+               )
+
+  @doc """
+  Signs claims as a JWT with the storage adapter's key for a registration.
+
+  Returns `{:ok, jwt}` with the compact RS256 JWT. The storage adapter's
+  `c:Ltix.StorageAdapter.key_id/2` and `c:Ltix.StorageAdapter.sign/4` receive
+  `registration`, which is any struct that implements `Ltix.Registerable`.
+  Returns `Ltix.Errors.Unknown.StorageError` when the adapter doesn't
+  implement them or fails. See [Error Handling](error-handling.md). Raises
+  `ArgumentError` when no storage adapter is passed or configured, and for an
+  unknown or invalid option.
+
+  The claims are signed as given. Add the claims the platform requires, such as
+  `iss`, `aud`, `iat`, `exp`, and `nonce`.
+
+  ```elixir
+  now = System.system_time(:second)
+
+  {:ok, jwt} =
+    Ltix.JWT.Token.sign(
+      %{
+        "iss" => launch.registration.client_id,
+        "aud" => launch.registration.issuer,
+        "iat" => now,
+        "exp" => now + 300,
+        "nonce" => Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+      },
+      launch.source_registration
+    )
+  ```
+
+  ## Options
+
+  When you [configure](`m:Ltix#module-configuration`) an option, the configured
+  value is its default.
+
+  #{Zoi.describe(@sign_schema)}
+  """
+  # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
+  @spec sign(map(), Registerable.t(), keyword()) :: {:ok, String.t()} | {:error, Exception.t()}
+  def sign(claims, registration, opts \\ []) when is_map(claims) do
+    opts = Options.parse!(opts, @sign_schema)
+
+    StorageAdapter.sign_jwt(
+      Options.fetch_configured!(opts, :storage_adapter),
+      registration,
+      claims,
+      Keyword.fetch!(opts, :storage_adapter_options)
+    )
+  end
 
   @doc """
   Verify and decode an LTI ID token.

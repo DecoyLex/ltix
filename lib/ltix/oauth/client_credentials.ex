@@ -7,6 +7,7 @@ defmodule Ltix.OAuth.ClientCredentials do
   alias Ltix.Errors.Invalid.ServiceNotAvailable
   alias Ltix.Errors.Invalid.TokenRequestFailed
   alias Ltix.HTTP
+  alias Ltix.JWT.Token
   alias Ltix.OAuth.AccessToken
   alias Ltix.Options
   alias Ltix.PluginSet
@@ -14,7 +15,6 @@ defmodule Ltix.OAuth.ClientCredentials do
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Step
-  alias Ltix.StorageAdapter
 
   @grant_type "client_credentials"
   @assertion_type "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
@@ -44,11 +44,11 @@ defmodule Ltix.OAuth.ClientCredentials do
          :ok <- require_token_endpoint(registration),
          {:ok, deployment} <- resolve_deployment(Keyword.get(opts, :deployment)),
          {:ok, signed} <-
-           StorageAdapter.sign_jwt(
-             Options.fetch_configured!(opts, :storage_adapter),
-             registerable,
+           Token.sign(
              Map.merge(assertion.claims, required_claims(registration, deployment)),
-             Keyword.get(opts, :storage_adapter_options, [])
+             registerable,
+             storage_adapter: Options.fetch_configured!(opts, :storage_adapter),
+             storage_adapter_options: Keyword.get(opts, :storage_adapter_options, [])
            ) do
       send_token_request(registration, assertion.scopes, opts, signed)
     end

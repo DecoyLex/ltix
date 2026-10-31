@@ -36,12 +36,12 @@ defmodule Ltix.DeepLinking do
   alias Ltix.DeepLinking.Settings
 
   alias Ltix.Errors
+  alias Ltix.JWT.Token
   alias Ltix.Launch
   alias Ltix.Options
   alias Ltix.Plugin
   alias Ltix.PluginSet
   alias Ltix.Step
-  alias Ltix.StorageAdapter
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
@@ -222,11 +222,9 @@ defmodule Ltix.DeepLinking do
          :ok <- Errors.collect(response.errors),
          # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
          {:ok, jwt} <-
-           StorageAdapter.sign_jwt(
-             storage_adapter,
-             launch.source_registration,
-             response.claims,
-             Keyword.fetch!(opts, :storage_adapter_options)
+           Token.sign(response.claims, launch.source_registration,
+             storage_adapter: storage_adapter,
+             storage_adapter_options: Keyword.fetch!(opts, :storage_adapter_options)
            ) do
       {:ok, %{response | jwt: jwt}}
     end
