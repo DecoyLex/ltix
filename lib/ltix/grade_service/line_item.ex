@@ -112,10 +112,24 @@ defmodule Ltix.GradeService.LineItem do
     with {:ok, _fields} <- InvalidField.parse(__MODULE__, @validation_schema, fields), do: :ok
   end
 
-  @doc false
+  @doc """
+  Returns the Zoi schema of a label that `validate/1` accepts, a string that
+  isn't blank.
+
+  Use it in a type whose line items the platform creates, such as
+  `Ltix.DeepLinking.LineItem`.
+  """
+  @spec label_schema() :: Zoi.schema()
   def label_schema, do: @label_schema
 
-  @doc false
+  @doc """
+  Returns the Zoi schema of a maximum score that `validate/1` accepts, a
+  number greater than 0.
+
+  Use it in a type whose line items the platform creates, such as
+  `Ltix.DeepLinking.LineItem`.
+  """
+  @spec score_maximum_schema() :: Zoi.schema()
   def score_maximum_schema, do: @score_maximum_schema
 
   @doc false
