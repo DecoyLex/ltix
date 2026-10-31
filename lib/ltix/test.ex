@@ -352,6 +352,19 @@ defmodule Ltix.Test do
 
   @stub_plugins_schema Zoi.keyword([plugins: @stub_plugins_option], unrecognized_keys: :error)
 
+  @allow_stubs_schema Zoi.keyword(
+                        [
+                          plugins:
+                            Zoi.list(Zoi.any(),
+                              description:
+                                "The plugins whose services' stubs `pid` uses, after the " <>
+                                  "[default plugins](`Ltix.DefaultPlugins`), each as `MyPlugin` or " <>
+                                  "`{MyPlugin, opts}`. Defaults to the configured plugins."
+                            )
+                        ],
+                        unrecognized_keys: :error
+                      )
+
   @stub_list_members_schema Zoi.keyword(
                               [
                                 context: @context_option,
@@ -509,6 +522,10 @@ defmodule Ltix.Test do
   Lets `pid` use the test process's stubs and its `Ltix.Test.StorageAdapter`,
   including those the test sets afterward.
 
+  The stubs include the platform's key set and token endpoints, and the service
+  of each endpoint claim in the plugin set, such as `Ltix.GradeService` or a
+  plugin's service stubbed with `Req.Test.stub/2`.
+
   Processes the test starts, such as tasks, LiveViews, and
   `start_supervised/2` children, already use them. Call `allow_stubs/1` for
   any other process, such as one your application supervises, before it
@@ -520,11 +537,17 @@ defmodule Ltix.Test do
   Ltix.Test.allow_stubs(Process.whereis(MyApp.GradeSync))
   ```
 
-  `pid` can be a function that returns the process. Allow the stubs of your own
-  services with `Req.Test.allow/3`.
+  `pid` can be a function that returns the process.
+
+  ## Options
+
+  #{Zoi.describe(@allow_stubs_schema)}
   """
-  @spec allow_stubs(pid() | (-> pid())) :: :ok
-  def allow_stubs(pid), do: ServiceStub.allow(pid)
+  @spec allow_stubs(pid() | (-> pid()), keyword()) :: :ok
+  def allow_stubs(pid, opts \\ []) do
+    opts = Options.parse!(opts, @allow_stubs_schema)
+    ServiceStub.allow(pid, ok!(PluginSet.resolve(opts[:plugins])))
+  end
 
   @doc group: "Storage adapter"
   @doc """

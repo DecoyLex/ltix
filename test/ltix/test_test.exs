@@ -1014,6 +1014,41 @@ defmodule Ltix.TestTest do
                run_outside(pid, fn -> GradeService.post_score(client, score()) end)
     end
 
+    test "a process the test didn't start uses a stub of a plugin's service set after allowing it",
+         %{platform: platform} do
+      client = build_records_client(platform)
+      pid = start_outside_process()
+      assert :ok = Ltix.Test.allow_stubs(pid, plugins: [TestPlugins.Records])
+
+      Req.Test.stub(TestPlugins.Records, &Req.Test.json(&1, %{"records" => []}))
+
+      assert {:ok, %Req.Response{body: %{"records" => []}}} =
+               run_outside(pid, fn ->
+                 Client.request(client, TestPlugins.Records,
+                   url: "https://lms.example.com/records"
+                 )
+               end)
+    end
+
+    test "a request to a plugin's service without a stub fails with how to stub it", %{
+      platform: platform
+    } do
+      client = build_records_client(platform)
+      pid = start_outside_process()
+      Ltix.Test.allow_stubs(pid, plugins: [TestPlugins.Records])
+
+      assert_raise RuntimeError,
+                   "No stub matches GET https://lms.example.com/records. " <>
+                     "Stub TestPlugins.Records with Req.Test.stub/2.",
+                   fn ->
+                     run_outside(pid, fn ->
+                       Client.request(client, TestPlugins.Records,
+                         url: "https://lms.example.com/records"
+                       )
+                     end)
+                   end
+    end
+
     test "a process the test didn't start launches from the test platform", %{
       platform: platform
     } do
@@ -1419,6 +1454,15 @@ defmodule Ltix.TestTest do
       Ltix.MembershipsService,
       MembershipsServiceEndpoint.new!("https://lms.example.com/memberships"),
       scopes: ["https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"]
+    )
+  end
+
+  defp build_records_client(platform) do
+    build_client(
+      platform,
+      TestPlugins.Records,
+      %TestPlugins.Records.Endpoint{url: "https://lms.example.com/records"},
+      plugins: [TestPlugins.Records]
     )
   end
 

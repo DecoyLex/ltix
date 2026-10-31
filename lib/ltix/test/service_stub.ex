@@ -13,6 +13,7 @@ defmodule Ltix.Test.ServiceStub do
   alias Ltix.MembershipsService
   alias Ltix.OAuth.ClientCredentials
   alias Ltix.Options
+  alias Ltix.PluginSet
   alias Ltix.Test.StorageAdapter
 
   @compile {:no_warn_undefined,
@@ -20,6 +21,8 @@ defmodule Ltix.Test.ServiceStub do
               {Plug.Conn, :put_resp_header, 3},
               {Plug.Conn, :request_url, 1}
             ]}
+
+  @ltix_services [KeySet, ClientCredentials, GradeService, MembershipsService, StorageAdapter]
 
   @line_item GradeService.media_type(:line_item)
   @line_item_container GradeService.media_type(:line_item_container)
@@ -45,17 +48,21 @@ defmodule Ltix.Test.ServiceStub do
   end
 
   @doc """
-  Lets `pid` use every service's stub of this process, including routes put
-  afterward. Raises the `Req.Test.allow/3` error of a service `pid` can't use.
+  Lets `pid` use this process's stubs of the platform's key sets and token
+  endpoints, `Ltix.Test.StorageAdapter`, and the service of each endpoint claim
+  in `plugins`, including routes put afterward. Raises the `Req.Test.allow/3`
+  error of a service `pid` can't use.
   """
-  @spec allow(pid() | (-> pid())) :: :ok
-  def allow(pid) do
+  @spec allow(pid() | (-> pid()), PluginSet.t()) :: :ok
+  def allow(pid, %PluginSet{} = plugins) do
     require_plug!()
 
-    Enum.each(
-      [KeySet, ClientCredentials, GradeService, MembershipsService, StorageAdapter],
-      &allow!(&1, pid)
-    )
+    services =
+      for %{service: service} <- Map.values(PluginSet.data(plugins, Ltix.Claims).by_uri),
+          service != nil,
+          do: service
+
+    Enum.each([KeySet, ClientCredentials, StorageAdapter] ++ services, &allow!(&1, pid))
   end
 
   defp allow!(service, pid) do
@@ -174,6 +181,9 @@ defmodule Ltix.Test.ServiceStub do
     if conn.method == "POST", do: :token_response
   end
 
+  # A plugin's service, which a test stubs with `Req.Test.stub/2`.
+  defp operation(_service, _conn), do: nil
+
   defp path_operation(conn, suffix, operation) do
     if String.ends_with?(trim_path(conn.request_path), suffix), do: operation
   end
@@ -199,11 +209,16 @@ defmodule Ltix.Test.ServiceStub do
   defp unanswered(conn, service, operation) do
     request = "#{conn.method} #{Plug.Conn.request_url(conn)}"
 
-    if operation do
-      "No Ltix.Test stub matches #{request}. #{advice(operation)}"
-    else
-      "No Ltix.Test stub matches #{request}, which #{inspect(service)} does not send. " <>
-        "Stub it with Req.Test.stub/2."
+    cond do
+      operation ->
+        "No Ltix.Test stub matches #{request}. #{advice(operation)}"
+
+      service in @ltix_services ->
+        "No Ltix.Test stub matches #{request}, which #{inspect(service)} does not send. " <>
+          "Stub it with Req.Test.stub/2."
+
+      true ->
+        "No stub matches #{request}. Stub #{inspect(service)} with Req.Test.stub/2."
     end
   end
 
