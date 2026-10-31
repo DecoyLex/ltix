@@ -186,13 +186,14 @@ defmodule Ltix.HTTP do
 
   def validate_url(_url), do: invalid_url()
 
-  # A Zoi refinement for a field that `validate_url/1` accepts.
+  # A Zoi refinement for a field that `validate_url/1` accepts. Rejects any
+  # other value with `message`.
   @doc false
-  @spec https_url(term(), keyword()) :: :ok | {:error, String.t()}
-  def https_url(url, _opts) do
+  @spec https_url(term(), String.t(), keyword()) :: :ok | {:error, String.t()}
+  def https_url(url, message, _opts) do
     case validate_url(url) do
       {:ok, _uri} -> :ok
-      {:error, _error} -> {:error, "must be an absolute HTTPS URL"}
+      {:error, _error} -> {:error, message}
     end
   end
 

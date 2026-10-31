@@ -131,10 +131,14 @@ defmodule Ltix.Claim do
       service: MyLibrary.AttendanceService,
       fields: [url: Zoi.string()]
 
+    @new_schema Zoi.struct(__MODULE__, %{url: Ltix.Type.url()}, coerce: true)
+
     @impl Ltix.Claim
-    def new(attributes), do: Ltix.Type.new(__MODULE__, attributes)
+    def new(attributes), do: Ltix.Type.new(__MODULE__, attributes, schema: @new_schema)
   end
   ```
+
+  `Ltix.Type.url/1` rejects a URL Ltix won't send requests to.
 
   ## Conflicts
 

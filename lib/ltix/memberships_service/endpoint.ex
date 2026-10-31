@@ -32,7 +32,7 @@ defmodule Ltix.MembershipsService.Endpoint do
   @new_schema Zoi.struct(
                 __MODULE__,
                 %{
-                  context_memberships_url: Zoi.refine(Zoi.string(), {Ltix.HTTP, :https_url, []}),
+                  context_memberships_url: Ltix.Type.url(),
                   service_versions: Zoi.list(Zoi.string()) |> Zoi.optional()
                 },
                 coerce: true,

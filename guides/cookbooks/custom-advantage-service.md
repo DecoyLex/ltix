@@ -18,26 +18,14 @@ defmodule MyApp.Lti.AttendanceEndpoint do
     service: MyApp.Lti.AttendanceService,
     fields: [attendance_url: Zoi.string()]
 
-  alias Ltix.Errors.Invalid.InvalidField
+  @new_schema Zoi.struct(__MODULE__, %{attendance_url: Ltix.Type.url()}, coerce: true)
 
   @impl Ltix.Claim
-  def new(attributes) do
-    case attributes[:attendance_url] do
-      "https://" <> _rest = url ->
-        {:ok, %__MODULE__{attendance_url: url}}
-
-      url ->
-        {:error,
-         InvalidField.exception(
-           struct: __MODULE__,
-           field: :attendance_url,
-           value: url,
-           reason: "must be an HTTPS URL"
-         )}
-    end
-  end
+  def new(attributes), do: Ltix.Type.new(__MODULE__, attributes, schema: @new_schema)
 end
 ```
+
+`Ltix.Type.url/1` accepts the URLs Ltix sends requests to, HTTPS or HTTP for a loopback or private network host. `Ltix.Type.new/3` checks the fields with the stricter schema, and returns `Ltix.Errors.Invalid.InvalidField` for an endpoint without a valid `attendance_url`.
 
 The claim is declared with [`strict: false`](../writing-claim-and-launch-plugins.md#malformed-and-missing-claims), so a malformed endpoint claim is `nil` and doesn't fail the launch. `authenticate/2` checks every endpoint with `new/1`, including endpoints you stored.
 

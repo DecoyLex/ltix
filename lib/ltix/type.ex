@@ -317,6 +317,36 @@ defmodule Ltix.Type do
   end
 
   @doc """
+  Returns a Zoi schema for a URL Ltix sends requests to, the same check the
+  grade and memberships service endpoints use.
+
+  The schema accepts an absolute HTTPS URL, or HTTP for a loopback or private
+  network host, without a user or password. `zoi_options` are Zoi options for
+  the string, such as `description:`. An `error:` option replaces the message for
+  every value the schema rejects. Use it in the stricter schema an endpoint
+  claim's `c:Ltix.Claim.new/1` passes to `new/3`, so the claim rejects an
+  endpoint your service can't call.
+
+  ```elixir
+  iex> url = Ltix.Type.url()
+  iex> Zoi.parse(url, "https://platform.example.com/events")
+  {:ok, "https://platform.example.com/events"}
+  iex> {:error, [error]} = Zoi.parse(url, "http://platform.example.com/events")
+  iex> error.message
+  "must be an absolute HTTPS URL"
+  ```
+  """
+  # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
+  @spec url(keyword()) :: Zoi.schema()
+  def url(zoi_options \\ []) do
+    zoi_options = Keyword.put_new(zoi_options, :error, "must be an absolute HTTPS URL")
+
+    zoi_options
+    |> Zoi.string()
+    |> Zoi.refine({Ltix.HTTP, :https_url, [zoi_options[:error]]})
+  end
+
+  @doc """
   Builds a type's struct from its fields, given as a keyword list or a map.
 
   Nested values may be keyword lists, such as `window: [width: 400]`. A field

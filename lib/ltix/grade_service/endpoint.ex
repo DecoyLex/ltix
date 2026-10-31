@@ -37,11 +37,9 @@ defmodule Ltix.GradeService.Endpoint do
         |> Zoi.optional()
     ]
 
-  alias Ltix.HTTP
-
   # [AGS, Assignment and Grade Service claim](https://standards.1edtech.org/lti/specifications/services/assignments_grades/assignment-grade-services-spec#assignment-and-grade-service-claim)
   # [Sec §3](https://www.imsglobal.org/spec/security/v1p0/#transport-security)
-  @https_url Zoi.refine(Zoi.string(), {HTTP, :https_url, []})
+  @https_url Ltix.Type.url()
 
   @new_schema Zoi.struct(
                 __MODULE__,

@@ -42,6 +42,14 @@ defmodule Ltix.TypeTest do
       ]
   end
 
+  defmodule Endpoint do
+    use Ltix.Type, fields: [events_url: Ltix.Type.url(description: "The events URL.")]
+  end
+
+  defmodule NamedEndpoint do
+    use Ltix.Type, fields: [events_url: Ltix.Type.url(error: "must be the events URL")]
+  end
+
   describe "new/3" do
     test "describes each failed check after the field's name" do
       for {field, value, message} <- [
@@ -61,6 +69,46 @@ defmodule Ltix.TypeTest do
 
         assert Exception.message(error) ==
                  "Ltix.TypeTest.Checked field #{inspect(field)} #{message}"
+      end
+    end
+
+    test "accepts a URL Ltix can send requests to in a URL field" do
+      for url <- [
+            "https://platform.example.com/events",
+            "HTTPS://platform.example.com:8443/events",
+            "http://localhost:4000/events",
+            "http://10.0.0.5/events"
+          ] do
+        assert Ltix.Type.new(Endpoint, events_url: url) == {:ok, %Endpoint{events_url: url}}
+      end
+    end
+
+    test "rejects a URL Ltix won't send requests to in a URL field" do
+      for {url, message} <- [
+            {"http://platform.example.com/events",
+             ~s(must be an absolute HTTPS URL (got "http://platform.example.com/events"\))},
+            {"https://user:secret@platform.example.com/events",
+             ~s(must be an absolute HTTPS URL (got "https://user:secret@platform.example.com/events"\))},
+            {"https://platform.example.com:0/events",
+             ~s(must be an absolute HTTPS URL (got "https://platform.example.com:0/events"\))},
+            {"/events", ~s(must be an absolute HTTPS URL (got "/events"\))},
+            {:events, "must be an absolute HTTPS URL (got :events)"}
+          ] do
+        assert {:error, error} = Ltix.Type.new(Endpoint, events_url: url)
+        assert Exception.message(error) == "Ltix.TypeTest.Endpoint field :events_url #{message}"
+      end
+    end
+
+    test "reports a URL field's own error for every URL it rejects" do
+      for {url, message} <- [
+            {"http://platform.example.com/events",
+             ~s(must be the events URL (got "http://platform.example.com/events"\))},
+            {:events, "must be the events URL (got :events)"}
+          ] do
+        assert {:error, error} = Ltix.Type.new(NamedEndpoint, events_url: url)
+
+        assert Exception.message(error) ==
+                 "Ltix.TypeTest.NamedEndpoint field :events_url #{message}"
       end
     end
 

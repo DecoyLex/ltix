@@ -36,24 +36,14 @@ defmodule Proctoring.Endpoint do
     service: Proctoring.EventsService,
     fields: [events_url: Zoi.string()]
 
-  @impl Ltix.Claim
-  def new(attributes) do
-    case attributes[:events_url] do
-      "https://" <> _rest = url ->
-        {:ok, %__MODULE__{events_url: url}}
+  @new_schema Zoi.struct(__MODULE__, %{events_url: Ltix.Type.url()}, coerce: true)
 
-      url ->
-        {:error,
-         Ltix.Errors.Invalid.InvalidField.exception(
-           struct: __MODULE__,
-           field: :events_url,
-           value: url,
-           reason: "must be an HTTPS URL"
-         )}
-    end
-  end
+  @impl Ltix.Claim
+  def new(attributes), do: Ltix.Type.new(__MODULE__, attributes, schema: @new_schema)
 end
 ```
+
+`Ltix.Type.new/3` checks the fields with the stricter schema in `@new_schema`. `Ltix.Type.url/1` accepts the URLs Ltix sends requests to, HTTPS or HTTP for a loopback or private network host, so the endpoint gets the same check as the grade and memberships service endpoints.
 
 `Ltix.OAuth.authenticate/2` checks every endpoint with `new/1` before it requests a token, including endpoints your application stored.
 

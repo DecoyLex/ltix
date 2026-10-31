@@ -23,22 +23,12 @@ defmodule TestPlugins.Records.Endpoint do
 
   use Ltix.ClientAssertion
 
-  alias Ltix.Errors.Invalid.InvalidField
-
   @scope "https://example.com/scope/records.readonly"
 
+  @new_schema Zoi.struct(__MODULE__, %{url: Ltix.Type.url()}, coerce: true)
+
   @impl Ltix.Claim
-  def new(attributes) do
-    url = attributes[:url]
-
-    case Ltix.HTTP.validate_url(url) do
-      {:ok, _uri} ->
-        {:ok, %__MODULE__{url: url}}
-
-      {:error, _} ->
-        {:error, InvalidField.invalid(__MODULE__, :url, url, "must be HTTPS")}
-    end
-  end
+  def new(attributes), do: Ltix.Type.new(__MODULE__, attributes, schema: @new_schema)
 
   @impl Ltix.Step
   def call(%{endpoints: %{TestPlugins.Records => _endpoint}} = assertion, _opts),
