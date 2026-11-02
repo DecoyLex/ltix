@@ -56,7 +56,7 @@ defmodule Ltix.MixProject do
       vale: [
         &sync_vale_packages/1,
         "cmd vale test .vale/styles/Ltix",
-        "cmd vale lib guides docs usage-rules usage-rules.md README.md GLOSSARY.md"
+        "cmd vale lib guides docs usage-rules usage-rules.md README.md GLOSSARY.md VERSIONING.md"
       ]
     ]
   end
