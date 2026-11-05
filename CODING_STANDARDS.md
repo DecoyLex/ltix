@@ -24,6 +24,7 @@ Every change to Ltix follows these standards, and every review checks against th
 - Extract logic that several modules repeat into one function they all call. Keep macros to a minimum. Several modules that each define the same small function, such as `add_property/2`, read better than one macro that generates them.
 - Give each module one job. Split a module that does several unrelated jobs, and keep dependencies between modules pointing one way.
 - Inline a module that has one function into the module that uses it.
+- Put a function in the module of the thing it operates on. A function that builds an `Ltix.Registration` belongs in `Ltix.Registration`, and one that builds an `Ltix.Deployment` belongs in `Ltix.Deployment`.
 - Take an external dependency, such as Req options or the storage adapter, as an option, so a test can replace it. Give each platform operation its own function, such as `list_members` or `post_score`, so its stub returns one shape.
 - Callers read a library struct with dot syntax or a named function, such as `launch.claims.context` or `Ltix.Launch.get_endpoint/2`.
 
