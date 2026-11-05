@@ -156,6 +156,14 @@ These rules apply to every word a person reads, including docs, comments, error 
 - An example sets up its data in `setup` and uses the application's naming conventions.
 - A skill tells the agent to ask the user with its question tools when it needs a decision.
 
+## Commits
+
+- A commit holds one change that can be reverted alone. A headline that joins two changes with "and" is two commits.
+- A commit message is a Conventional Commits headline with no body.
+- Write the description in lowercase and in the imperative, so it finishes the sentence "If applied, this commit will". Keep it near 50 characters.
+- Start the description with a plain verb, such as add, remove, fix, support, allow, require, reject, accept, return, raise, replace, rename, move, update, or create. Leave out let, record, give, link, drop, name, call, say, word, check, expose, take, build, hold, and fence.
+- Say what the change does for a person who uses Ltix, such as "allow plugins to sign JWTs" or "decode JSON `null` as `nil` in `Ltix.Test`". A list of the modules or functions that changed only repeats the diff.
+
 ## Tests
 
 - Test Ltix's behavior through its public entry points, such as `Ltix.handle_login/3`, `Ltix.handle_callback/3`, and the service functions. A test reads like a specification of what a caller can do, and it keeps passing through a refactor that doesn't change behavior. Test only Ltix's own code.
