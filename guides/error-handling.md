@@ -28,9 +28,11 @@ case Ltix.handle_callback(params, state) do
     handle_launch(conn, launch)
 
   {:error, error} ->
+    Logger.warning("LTI launch failed: #{Exception.message(error)}")
+
     conn
     |> put_status(Ltix.Errors.status_code(error))
-    |> text(Exception.message(error))
+    |> text("Launch failed")
 end
 ```
 
@@ -52,10 +54,12 @@ case Ltix.handle_callback(params, state) do
 
     case error do
       %{class: :invalid} ->
-        conn |> put_status(status) |> text("Bad request: #{Exception.message(error)}")
+        Logger.info("LTI invalid request: #{Exception.message(error)}")
+        conn |> put_status(status) |> text("Bad request")
 
       %{class: :security} ->
-        conn |> put_status(status) |> text("Unauthorized: #{Exception.message(error)}")
+        Logger.warning("LTI security violation: #{Exception.message(error)}")
+        conn |> put_status(status) |> text("Unauthorized")
 
       _unknown ->
         Logger.error("LTI launch failed: #{Exception.message(error)}")
@@ -81,7 +85,8 @@ case Ltix.handle_login(params, launch_url) do
     conn |> put_status(400) |> text("Missing required parameter: #{param}")
 
   {:error, error} ->
-    conn |> put_status(400) |> text(Exception.message(error))
+    Logger.warning("LTI login failed: #{Exception.message(error)}")
+    conn |> put_status(Ltix.Errors.status_code(error)) |> text("Login failed")
 end
 ```
 
@@ -115,7 +120,7 @@ Ltix.JWK.generate(key_sise: 4096)
 
 ## Error messages
 
-Every error has a human-readable message from `Exception.message/1`.
+Every error has a human-readable message from `Exception.message/1`. The message is for your logs. It can include values from the request, such as claim values and URLs, so show users a message of your own.
 
 ```elixir
 error = %Ltix.Errors.Security.TokenExpired{}

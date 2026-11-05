@@ -63,9 +63,11 @@ def launch(conn, params) do
       )
 
     {:error, error} ->
+      Logger.warning("LTI launch failed: #{Exception.message(error)}")
+
       conn
-      |> put_status(400)
-      |> text("Launch failed: #{Exception.message(error)}")
+      |> put_status(Ltix.Errors.status_code(error))
+      |> text("Launch failed")
   end
 end
 ```
