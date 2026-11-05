@@ -1162,14 +1162,16 @@ defmodule Ltix.Test do
     public_key = Ltix.JWK.to_jose(platform.tool_jwk)
 
     # [Sec §5.2.3](https://www.imsglobal.org/spec/security/v1p0/#authentication-response-validation-0)
-    case verify_signature(public_key, jwt) do
-      {true, %JOSE.JWT{fields: claims}, _jws} when is_map(claims) -> {:ok, claims}
+    with {true, payload, _jws} <- verify_signature(public_key, jwt),
+         {:ok, claims} when is_map(claims) <- AppConfig.json_library!().decode(payload) do
+      {:ok, claims}
+    else
       _invalid -> {:error, SignatureInvalid.exception()}
     end
   end
 
   defp verify_signature(public_key, jwt) when is_binary(jwt),
-    do: JOSE.JWT.verify_strict(public_key, ["RS256"], jwt)
+    do: JOSE.JWS.verify_strict(public_key, ["RS256"], jwt)
 
   defp verify_signature(_public_key, _jwt), do: :error
 

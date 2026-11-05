@@ -754,6 +754,14 @@ defmodule Ltix.TestTest do
                Ltix.Test.verify_deep_linking_response(platform, token)
     end
 
+    test "returns a JSON null in the response as nil", %{platform: platform} do
+      token =
+        Ltix.Test.sign_id_token(%{"https://vendor.example.com/note" => nil}, platform.tool_jwk)
+
+      assert {:ok, %{"https://vendor.example.com/note" => nil}} =
+               Ltix.Test.verify_deep_linking_response(platform, token)
+    end
+
     test "returns SignatureInvalid for malformed tokens", %{platform: platform} do
       launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
       {:ok, response} = Ltix.DeepLinking.build_response(launch)
