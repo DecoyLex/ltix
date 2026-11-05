@@ -286,7 +286,6 @@ test "storage adapter satisfies the contract" do
         registration_id: registration.id
       })
     end,
-    jwks: fn _registration -> MyApp.Lti.published_jwks() end,
     prepare_process: fn ->
       Ecto.Adapters.SQL.Sandbox.allow(MyApp.Repo, parent, self())
     end
