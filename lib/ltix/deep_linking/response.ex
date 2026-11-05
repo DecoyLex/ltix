@@ -44,7 +44,13 @@ defmodule Ltix.DeepLinking.Response do
 
   Steps also use these fields. `:jwt` is `nil` while steps run.
 
-    * `:launch` - the `Ltix.Launch` of the Deep Linking request
+    * `:registration` - the registration the response is for, as the struct
+      passed to `Ltix.DeepLinking.build_response/3` or the launch's
+      `source_registration`
+    * `:deployment` - the deployment the response is for, as the `:deployment`
+      passed to `Ltix.DeepLinking.build_response/3` or the launch's
+      `source_deployment`. It's `nil` for a request without a deployment ID.
+    * `:settings` - the `Ltix.DeepLinking.Settings` of the Deep Linking request
     * `:claims` - the claims of the response JWT, keyed by claim name, such as
       `"https://purl.imsglobal.org/spec/lti-dl/claim/content_items"`
     * `:errors` - errors from steps (see `Ltix.Step`). A response that
@@ -54,10 +60,21 @@ defmodule Ltix.DeepLinking.Response do
   # [DL, Deep linking response message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-response-message)
   use Ltix.Provider, hook: [Ltix.Step, Ltix.Ordered]
 
-  defstruct [:launch, :plugins, :jwt, :return_url, claims: %{}, errors: []]
+  defstruct [
+    :registration,
+    :deployment,
+    :settings,
+    :plugins,
+    :jwt,
+    :return_url,
+    claims: %{},
+    errors: []
+  ]
 
   @type t :: %__MODULE__{
-          launch: Ltix.Launch.t() | nil,
+          registration: Ltix.Registerable.t() | nil,
+          deployment: Ltix.Deployable.t() | String.t() | nil,
+          settings: Ltix.DeepLinking.Settings.t() | nil,
           claims: %{String.t() => term()},
           errors: [Exception.t()],
           plugins: Ltix.PluginSet.t() | nil,

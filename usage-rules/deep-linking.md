@@ -73,9 +73,19 @@ settings.accept_media_types    # "image/*,application/pdf" or nil
 )
 ```
 
+When the user picks content in a later request, save the registration's ID, `launch.claims.deployment_id`, and `launch.claims.deep_linking_settings` in the session during the launch. Then build the response from the registration.
+
+```elixir
+{:ok, response} = Ltix.DeepLinking.build_response(registration, [link],
+  settings: settings,
+  deployment: deployment_id
+)
+```
+
+- **Never** put the launch in the session. It has the user's identity and course data.
 - Pass a list of items (or `[]` for cancellation).
 - Options are `:message`, `:log`, `:error_message`, and `:error_log`. Unknown or invalid options raise `ArgumentError`.
-- `:plugins` replaces the plugins the launch ran with.
+- `:plugins` replaces the plugins the launch ran with. From a registration, the default is the configured plugins.
 - `build_response!/3` raises on error.
 - Returns `{:ok, %Ltix.DeepLinking.Response{}}` with the signed `jwt` and the platform's `return_url`.
 - To add a claim to the response, follow [Add claims to Deep Linking responses](https://ltix.hexdocs.pm/writing-deep-linking-plugins.md#add-claims-to-deep-linking-responses).

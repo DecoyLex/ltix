@@ -12,6 +12,7 @@ defmodule Ltix.DeepLinkingTest do
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
   alias Ltix.Errors.Invalid.ContentItemTypeNotAccepted
   alias Ltix.Errors.Invalid.InvalidContentItem
+  alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.Errors.Invalid.InvalidMessageType
   alias Ltix.Errors.Invalid.LineItemNotAccepted
   alias Ltix.Errors.Invalid.MediaTypeNotAccepted
@@ -85,6 +86,175 @@ defmodule Ltix.DeepLinkingTest do
 
       refute Map.has_key?(claims, @lti <> "deployment_id")
       assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
+    end
+  end
+
+  describe "build_response/3 from a registration" do
+    setup %{platform: platform} do
+      launch =
+        Ltix.Test.build_launch(platform,
+          message_type: :deep_linking,
+          claims: %{
+            deep_linking_settings: %{
+              deep_link_return_url: "https://platform.example.com/deep_links",
+              accept_types: ["link"],
+              accept_multiple: false,
+              data: "csrftoken:c7fbba78"
+            }
+          }
+        )
+
+      %{settings: launch.claims.deep_linking_settings}
+    end
+
+    test "signs a response for the registration, deployment, and saved settings",
+         %{platform: platform, settings: settings} do
+      {:ok, link} = Link.new(url: "https://example.com/page")
+
+      assert {:ok, response} =
+               DeepLinking.build_response(platform.registration, [link],
+                 settings: settings,
+                 deployment: platform.deployment.deployment_id
+               )
+
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+
+      assert response.return_url == "https://platform.example.com/deep_links"
+      assert claims["iss"] == platform.registration.client_id
+      assert claims["aud"] == platform.registration.issuer
+      assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
+      assert claims[@lti <> "deployment_id"] == platform.deployment.deployment_id
+      assert claims[@dl <> "data"] == "csrftoken:c7fbba78"
+
+      assert claims[@dl <> "content_items"] == [
+               %{"type" => "link", "url" => "https://example.com/page"}
+             ]
+    end
+
+    test "takes the deployment as a record that implements Ltix.Deployable",
+         %{platform: platform, settings: settings} do
+      {:ok, response} =
+        DeepLinking.build_response(platform.registration, [],
+          settings: settings,
+          deployment: platform.deployment
+        )
+
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+
+      assert claims[@lti <> "deployment_id"] == platform.deployment.deployment_id
+    end
+
+    test "leaves out the deployment ID for deployment: nil",
+         %{platform: platform, settings: settings} do
+      {:ok, response} =
+        DeepLinking.build_response(platform.registration, [], settings: settings, deployment: nil)
+
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+
+      refute Map.has_key?(claims, @lti <> "deployment_id")
+    end
+
+    test "returns InvalidField for an invalid deployment ID",
+         %{platform: platform, settings: settings} do
+      assert {:error, %InvalidField{struct: Ltix.Deployment, field: :deployment_id}} =
+               DeepLinking.build_response(platform.registration, [],
+                 settings: settings,
+                 deployment: ""
+               )
+    end
+
+    test "checks content items against the saved settings",
+         %{platform: platform, settings: settings} do
+      {:ok, first} = Link.new(url: "https://a.example.com")
+      {:ok, second} = Link.new(url: "https://b.example.com")
+
+      assert {:error, %ContentItemsExceedLimit{index: 1, count: 2}} =
+               DeepLinking.build_response(platform.registration, [first, second],
+                 settings: settings,
+                 deployment: platform.deployment
+               )
+    end
+
+    test "builds content items with plugins:", %{platform: platform, settings: settings} do
+      settings = %{settings | accept_types: ["ltiResourceLink"]}
+      item = %LTIResourceLink{extensions: %{weight: 2}}
+
+      {:ok, response} =
+        DeepLinking.build_response(platform.registration, [item],
+          settings: settings,
+          deployment: platform.deployment,
+          plugins: [{Modules, add: [Weight]}]
+        )
+
+      {:ok, claims} = Ltix.Test.verify_deep_linking_response(platform, response.jwt)
+
+      assert claims[@dl <> "content_items"] == [
+               %{
+                 "type" => "ltiResourceLink",
+                 "https://vendor.example.com/weight" => %{"value" => 2, "unit" => nil}
+               }
+             ]
+    end
+
+    test "gives response steps the registration, deployment, and settings",
+         %{platform: platform, settings: settings} do
+      {:ok, response} =
+        DeepLinking.build_response(platform.registration, [],
+          settings: settings,
+          deployment: "deployment-1",
+          plugins: [{Modules, add: [{ItemCount, claim: "https://vendor.example.com/count"}]}]
+        )
+
+      assert response.registration == platform.registration
+      assert response.deployment == "deployment-1"
+      assert response.settings == settings
+    end
+
+    test "raises ArgumentError for a registration that doesn't convert",
+         %{platform: platform, settings: settings} do
+      assert_raise ArgumentError, ~r/Ltix.Registerable/, fn ->
+        DeepLinking.build_response(%BareRegistration{registration: platform.registration}, [],
+          settings: settings,
+          deployment: platform.deployment
+        )
+      end
+    end
+
+    test "raises ArgumentError for missing or invalid settings and deployment",
+         %{platform: platform, settings: settings} do
+      registration = platform.registration
+
+      assert_raise ArgumentError, "Option :settings is required", fn ->
+        DeepLinking.build_response(registration, [], deployment: platform.deployment)
+      end
+
+      assert_raise ArgumentError, "Option :deployment is required", fn ->
+        DeepLinking.build_response(registration, [], settings: settings)
+      end
+
+      assert_raise ArgumentError, ~r/^Option :settings is invalid, /, fn ->
+        DeepLinking.build_response(registration, [],
+          settings: %{deep_link_return_url: "https://platform.example.com/deep_links"},
+          deployment: platform.deployment
+        )
+      end
+
+      assert_raise ArgumentError, ~r/^Option :deployment is invalid, .*Ltix.Deployable/, fn ->
+        DeepLinking.build_response(registration, [], settings: settings, deployment: 42)
+      end
+    end
+
+    test "raises ArgumentError for settings or a deployment with a launch",
+         %{platform: platform, settings: settings} do
+      launch = Ltix.Test.build_launch(platform, message_type: :deep_linking)
+
+      assert_raise ArgumentError, "Option :settings is unknown", fn ->
+        DeepLinking.build_response(launch, [], settings: settings)
+      end
+
+      assert_raise ArgumentError, "Option :deployment is unknown", fn ->
+        DeepLinking.build_response(launch, [], deployment: platform.deployment)
+      end
     end
   end
 
@@ -701,7 +871,9 @@ defmodule Ltix.DeepLinkingTest do
       assert claims["https://vendor.example.com/count"] == 1
       assert claims[@lti <> "message_type"] == "LtiDeepLinkingResponse"
       assert response.claims == claims
-      assert response.launch == launch
+      assert response.registration == launch.source_registration
+      assert response.deployment == launch.source_deployment
+      assert response.settings == launch.claims.deep_linking_settings
       assert response.errors == []
     end
 

@@ -153,7 +153,7 @@ def plugin(_opts) do
 end
 ```
 
-`response.claims` has every claim by name, including the content items as JSON. `response.launch` is the Deep Linking request's launch. Steps run only when every content item passes its checks. When a step records an error, `build_response/3` returns it and signs nothing. A step that other steps order against is a module that calls `use Ltix.DeepLinking.Response`.
+`response.claims` has every claim by name, including the content items as JSON. `response.registration`, `response.deployment`, and `response.settings` are the registration, deployment, and Deep Linking settings the response is for. Steps run only when every content item passes its checks. When a step records an error, `build_response/3` returns it and signs nothing. A step that other steps order against is a module that calls `use Ltix.DeepLinking.Response`.
 
 ## Test Deep Linking responses
 

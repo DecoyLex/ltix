@@ -13,10 +13,12 @@ def launch(conn, params) do
 
   case launch.claims.message_type do
     "LtiDeepLinkingRequest" ->
-      launch_id = MyApp.Launches.put(launch)
-
       conn
-      |> put_session(:deep_linking_launch_id, launch_id)
+      |> put_session(:deep_linking, %{
+        registration_id: launch.source_registration.id,
+        deployment_id: launch.claims.deployment_id,
+        settings: launch.claims.deep_linking_settings
+      })
       |> assign(:settings, launch.claims.deep_linking_settings)
       |> render(:content_picker)
 
@@ -28,7 +30,7 @@ def launch(conn, params) do
 end
 ```
 
-Sending the response later needs the launch, so keep it on the server and put only its ID in the session. `MyApp.Launches` stands for any server-side store with an expiry, such as an ETS table, Cachex, or a database table. Don't put the launch itself in the session. It has the user's identity and course data, and Phoenix session cookies are signed, not encrypted.
+Sending the response later needs the registration, the deployment ID, and the Deep Linking settings, so the session keeps only those. Leave the rest of the launch out of the session. It has the user's identity and course data, and Phoenix session cookies are signed, not encrypted. The settings were in the ID token the user's browser posted, and the signature keeps the user from changing the return URL.
 
 The `deep_linking_settings` struct lists what the platform accepts.
 
@@ -128,20 +130,30 @@ See [Building Content Items](cookbooks/building-content-items.md) for more patte
 
 ## Sending the response
 
-Once you have your content items, call `build_response/3` to create the signed JWT and render the response template.
+Once you have your content items, call `build_response/3` with the registration and what the session saved. It creates the signed JWT for the response template.
 
 ```elixir
 def submit_selection(conn, %{"selected_ids" => ids}) do
-  {:ok, launch} = MyApp.Launches.fetch(get_session(conn, :deep_linking_launch_id))
+  %{registration_id: registration_id, deployment_id: deployment_id, settings: settings} =
+    get_session(conn, :deep_linking)
+
+  registration = MyApp.Lti.get_registration!(registration_id)
   items = build_items_from_selection(ids)
 
-  {:ok, response} = Ltix.DeepLinking.build_response(launch, items,
-    message: "Selected #{length(items)} item(s)"
-  )
+  {:ok, response} =
+    Ltix.DeepLinking.build_response(registration, items,
+      settings: settings,
+      deployment: deployment_id,
+      message: "Selected #{length(items)} item(s)"
+    )
 
-  render(conn, :deep_linking_response, response: response)
+  conn
+  |> delete_session(:deep_linking)
+  |> render(:deep_linking_response, response: response)
 end
 ```
+
+The response uses your configured plugins. If your launches pass `plugins:` to `Ltix.handle_callback/3`, pass the same plugins to `build_response/3`. When you build the response during the launch request itself, pass the launch, as in `Ltix.DeepLinking.build_response(launch, items)`.
 
 Then use the response in your template.
 

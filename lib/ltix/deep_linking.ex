@@ -35,12 +35,15 @@ defmodule Ltix.DeepLinking do
   alias Ltix.DeepLinking.Response
   alias Ltix.DeepLinking.Settings
 
+  alias Ltix.Deployment
   alias Ltix.Errors
   alias Ltix.JWT.Token
   alias Ltix.Launch
   alias Ltix.Options
   alias Ltix.Plugin
   alias Ltix.PluginSet
+  alias Ltix.Registerable
+  alias Ltix.Registration
   alias Ltix.Step
 
   alias Ltix.Errors.Invalid.ContentItemsExceedLimit
@@ -65,32 +68,62 @@ defmodule Ltix.DeepLinking do
   # [DL, Deep linking settings](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-settings)
   @presentation_targets ["embed", "iframe", "window"]
 
-  @options_schema Zoi.keyword(
-                    [
-                      message: Zoi.string(description: "A message the platform shows the user."),
-                      log: Zoi.string(description: "A message the platform logs."),
-                      error_message:
-                        Zoi.string(
-                          description:
-                            "An error message the platform shows the user, such as when your tool couldn't create the content."
-                        ),
-                      error_log: Zoi.string(description: "An error message the platform logs."),
-                      storage_adapter:
-                        Zoi.module(description: "The storage adapter that signs the response."),
-                      storage_adapter_options:
-                        Zoi.keyword(Zoi.any(),
-                          description:
-                            "Options passed to the storage adapter's signing callbacks."
-                        )
-                        |> Zoi.default([]),
-                      plugins:
-                        Zoi.list(Zoi.any(),
-                          description:
-                            "The plugins for this call, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to the launch's plugins."
-                        )
-                    ],
-                    unrecognized_keys: :error
-                  )
+  @message_fields [
+    message: Zoi.string(description: "A message the platform shows the user."),
+    log: Zoi.string(description: "A message the platform logs."),
+    error_message:
+      Zoi.string(
+        description:
+          "An error message the platform shows the user, such as when your tool couldn't create the content."
+      ),
+    error_log: Zoi.string(description: "An error message the platform logs."),
+    storage_adapter: Zoi.module(description: "The storage adapter that signs the response."),
+    storage_adapter_options:
+      Zoi.keyword(Zoi.any(),
+        description: "Options passed to the storage adapter's signing callbacks."
+      )
+      |> Zoi.default([])
+  ]
+
+  @launch_schema Zoi.keyword(
+                   @message_fields ++
+                     [
+                       plugins:
+                         Zoi.list(Zoi.any(),
+                           description:
+                             "The plugins for this call, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to the launch's plugins."
+                         )
+                     ],
+                   unrecognized_keys: :error
+                 )
+
+  @registration_schema Zoi.keyword(
+                         [
+                           settings:
+                             Zoi.struct(Settings,
+                               description:
+                                 "The Deep Linking settings of the Deep Linking request, saved from `launch.claims.deep_linking_settings`."
+                             )
+                             |> Zoi.required(),
+                           deployment:
+                             Zoi.nullable(
+                               Zoi.any(
+                                 description:
+                                   "The deployment of the Deep Linking request, as a struct implementing `Ltix.Deployable` or a deployment ID. Pass `nil` for a request without a deployment ID."
+                               )
+                             )
+                             |> Zoi.required()
+                         ] ++
+                           @message_fields ++
+                           [
+                             plugins:
+                               Zoi.list(Zoi.any(),
+                                 description:
+                                   "The plugins for this call, each as `MyPlugin` or `{MyPlugin, opts}`. Defaults to the configured plugins."
+                               )
+                           ],
+                         unrecognized_keys: :error
+                       )
 
   @impl Ltix.Plugin
   def plugin(_opts) do
@@ -109,21 +142,50 @@ defmodule Ltix.DeepLinking do
   Builds and signs a Deep Linking response with the content items the user
   chose.
 
-  Takes the launch of a Deep Linking request and a list of content items.
-  Returns an `Ltix.DeepLinking.Response` with the signed `jwt` and the
+  Takes the launch of a Deep Linking request, or a registration with the
+  request's saved Deep Linking settings and deployment, and a list of content
+  items. Returns an `Ltix.DeepLinking.Response` with the signed `jwt` and the
   platform's `return_url`. The JWT expires 5 minutes after signing.
+
+  ## From a launch
+
+  ```elixir
+  {:ok, response} = Ltix.DeepLinking.build_response(launch, [link], message: "Added Quiz 7")
+  ```
+
+  ## From a registration
+
+  Save `launch.claims.deep_linking_settings` when the Deep Linking request
+  arrives, and pass it in `:settings` with the request's deployment. The
+  registration is an `Ltix.Registration`, or your own struct that implements
+  `Ltix.Registerable`.
+
+  ```elixir
+  {:ok, response} =
+    Ltix.DeepLinking.build_response(registration, [link],
+      settings: settings,
+      deployment: deployment
+    )
+  ```
 
   ## Options
 
   When you [configure](`m:Ltix#module-configuration`) an option, the configured
   value is its default.
 
-  #{Zoi.describe(@options_schema)}
+  ### From a launch
+
+  #{Zoi.describe(@launch_schema)}
+
+  ### From a registration
+
+  #{Zoi.describe(@registration_schema)}
 
   ## Errors
 
     * `Ltix.Errors.Invalid.InvalidMessageType` - the launch isn't a Deep
       Linking request
+    * `Ltix.Errors.Invalid.InvalidField` - the `:deployment` ID is invalid
     * `Ltix.Errors.Invalid.InvalidContentItem` - an item isn't a content
       item struct, or `items` isn't a list
     * `Ltix.Errors.Invalid.ContentItemTypeNotAccepted` - an item's type
@@ -144,13 +206,11 @@ defmodule Ltix.DeepLinking do
     * an error from a plugin's `Ltix.DeepLinking.Response` step
 
   An error about one item has the item's position in `items` as its
-  `index`. Unknown or invalid options raise `ArgumentError`.
+  `index`. Unknown or invalid options, a registration that doesn't implement
+  `Ltix.Registerable`, and a `:deployment` that doesn't implement
+  `Ltix.Deployable` raise `ArgumentError`.
 
-  ## Examples
-
-  ```elixir
-  {:ok, response} = Ltix.DeepLinking.build_response(launch, [link], message: "Added Quiz 7")
-  ```
+  ## Canceling
 
   When the user cancels, return no content items.
 
@@ -158,21 +218,48 @@ defmodule Ltix.DeepLinking do
   {:ok, response} = Ltix.DeepLinking.build_response(launch, [], message: "Nothing was added")
   ```
   """
-  @spec build_response(Launch.t(), list(), keyword()) ::
+  @spec build_response(Launch.t() | Registerable.t(), list(), keyword()) ::
           {:ok, Response.t()} | {:error, Exception.t()}
-  def build_response(launch, items \\ [], opts \\ []) do
-    opts = Options.parse!(opts, @options_schema)
-    storage_adapter = Options.fetch_configured!(opts, :storage_adapter)
+  def build_response(launch_or_registerable, items \\ [], opts \\ [])
+
+  def build_response(%Launch{} = launch, items, opts) do
+    opts = Options.parse!(opts, @launch_schema)
     {enabled, opts} = Keyword.pop(opts, :plugins, launch.plugins)
-    plugins = PluginSet.resolve(enabled)
 
-    metadata = %{
-      item_count: if(is_list(items), do: length(items), else: 0),
-      item_types: item_types(items, plugins)
-    }
+    measure(items, enabled, opts, fn plugins, opts ->
+      with :ok <- require_deep_linking_request(launch),
+           {:ok, plugins} <- plugins do
+        response = %Response{
+          registration: launch.source_registration,
+          deployment: launch.source_deployment,
+          settings: launch.claims.deep_linking_settings,
+          plugins: plugins
+        }
 
-    :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
-      {build(launch, items, plugins, storage_adapter, opts), metadata}
+        build(response, launch.registration, launch.deployment, items, opts)
+      end
+    end)
+  end
+
+  def build_response(registerable, items, opts) do
+    opts = Options.parse!(opts, @registration_schema)
+    {enabled, opts} = Keyword.pop(opts, :plugins)
+    {settings, opts} = Keyword.pop!(opts, :settings)
+    {deployable, opts} = Keyword.pop!(opts, :deployment)
+
+    measure(items, enabled, opts, fn plugins, opts ->
+      with {:ok, registration} <- Registration.from_source!(registerable),
+           {:ok, deployment} <- Deployment.from_source_or_id(deployable),
+           {:ok, plugins} <- plugins do
+        response = %Response{
+          registration: registerable,
+          deployment: deployable,
+          settings: settings,
+          plugins: plugins
+        }
+
+        build(response, registration, deployment, items, opts)
+      end
     end)
   end
 
@@ -185,12 +272,28 @@ defmodule Ltix.DeepLinking do
   response = Ltix.DeepLinking.build_response!(launch, [link], message: "Selected 1 item")
   ```
   """
-  @spec build_response!(Launch.t(), list(), keyword()) :: Response.t()
-  def build_response!(launch, items \\ [], opts \\ []) do
-    case build_response(launch, items, opts) do
+  @spec build_response!(Launch.t() | Registerable.t(), list(), keyword()) :: Response.t()
+  def build_response!(launch_or_registerable, items \\ [], opts \\ []) do
+    case build_response(launch_or_registerable, items, opts) do
       {:ok, response} -> response
       {:error, error} -> raise error
     end
+  end
+
+  # Runs `build` in the telemetry span, with the resolved plugins and the
+  # options with the storage adapter.
+  defp measure(items, enabled, opts, build) do
+    opts = Keyword.put(opts, :storage_adapter, Options.fetch_configured!(opts, :storage_adapter))
+    plugins = PluginSet.resolve(enabled)
+
+    metadata = %{
+      item_count: if(is_list(items), do: length(items), else: 0),
+      item_types: item_types(items, plugins)
+    }
+
+    :telemetry.span([:ltix, :deep_linking, :build_response], metadata, fn ->
+      {build.(plugins, opts), metadata}
+    end)
   end
 
   defp item_types(items, {:ok, plugins}) when is_list(items) do
@@ -200,38 +303,30 @@ defmodule Ltix.DeepLinking do
 
   defp item_types(_items, _plugins), do: []
 
-  defp build(
-         %Launch{claims: %{message_type: "LtiDeepLinkingRequest"}} = launch,
-         items,
-         plugins,
-         storage_adapter,
-         opts
-       ) do
-    settings = launch.claims.deep_linking_settings
+  defp require_deep_linking_request(%Launch{claims: %{message_type: "LtiDeepLinkingRequest"}}),
+    do: :ok
 
-    with {:ok, plugins} <- plugins,
-         {:ok, items_json} <- content_items(items, plugins, settings),
-         claims = build_jwt_claims(launch, items_json, opts),
+  defp require_deep_linking_request(%Launch{claims: claims}),
+    do: {:error, InvalidMessageType.exception(message_type: claims[:message_type])}
+
+  # Signs with the registration from before the steps run, which can change
+  # the response's fields.
+  defp build(response, registration, deployment, items, opts) do
+    %Response{registration: registerable, settings: settings} = response
+
+    with {:ok, items_json} <- content_items(items, response.plugins, settings),
+         claims = build_jwt_claims(registration, deployment, settings, items_json, opts),
          response =
-           Step.run(%Response{
-             launch: launch,
-             claims: claims,
-             plugins: plugins,
-             return_url: settings.deep_link_return_url
-           }),
+           Step.run(%{response | claims: claims, return_url: settings.deep_link_return_url}),
          :ok <- Errors.collect(response.errors),
          # [Sec §5.4](https://www.imsglobal.org/spec/security/v1p0/#message-signing)
          {:ok, jwt} <-
-           Token.sign(response.claims, launch.source_registration,
-             storage_adapter: storage_adapter,
+           Token.sign(response.claims, registerable,
+             storage_adapter: Keyword.fetch!(opts, :storage_adapter),
              storage_adapter_options: Keyword.fetch!(opts, :storage_adapter_options)
            ) do
       {:ok, %{response | jwt: jwt}}
     end
-  end
-
-  defp build(%Launch{claims: claims}, _items, _plugins, _storage_adapter, _opts) do
-    {:error, InvalidMessageType.exception(message_type: claims[:message_type])}
   end
 
   # --- Content items ---
@@ -330,8 +425,7 @@ defmodule Ltix.DeepLinking do
 
   # [DL, Deep linking response message](https://standards.1edtech.org/lti/specifications/launch_messages/deep_linking/lti-deep-linking-spec#deep-linking-response-message)
   # [Sec §5.2.2](https://www.imsglobal.org/spec/security/v1p0/#tool-jwt)
-  defp build_jwt_claims(%Launch{registration: registration} = launch, items_json, opts) do
-    settings = launch.claims.deep_linking_settings
+  defp build_jwt_claims(%Registration{} = registration, deployment, settings, items_json, opts) do
     now = System.system_time(:second)
 
     %{
@@ -345,13 +439,16 @@ defmodule Ltix.DeepLinking do
       (@lti <> "version") => "1.3.0",
       (@dl <> "content_items") => items_json
     }
-    |> maybe_put(@lti <> "deployment_id", launch.claims[:deployment_id])
+    |> maybe_put(@lti <> "deployment_id", deployment_id(deployment))
     |> maybe_put(@dl <> "data", settings.data)
     |> maybe_put(@dl <> "msg", Keyword.get(opts, :message))
     |> maybe_put(@dl <> "log", Keyword.get(opts, :log))
     |> maybe_put(@dl <> "errormsg", Keyword.get(opts, :error_message))
     |> maybe_put(@dl <> "errorlog", Keyword.get(opts, :error_log))
   end
+
+  defp deployment_id(nil), do: nil
+  defp deployment_id(%Deployment{deployment_id: deployment_id}), do: deployment_id
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
