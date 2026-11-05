@@ -93,7 +93,6 @@ defmodule Ltix.Test do
   alias Ltix.Options
   alias Ltix.PluginSet
   alias Ltix.PluginSet.Entry
-  alias Ltix.Records
   alias Ltix.Registration
   alias Ltix.Role
   alias Ltix.Step
@@ -1421,10 +1420,10 @@ defmodule Ltix.Test do
   end
 
   defp resolved_registration(%Platform{} = platform),
-    do: ok!(Records.convert!(platform.registration, :registration, :registration))
+    do: ok!(Registration.from_source!(platform.registration, :registration))
 
   defp resolved_deployment(%Platform{} = platform),
-    do: ok!(Records.convert!(platform.deployment, :deployment, :deployment))
+    do: ok!(Deployment.from_source!(platform.deployment, :deployment))
 
   defp ok!({:ok, value}), do: value
   defp ok!({:error, error}), do: raise(error)

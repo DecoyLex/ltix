@@ -88,7 +88,6 @@ defmodule Ltix.StorageAdapter do
   alias Ltix.Errors.Invalid.RegistrationNotFound
   alias Ltix.Errors.Security.NonceReused
   alias Ltix.Errors.Unknown.StorageError
-  alias Ltix.Records
   alias Ltix.Registerable
   alias Ltix.Registration
 
@@ -217,7 +216,8 @@ defmodule Ltix.StorageAdapter do
   def get_registration(adapter, issuer, client_id, opts) do
     case adapter.get_registration(issuer, client_id, opts) do
       {:ok, registration} ->
-        with {:ok, resolved} <- convert(:get_registration, registration, :registration) do
+        with {:ok, resolved} <-
+               convert(:get_registration, registration, &Registration.from_source/1) do
           {:ok, registration, resolved}
         end
 
@@ -248,7 +248,7 @@ defmodule Ltix.StorageAdapter do
 
   # [Core, LTI Deployment ID claim](https://standards.1edtech.org/lti/specifications/core/lti-spec#lti-deployment-id-claim)
   defp check_deployment_id(deployment, deployment_id) do
-    case convert(:get_deployment, deployment, :deployment) do
+    case convert(:get_deployment, deployment, &Deployment.from_source/1) do
       {:ok, %Deployment{deployment_id: ^deployment_id} = resolved} ->
         {:ok, deployment, resolved}
 
@@ -268,8 +268,8 @@ defmodule Ltix.StorageAdapter do
   end
 
   # A record that does not convert is a storage error.
-  defp convert(callback, record, kind) do
-    case Records.convert(record, kind) do
+  defp convert(callback, record, from_source) do
+    case from_source.(record) do
       {:invalid, message} ->
         {:error,
          StorageError.exception(

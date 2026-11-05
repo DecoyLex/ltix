@@ -11,7 +11,6 @@ defmodule Ltix.OAuth.ClientCredentials do
   alias Ltix.OAuth.AccessToken
   alias Ltix.Options
   alias Ltix.PluginSet
-  alias Ltix.Records
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.Step
@@ -40,9 +39,9 @@ defmodule Ltix.OAuth.ClientCredentials do
   # with the storage adapter, and posts the signed assertion and the scopes to
   # the platform's token endpoint.
   defp request_token(registerable, %ClientAssertion{} = assertion, opts) do
-    with {:ok, registration} <- Records.convert!(registerable, :registration),
+    with {:ok, registration} <- Registration.from_source!(registerable),
          :ok <- require_token_endpoint(registration),
-         {:ok, deployment} <- resolve_deployment(Keyword.get(opts, :deployment)),
+         {:ok, deployment} <- Deployment.from_source_or_id(Keyword.get(opts, :deployment)),
          {:ok, signed} <-
            Token.sign(
              Map.merge(assertion.claims, required_claims(registration, deployment)),
@@ -63,17 +62,6 @@ defmodule Ltix.OAuth.ClientCredentials do
   end
 
   defp require_token_endpoint(%Registration{}), do: :ok
-
-  # Returns the `Ltix.Deployment` for a `:deployment` option, which is a
-  # struct implementing `Ltix.Deployable`, a deployment ID, or `nil`.
-  @doc false
-  @spec resolve_deployment(term()) :: {:ok, Deployment.t() | nil} | {:error, Exception.t()}
-  def resolve_deployment(nil), do: {:ok, nil}
-
-  def resolve_deployment(deployment_id) when is_binary(deployment_id),
-    do: Deployment.new(deployment_id)
-
-  def resolve_deployment(record), do: Records.convert!(record, :deployment, :deployment)
 
   defp send_token_request(registration, scopes, opts, assertion) do
     req_options = req_options(opts)

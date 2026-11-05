@@ -20,8 +20,9 @@ defmodule Ltix.Test.StorageAdapter do
 
   use Agent
 
+  alias Ltix.Deployment
   alias Ltix.Options
-  alias Ltix.Records
+  alias Ltix.Registration
   alias Ltix.Test.Platform
   alias Ltix.Test.ServiceStub
 
@@ -61,7 +62,7 @@ defmodule Ltix.Test.StorageAdapter do
 
     deployments =
       Map.new(platforms, fn platform ->
-        deployment = ok!(Records.convert!(platform.deployment, :deployment, :platforms))
+        deployment = ok!(Deployment.from_source!(platform.deployment, :platforms))
         {{registration_key(platform.registration), deployment.deployment_id}, platform.deployment}
       end)
 
@@ -178,7 +179,7 @@ defmodule Ltix.Test.StorageAdapter do
   end
 
   defp registration_key(registration) do
-    resolved = ok!(Records.convert!(registration, :registration, :registrations))
+    resolved = ok!(Registration.from_source!(registration, :registrations))
     {resolved.issuer, resolved.client_id}
   end
 

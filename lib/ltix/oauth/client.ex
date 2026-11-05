@@ -49,6 +49,7 @@ defmodule Ltix.OAuth.Client do
 
   alias Ltix.Claims
   alias Ltix.Deployable
+  alias Ltix.Deployment
   alias Ltix.Errors.Invalid.ScopeMismatch
   alias Ltix.Errors.Security.AccessTokenExpired
   alias Ltix.HTTP
@@ -57,8 +58,8 @@ defmodule Ltix.OAuth.Client do
   alias Ltix.Options
   alias Ltix.Pagination
   alias Ltix.PluginSet
-  alias Ltix.Records
   alias Ltix.Registerable
+  alias Ltix.Registration
 
   defstruct [
     :token,
@@ -417,9 +418,9 @@ defmodule Ltix.OAuth.Client do
     registerable = Keyword.fetch!(opts, :registration)
     endpoints = Keyword.fetch!(opts, :endpoints)
 
-    with {:ok, _registration} <- Records.convert!(registerable, :registration, :registration),
+    with {:ok, _registration} <- Registration.from_source!(registerable, :registration),
          {:ok, _deployment} <-
-           ClientCredentials.resolve_deployment(Keyword.get(opts, :deployment)),
+           Deployment.from_source_or_id(Keyword.get(opts, :deployment)),
          {:ok, plugins} <- PluginSet.resolve(Keyword.get(opts, :plugins)),
          :ok <- Claims.validate_endpoints(endpoints, plugins) do
       check_granted_scopes(

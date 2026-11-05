@@ -6,7 +6,6 @@ defmodule Ltix.Test.StorageAdapterContract do
   alias Ltix.Errors.Unknown.StorageError
   alias Ltix.JWK
   alias Ltix.Options
-  alias Ltix.Records
   alias Ltix.Registerable
   alias Ltix.Registration
   alias Ltix.StorageAdapter
@@ -645,8 +644,8 @@ defmodule Ltix.Test.StorageAdapterContract do
     validate_resolved!(result, protocol, label)
   end
 
-  defp convert(record, Registerable), do: Records.convert(record, :registration)
-  defp convert(record, Deployable), do: Records.convert(record, :deployment)
+  defp convert(record, Registerable), do: Registration.from_source(record)
+  defp convert(record, Deployable), do: Deployment.from_source(record)
 
   defp validate_resolved!({:ok, %Registration{} = registration}, Registerable, label),
     do: validated!(Registration.new(Map.from_struct(registration)), Registerable, label)

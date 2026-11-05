@@ -4,7 +4,10 @@ defmodule Ltix.Deployment do
   immutable `deployment_id` assigned by the platform.
   """
 
+  alias Ltix.Deployable
+  alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidField
+  alias Ltix.Options
 
   @enforce_keys [:deployment_id]
   defstruct [:deployment_id]
@@ -76,6 +79,53 @@ defmodule Ltix.Deployment do
       {:error, error} -> raise error
     end
   end
+
+  # Builds the deployment from a source deployment with its
+  # `Ltix.Deployable` implementation. Returns `{:invalid, reason}` for a
+  # source without an implementation, or whose implementation returns
+  # something other than `{:ok, %Ltix.Deployment{}}` or `{:error, exception}`.
+  @doc false
+  @spec from_source(term()) :: {:ok, t()} | {:error, Exception.t()} | {:invalid, String.t()}
+  def from_source(source) do
+    if Deployable.impl_for(source) do
+      case Deployable.to_deployment(source) do
+        {:ok, %__MODULE__{}} = built ->
+          built
+
+        {:error, error} = failed when is_exception(error) ->
+          failed
+
+        _other ->
+          {:invalid,
+           "the Ltix.Deployable implementation for #{Errors.describe_value(source)} " <>
+             "returned something other than {:ok, %Ltix.Deployment{}} or {:error, exception}"}
+      end
+    else
+      {:invalid,
+       "expected a record that implements Ltix.Deployable, got #{Errors.describe_value(source)}"}
+    end
+  end
+
+  # Same as `from_source/1`, but raises `ArgumentError` for a source that
+  # doesn't convert. The message names `option` when the source was given as
+  # that option.
+  @doc false
+  @spec from_source!(term(), atom() | nil) :: {:ok, t()} | {:error, Exception.t()}
+  def from_source!(source, option \\ nil) do
+    case from_source(source) do
+      {:invalid, reason} when is_nil(option) -> raise ArgumentError, reason
+      {:invalid, reason} -> Options.invalid!(option, reason)
+      result -> result
+    end
+  end
+
+  # Builds the deployment for a `:deployment` option, which is a source
+  # deployment, a deployment ID, or `nil`.
+  @doc false
+  @spec from_source_or_id(term()) :: {:ok, t() | nil} | {:error, Exception.t()}
+  def from_source_or_id(nil), do: {:ok, nil}
+  def from_source_or_id(deployment_id) when is_binary(deployment_id), do: new(deployment_id)
+  def from_source_or_id(source), do: from_source!(source, :deployment)
 
   defp ascii?(string), do: String.printable?(string) && string =~ ~r/\A[\x00-\x7F]*\z/
 

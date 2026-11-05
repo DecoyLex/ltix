@@ -35,6 +35,8 @@ defmodule Ltix.Registration do
   alias Ltix.Errors
   alias Ltix.Errors.Invalid.InvalidField
   alias Ltix.HTTP
+  alias Ltix.Options
+  alias Ltix.Registerable
 
   @fields [:issuer, :client_id, :auth_endpoint, :jwks_uri, :token_endpoint, :audience]
 
@@ -195,6 +197,45 @@ defmodule Ltix.Registration do
 
   defp validate_audience(audience) do
     invalid(:audience, audience, "must be a non-empty string")
+  end
+
+  # Builds the registration from a source registration with its
+  # `Ltix.Registerable` implementation. Returns `{:invalid, reason}` for a
+  # source without an implementation, or whose implementation returns
+  # something other than `{:ok, %Ltix.Registration{}}` or `{:error, exception}`.
+  @doc false
+  @spec from_source(term()) :: {:ok, t()} | {:error, Exception.t()} | {:invalid, String.t()}
+  def from_source(source) do
+    if Registerable.impl_for(source) do
+      case Registerable.to_registration(source) do
+        {:ok, %__MODULE__{}} = built ->
+          built
+
+        {:error, error} = failed when is_exception(error) ->
+          failed
+
+        _other ->
+          {:invalid,
+           "the Ltix.Registerable implementation for #{Errors.describe_value(source)} " <>
+             "returned something other than {:ok, %Ltix.Registration{}} or {:error, exception}"}
+      end
+    else
+      {:invalid,
+       "expected a record that implements Ltix.Registerable, got #{Errors.describe_value(source)}"}
+    end
+  end
+
+  # Same as `from_source/1`, but raises `ArgumentError` for a source that
+  # doesn't convert. The message names `option` when the source was given as
+  # that option.
+  @doc false
+  @spec from_source!(term(), atom() | nil) :: {:ok, t()} | {:error, Exception.t()}
+  def from_source!(source, option \\ nil) do
+    case from_source(source) do
+      {:invalid, reason} when is_nil(option) -> raise ArgumentError, reason
+      {:invalid, reason} -> Options.invalid!(option, reason)
+      result -> result
+    end
   end
 
   defp required(field), do: InvalidField.required(__MODULE__, field)

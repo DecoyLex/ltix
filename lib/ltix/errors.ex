@@ -184,6 +184,19 @@ defmodule Ltix.Errors do
   def combine([error]), do: error
   def combine([_ | _] = errors), do: to_class(errors)
 
+  # Describes a value in an error message by its kind only. Source
+  # registrations and deployments can hold key material.
+  @doc false
+  @spec describe_value(term()) :: String.t()
+  def describe_value(%module{}), do: inspect(module)
+  def describe_value(value) when is_atom(value), do: inspect(value)
+  def describe_value(value) when is_map(value), do: "a map"
+  def describe_value(value) when is_list(value), do: "a list"
+  def describe_value(value) when is_tuple(value), do: "a tuple"
+  def describe_value(value) when is_binary(value), do: "a string"
+  def describe_value(value) when is_number(value), do: "a number"
+  def describe_value(_value), do: "a value of another type"
+
   # Whether `value` is an error defined by Ltix.
   @doc false
   @spec ltix_error?(term()) :: boolean()
